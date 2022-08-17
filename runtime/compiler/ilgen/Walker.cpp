@@ -7120,7 +7120,11 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
    TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
    if (TR::Compiler->om.areValueTypesEnabled() && owningMethod->isFieldQType(cpIndex))
       {
-      printf("Allocation Method: %s \n", comp()->signature());
+         char buffer[256] = {0};
+         sprintf(buffer, "Allocation Method: %s \n", comp()->signature());
+         const char * msg = strdup(buffer);
+         TR_Debug *debug = comp()->findOrCreateDebug();
+         debug->writeToDevLog(msg);
       // cg()->generateDebugCounter("InlineStatistics/Inlined-Allocation-Flattened-Objects", 1, TR::DebugCounter::Free);
       if (!isFieldResolved(comp(), owningMethod, cpIndex, true))
          {
@@ -7135,11 +7139,12 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
       }
 
    TR::SymbolReference * symRef = symRefTab()->findOrCreateShadowSymbol(_methodSymbol, cpIndex, true);
-   storeInstance(symRef);
+   /** AR07 Modified storeInstance method signature */
+   storeInstance(symRef,false);
    }
 
 void
-TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef)
+TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef, bool isFlattenedInstance)
    {
    TR::Symbol * symbol = symRef->getSymbol();
    TR::DataType type = symbol->getDataType();
@@ -7243,8 +7248,18 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef)
    handleSideEffect(node);
 
    if (!genTranslateTT)
-      genTreeTop(node);
+   {
+      TR::TreeTop *tt = genTreeTop(node);
+      if(isFlattenedInstance){
+         char buffer[256] = {0};
+         sprintf(buffer, "Allocation Method: %s and BCI: %d \n", comp()->signature(), node->getByteCodeIndex());
+         const char * msg = strdup(buffer);
+         TR_Debug *debug = comp()->findOrCreateDebug();
+         debug->writeToDevLog(msg);
+         TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Flattened-Fields", symRef, node->getByteCodeIndex()),tt);
 
+      }
+   }
    if (comp()->useCompressedPointers() &&
          (type == TR::Address))
       {
@@ -7371,12 +7386,21 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
                   comp()->getDebug()->getName(loadFieldSymRef), comp()->getDebug()->getName(fieldSymRef),
                   idx, fieldEntry._fieldname, fieldEntry._datatype.getDataType(), fieldEntry._offset);
             }
+         /** AR07 -Debug*/
+         char buffer[512] = {0};
+         sprintf(buffer, "Store flattened field %s to %s \n - field name %s\n",
+                  comp()->getDebug()->getName(loadFieldSymRef), comp()->getDebug()->getName(fieldSymRef), fieldEntry._fieldname);
+         const char * msg = strdup(buffer);
+         TR_Debug *debug = comp()->findOrCreateDebug();
+         debug->writeToDevLog(msg);
+         /** AR07 -Debug End*/
 
          push(address);
          push(value);
 
          loadInstance(loadFieldSymRef);
-         storeInstance(fieldSymRef);
+         /** AR07 Modified storeInstance method signature */
+         storeInstance(fieldSymRef,true);
          }
       }
    }

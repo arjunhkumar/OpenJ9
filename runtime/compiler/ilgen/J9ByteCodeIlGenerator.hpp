@@ -201,7 +201,7 @@ private:
    void         loadMonitorArg();
 
    void         storeInstance(int32_t);
-   void         storeInstance(TR::SymbolReference *);
+   void         storeInstance(TR::SymbolReference *, bool);
    void         storeFlattenableInstance(int32_t);
    void         storeFlattenableInstanceWithHelper(int32_t);
    void         storeStatic(int32_t);
