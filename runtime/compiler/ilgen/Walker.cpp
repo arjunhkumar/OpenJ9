@@ -6781,7 +6781,11 @@ TR_J9ByteCodeIlGenerator::genAconst_init(TR_OpaqueClassBlock *valueTypeClass, in
          newValueNode->setIdentityless(true);
       }
 
+   /** AR07 - Debug*/
    genTreeTop(newValueNode);
+   TR_Debug *debug = comp()->findOrCreateDebug();
+   debug->writeToDevLog("Inlined-Allocation/Aconst-Init");
+   /** AR07 -Debug End*/
    push(newValueNode);
    genFlush(0);
    }
@@ -7116,6 +7120,8 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
    TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
    if (TR::Compiler->om.areValueTypesEnabled() && owningMethod->isFieldQType(cpIndex))
       {
+      printf("Allocation Method: %s \n", comp()->signature());
+      // cg()->generateDebugCounter("InlineStatistics/Inlined-Allocation-Flattened-Objects", 1, TR::DebugCounter::Free);
       if (!isFieldResolved(comp(), owningMethod, cpIndex, true))
          {
          abortForUnresolvedValueTypeOp("putfield", "field");
