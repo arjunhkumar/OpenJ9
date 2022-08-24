@@ -5355,7 +5355,14 @@ TR_J9ByteCodeIlGenerator::loadFlattenableInstance(int32_t cpIndex)
 
    TR::Node * newValueNode = genNodeAndPopChildren(TR::newvalue, flattenedFieldCount + 1, symRefTab()->findOrCreateNewValueSymbolRef(_methodSymbol));
    newValueNode->setIdentityless(true);
-   genTreeTop(newValueNode);
+   TR::TreeTop *tt= genTreeTop(newValueNode);
+   /** AR07 Debug */
+   char buffer[128] = {0};
+   TR_Debug *debug = comp()->findOrCreateDebug();
+   sprintf(buffer, "Flattened value type instance field %s accessed at BCI: %d from the method: %s \n", fieldClassChars,newValueNode->getByteCodeIndex(), comp()->signature() );
+   const char * msg = strdup(buffer);
+   debug->writeToDevLog(msg);
+   TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Access", containingClass, newValueNode->getByteCodeIndex()),tt);
    push(newValueNode);
    genFlush(0);
    return;
@@ -6668,6 +6675,12 @@ TR_J9ByteCodeIlGenerator::genAconst_init(TR_OpaqueClassBlock *valueTypeClass, in
       j9object_t *defaultValueSlotAddress = TR::Compiler->cls.getDefaultValueSlotAddress(comp(), valueTypeClass);
 
       newValueNode = TR::Node::createWithSymRef(TR::aload, 0, comp()->getSymRefTab()->findOrCreateDefaultValueSymbolRef((void *)defaultValueSlotAddress, cpIndex));
+         /** AR07 Debug */
+         char buffer[128] = {0};
+         TR_Debug *debug = comp()->findOrCreateDebug();
+         sprintf(buffer, "Intializing valueClass instance with default values %s at BCI: %d from the method: %s \n", debug->getName(valueClassSymRef),newValueNode->getByteCodeIndex(), comp()->signature() );
+         const char * msg = strdup(buffer);
+         debug->writeToDevLog(msg);
 
       if (comp()->getOption(TR_TraceILGen))
          {
@@ -6684,7 +6697,6 @@ TR_J9ByteCodeIlGenerator::genAconst_init(TR_OpaqueClassBlock *valueTypeClass, in
       for (size_t idx = 0; idx < fieldCount; idx++)
          {
          const TR::TypeLayoutEntry &entry = typeLayout->entry(idx);
-
          if (comp()->getOption(TR_TraceILGen))
             {
             traceMsg(comp(), "Handling aconst_init for valueClass %s valueClassSymRef #%d CPIndex %d\n - field[%d] name %s type %d offset %d\n",
@@ -6782,10 +6794,14 @@ TR_J9ByteCodeIlGenerator::genAconst_init(TR_OpaqueClassBlock *valueTypeClass, in
       }
 
    /** AR07 - Debug*/
-   genTreeTop(newValueNode);
+   TR::TreeTop *tt = genTreeTop(newValueNode);
+   /** AR07 Debug */
+   char buffer[128] = {0};
    TR_Debug *debug = comp()->findOrCreateDebug();
-   debug->writeToDevLog("Inlined-Allocation/Aconst-Init");
-   /** AR07 -Debug End*/
+   sprintf(buffer, "Intializing valueClass instance with default values %s at BCI: %d from the method: %s \n", debug->getName(valueClassSymRef),newValueNode->getByteCodeIndex(), comp()->signature() );
+   const char * msg = strdup(buffer);
+   debug->writeToDevLog(msg);
+   TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-ValuetypeObjects", valueClassSymRef, newValueNode->getByteCodeIndex()),tt);
    push(newValueNode);
    genFlush(0);
    }
@@ -7120,11 +7136,12 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
    TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
    if (TR::Compiler->om.areValueTypesEnabled() && owningMethod->isFieldQType(cpIndex))
       {
-         char buffer[256] = {0};
-         sprintf(buffer, "Allocation Method: %s \n", comp()->signature());
-         const char * msg = strdup(buffer);
-         TR_Debug *debug = comp()->findOrCreateDebug();
-         debug->writeToDevLog(msg);
+         // char buffer[128] = {0};
+         // sprintf(buffer, "Allocation Method: %s \n", comp()->signature());
+         // const char * msg = strdup(buffer);
+         // TR_Debug *debug = comp()->findOrCreateDebug();
+         // debug->writeToDevLog(msg);
+         // cg()->generateDebugCounter(NULL, TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Flattened-Objects", comp()->signature(), node->getByteCodeIndex() ));
       // cg()->generateDebugCounter("InlineStatistics/Inlined-Allocation-Flattened-Objects", 1, TR::DebugCounter::Free);
       if (!isFieldResolved(comp(), owningMethod, cpIndex, true))
          {
@@ -7140,11 +7157,11 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
 
    TR::SymbolReference * symRef = symRefTab()->findOrCreateShadowSymbol(_methodSymbol, cpIndex, true);
    /** AR07 Modified storeInstance method signature */
-   storeInstance(symRef,false);
+   storeInstance(symRef,false,false);
    }
 
 void
-TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef, bool isFlattenedInstance)
+TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef, bool isFlattenedInstance, bool isFirstFieldInstance)
    {
    TR::Symbol * symbol = symRef->getSymbol();
    TR::DataType type = symbol->getDataType();
@@ -7252,12 +7269,15 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef, bool isFla
       TR::TreeTop *tt = genTreeTop(node);
       if(isFlattenedInstance){
          char buffer[256] = {0};
-         sprintf(buffer, "Allocation Method: %s and BCI: %d \n", comp()->signature(), node->getByteCodeIndex());
+         sprintf(buffer, "Allocation Method: %s and BCI: %d for the above flattening operation.\n", comp()->signature(), node->getByteCodeIndex());
          const char * msg = strdup(buffer);
          TR_Debug *debug = comp()->findOrCreateDebug();
          debug->writeToDevLog(msg);
          TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Flattened-Fields", symRef, node->getByteCodeIndex()),tt);
-
+         if(isFirstFieldInstance)
+         {
+            TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-ValuetypeObjects/Inlined", symRef, node->getByteCodeIndex()),tt);
+         }
       }
    }
    if (comp()->useCompressedPointers() &&
@@ -7360,8 +7380,10 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
 
    int len;
    const char *fieldClassChars = owningMethod->fieldSignatureChars(cpIndex, len);
+   /** AR07 Debug */
    TR_OpaqueClassBlock * fieldClass = fej9()->getClassFromSignature(fieldClassChars, len, owningMethod);
-
+   // cg()->generateDebugCounter(NULL, TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Flattened-Objects", comp()->signature(), address->getByteCodeIndex() ));
+   bool firstFieldInstance = true;
    for (size_t idx = 0; idx < fieldCount; idx++)
       {
       const TR::TypeLayoutEntry &fieldEntry = containingClassLayout->entry(idx);
@@ -7388,7 +7410,7 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
             }
          /** AR07 -Debug*/
          char buffer[512] = {0};
-         sprintf(buffer, "Store flattened field %s to %s \n - field name %s\n",
+         sprintf(buffer, "Store flattened field %s to %s - field name %s",
                   comp()->getDebug()->getName(loadFieldSymRef), comp()->getDebug()->getName(fieldSymRef), fieldEntry._fieldname);
          const char * msg = strdup(buffer);
          TR_Debug *debug = comp()->findOrCreateDebug();
@@ -7400,7 +7422,8 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
 
          loadInstance(loadFieldSymRef);
          /** AR07 Modified storeInstance method signature */
-         storeInstance(fieldSymRef,true);
+         storeInstance(fieldSymRef,true,firstFieldInstance);
+         firstFieldInstance=false;
          }
       }
    }
