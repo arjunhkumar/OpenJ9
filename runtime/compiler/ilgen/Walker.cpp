@@ -3053,7 +3053,12 @@ void
 TR_J9ByteCodeIlGenerator::genInvokeSpecial(int32_t cpIndex)
    {
    TR::SymbolReference *methodSymRef = symRefTab()->findOrCreateSpecialMethodSymbol(_methodSymbol, cpIndex);
-
+   TR_Debug *debug = comp()->findOrCreateDebug();
+   const char * msg = comp()->signature();
+   const char * requiredMethod = "BRandom.<init>()V";
+   if(strcmp(requiredMethod,msg)==0){
+      debug->writeToDevLog(msg);
+   }
    genInvokeDirect(methodSymRef);
 
    // In bytecode within an interface, invokespecial instructions calling
@@ -5086,6 +5091,12 @@ TR_J9ByteCodeIlGenerator::runMacro(TR::SymbolReference * symRef)
 void
 TR_J9ByteCodeIlGenerator::loadAuto(TR::DataType type, int32_t slot, bool isAdjunct)
    {
+   TR_Debug *debug = comp()->findOrCreateDebug();
+   const char * msg = comp()->signature();
+   const char * requiredMethod = "BRandom.<init>()V";
+   if(strcmp(requiredMethod,msg)==0){
+      debug->writeToDevLog(msg);
+   }
    if (_argPlaceholderSlot != -1 && _argPlaceholderSlot == slot)
       {
       genArgPlaceholderCall();
@@ -7165,7 +7176,6 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef, bool isFla
    {
    TR::Symbol * symbol = symRef->getSymbol();
    TR::DataType type = symbol->getDataType();
-
    TR::Node * value = pop();
    TR::Node * address = pop();
 
@@ -7536,7 +7546,12 @@ void
 TR_J9ByteCodeIlGenerator::storeAuto(TR::DataType type, int32_t slot, bool isAdjunct)
    {
    TR::Node* storeValue = pop();
-
+   TR_Debug *debug = comp()->findOrCreateDebug();
+   const char * msg = comp()->signature();
+   const char * requiredMethod = "BRandom.<init>()V";
+   if(strcmp(requiredMethod,msg)==0){
+      debug->writeToDevLog(msg);
+   }
    TR::SymbolReference * symRef;
 
    if (storeValue->getDataType() != type && type == TR::Address)
