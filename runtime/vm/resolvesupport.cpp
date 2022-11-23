@@ -511,7 +511,12 @@ tryAgain:
 		goto done;
 	}
 	isResolvedClassAnInterface = (J9AccInterface == (resolvedClass->romClass->modifiers & J9AccInterface));
-
+	/** AR07 Debug point*/
+	// const char * methodNameStr1 = (char *) J9UTF8_DATA(J9ROMNAMEANDSIGNATURE_NAME(nameAndSig));
+	// if(strcmp(methodNameStr1,"lambda$testStream$1") == 0){
+	// 	printf("\nDebug point 09: %s",methodNameStr1);
+	// }
+	/** AR07 Debug point end*/
 	/* Find the method. */
 	lookupOptions |= J9_LOOK_STATIC;
 	if ((resolveFlags & J9_RESOLVE_FLAG_JCL_CONSTANT_POOL) == J9_RESOLVE_FLAG_JCL_CONSTANT_POOL) {
@@ -549,6 +554,12 @@ tryAgain:
 	}
 
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+	/** AR07 Debug point*/
+	// const char * methodNameStr2 = (char *) J9UTF8_DATA(J9ROMNAMEANDSIGNATURE_NAME(nameAndSig));
+	// if(strcmp(methodNameStr2,"lambda$testStream$1") == 0){
+	// 	printf("\nDebug point 08: %s",methodNameStr2);
+	// }
+	/** AR07 Debug point end*/
 	if (resolvedClass == J9VMJAVALANGINVOKEMETHODHANDLE(vmStruct->javaVM)) {
 		J9UTF8 *nameUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
 		/**
@@ -571,6 +582,12 @@ tryAgain:
 		}
 	}
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+	/** AR07 Debug point*/
+	// const char * methodNameStr = (char *) J9UTF8_DATA(J9ROMNAMEANDSIGNATURE_NAME(nameAndSig));
+	// if(strcmp(methodNameStr,"lambda$testStream$1") == 0){
+	// 	printf("\nDebug point 07: %s",methodNameStr);
+	// }
+	/** AR07 Debug point end*/
 	method = (J9Method *)javaLookupMethod(vmStruct, resolvedClass, nameAndSig, cpClass, lookupOptions);
 
 	Trc_VM_resolveStaticMethodRef_lookupMethod(vmStruct, method);

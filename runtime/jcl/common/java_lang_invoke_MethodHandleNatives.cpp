@@ -765,6 +765,15 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(
 		} else {
 			/* Initialize nameObject after creating typeString which could trigger GC */
 			j9object_t nameObject = NULL;
+			/** AR07 Debug Point*/
+			// j9object_t nameObjectd = J9VMJAVALANGINVOKEMEMBERNAME_NAME(currentThread, membernameObject);
+			// J9UTF8 *dname = vmFuncs->copyStringToJ9UTF8WithMemAlloc(currentThread, nameObjectd, 0, "", 0, NULL, 0);
+			// const char * methodDNameD = (char *) J9UTF8_DATA(dname);
+			// if(strcmp(methodDNameD,"lambda$testStream$1") == 0){
+			// 	printf("\nDebug point x: %s",methodDNameD);
+			// }
+			/** AR07 Debug Point*/
+
 			j9object_t typeObject = J9VMJAVALANGINVOKEMEMBERNAME_TYPE(currentThread, membernameObject);
 			j9object_t clazzObject = J9VMJAVALANGINVOKEMEMBERNAME_CLAZZ(currentThread, membernameObject);
 			J9Class *resolvedClass = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, clazzObject);
@@ -772,16 +781,24 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(
 			jint ref_kind = (flags >> MN_REFERENCE_KIND_SHIFT) & MN_REFERENCE_KIND_MASK;
 
 			J9Class *typeClass = J9OBJECT_CLAZZ(currentThread, typeObject);
-
+			/** AR07 Debug point*/
+			// J9UTF8 *debugClassName = J9ROMCLASS_CLASSNAME(resolvedClass->romClass);
+			// const char * debugClassNameStr = ((char *) J9UTF8_DATA(debugClassName));
+			// if(strcmp(methodDNameD,"lambda$testStream$1") == 0){
+			// 	printf("\n Debug className y: %s",debugClassNameStr);
+			// }
+			/** AR07 Debug point end*/
 			/* The type field of a MemberName could be in:
 			 *     MethodType:	MethodType representing method/constructor MemberName's method signature
 			 *     String:		String representing MemberName's signature (field or method)
 			 *     Class:		Class representing field MemberName's field type
 			 */
+			// const char * methodSign = NULL;
 			if (J9VMJAVALANGINVOKEMETHODTYPE(vm) == typeClass) {
 				j9object_t sigString = J9VMJAVALANGINVOKEMETHODTYPE_METHODDESCRIPTOR(currentThread, typeObject);
 				if (NULL != sigString) {
 					signature = vmFuncs->copyStringToJ9UTF8WithMemAlloc(currentThread, sigString, J9_STR_XLAT, "", 0, NULL, 0);
+					// methodSign = (char *) J9UTF8_DATA(signature);
 				} else {
 					signature = getJ9UTF8SignatureFromMethodType(currentThread, typeObject);
 				}
@@ -824,9 +841,8 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(
 
 			j9object_t callerObject = (NULL == caller) ? NULL : J9_JNI_UNWRAP_REFERENCE(caller);
 			J9Class *callerClass = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, callerObject);
-
+			
 			Trc_JCL_java_lang_invoke_MethodHandleNatives_resolve_NAS(env, J9UTF8_LENGTH(name), J9UTF8_DATA(name), J9UTF8_LENGTH(signature), J9UTF8_DATA(signature));
-
 			if (J9_ARE_ANY_BITS_SET(flags, MN_IS_METHOD | MN_IS_CONSTRUCTOR)) {
 				UDATA lookupOptions = 0;
 
@@ -872,6 +888,14 @@ Java_java_lang_invoke_MethodHandleNatives_resolve(
 				}
 
 				/* Check if signature polymorphic native calls */
+				/** AR07 Debug point*/
+				// const char * methodName = (char *) J9UTF8_DATA(name);
+				// if(strcmp(methodName,"lambda$testStream$1") == 0){
+				// 	printf("\nName of method1 s: %s and signature s: %s",methodName,methodSign);
+				// 	methodSign = (char *) J9UTF8_DATA(signature);
+				// 	printf("\nName of method2 s: %s and signature s: %s",methodName,methodSign);
+				// }
+				/** AR07 Debug point end*/
 				J9Method *method = lookupMethod(currentThread, resolvedClass, name, signature, callerClass, lookupOptions);
 
 				/* Check for resolution exception */

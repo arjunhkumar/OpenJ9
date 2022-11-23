@@ -3061,7 +3061,17 @@ fail:
 					J9UTF8 *className = J9ROMCLASS_CLASSNAME(romClass);
 					J9UTF8 *methodName = J9ROMMETHOD_NAME(romMethod);
 					J9UTF8 *methodSig = J9ROMMETHOD_SIGNATURE(romMethod);
-
+					/** AR07 Debug point*/
+					// const char * debugClassName = (char *) J9UTF8_DATA(className);
+					// const char * debugMethodName = (char *) J9UTF8_DATA(methodName);
+					// const char * debugMethodSign = (char *) J9UTF8_DATA(methodSig);
+					// if(strcmp(debugMethodName,"lambda$testStream$1") == 0){
+					// 	J9UTF8 *debugClassNameT = J9ROMCLASS_CLASSNAME(romClass);
+					// 	const char * debugClassNameStr = ((char *)J9UTF8_DATA(debugClassNameT));
+					// 	printf("\n Debug className : %s",debugClassNameStr);
+					// 	printf("\nCreating RAM class; Name of method s: %s and signature s : %s in class : %s ",debugMethodName,debugMethodSign,debugClassName);
+					// }
+					/** AR07 Debug point end*/
 					Trc_VM_internalCreateRAMClassFromROMClass_createRAMMethod(vmThread, J9UTF8_LENGTH(className), J9UTF8_DATA(className), J9UTF8_LENGTH(methodName),
 							J9UTF8_DATA(methodName), J9UTF8_LENGTH(methodSig), J9UTF8_DATA(methodSig), currentRAMMethod);
 

@@ -96,6 +96,7 @@ import sun.security.util.SecurityConstants;
 
 /*[IF JAVA_SPEC_VERSION >= 18]*/
 import jdk.internal.reflect.CallerSensitiveAdapter;
+import jdk.internal.value.PrimitiveClass;
 /*[ENDIF] JAVA_SPEC_VERSION >= 18 */
 
 /**
@@ -5476,7 +5477,6 @@ SecurityException {
 	 */
 	public String descriptorString() {
 		/* see MethodTypeHelper.getBytecodeStringName */
-
 		if (this.isPrimitive()) {
 			if (this == int.class) {
 				return "I"; //$NON-NLS-1$
@@ -5517,8 +5517,15 @@ SecurityException {
 		}
 /*[IF INLINE-TYPES]*/
 		else if (this.isPrimitiveClass()) {
-			name = new StringBuilder(name.length() + 2).
+			if(PrimitiveClass.isPrimaryType(this)){
+				// System.out.println("Custom descriptor modification");
+				name = new StringBuilder(name.length() + 2).
+				append('L').append(name).append(';').toString();
+			}else{
+				name = new StringBuilder(name.length() + 2).
 				append('Q').append(name).append(';').toString();
+			}
+			
 		}
 /*[ENDIF] INLINE-TYPES */
 		else {

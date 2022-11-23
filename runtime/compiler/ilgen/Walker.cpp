@@ -5370,7 +5370,12 @@ TR_J9ByteCodeIlGenerator::loadFlattenableInstance(int32_t cpIndex)
    /** AR07 Debug */
    char buffer[128] = {0};
    TR_Debug *debug = comp()->findOrCreateDebug();
-   sprintf(buffer, "Flattened value type instance field %s accessed at BCI: %d from the method: %s \n", fieldClassChars,newValueNode->getByteCodeIndex(), comp()->signature() );
+   // sprintf(buffer,"Method %s and node %d",comp()->signature(),newValueNode->getByteCodeIndex());
+   if(fieldClassChars == NULL){
+     sprintf(buffer, "Flattened instance field accessed at BCI: %d from the method: %s \n", newValueNode->getByteCodeIndex(), comp()->signature());
+   }else{
+     sprintf(buffer, "Flattened instance field %s accessed at BCI: %d from the method: %s \n",fieldClassChars, newValueNode->getByteCodeIndex(), comp()->signature());
+   }
    const char * msg = strdup(buffer);
    debug->writeToDevLog(msg);
    TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Access", containingClass, newValueNode->getByteCodeIndex()),tt);
@@ -7387,6 +7392,7 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
       if (!strncmp(fieldNamePrefix, fieldEntry._fieldname, prefixLen))
          {
          auto * fieldSymRef = comp()->getSymRefTab()->findOrFabricateShadowSymbol(containingClass,
+                                                       
                                                                      fieldEntry._datatype,
                                                                      fieldEntry._offset,
                                                                      fieldEntry._isVolatile,

@@ -607,6 +607,16 @@ compareMethodNameAndSignature(
 		U_8 *aNameData, U_16 aNameLength, U_8 *aSigData, U_16 aSigLength,
 		U_8 *bNameData, U_16 bNameLength, U_8 *bSigData, U_16 bSigLength) 
 {
+	const char * methodName = (char *)bNameData;
+	const char * signatureName = (char *)bSigData;
+	/** AR07 Debug point*/
+	// if(strcmp(methodName,"lambda$testStream$1") == 0){
+	// 				const char * methodNameCurr = (char *)aNameData;
+	// 				const char * signatureNameCurr = (char *)aSigData;
+	// 				printf("\nName of method b: %s and signature b : %s",methodName,signatureName);
+	// 				printf("\nName of method a: %s and signature a: %s",methodNameCurr,signatureNameCurr);
+	// }
+	/** AR07 Debug end point*/
 	if (aNameLength != bNameLength) {
 		return aNameLength > bNameLength ? 1 : -1;
 	} else if (aSigLength != bSigLength) {
