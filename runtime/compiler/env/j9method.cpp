@@ -6777,6 +6777,12 @@ bool
 TR_ResolvedJ9Method::staticsAreSame(I_32 cpIndex1, TR_ResolvedMethod * m2, I_32 cpIndex2, bool &sigSame)
    {
    TR_J9VMBase *fej9 = (TR_J9VMBase *)_fe;
+   /** AR07 - Debug point */
+   // if(strcmp(m2->classNameChars(),"org/graalvm/svm/objectinlining/utils/ValueActor") == 0) 
+   // {
+   //    printf("\nDebugging for class: %s",m2->classNameChars());
+   // }
+   /** AR07 - Debug point end*/
    if (!fej9->sameClassLoaders(classOfMethod(), m2->classOfMethod()))
       return false;
 

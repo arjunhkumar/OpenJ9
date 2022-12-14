@@ -419,10 +419,32 @@ findField(J9VMThread *vmStruct, J9ConstantPool *constantPool, UDATA index, BOOLE
 	J9UTF8 *classNameUTF;
 	J9Class *clazz;
 	UDATA result = 0;
-
 	*declaringClass = NULL;
 	romRef = (J9ROMFieldRef*) &(((J9ROMConstantPoolItem*) constantPool->romConstantPool)[index]);
 	classRefCPIndex = romRef->classRefCPIndex;
+	J9ROMNameAndSignature *nameAndSig = J9ROMFIELDREF_NAMEANDSIGNATURE(romRef);
+	J9UTF8 *signature = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+	J9UTF8 *name = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
+	/** AR07 Debug point*/
+	// constantPool->romConstantPool->slot1->
+	// UDATA constantPoolSize = UDATA(constantPool->getROMConstantPoolCount()) * sizeof(J9ROMConstantPoolItem);
+	// const char * debugClassName = (char *) J9UTF8_DATA(name);
+	// const char * debugMethodSign = (char *) J9UTF8_DATA(signature); 
+	// if(strcmp(debugClassName,"PRIMITIVE_TO_WRAPPER_TYPE") == 0){
+	// 	printf("\nName of field: %s and signature: %s",debugClassName,debugMethodSign);
+	// }
+	
+	// classRef = (J9ROMClassRef*) &(((J9ROMConstantPoolItem*) constantPool->romConstantPool)[classRefCPIndex]);
+	// if(classRef != NULL){
+	// 	J9SRP refName = classRef->name;
+	// 	if (refName) {
+	// 		debugClassName = (char *) J9UTF8_DATA(name);
+	// 	}else{
+	// 		printf("\nDebugClassName: %s",debugClassName);
+	// 		printf("\nclassRef: %p",classRef);
+	// 	}
+	// }
+	/** AR07 Debug end point*/
 	classRef = (J9ROMClassRef*) &(((J9ROMConstantPoolItem*) constantPool->romConstantPool)[classRefCPIndex]);
 	classNameUTF = J9ROMCLASSREF_NAME(classRef);
 	clazz = javaVM->internalVMFunctions->internalFindClassUTF8(vmStruct, J9UTF8_DATA(classNameUTF),
@@ -431,7 +453,6 @@ findField(J9VMThread *vmStruct, J9ConstantPool *constantPool, UDATA index, BOOLE
 		J9ROMNameAndSignature *nameAndSig = J9ROMFIELDREF_NAMEANDSIGNATURE(romRef);
 		J9UTF8 *signature = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
 		J9UTF8 *name = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
-
 		if (!isStatic) {
 			UDATA instanceField;
 			IDATA offset = javaVM->internalVMFunctions->instanceFieldOffset(
@@ -502,13 +523,53 @@ jitFieldsAreIdentical (J9VMThread *vmStruct, J9ConstantPool *cp1, UDATA index1, 
 	}
 	if (compareFields) {
 		J9Class *c1 = NULL;
+		// J9ROMFieldRef *romRef = (J9ROMFieldRef*) &(((J9ROMConstantPoolItem*) cp1->romConstantPool)[index1]);
+		// J9ROMNameAndSignature *nameAndSig = J9ROMFIELDREF_NAMEANDSIGNATURE(romRef);
+		// J9UTF8 *signature = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+		// J9UTF8 *name = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
+		// char * debugClassName = (char *) J9UTF8_DATA(name);
+		// char * debugMethodSign = (char *) J9UTF8_DATA(signature);
+		// J9UTF8 *dbClassName = NNSRP_GET(cp1->ramClass->romClass->className, J9UTF8*);
+		// char * dbClassNameChars = (char *) J9UTF8_DATA(dbClassName);
+		// if(strcmp(dbClassNameChars,"org/graalvm/svm/objectinlining/utils/ValueActor") == 0)
+		// {
+		// 	// J9ROMConstantPoolItem* debugItem = &(((J9ROMConstantPoolItem*) cp1->romConstantPool)[8]);
+		// 	U_32 * cpShapeDescription = J9ROMCLASS_CPSHAPEDESCRIPTION(cp2->ramClass->romClass);
+		// 	U_32 shapeDesc = J9_CP_TYPE(cpShapeDescription, index2);
+		// 	printf("CP SHAPE %d\n",shapeDesc);
+		// 	printf("\nName of field: %s and signature: %s in class %s",debugClassName,debugMethodSign,dbClassNameChars);
+		// }
 		UDATA f1 = findField(vmStruct, cp1, index1, isStatic, &c1);
 		if (0 != f1) {
 			J9Class *c2 = NULL;
-			UDATA f2 = findField(vmStruct, cp2, index2, isStatic, &c2);
+			/** AR07 Debug point*/
+			// romRef = (J9ROMFieldRef*) &(((J9ROMConstantPoolItem*) cp2->romConstantPool)[index2]);
+			// nameAndSig = J9ROMFIELDREF_NAMEANDSIGNATURE(romRef);
+			// signature = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+			// name = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
+			// debugClassName = (char *) J9UTF8_DATA(name);
+			// debugMethodSign = (char *) J9UTF8_DATA(signature);
+			// dbClassName = NNSRP_GET(cp2->ramClass->romClass->className, J9UTF8*);
+			// dbClassNameChars = (char *) J9UTF8_DATA(dbClassName);
+			// if(strcmp(dbClassNameChars,"org/graalvm/svm/objectinlining/utils/ValueActor") == 0)
+			// {
+			// 	// J9ROMConstantPoolItem* debugItem = &(((J9ROMConstantPoolItem*) cp1->romConstantPool)[8]);
+				
+			// 	printf("CP SHAPE %d\n",shapeDesc);
+			// 	printf("\nName of field: %s and signature: %s in class %s",debugClassName,debugMethodSign,dbClassNameChars);
+			// }
+			/** AR07 Debug point*/
+			/** Fix for illegal casting of CP Item*/
+			U_32 * cpShapeDescription = J9ROMCLASS_CPSHAPEDESCRIPTION(cp2->ramClass->romClass);
+			U_32 shapeDesc = J9_CP_TYPE(cpShapeDescription, index2);
+			UDATA f2 = 0;
+			if(shapeDesc == J9CPTYPE_FIELD){
+				f2 = findField(vmStruct, cp2, index2, isStatic, &c2);
+			}
 			if (0 != f2) {
 					identical = ((f1 == f2) && (c1 == c2));
 			}
+			/** Fix for illegal casting of CP Item End*/
 		}
 	}		
 	return identical;	

@@ -5366,19 +5366,19 @@ TR_J9ByteCodeIlGenerator::loadFlattenableInstance(int32_t cpIndex)
 
    TR::Node * newValueNode = genNodeAndPopChildren(TR::newvalue, flattenedFieldCount + 1, symRefTab()->findOrCreateNewValueSymbolRef(_methodSymbol));
    newValueNode->setIdentityless(true);
-   TR::TreeTop *tt= genTreeTop(newValueNode);
+   // TR::TreeTop *tt= genTreeTop(newValueNode);
    /** AR07 Debug */
-   char buffer[128] = {0};
-   TR_Debug *debug = comp()->findOrCreateDebug();
-   // sprintf(buffer,"Method %s and node %d",comp()->signature(),newValueNode->getByteCodeIndex());
-   if(fieldClassChars == NULL){
-     sprintf(buffer, "Flattened instance field accessed at BCI: %d from the method: %s \n", newValueNode->getByteCodeIndex(), comp()->signature());
-   }else{
-     sprintf(buffer, "Flattened instance field %s accessed at BCI: %d from the method: %s \n",fieldClassChars, newValueNode->getByteCodeIndex(), comp()->signature());
-   }
-   const char * msg = strdup(buffer);
-   debug->writeToDevLog(msg);
-   TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Access", containingClass, newValueNode->getByteCodeIndex()),tt);
+   // char buffer[128] = {0};
+   // TR_Debug *debug = comp()->findOrCreateDebug();
+   // // sprintf(buffer,"Method %s and node %d",comp()->signature(),newValueNode->getByteCodeIndex());
+   // if(fieldClassChars == NULL){
+   //   sprintf(buffer, "Flattened instance field accessed at BCI: %d from the method: %s \n", newValueNode->getByteCodeIndex(), comp()->signature());
+   // }else{
+   //   sprintf(buffer, "Flattened instance field %s accessed at BCI: %d from the method: %s \n",fieldClassChars, newValueNode->getByteCodeIndex(), comp()->signature());
+   // }
+   // const char * msg = strdup(buffer);
+   // debug->writeToDevLog(msg);
+   // TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Access", containingClass, newValueNode->getByteCodeIndex()),tt);
    push(newValueNode);
    genFlush(0);
    return;
