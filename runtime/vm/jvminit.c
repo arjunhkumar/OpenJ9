@@ -2520,7 +2520,12 @@ VMInitStages(J9JavaVM *vm, IDATA stage, void* reserved)
 				GET_INTEGER_VALUE(argIndex, optname, threshold);
 				vm->valueFlatteningThreshold = threshold;
 			}
-
+			/** AR07 - Modifying the threshold condition by the line size of data cache. */
+			else 
+			{
+				vm->valueFlatteningThreshold = vm->dCacheLineSize;
+			}
+			/** AR07 End - Modifying the threshold condition by the line size of data cache. */
 			{
 				IDATA enableFlattenedArrays = FIND_AND_CONSUME_ARG(EXACT_MATCH, VMOPT_VTARRAYFLATTENING_EQUALS, NULL);
 				IDATA disableFlattenedArrays = FIND_AND_CONSUME_ARG(EXACT_MATCH, VMOPT_VTDISABLEARRAYFLATTENING_EQUALS, NULL);

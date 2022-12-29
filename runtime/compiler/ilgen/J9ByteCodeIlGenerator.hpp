@@ -259,7 +259,7 @@ private:
    void         handlePendingPushSaveSideEffects(TR::Node *, TR::NodeChecklist&, int32_t stackSize = -1);
    void         handleSideEffect(TR::Node *);
    bool         valueMayBeModified(TR::Node *, TR::Node *);
-   TR::Node *    genCompressedRefs(TR::Node *, bool genTT = true, int32_t isLoad = 1);
+   TR::Node *    genCompressedRefs(TR::Node *, bool genTT = true, int32_t isLoad = 1, bool prependDC = false, bool isValueInstanceCount = false);
    void         abortForUnresolvedValueTypeOp(const char* bytecodeName, const char* refType);
 
    // IlGenerator

@@ -2528,9 +2528,9 @@ TR_J9ByteCodeIlGenerator::genInstanceof(int32_t cpIndex)
       }
    _methodSymbol->setHasInstanceOfs(true);
    }
-
+/** Modified to append debug counters for flattened value type instance objects. */
 TR::Node *
-TR_J9ByteCodeIlGenerator::genCompressedRefs(TR::Node * address, bool genTT, int32_t isLoad)
+TR_J9ByteCodeIlGenerator::genCompressedRefs(TR::Node * address, bool genTT, int32_t isLoad, bool isPrependDC, bool isValueInstance)
       {
    static char *pEnv = feGetEnv("TR_UseTranslateInTrees");
 
@@ -2545,7 +2545,14 @@ TR_J9ByteCodeIlGenerator::genCompressedRefs(TR::Node * address, bool genTT, int3
 
    if (!pEnv && genTT)
       {
-      genTreeTop(newAddress);
+      TR::TreeTop * tt = genTreeTop(newAddress);
+      if(isPrependDC) {
+         TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-FlattenedFields", newAddress->getByteCodeIndex()),tt);
+         if(isValueInstance)
+         {
+            TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-ValuetypeObjects", newAddress->getByteCodeIndex()),tt);
+         }
+      }
       return NULL;
       }
    else
@@ -5366,7 +5373,7 @@ TR_J9ByteCodeIlGenerator::loadFlattenableInstance(int32_t cpIndex)
 
    TR::Node * newValueNode = genNodeAndPopChildren(TR::newvalue, flattenedFieldCount + 1, symRefTab()->findOrCreateNewValueSymbolRef(_methodSymbol));
    newValueNode->setIdentityless(true);
-   // TR::TreeTop *tt= genTreeTop(newValueNode);
+   TR::TreeTop *tt= genTreeTop(newValueNode);
    /** AR07 Debug */
    // char buffer[128] = {0};
    // TR_Debug *debug = comp()->findOrCreateDebug();
@@ -5378,7 +5385,7 @@ TR_J9ByteCodeIlGenerator::loadFlattenableInstance(int32_t cpIndex)
    // }
    // const char * msg = strdup(buffer);
    // debug->writeToDevLog(msg);
-   // TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Access", containingClass, newValueNode->getByteCodeIndex()),tt);
+   TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Field-Access", containingClass, newValueNode->getByteCodeIndex()),tt);
    push(newValueNode);
    genFlush(0);
    return;
@@ -7276,10 +7283,10 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef, bool isFla
          const char * msg = strdup(buffer);
          TR_Debug *debug = comp()->findOrCreateDebug();
          debug->writeToDevLog(msg);
-         TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-Flattened-Fields", symRef, node->getByteCodeIndex()),tt);
+         TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-FlattenedFields", symRef, node->getByteCodeIndex()),tt);
          if(isFirstFieldInstance)
          {
-            TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-ValuetypeObjects/Inlined", symRef, node->getByteCodeIndex()),tt);
+            TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-ValuetypeObjects", symRef, node->getByteCodeIndex()),tt);
          }
       }
    }
@@ -7299,15 +7306,44 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef, bool isFla
          // returns non-null if the compressedRefs anchor is going to
          // be part of the subtrees (for now, it is a treetop)
          //
-         TR::Node *newValue = genCompressedRefs(storeValue, true, -1);
+         /** Commented to add debug counters for value type objects. */
+         // TR::Node *newValue = genCompressedRefs(storeValue, true, -1);
+         /** AR07 Custom debug counter for counting value type objects */
+         TR::Node *newValue = NULL;
+         if(isFlattenedInstance){
+            char buffer[256] = {0};
+            sprintf(buffer, "Allocation Method: %s and BCI: %d for the above flattening operation.\n", comp()->signature(), node->getByteCodeIndex());
+            const char * msg = strdup(buffer); 
+            TR_Debug *debug = comp()->findOrCreateDebug();
+            debug->writeToDevLog(msg);
+            newValue = genCompressedRefs(storeValue, true, -1,true,isFirstFieldInstance);
+         }else{
+            newValue = genCompressedRefs(storeValue, true, -1);
+         }
+         /** AR07 End Custom debug counter for counting value type objects */
          if (newValue)
             {
             node->getSecondChild()->decReferenceCount();
             node->setAndIncChild(1, newValue);
             }
          }
-      else
+      else 
          genTreeTop(node);
+         /** AR07 Custom debug counter for counting value type objects */
+         // if(isFlattenedInstance){
+         //    char buffer[256] = {0};
+         //    sprintf(buffer, "Allocation Method: %s and BCI: %d for the above flattening operation.\n", comp()->signature(), node->getByteCodeIndex());
+         //    const char * msg = strdup(buffer); 
+         //    TR_Debug *debug = comp()->findOrCreateDebug();
+         //    debug->writeToDevLog(msg);
+         //    TR::TreeTop *tt = TR::TreeTop::create(comp(), node);
+         //    TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-FlattenedFields", symRef, storeValue->getByteCodeIndex()),tt);
+         //    if(isFirstFieldInstance)
+         //    {
+         //       TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-ValuetypeObjects", symRef, storeValue->getByteCodeIndex()),tt);
+         //    }
+         // }
+         /** AR07 End Custom debug counter for counting value type objects */
       }
    }
 

@@ -2283,15 +2283,17 @@ nativeOOM:
 			}
 		}
 
-		if (J9ROMCLASS_IS_VALUE(romClass)) {
+		if (J9ROMCLASS_IS_VALUE(romClass)) {//javaVM->dCacheLineSize() 
 			classFlags |= J9ClassIsValueType;
 			if (J9ROMCLASS_IS_PRIMITIVE_VALUE_TYPE(romClass)) {
 				UDATA instanceSize = state->ramClass->totalInstanceSize;
 				classFlags |= J9ClassIsPrimitiveValueType;
+				/** Modifying the flattening condition */
 				if ((instanceSize <= javaVM->valueFlatteningThreshold)
 					&& !J9ROMCLASS_IS_CONTENDED(romClass)
 				) {
 					Trc_VM_CreateRAMClassFromROMClass_valueTypeIsFlattened(vmThread, J9UTF8_LENGTH(className), J9UTF8_DATA(className), state->ramClass);
+					// printf("Class: %s\n",J9UTF8_DATA(className));
 					classFlags |= J9ClassIsFlattened;
 				}
 				if (J9_ARE_ALL_BITS_SET(state->valueTypeFlags, J9ClassCanSupportFastSubstitutability)) {
