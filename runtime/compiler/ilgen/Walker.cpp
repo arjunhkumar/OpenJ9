@@ -5172,7 +5172,16 @@ TR_J9ByteCodeIlGenerator::loadInstance(TR::SymbolReference * symRef)
    {
    TR::Symbol * symbol = symRef->getSymbol();
    TR::DataType type = symbol->getDataType();
-
+   /** AR07 Debug point */
+   if(strncmp(comp()->getDebug()->getName(symRef),"java/",5) 
+      && strncmp(comp()->getDebug()->getName(symRef),"javax/",6)
+      && strncmp(comp()->getDebug()->getName(symRef),"jdk/",3)
+      && strncmp(comp()->getDebug()->getName(symRef),"sun/",3)
+      && strncmp(comp()->getDebug()->getName(symRef),"com/sun",7))
+   {
+      comp()->getDebug()->prependHotFieldCounter(comp()->getDebug()->getName(symRef));
+      // comp()->getDebug()->getName(symRef));
+   }
    TR::Node * address = pop();
 
    if (!symRef->isUnresolved() &&

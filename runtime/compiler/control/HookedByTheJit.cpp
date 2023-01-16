@@ -1707,6 +1707,16 @@ static void accumulateAndPrintDebugCounters(J9JITConfig *jitConfig)
       }
    }
 
+/** AR07 Debug : Print hotFieldCounts */
+static void printHotFieldCounts()
+{
+   // TR_Debug *debug = TR::Options::getDebug();
+   // if (debug)
+   // {
+      TR_Debug::printHotFieldCounters();
+   // }
+}
+
 static void jitHookThreadStart(J9HookInterface * * hookInterface, UDATA eventNum, void * eventData, void * userData)
    {
 #if defined(TR_HOST_POWER)
@@ -4369,8 +4379,9 @@ void JitShutdown(J9JITConfig * jitConfig)
 #endif
 
    TR_DebuggingCounters::report();
+   /** AR07 Debug - Print hotfield counts*/
    accumulateAndPrintDebugCounters(jitConfig);
-
+   printHotFieldCounts();
    // TODO:JSR292: Delete or protect with env var
    /*
    TR_FrontEnd *fe = TR_J9VMBase::get(jitConfig, vmThread);
