@@ -2393,6 +2393,7 @@ prependHotFieldCounter(J9VMThread *vmThread, J9ROMFieldRef * romField)
 		newHotfield->count=1;
 		newHotfield->nextField = NULL;
 		hsList->fieldData = newHotfield;
+		vmThread->javaVM->hotFieldList = hsList;
 	}
 	else
 	{
