@@ -7155,7 +7155,9 @@ retry:
 		J9RAMFieldRef *ramFieldRef = ((J9RAMFieldRef*)ramConstantPool) + index;
 		UDATA const flags = ramFieldRef->flags;
 		UDATA const valueOffset = ramFieldRef->valueOffset;
-
+		/*AR07 - Profiling field references */
+		J9ROMFieldRef * romFieldRef = (J9ROMFieldRef *)&ramConstantPool->romConstantPool[index];
+		prependHotFieldCounter(_currentThread,romFieldRef);
 		if (J9_UNEXPECTED(!VM_VMHelpers::instanceFieldRefIsResolved(flags, valueOffset))) {
 			/* Unresolved */
 			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);

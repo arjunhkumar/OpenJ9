@@ -1429,6 +1429,8 @@ TR::Register *J9::X86::TreeEvaluator::newEvaluator(TR::Node *node, TR::CodeGener
    {
    TR::Compilation *comp = cg->comp();
    TR::Register *targetRegister = NULL;
+   /** AR07 Custom debug counter for counting heap allocated objects */
+   cg->generateDebugCounter(NULL, TR::DebugCounter::debugCounterName(cg->comp(), "InlineStatistics/Object-Allocation", cg->comp()->signature(), node->getByteCodeIndex()));
 
    if (TR::TreeEvaluator::requireHelperCallValueTypeAllocation(node, cg))
       {

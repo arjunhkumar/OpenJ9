@@ -4878,6 +4878,14 @@ detachVMFromOMR(J9JavaVM *vm);
 UDATA
 pushReflectArguments(J9VMThread *currentThread, j9object_t parameterTypes, j9object_t arguments);
 
+/**
+ * AR07 - Hot field counters profiling 
+ *
+ * @param currentThread
+ */
+void 
+prependHotFieldCounter(J9VMThread *vmThread, J9ROMFieldRef * romField);
+
 #if JAVA_SPEC_VERSION >= 19
 /**
  * Pop off the Callin frame from stack and update thread states.

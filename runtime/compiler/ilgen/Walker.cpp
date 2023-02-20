@@ -6820,7 +6820,9 @@ TR_J9ByteCodeIlGenerator::genAconst_init(TR_OpaqueClassBlock *valueTypeClass, in
          newValueNode->setIdentityless(true);
       }
 
-   genTreeTop(newValueNode);
+   /** AR07 Debug - Counting value type object instanstations */
+   TR::TreeTop * tt = genTreeTop(newValueNode);
+   TR::DebugCounter::prependDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "InlineStatistics/Inlined-Allocation-ValueObjects", valueClassSymRef, newValueNode->getByteCodeIndex()),tt);
    push(newValueNode);
    genFlush(0);
    }
@@ -7415,7 +7417,7 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
     * ---- stack after: empty -----------------
     */
    TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
-
+   // comp()->j9VMThread()->javaVM->hotFieldList
    int32_t prefixLen = 0;
    char * fieldNamePrefix = getTopLevelPrefixForFlattenedFields(owningMethod, cpIndex, prefixLen, comp()->trMemory()->currentStackRegion());
 

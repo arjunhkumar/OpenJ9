@@ -5745,6 +5745,8 @@ typedef struct J9JavaVM {
 	UDATA verificationMaxStack;
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	UDATA dCacheLineSize;
+	/** AR07 - Profiler for hot field info */
+	struct HotFieldDataList * hotFieldList;
 	/* Indicates processor support for committing cache lines to memory. On X86,
 	 * examples would be CLFLUSH or CLWB instructions. This field takes the value
 	 * of the feature constants listed in j9port.h
@@ -5972,6 +5974,19 @@ typedef struct J9JITWatchedStaticFieldData {
 	void *fieldAddress;		/* Address of static field storage */
 	J9Class *fieldClass;	/* Declaring class of static field */
 } J9JITWatchedStaticFieldData;
+
+/* AR07 - Special field counter list for profiling reference invocations */
+typedef struct HotFieldDataList {
+	UDATA listSize;
+   	struct HotFieldMetadata * fieldData;
+} HotFieldDataList;
+
+/* AR07 - DS for profiling reference invocations */
+typedef struct HotFieldMetadata {
+	UDATA     count;
+	J9ROMFieldRef * field;
+	struct HotFieldMetadata * nextField;
+} HotFieldMetadata;
 
 /* The C stack frame in which compiled code runs */
 

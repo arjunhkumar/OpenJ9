@@ -2283,7 +2283,7 @@ nativeOOM:
 			}
 		}
 
-		if (J9ROMCLASS_IS_VALUE(romClass)) {//javaVM->dCacheLineSize() 
+		if (J9ROMCLASS_IS_VALUE(romClass)) {
 			classFlags |= J9ClassIsValueType;
 			if (J9ROMCLASS_IS_PRIMITIVE_VALUE_TYPE(romClass)) {
 				UDATA instanceSize = state->ramClass->totalInstanceSize;

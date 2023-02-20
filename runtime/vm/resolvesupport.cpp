@@ -932,6 +932,7 @@ resolveInstanceFieldRefInto(J9VMThread *vmStruct, J9Method *method, J9ConstantPo
 	Trc_VM_resolveInstanceFieldRef_Entry(vmStruct, method, ramCP, cpIndex, resolveFlags, resolvedField);
 	
 	/* Get the class.  Stop immediately if an exception occurs. */
+	/** AR07 Marker */
 	romFieldRef = (J9ROMFieldRef *)&ramCP->romConstantPool[cpIndex];
 	/* Resolve the class. */
 	resolvedClass = resolveClassRef(vmStruct, ramCP, romFieldRef->classRefCPIndex, resolveFlags);
@@ -2328,3 +2329,84 @@ resolveUpcallInvokeHandle(J9VMThread *vmThread, J9UpcallMetaData *data)
 	Trc_VM_resolveUpcallInvokeHandle_Exit(vmThread, invokeCache);
 }
 #endif /* JAVA_SPEC_VERSION >= 16 */
+
+
+bool 
+compareFieldMetadata(J9ROMFieldRef * romField1, J9ROMFieldRef * romField2)
+{
+	if(romField1 && romField2)
+	{
+		J9ROMNameAndSignature *nameAndSig1 = J9ROMFIELDREF_NAMEANDSIGNATURE(romField1);
+		J9UTF8 *signature1 = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig1);
+		const char * signature1Str = ((char *) J9UTF8_DATA(signature1));
+		J9UTF8 *name1 = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig1);
+		const char * name1Str = ((char *) J9UTF8_DATA(name1));
+		U_32 classRefCPIndex1 = romField1->classRefCPIndex;
+
+		J9ROMNameAndSignature *nameAndSig2 = J9ROMFIELDREF_NAMEANDSIGNATURE(romField2);
+		J9UTF8 *signature2 = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig2);
+		const char * signature2Str = ((char *) J9UTF8_DATA(signature2));
+		J9UTF8 *name2 = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig2);
+		const char * name2Str = ((char *) J9UTF8_DATA(name2));
+		U_32 classRefCPIndex2 = romField2->classRefCPIndex;
+
+		return ((strcmp(signature1Str,signature2Str)==0) && (strcmp(name1Str,name2Str)==0) && 
+		classRefCPIndex1 == classRefCPIndex2);
+	}
+	return false;
+}
+
+/** AR07 Debug - counter for hotfields */
+void 
+prependHotFieldCounter(J9VMThread *vmThread, J9ROMFieldRef * romField)
+{
+	HotFieldDataList * hsList = vmThread->javaVM->hotFieldList;
+	if(!romField) 
+	{
+		printf("Invalid field key\n");
+		return;
+	}
+	// J9ROMNameAndSignature *nameAndSig = J9ROMFIELDREF_NAMEANDSIGNATURE(romField);
+	// J9UTF8 *signature = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+	// J9UTF8 *name = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
+	// U_32 classRefCPIndex = romField->classRefCPIndex;
+
+	if(hsList && (hsList->listSize>0))
+	{
+		HotFieldMetadata * hotField = hsList->fieldData;
+		for (UDATA i = 0; i < hsList->listSize; i++)
+		{
+			if(compareFieldMetadata(romField,hotField->field))
+			{
+				hotField->count++;
+				return;
+			}
+			hotField = hotField->nextField;
+		}
+	}
+	if(!hsList)
+	{
+		hsList = (HotFieldDataList *) malloc(sizeof(HotFieldDataList));
+		hsList->listSize=1;
+		HotFieldMetadata * newHotfield = (HotFieldMetadata *)malloc(sizeof(HotFieldMetadata));
+		newHotfield->field=romField;
+		newHotfield->count=1;
+		newHotfield->nextField = NULL;
+		hsList->fieldData = newHotfield;
+	}
+	else
+	{
+		HotFieldMetadata * hotField = hsList->fieldData;
+		for (UDATA i = 0; i < hsList->listSize-1; i++)
+		{
+			hotField = hotField->nextField;
+		}
+		HotFieldMetadata * newHotfield = (HotFieldMetadata *)malloc(sizeof(HotFieldMetadata));
+		newHotfield->field=romField;
+		newHotfield->count=1;
+		newHotfield->nextField = NULL;
+		hotField->nextField = newHotfield;
+		++hsList->listSize;
+	}
+}
+
