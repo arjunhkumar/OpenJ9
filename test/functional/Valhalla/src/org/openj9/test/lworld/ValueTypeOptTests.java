@@ -29,10 +29,10 @@ import org.testng.annotations.BeforeClass;
 
 @Test(groups = { "level.sanity" })
 public class ValueTypeOptTests {
-	public primitive static class Point {
-		public final double x, y;
+	public primitive static class Pair {
+		public final int x, y;
 
-		public Point(double x, double y) {
+		public Pair(int x, int y) {
 			this.x = x; this.y = y;
 		}
 	}
@@ -45,29 +45,28 @@ public class ValueTypeOptTests {
 		}
 	}
 
-	public static double result = 0.0;
-	public static Point[] arr = new Point[] { new Point(3.0, 4.0) };
+	public static int result = 0;
+	public static Pair[] arr = new Pair[] { new Pair(3, 4) };
 
 	@Test(priority=1)
 	static public void testEAOpportunity1() throws Throwable {
-		result = 0.0;
+		result = 0;
 
 		evalTestEA1();
 		evalTestEA1();
-		assertEquals(result, 1000.0);
 
-		result = 0.0;
+		assertEquals(result, 1000);
 	}
 
 	static private void evalTestEA1() {
 		// Test situation where EA could apply to value p1, but must
 		// allocate contiguously
 		for (int i = 0; i < 100; i++) {
-			Point p1 = new Point(1.0, 2.0);
-			Point p2 = arr[0];
+			Pair p1 = new Pair(1, 2);
+			Pair p2 = arr[0];
 
-			Point p3;
-			Point p4;
+			Pair p3;
+			Pair p4;
 
 			if (i % 2 == 0) {
 				p3 = p2;
@@ -76,33 +75,55 @@ public class ValueTypeOptTests {
 				p3 = p1;
 				p4 = p2;
 			}
-			result += p1.x + p2.y;
+			result += p3.x + p4.y;
 		}
 	}
 
 	@Test(priority=1)
 	static public void testEAOpportunity2() throws Throwable {
+		result = 0;
+
 		evalTestEA2();
 		evalTestEA2();
+
+		assertEquals(result, 400);
 	}
 
-	public static Point testEA2Field;
+	public static Pair testEA2Field;
 
 	static private void evalTestEA2() {
-		double x = 0.5; double y = 2.0;
+		int x = 1; int y = 2;
 
 		for (int i = 0; i < 100; i++) {
-			Point p1 = new Point(x, y);
-			double updatex = -x*y*x;
-			double updatey = x*y*y;
+			Pair p1 = new Pair(x, y);
+			int updatex = (x-y)*(x-y);
+			int updatey = y*(y-x);
 			x = updatex;
 			y = updatey;
-                        if (Math.abs(p1.x*p1.y) != 1.0) testEA2Field = p1;
+			if (p1.x*p1.y != 2) testEA2Field = p1;  // Looks like value might escape (but never actually does)
+
+			result += x*y;
+		}
+	}
+
+	static private void evalTestEA3() {
+		for (int i = 0; i < 100; i++) {
+			Pair[] arr = new Pair[] {new Pair(1, 2), new Pair(3, 4)};
+			for (int j = 0; j < arr.length; j++) {
+				Pair val = arr[j%arr.length];
+				result += val.x + val.y;
+			}
 		}
 	}
 
 	@Test(priority=1)
 	static public void testEAOpportunity3() throws Throwable {
+		result = 0;
+
+		evalTestEA3();
+		evalTestEA3();
+
+		assertEquals(result, 2000);
 	}
 
 	@Test(priority=1)
