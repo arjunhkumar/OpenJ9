@@ -7248,9 +7248,9 @@ void TR_EscapeAnalysis::makeNonContiguousLocalAllocation(Candidate *candidate)
          loadaddrNode = TR::Node::createWithSymRef(candidate->_node, TR::loadaddr, 0, classSymRef);
          candidate->_node->removeAllChildren();
          candidate->_node->setAndIncChild(0, loadaddrNode);
-#if 0
+// #if 0
          candidate->_size = comp()->fej9()->getObjectHeaderSizeInBytes() + TR::Compiler->cls.classInstanceSize(clazz);
-#endif
+// #endif
          candidate->_origSize = candidate->_size;
          candidate->_origKind = candidate->_kind;
          candidate->_kind = TR::newvalue;
