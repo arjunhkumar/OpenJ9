@@ -117,6 +117,7 @@ set(main_sources
 	growstack.cpp
 	guardedstorage.c
 	hookableAsync.c
+	InlineableFieldMetadata.cpp
 	initsendtarget.cpp
 	intfunc.c
 	J9OMRHelpers.cpp
@@ -163,6 +164,8 @@ set(main_sources
 	segment.c
 	StackDumper.c
 	statistics.c
+	StaticAnalysisReader.cpp
+	StaticAnalysisUtils.cpp
 	stringhelpers.cpp
 	swalk.c
 	threadhelp.cpp

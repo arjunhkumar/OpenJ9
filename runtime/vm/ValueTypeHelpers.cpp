@@ -86,12 +86,17 @@ defaultValueWithUnflattenedFlattenables(J9VMThread *currentThread, J9Class *claz
 		entry = J9_VM_FCC_ENTRY_FROM_CLASS(clazz, index);
 		entryClazz = J9_VM_FCC_CLASS_FROM_ENTRY(entry);
 		if (!J9_VM_FCC_ENTRY_IS_STATIC_FIELD(entry) && !J9_IS_FIELD_FLATTENED(entryClazz, entry->field)) {
-			objectAccessBarrier.inlineMixedObjectStoreObject(currentThread,
+			/* AR07 - Additional check before inlining field. */
+                        bool getStaticPreference = fieldInliningPreference(clazz,entry->field);
+                        if(!getStaticPreference)
+                        {
+                                objectAccessBarrier.inlineMixedObjectStoreObject(currentThread,
 												instance,
 												entry->offset + objectHeaderSize,
 												entryClazz->flattenedClassCache->defaultValue,
-												false);
-		}
+		                								false);
+                        }
+                }
 	}
 }
 
@@ -176,13 +181,17 @@ BOOLEAN
 isFlattenableFieldFlattened(J9Class *fieldOwner, J9ROMFieldShape *field)
 {
         BOOLEAN fieldFlattened = FALSE;
+        bool getStaticPreference = true;
         if (NULL != fieldOwner->flattenedClassCache) {
                 Assert_VM_notNull(fieldOwner);
                 Assert_VM_notNull(field);
                 fieldFlattened = J9_IS_FIELD_FLATTENED(getFlattenableFieldType(fieldOwner, field), field);
+                /* AR07 - Additional check before inlining field. */
+                getStaticPreference = fieldInliningPreference(fieldOwner,field);
+                
         }
 
-        return fieldFlattened;
+        return fieldFlattened && getStaticPreference;
 }
 
 J9Class *

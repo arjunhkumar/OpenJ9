@@ -40,6 +40,8 @@
 #include "ObjectAccessBarrierAPI.hpp"
 #include "VMHelpers.hpp"
 #include "vm_api.h"
+/** AR07 - Adding static analysis results */
+#include "StaticAnalysisUtils.hpp"
 
 class VM_ValueTypeHelpers {
 	/*
@@ -153,8 +155,9 @@ private:
 				case 'Q': { /* Null-free class type */
 					J9Class *fieldClass = findJ9ClassInFlattenedClassCache(clazz->flattenedClassCache, sigChar + 1, J9UTF8_LENGTH(signature) - 2);
 					rc = false;
-
-					if (J9_IS_FIELD_FLATTENED(fieldClass, result->field)) {
+					/* AR07 - Additional check before inlining field. */
+                	bool staticPreference = fieldInliningPreference(clazz,result->field);
+					if (J9_IS_FIELD_FLATTENED(fieldClass, result->field) && staticPreference) {
 						rc = isSubstitutable(currentThread, objectAccessBarrier, lhs, rhs, startOffset + result->offset, fieldClass);
 					} else {
 						j9object_t lhsFieldObject = objectAccessBarrier.inlineMixedObjectReadObject(currentThread, lhs, startOffset + result->offset);

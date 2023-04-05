@@ -26,6 +26,8 @@
 #include "ObjectFieldInfo.hpp"
 #include "util_api.h"
 #include "vm_api.h"
+/** AR07 - Adding static analysis results */
+#include "StaticAnalysisUtils.hpp"
 
 /**
  * Calculate the number of various types of fields.
@@ -51,7 +53,9 @@ ObjectFieldInfo::countInstanceFields(void)
 				if ('Q' == *fieldSigBytes) {
 					J9Class *fieldClass = findJ9ClassInFlattenedClassCache(_flattenedClassCache, fieldSigBytes + 1, J9UTF8_LENGTH(fieldSig) - 2);
 					U_32 size = (U_32)fieldClass->totalInstanceSize;
-					if (!J9_IS_FIELD_FLATTENED(fieldClass, field)) {
+					/* AR07 - Additional check before inlining field. */
+                    bool staticPreference = fieldInliningPreferenceWithRom(_romClass,field);
+					if (!J9_IS_FIELD_FLATTENED(fieldClass, field) || !staticPreference) {
 						_instanceObjectCount += 1;
 						_totalObjectCount += 1;
 					} else {

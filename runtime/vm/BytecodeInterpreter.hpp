@@ -66,7 +66,9 @@
 #if JAVA_SPEC_VERSION >= 16
 #include "LayoutFFITypeHelpers.hpp"
 #endif /* JAVA_SPEC_VERSION >= 16 */
-
+#include "JITInterface.hpp"
+/** AR07 - Adding static analysis results */
+// #include "StaticAnalysisUtils.hpp"
 #if 0
 #define DEBUG_MUST_HAVE_VM_ACCESS(vmThread) Assert_VM_mustHaveVMAccess(vmThread)
 #else
@@ -4310,8 +4312,14 @@ done:
 				for (UDATA i = 0; i < numberOfFlattenedFields; i++) {
 					J9FlattenedClassCacheEntry *entry = J9_VM_FCC_ENTRY_FROM_CLASS(clzJ9Class, i);
 					if (((I_64)entry->offset == offset) && J9_IS_FIELD_FLATTENED(entry->clazz, entry->field)) {
-						isFlattened = (I_32)TRUE;
-						break;
+						
+						/* AR07 - Additional check before inlining field. */
+						if(fieldInliningPreference(clzJ9Class,entry->field))
+						{
+							isFlattened = (I_32)TRUE;
+							break;
+						}
+						
 					}
 				}
 

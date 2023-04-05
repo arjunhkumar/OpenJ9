@@ -411,6 +411,9 @@ enum INIT_STAGE {
 #define VMOPT_XXDISABLEENSUREHASHED "-XX:-EnsureHashed:"
 #define VMOPT_XXOPENJ9COMMANDLINEENV "-XX:+OpenJ9CommandLineEnv"
 #define VMOPT_XXNOOPENJ9COMMANDLINEENV "-XX:-OpenJ9CommandLineEnv"
+/* AR07 - Flag to use static analysis results */
+#define VMOPT_USE_STATIC_ANALYSIS_RESULTS "-XX:+UseStaticResults"
+#define VMOPT_DONOT_USE_STATIC_ANALYSIS_RESULTS "-XX:-UseStaticResults"
 
 #if defined(J9VM_ZOS_3164_INTEROPERABILITY)
 #define VMOPT_XXENABLE3164INTEROPERABILITY "-XX:+Enable3164Interoperability"

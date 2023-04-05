@@ -539,6 +539,9 @@ j9gs_deinitializeThread(struct J9VMThread *vmThread);
 
 UDATA initializeExclusiveAccess(J9JavaVM *vm);
 void shutDownExclusiveAccess(J9JavaVM *vm);
+/** AR07 - Using static analysis results */
+void readStaticResults(char *filename);
+
 
 #if JAVA_SPEC_VERSION >= 16
 /* LayoutFFITypeHelpers.cpp */
