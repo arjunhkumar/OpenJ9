@@ -7,6 +7,7 @@
 #ifdef __cplusplus
 extern "C" {
     void readStaticResults(char *filename);
+    const char * createCopy(char * targetString);
     // auto getClassMetadata(char * className);
 }
 #endif

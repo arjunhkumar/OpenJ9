@@ -33,6 +33,8 @@
 #endif /* OMR_OVERRIDE_COMPRESS_OBJECT_REFERENCES */
 #endif /* OMR_OVERRIDE_COMPRESS_OBJECT_REFERENCES */
 
+/** AR07 - Adding static analysis results */
+#include "StaticAnalysisUtils.hpp"
 #include "j9.h"
 #include "fltconst.h"
 #include "ut_j9vm.h"
@@ -40,8 +42,7 @@
 #include "ObjectAccessBarrierAPI.hpp"
 #include "VMHelpers.hpp"
 #include "vm_api.h"
-/** AR07 - Adding static analysis results */
-#include "StaticAnalysisUtils.hpp"
+
 
 class VM_ValueTypeHelpers {
 	/*
@@ -156,7 +157,7 @@ private:
 					J9Class *fieldClass = findJ9ClassInFlattenedClassCache(clazz->flattenedClassCache, sigChar + 1, J9UTF8_LENGTH(signature) - 2);
 					rc = false;
 					/* AR07 - Additional check before inlining field. */
-                	bool staticPreference = fieldInliningPreference(clazz,result->field);
+                	bool staticPreference = StaticAnalysisUtils::fieldInliningPreference(clazz,result->field);
 					if (J9_IS_FIELD_FLATTENED(fieldClass, result->field) && staticPreference) {
 						rc = isSubstitutable(currentThread, objectAccessBarrier, lhs, rhs, startOffset + result->offset, fieldClass);
 					} else {

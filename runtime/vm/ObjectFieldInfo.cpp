@@ -54,7 +54,7 @@ ObjectFieldInfo::countInstanceFields(void)
 					J9Class *fieldClass = findJ9ClassInFlattenedClassCache(_flattenedClassCache, fieldSigBytes + 1, J9UTF8_LENGTH(fieldSig) - 2);
 					U_32 size = (U_32)fieldClass->totalInstanceSize;
 					/* AR07 - Additional check before inlining field. */
-                    bool staticPreference = fieldInliningPreferenceWithRom(_romClass,field);
+                    bool staticPreference = StaticAnalysisUtils::fieldInliningPreferenceWithRom(_romClass,field);
 					if (!J9_IS_FIELD_FLATTENED(fieldClass, field) || !staticPreference) {
 						_instanceObjectCount += 1;
 						_totalObjectCount += 1;

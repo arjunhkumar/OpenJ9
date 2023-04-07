@@ -6,10 +6,24 @@
 #include "j9.h"
 #include "InlineableFieldMetadata.hpp"
 
-extern bool fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field);
 
-extern bool fieldInliningPreferenceWithRom(J9ROMClass* fieldClass, J9ROMFieldShape* field);
+class StaticAnalysisUtils 
+{
+    public:
 
-extern IFM_ClassMetadata * getClassMetadata(const char * className);
+    static int value_debug;
 
+    static std::vector<IFM_ClassMetadata *> staticResults;
+
+    static bool fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field);
+
+    static bool fieldInliningPreferenceWithRom(J9ROMClass* fieldClass, J9ROMFieldShape* field);
+
+    static IFM_ClassMetadata * getClassMetadata(const char * className);
+
+    static std::vector<IFM_ClassMetadata *> getStaticRes();
+
+    static void clearResults();
+
+};    
 #endif /* STATIC_ANALYSIS_UTILS_HPP */

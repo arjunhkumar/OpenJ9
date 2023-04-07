@@ -78,6 +78,8 @@
 #include "runtime/IProfiler.hpp"
 #include "runtime/HWProfiler.hpp"
 #include "env/SystemSegmentProvider.hpp"
+#include "vm/StaticAnalysisUtils.hpp"
+
 #if defined(J9VM_OPT_JITSERVER)
 #include "control/JITServerHelpers.hpp"
 #include "runtime/JITServerAOTDeserializer.hpp"
@@ -4418,7 +4420,7 @@ void JitShutdown(J9JITConfig * jitConfig)
    if (isPrintJITServerCHTableStats)
       JITServerHelpers::printJITServerCHTableStats(jitConfig, compInfo);
 #endif
-
+   // StaticAnalysisUtils::clearResults();
    TRC_JIT_ShutDownEnd(vmThread, "end of JitShutdown function");
    }
 

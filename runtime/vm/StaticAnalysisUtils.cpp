@@ -2,9 +2,9 @@
 #include "InlineableFieldMetadata.hpp"
 #include "StaticAnalysisUtils.hpp"
 
-static std::vector<IFM_ClassMetadata *> staticResults;
+std::vector<IFM_ClassMetadata *> StaticAnalysisUtils::staticResults;
 
-bool fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field){
+bool StaticAnalysisUtils::fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field){
     J9UTF8* className = J9ROMCLASS_CLASSNAME(fieldClass->romClass);
     const char * classNameStr = (char *) J9UTF8_DATA(className);
     printf("Trying to check status of field of Container Class: %s\n",classNameStr);
@@ -19,7 +19,7 @@ bool fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field){
     return true;
 }
 
-bool fieldInliningPreferenceWithRom(J9ROMClass *fieldClass, J9ROMFieldShape* field){
+bool StaticAnalysisUtils::fieldInliningPreferenceWithRom(J9ROMClass *fieldClass, J9ROMFieldShape* field){
     J9UTF8* className = J9ROMCLASS_CLASSNAME(fieldClass);
     const char * classNameStr = (char *) J9UTF8_DATA(className);
     printf("Trying to check status of field of Container Class: %s\n",classNameStr);
@@ -34,16 +34,55 @@ bool fieldInliningPreferenceWithRom(J9ROMClass *fieldClass, J9ROMFieldShape* fie
     return true;
 }
 
-IFM_ClassMetadata * getClassMetadata(const char * className)
+IFM_ClassMetadata * StaticAnalysisUtils::getClassMetadata(const char * className)
 {
-   for (std::vector<IFM_ClassMetadata *>::iterator i = staticResults.begin(); i != staticResults.end(); ++i)
-   {
-        IFM_ClassMetadata * element = (IFM_ClassMetadata *)*i;
-        const char * element_className =  element->getClassName();
+//    for (auto it = StaticAnalysisUtils::getStaticRes().begin(); it != StaticAnalysisUtils::getStaticRes().end(); ++it)
+//    {
+//         const char * element_className =  (*it)->getClassName();
+//         if (!strcmp(element_className, className))
+//         {
+//             return (IFM_ClassMetadata *)(*it);
+//         }
+//    }
+
+    std::vector<IFM_ClassMetadata *> staticRes = StaticAnalysisUtils::getStaticRes();
+    for(size_t i = 0; i < staticRes.size(); ++i) 
+    {
+        const char * element_className =  staticRes[i]->getClassName();
+        printf("Element: %s\n",element_className);
         if (!strcmp(element_className, className))
         {
-            return element;
+            return staticRes[i];
         }
-   }
+    }
    return NULL;
+}
+
+std::vector<IFM_ClassMetadata *> StaticAnalysisUtils::getStaticRes()
+{
+    return StaticAnalysisUtils::staticResults;
+}
+
+void StaticAnalysisUtils::clearResults()
+{
+    for (std::vector<IFM_ClassMetadata *>::iterator i = StaticAnalysisUtils::getStaticRes().begin(); i != StaticAnalysisUtils::getStaticRes().end(); ++i)
+    {
+        IFM_ClassMetadata * element = (IFM_ClassMetadata *)*i;
+        char * element_className =  (char *)element->getClassName();
+        element->clearResults();
+        free(element_className);
+        delete(element);
+    }
+
+    std::vector<IFM_ClassMetadata *> staticRes = StaticAnalysisUtils::getStaticRes();
+    for(size_t i = 0; i < staticRes.size(); ++i) 
+    {
+        IFM_ClassMetadata * element = staticRes[i];
+        char * element_className =  (char *)element->getClassName();
+        element->clearResults();
+        free(element_className);
+        delete(element);
+    }
+
+
 }

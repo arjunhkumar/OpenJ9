@@ -26,6 +26,8 @@
 #include "ut_j9vm.h"
 #include "ObjectAccessBarrierAPI.hpp"
 #include "vm_api.h"
+/** AR07 - Adding static analysis results */
+#include "StaticAnalysisUtils.hpp"
 
 extern "C" {
 
@@ -87,7 +89,7 @@ defaultValueWithUnflattenedFlattenables(J9VMThread *currentThread, J9Class *claz
 		entryClazz = J9_VM_FCC_CLASS_FROM_ENTRY(entry);
 		if (!J9_VM_FCC_ENTRY_IS_STATIC_FIELD(entry) && !J9_IS_FIELD_FLATTENED(entryClazz, entry->field)) {
 			/* AR07 - Additional check before inlining field. */
-                        bool getStaticPreference = fieldInliningPreference(clazz,entry->field);
+                        bool getStaticPreference = StaticAnalysisUtils::fieldInliningPreference(clazz,entry->field);
                         if(!getStaticPreference)
                         {
                                 objectAccessBarrier.inlineMixedObjectStoreObject(currentThread,
@@ -187,7 +189,7 @@ isFlattenableFieldFlattened(J9Class *fieldOwner, J9ROMFieldShape *field)
                 Assert_VM_notNull(field);
                 fieldFlattened = J9_IS_FIELD_FLATTENED(getFlattenableFieldType(fieldOwner, field), field);
                 /* AR07 - Additional check before inlining field. */
-                getStaticPreference = fieldInliningPreference(fieldOwner,field);
+                getStaticPreference = StaticAnalysisUtils::fieldInliningPreference(fieldOwner,field);
                 
         }
 

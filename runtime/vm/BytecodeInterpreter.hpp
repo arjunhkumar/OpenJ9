@@ -4314,7 +4314,7 @@ done:
 					if (((I_64)entry->offset == offset) && J9_IS_FIELD_FLATTENED(entry->clazz, entry->field)) {
 						
 						/* AR07 - Additional check before inlining field. */
-						if(fieldInliningPreference(clzJ9Class,entry->field))
+						if(StaticAnalysisUtils::fieldInliningPreference(clzJ9Class,entry->field))
 						{
 							isFlattened = (I_32)TRUE;
 							break;

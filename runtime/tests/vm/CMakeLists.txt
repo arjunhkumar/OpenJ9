@@ -40,6 +40,9 @@ j9vm_add_executable(vmtest
 	${j9vm_SOURCE_DIR}/vm/vmthinit.c
 	${j9vm_SOURCE_DIR}/vm/stringhelpers.cpp
 	${j9vm_SOURCE_DIR}/vm/ValueTypeHelpers.cpp
+	${j9vm_SOURCE_DIR}/vm/StaticAnalysisReader.cpp
+	${j9vm_SOURCE_DIR}/vm/StaticAnalysisUtils.cpp
+	${j9vm_SOURCE_DIR}/vm/InlineableFieldMetadata.cpp
 	${j9vm_BINARY_DIR}/vm/ut_j9vm.c
 )
 add_dependencies(vmtest trc_j9vm)

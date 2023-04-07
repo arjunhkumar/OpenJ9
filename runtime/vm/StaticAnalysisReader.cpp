@@ -1,8 +1,8 @@
 #include <fstream>
 #include "StaticAnalysisReader.hpp"
+#include "StaticAnalysisUtils.hpp"
 #include "InlineableFieldMetadata.hpp"
 
-static std::vector<IFM_ClassMetadata *> staticResults;
 
 void readStaticResults(char *filename)
 {
@@ -12,6 +12,7 @@ void readStaticResults(char *filename)
         printf("Static analysis results does not exist.\n");
         return;
     }
+    // StaticAnalysisUtils::staticResults = (IFM_ClassMetadata *) malloc (sizeof(IFM_ClassMetadata));
     char * line = NULL;
     size_t len = 1000;
     ssize_t read;
@@ -20,9 +21,10 @@ void readStaticResults(char *filename)
     {
         char classname_delim[] = "&&";
         char * signature = strtok(line, classname_delim);
-        printf("Classname: %s.\n",signature);
-        IFM_ClassMetadata classMetadataObj = IFM_ClassMetadata(signature);
-        IFM_ClassMetadata* classMetadata = &classMetadataObj;
+        const char * classSignature = createCopy(signature);
+        printf("Classname: %s.\n",classSignature);
+        IFM_ClassMetadata* mem = (IFM_ClassMetadata *) malloc (sizeof(IFM_ClassMetadata));
+        IFM_ClassMetadata* classMetadata = new (mem) IFM_ClassMetadata(classSignature);
         signature = strtok(NULL, classname_delim);
         while (signature != NULL) 
         {
@@ -30,8 +32,20 @@ void readStaticResults(char *filename)
             printf("Field: %s.\n",signature);
             signature = strtok(NULL, classname_delim);
         }
-        staticResults.push_back(classMetadata);
+        StaticAnalysisUtils::staticResults.push_back(classMetadata);
         printf("End of class.\n");
     }
 
+}
+
+const char * createCopy(char * targetString) 
+{
+    char * classSignature;
+    if( targetString != NULL)
+    {
+        classSignature = (char *) malloc (strlen(targetString));
+        strcpy(classSignature, targetString);
+        
+    }
+    return classSignature;
 }
