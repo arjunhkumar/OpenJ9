@@ -26,8 +26,6 @@
 #include "ObjectFieldInfo.hpp"
 #include "util_api.h"
 #include "vm_api.h"
-/** AR07 - Adding static analysis results */
-#include "StaticAnalysisUtils.hpp"
 
 /**
  * Calculate the number of various types of fields.

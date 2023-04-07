@@ -28,6 +28,8 @@
 #include "vm_internal.h"
 #include "locknursery.h"
 #include "util_api.h"
+// /** AR07 - Adding static analysis results */
+#include "StaticAnalysisReader.hpp"
 
 static const UDATA slotsPerShapeElement = sizeof(UDATA) * 8; /* Each slot is represented by one bit */
 
@@ -180,8 +182,10 @@ calculateInstanceDescription( J9VMThread *vmThread, J9Class *ramClass, J9Class *
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 				if ('Q' == *fieldSigBytes) {
 					J9Class *fieldClass = walkResult->flattenedClass;
+					/* AR07 - Additional check before inlining field. */
+					BOOLEAN staticPreference = fieldInliningPreferenceWithRom(ramClass->romClass,walkResult->field);
 					if ((NULL != fieldClass) 
-						&& J9_IS_FIELD_FLATTENED(fieldClass, walkResult->field)
+						&& J9_IS_FIELD_FLATTENED(fieldClass, walkResult->field) && staticPreference
 					) {
 						UDATA size = fieldClass->totalInstanceSize;
 

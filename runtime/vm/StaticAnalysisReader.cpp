@@ -38,6 +38,21 @@ void readStaticResults(char *filename)
 
 }
 
+IFM_ClassMetadata * getClassMetadata(const char * className)
+{
+    std::vector<IFM_ClassMetadata *> staticRes = StaticAnalysisUtils::getStaticRes();
+    for(size_t i = 0; i < staticRes.size(); ++i) 
+    {
+        const char * element_className =  staticRes[i]->getClassName();
+        printf("Element: %s\n",element_className);
+        if (strcmp(element_className, className))
+        {
+            return staticRes[i];
+        }
+    }
+   return NULL;
+}
+
 const char * createCopy(char * targetString) 
 {
     char * classSignature;
@@ -48,4 +63,36 @@ const char * createCopy(char * targetString)
         
     }
     return classSignature;
+}
+
+int fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field)
+{
+    J9UTF8* className = J9ROMCLASS_CLASSNAME(fieldClass->romClass);
+    const char * classNameStr = (char *) J9UTF8_DATA(className);
+    printf("Trying to check status of field of Container Class: %s\n",classNameStr);
+    IFM_ClassMetadata * classData = getClassMetadata(classNameStr);
+    if(classData != NULL)
+    {
+        J9ROMNameAndSignature *nameAndSig = &field->nameAndSignature;
+        J9UTF8 *nameUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
+        const char * fieldSig = (char *) J9UTF8_DATA(nameUTF);
+        return classData->isFieldInlined(fieldSig,"");
+    }
+    return 1;
+}
+
+int fieldInliningPreferenceWithRom(J9ROMClass* fieldClass, J9ROMFieldShape* field)
+{
+    J9UTF8* className = J9ROMCLASS_CLASSNAME(fieldClass);
+    const char * classNameStr = (char *) J9UTF8_DATA(className);
+    printf("Trying to check status of field of Container Class: %s\n",classNameStr);
+    IFM_ClassMetadata * classData = getClassMetadata(classNameStr);
+    if(classData != NULL)
+    {
+        J9ROMNameAndSignature *nameAndSig = &field->nameAndSignature;
+        J9UTF8 *nameUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
+        const char * fieldSig = (char *) J9UTF8_DATA(nameUTF);
+        return classData->isFieldInlined(fieldSig,"");
+    }
+    return 1;
 }

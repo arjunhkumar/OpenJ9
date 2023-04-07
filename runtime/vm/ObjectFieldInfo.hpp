@@ -25,6 +25,8 @@
 #include "j9comp.h"
 #include "j9port.h"
 #include "ut_j9vm.h"
+/** AR07 - Adding static analysis results */
+#include "StaticAnalysisUtils.hpp"
 
 /**
  * represent information about number of various field types, including

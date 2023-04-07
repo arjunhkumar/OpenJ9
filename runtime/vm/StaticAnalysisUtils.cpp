@@ -27,8 +27,8 @@ bool StaticAnalysisUtils::fieldInliningPreferenceWithRom(J9ROMClass *fieldClass,
     if(classData != NULL)
     {
         J9ROMNameAndSignature *nameAndSig = &field->nameAndSignature;
-		J9UTF8 *nameUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
-        const char * fieldSig = (char *) J9UTF8_DATA(nameUTF);
+		J9UTF8 *signUTF = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+        const char * fieldSig = (char *) J9UTF8_DATA(signUTF);
         return classData->isFieldInlined(fieldSig,"");
     }
     return true;
@@ -50,7 +50,7 @@ IFM_ClassMetadata * StaticAnalysisUtils::getClassMetadata(const char * className
     {
         const char * element_className =  staticRes[i]->getClassName();
         printf("Element: %s\n",element_className);
-        if (!strcmp(element_className, className))
+        if (strcmp(element_className, className))
         {
             return staticRes[i];
         }
@@ -65,14 +65,14 @@ std::vector<IFM_ClassMetadata *> StaticAnalysisUtils::getStaticRes()
 
 void StaticAnalysisUtils::clearResults()
 {
-    for (std::vector<IFM_ClassMetadata *>::iterator i = StaticAnalysisUtils::getStaticRes().begin(); i != StaticAnalysisUtils::getStaticRes().end(); ++i)
-    {
-        IFM_ClassMetadata * element = (IFM_ClassMetadata *)*i;
-        char * element_className =  (char *)element->getClassName();
-        element->clearResults();
-        free(element_className);
-        delete(element);
-    }
+    // for (std::vector<IFM_ClassMetadata *>::iterator i = StaticAnalysisUtils::getStaticRes().begin(); i != StaticAnalysisUtils::getStaticRes().end(); ++i)
+    // {
+    //     IFM_ClassMetadata * element = (IFM_ClassMetadata *)*i;
+    //     char * element_className =  (char *)element->getClassName();
+    //     element->clearResults();
+    //     free(element_className);
+    //     delete(element);
+    // }
 
     std::vector<IFM_ClassMetadata *> staticRes = StaticAnalysisUtils::getStaticRes();
     for(size_t i = 0; i < staticRes.size(); ++i) 

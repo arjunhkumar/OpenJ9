@@ -1107,8 +1107,10 @@ fieldOffsetsFindNext(J9ROMFieldOffsetWalkState *state, J9ROMFieldShape *field)
 						U_8 *fieldSigBytes = J9UTF8_DATA(fieldSig);
 						if ('Q' == *fieldSigBytes) {
 							J9Class *fieldClass = NULL;
+							/* AR07 - Additional check before inlining field. */
+							bool staticPreference = StaticAnalysisUtils::fieldInliningPreferenceWithRom(romClass,field);
 							fieldClass = findJ9ClassInFlattenedClassCache(state->flattenedClassCache, fieldSigBytes + 1, J9UTF8_LENGTH(fieldSig) - 2);
-							if (!J9_IS_FIELD_FLATTENED(fieldClass, field)) {
+							if (!J9_IS_FIELD_FLATTENED(fieldClass, field) || !staticPreference) {
 								if (J9_ARE_ALL_BITS_SET(state->walkFlags, J9VM_FIELD_OFFSET_WALK_BACKFILL_OBJECT_FIELD)) {
 									Assert_VM_true(state->backfillOffsetToUse >= 0);
 									state->result.offset = state->backfillOffsetToUse;

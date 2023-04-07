@@ -34,6 +34,8 @@
 #include "j9modifiers_api.h"
 #include "VMHelpers.hpp"
 #include "vm_api.h"
+/** AR07 - Adding static analysis results */
+#include "StaticAnalysisUtils.hpp"
 
 #define MAX_STACK_SLOTS 255
 
@@ -1076,7 +1078,9 @@ illegalAccess:
 						fieldIndex = findIndexInFlattenedClassCache(flattenedClassCache, nameAndSig);
 						flattenableClass = J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, fieldIndex)->clazz;
 					}
-					if (J9_IS_FIELD_FLATTENED(flattenableClass, field)) {
+					/* AR07 - Additional check before inlining field. */
+					bool staticPreference = StaticAnalysisUtils::fieldInliningPreference(classFromCP,field);
+					if (J9_IS_FIELD_FLATTENED(flattenableClass, field) && staticPreference) {
 						if (fccEntryFieldNotSet) {
 							J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, fieldIndex)->offset = valueOffset;
 						}

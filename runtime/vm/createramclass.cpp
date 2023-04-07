@@ -39,6 +39,8 @@
 #include "vm_internal.h"
 
 #include "VMHelpers.hpp"
+/** AR07 - Adding static analysis results */
+#include "StaticAnalysisUtils.hpp"
 
 #undef J9VM_TRACE_VTABLE_ACCESS
 
@@ -1970,8 +1972,9 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 						result = FALSE;
 						goto done;
 					}
-
-					if (!J9_IS_FIELD_FLATTENED(valueClass, field)) {
+					/* AR07 - Additional check before inlining field. */
+					bool staticPreference = StaticAnalysisUtils::fieldInliningPreferenceWithRom(romClass,field);
+					if (!J9_IS_FIELD_FLATTENED(valueClass, field) || !staticPreference) {
 						*valueTypeFlags |= (J9ClassContainsUnflattenedFlattenables | J9ClassHasReferences);
 						eligibleForFastSubstitutability = false;
 					} else if (J9_ARE_NO_BITS_SET(valueClass->classFlags, J9ClassCanSupportFastSubstitutability)) {
