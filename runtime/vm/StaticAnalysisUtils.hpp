@@ -6,6 +6,9 @@
 #include "j9.h"
 #include "InlineableFieldMetadata.hpp"
 
+/* AR07 - This file takes care of all the functions required to read static analysis 
+    for flattening as well as retrieving the field level preference during JIT. */
+
 
 class StaticAnalysisUtils 
 {

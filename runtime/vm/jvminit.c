@@ -2571,12 +2571,16 @@ VMInitStages(J9JavaVM *vm, IDATA stage, void* reserved)
 			{
 				IDATA useStaticAnalysisResults = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_USE_STATIC_ANALYSIS_RESULTS, NULL);
 				IDATA disableStaticAnalysisResults = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_DONOT_USE_STATIC_ANALYSIS_RESULTS, NULL);
-				if (useStaticAnalysisResults > disableStaticAnalysisResults) {
-					vm->extendedRuntimeFlags2 &= ~J9_EXTENDED_RUNTIME_USE_STATIC_ANALYSIS_RESULTS;
-				} else if (disableStaticAnalysisResults < useStaticAnalysisResults) {
+				if (useStaticAnalysisResults > disableStaticAnalysisResults) 
+				{
 					vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME_USE_STATIC_ANALYSIS_RESULTS;
+					readStaticResults("static_results/res.out");
+				} 
+				else 
+				{
+					vm->extendedRuntimeFlags2 &= ~J9_EXTENDED_RUNTIME_USE_STATIC_ANALYSIS_RESULTS;
 				}
-				readStaticResults("static_results/res.out");
+				
 			}
 			/* AR07 - End - Set flag to use static analysis results inside the VM. */
 

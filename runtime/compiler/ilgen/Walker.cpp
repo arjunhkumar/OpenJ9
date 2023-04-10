@@ -7165,9 +7165,9 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
    TR::Node * address = pop();
 
    int len;
-   const char *fieldClassChars = owningMethod->fieldSignatureChars(cpIndex, len);\
+   const char *fieldClassChars = owningMethod->fieldSignatureChars(cpIndex, len);
    /* AR07 - Debuging static res file results*/
-	printf("Field being inlined: %s\n",fieldClassChars);
+	// printf("Field being inlined: %s\n",fieldClassChars);
    TR_OpaqueClassBlock * fieldClass = fej9()->getClassFromSignature(fieldClassChars, len, owningMethod);
 
    for (size_t idx = 0; idx < fieldCount; idx++)

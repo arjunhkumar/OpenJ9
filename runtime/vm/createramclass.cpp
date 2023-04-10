@@ -1956,9 +1956,9 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 			case 'Q':
 			{
 				/* AR07 - Debugging static reads */
-				J9UTF8* className = J9ROMCLASS_CLASSNAME(romClass);
-				const char * classNameStr = (char *) J9UTF8_DATA(className);
-				printf("Container Classname: %s\n",classNameStr);
+				// J9UTF8* className = J9ROMCLASS_CLASSNAME(romClass);
+				// const char * classNameStr = (char *) J9UTF8_DATA(className);
+				// printf("Container Classname: %s\n",classNameStr);
 				J9Class *valueClass = internalFindClassUTF8(currentThread, signatureChars + 1, J9UTF8_LENGTH(signature) - 2, classLoader, classPreloadFlags);
 				if (NULL == valueClass) {
 					result = FALSE;
@@ -2294,9 +2294,9 @@ nativeOOM:
 			classFlags |= J9ClassIsValueType;
 			if (J9ROMCLASS_IS_PRIMITIVE_VALUE_TYPE(romClass)) {
 				/* AR07 - Debugging static reads */
-				J9UTF8* className = J9ROMCLASS_CLASSNAME(romClass);
-				const char * classNameStr = (char *) J9UTF8_DATA(className);
-				printf("Value Class name: %s\n",classNameStr);
+				// J9UTF8* className = J9ROMCLASS_CLASSNAME(romClass);
+				// const char * classNameStr = (char *) J9UTF8_DATA(className);
+				// printf("Value Class name: %s\n",classNameStr);
 				UDATA instanceSize = state->ramClass->totalInstanceSize;
 				classFlags |= J9ClassIsPrimitiveValueType;
 				if ((instanceSize <= javaVM->valueFlatteningThreshold)

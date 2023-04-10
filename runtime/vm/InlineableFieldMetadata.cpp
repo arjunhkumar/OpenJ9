@@ -1,5 +1,6 @@
 #include "InlineableFieldMetadata.hpp"
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 
 const char * IFM_ClassFieldMetadata::getFieldName()
@@ -38,7 +39,11 @@ bool IFM_ClassMetadata::isFieldInlined(char const *fieldName,char const *fieldSi
     {
         IFM_ClassFieldMetadata * element = inlineableFieldList[i];
         const char * elementFieldName =  element->getFieldName();
-        if (strcmp(elementFieldName, fieldName))
+        // printf("Field Name inside res file: %s\n",elementFieldName);
+        // printf("Field Name for comparison: %s\n",fieldName);
+        // printf("Comparison result: %d\n",strcmp(elementFieldName, fieldName));
+        // printf("Comparison result: %d\n",strncmp(elementFieldName, fieldName,strlen(elementFieldName)));
+        if (strncmp(elementFieldName, fieldName,strlen(elementFieldName)) == 0)
         {
             return false;
         }

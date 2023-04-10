@@ -28,7 +28,7 @@
 #include "vm_internal.h"
 #include "locknursery.h"
 #include "util_api.h"
-// /** AR07 - Adding static analysis results */
+/** AR07 - Adding static analysis results */
 #include "StaticAnalysisReader.hpp"
 
 static const UDATA slotsPerShapeElement = sizeof(UDATA) * 8; /* Each slot is represented by one bit */

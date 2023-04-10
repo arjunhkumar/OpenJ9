@@ -1,4 +1,4 @@
-#include <fstream>
+#include <stdio.h>
 #include "InlineableFieldMetadata.hpp"
 #include "StaticAnalysisUtils.hpp"
 
@@ -7,7 +7,7 @@ std::vector<IFM_ClassMetadata *> StaticAnalysisUtils::staticResults;
 bool StaticAnalysisUtils::fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field){
     J9UTF8* className = J9ROMCLASS_CLASSNAME(fieldClass->romClass);
     const char * classNameStr = (char *) J9UTF8_DATA(className);
-    printf("Trying to check status of field of Container Class: %s\n",classNameStr);
+    // printf("Trying to check status of field of Container Class: %s\n",classNameStr);
     IFM_ClassMetadata * classData = getClassMetadata(classNameStr);
     if(classData != NULL)
     {
@@ -22,12 +22,12 @@ bool StaticAnalysisUtils::fieldInliningPreference(J9Class *fieldClass, J9ROMFiel
 bool StaticAnalysisUtils::fieldInliningPreferenceWithRom(J9ROMClass *fieldClass, J9ROMFieldShape* field){
     J9UTF8* className = J9ROMCLASS_CLASSNAME(fieldClass);
     const char * classNameStr = (char *) J9UTF8_DATA(className);
-    printf("Trying to check status of field of Container Class: %s\n",classNameStr);
+    // printf("Trying to check status of field of Container Class: %s\n",classNameStr);
     IFM_ClassMetadata * classData = getClassMetadata(classNameStr);
     if(classData != NULL)
     {
         J9ROMNameAndSignature *nameAndSig = &field->nameAndSignature;
-		J9UTF8 *signUTF = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
+		J9UTF8 *signUTF = J9ROMNAMEANDSIGNATURE_NAME(nameAndSig);
         const char * fieldSig = (char *) J9UTF8_DATA(signUTF);
         return classData->isFieldInlined(fieldSig,"");
     }
@@ -49,8 +49,11 @@ IFM_ClassMetadata * StaticAnalysisUtils::getClassMetadata(const char * className
     for(size_t i = 0; i < staticRes.size(); ++i) 
     {
         const char * element_className =  staticRes[i]->getClassName();
-        printf("Element: %s\n",element_className);
-        if (strcmp(element_className, className))
+        // printf("2. Class Name inside res file: %s\n",element_className);
+        // printf("2. Class Name for comparison: %s\n",className);
+        // printf("2. Comparison result: %d\n",strncmp(element_className, className,strlen(element_className)));
+        // printf("Element: %s\n",element_className);
+        if (strncmp(element_className, className,strlen(element_className)) == 0)
         {
             return staticRes[i];
         }

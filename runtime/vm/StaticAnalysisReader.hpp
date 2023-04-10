@@ -5,6 +5,9 @@
 #include <string.h>
 #include "j9.h"
 
+/* AR07 - This file takes care of all the functions required to read static analysis 
+    for flattening as well as retrieving the field level preference during JIT. */
+
 #ifdef __cplusplus
 extern "C" {
     void readStaticResults(char *filename);
