@@ -451,12 +451,15 @@ public:
 				}
 			}
 
-			if (initializeLockWord) {
-				/* zero lockword, if present */
-				j9objectmonitor_t *lockwordAddress = getLockwordAddress(vmThread, destObject);
-				if (NULL != lockwordAddress) {
-					j9objectmonitor_t lwValue = VM_ObjectMonitor::getInitialLockword(vmThread->javaVM, objectClass);
-					J9_STORE_LOCKWORD(vmThread, lockwordAddress, lwValue);
+			/** AR07 - Fix for creating value objects inside synchronized methods */
+			if (!J9_IS_J9CLASS_VALUETYPE(objectClass)) {
+				if (initializeLockWord) {
+					/* zero lockword, if present */
+					j9objectmonitor_t *lockwordAddress = getLockwordAddress(vmThread, destObject);
+					if (NULL != lockwordAddress) {
+						j9objectmonitor_t lwValue = VM_ObjectMonitor::getInitialLockword(vmThread->javaVM, objectClass);
+						J9_STORE_LOCKWORD(vmThread, lockwordAddress, lwValue);
+					}
 				}
 			}
 			if (hasReferences) {
