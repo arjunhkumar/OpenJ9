@@ -856,7 +856,14 @@ fieldOffsetsStartDo(J9JavaVM *vm, J9ROMClass *romClass, J9Class *superClazz, J9R
 		 * Step 3: Calculate the number of various categories of fields: single word primitive, double word primitive, and object references.
 		 * Iterate over fields to count instance fields by size.
 		 */
-
+		/** AR07 Debug */
+		// J9UTF8 *klassName = NNSRP_GET(romClass->className, J9UTF8 *);
+        // char *className = (char *) klassName->data;
+		// if (strcmp(className, "raytracer/RayTracer") == 0)
+		// {
+		// 	printf("Classname: %s\n",className);
+		// }
+		/** AR07 Debug End */
 		fieldInfo.countInstanceFields();
 
 		if (NULL != extraHiddenFields) {

@@ -313,6 +313,14 @@ TR::DefaultCompilationStrategy::processInterpreterSample(TR_MethodEvent *event)
    char sig[SIG_SZ];  // hopefully the size is good for most cases
 
    J9ROMMethod * romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(j9method);
+   /* AR07 - Debug statements */
+   // J9UTF8* methodName = J9ROMMETHOD_NAME(romMethod);
+	// J9UTF8* signature = J9ROMMETHOD_SIGNATURE(romMethod);
+   // const char * _methodName = (char *) J9UTF8_DATA(methodName);
+   // const char * _methodSign = (char *) J9UTF8_DATA(signature);
+   // printf("Method name: %s and signature %s\n",_methodName,_methodSign);
+   /* AR07 - Debug statements */
+
    bool loopy = J9ROMMETHOD_HAS_BACKWARDS_BRANCHES(romMethod) ? true : false;
 
    if (logSampling || TrcEnabled_Trc_JIT_Sampling)

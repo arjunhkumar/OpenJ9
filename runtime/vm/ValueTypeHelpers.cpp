@@ -153,11 +153,19 @@ findJ9ClassInFlattenedClassCache(J9FlattenedClassCache *flattenedClassCache, U_8
         J9Class *clazz = NULL;
 
         for (UDATA i = 0; i < length; i++) {
-                J9UTF8* currentClassName = J9ROMCLASS_CLASSNAME(J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, i)->clazz->romClass);
-                if (J9UTF8_DATA_EQUALS(J9UTF8_DATA(currentClassName), J9UTF8_LENGTH(currentClassName), className, classNameLength)) {
-                        clazz = J9_VM_FCC_CLASS_FROM_ENTRY(J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, i));
-                        break;
+                J9FlattenedClassCacheEntry *fccEntry = J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, i);
+                /** AR07 - Resolve the class only if the field corresponding to the 
+                 * FCC entry is not static. */
+                if (!J9_ARE_ALL_BITS_SET(fccEntry->field->modifiers, J9AccStatic))
+                {
+                        J9UTF8* currentClassName = J9ROMCLASS_CLASSNAME(fccEntry->clazz->romClass);
+                        if (J9UTF8_DATA_EQUALS(J9UTF8_DATA(currentClassName), J9UTF8_LENGTH(currentClassName), className, classNameLength)) 
+                                {
+                                        clazz = J9_VM_FCC_CLASS_FROM_ENTRY(J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, i));
+                                        break;
+                                }
                 }
+                
         }
 
         Assert_VM_notNull(clazz);

@@ -1945,12 +1945,21 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 	BOOLEAN result = TRUE;
 	UDATA flattenableFieldCount = 0;
 	bool eligibleForFastSubstitutability = true;
-
+	/** AR07 Debug */
+	// J9UTF8 *klassName = NNSRP_GET(romClass->className, J9UTF8 *);
+	// const char * klassNameStr = (char *) klassName->data;
+	// if (strcmp(klassNameStr, "raytracer/RayTracer") == 0)
+	// {
+	// 	printf("Classname: %s\n",klassNameStr);
+	// }
+	/** AR07 Debug End */
 	/* iterate over fields and load classes of fields marked as QTypes */
 	while (NULL != field) {
 		const U_32 modifiers = field->modifiers;
 		J9UTF8 *signature = J9ROMFIELDSHAPE_SIGNATURE(field);
 		U_8 *signatureChars = J9UTF8_DATA(signature);
+		// J9UTF8 *fieldName = J9ROMFIELDSHAPE_NAME(field);
+		// char *fieldNameChars = (char *)J9UTF8_DATA(fieldName);
 		if (J9_ARE_NO_BITS_SET(modifiers, J9AccStatic)) {
 			switch (signatureChars[0]) {
 			case 'Q':
@@ -1985,6 +1994,16 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 					entry->clazz = valueClass;
 					entry->field = field;
 					entry->offset = UDATA_MAX;
+
+					/** AR07 - Debug*/
+					// J9FlattenedClassCacheEntry *debugEntry = J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, flattenableFieldCount);
+					// if (strcmp(klassNameStr, "raytracer/RayTracer") == 0)
+					// {
+					// 	J9UTF8 *klassName = NNSRP_GET(debugEntry->clazz->romClass->className, J9UTF8 *);
+					// 	const char * klassNameStr = (char *) klassName->data;
+					// 	printf("Entry: %s and %s\n",klassNameStr,fieldNameChars);
+					// }
+					/** AR07 - Debug*/
 					flattenableFieldCount += 1;
 				}
 				*valueTypeFlags |= (valueClass->classFlags & (J9ClassLargestAlignmentConstraintDouble | J9ClassLargestAlignmentConstraintReference | J9ClassHasReferences));
@@ -3490,7 +3509,14 @@ internalCreateRAMClassFromROMClass(J9VMThread *vmThread, J9ClassLoader *classLoa
 	J9FlattenedClassCache *flattenedClassCache = (J9FlattenedClassCache *) flattenedClassCacheBuffer;
 	PORT_ACCESS_FROM_VMC(vmThread);
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
-
+	/** AR07 Debug */
+		// J9UTF8 *klassName = NNSRP_GET(romClass->className, J9UTF8 *);
+        // const char * klassNameStr = (char *) klassName->data;
+		// if (strcmp(klassNameStr, "raytracer/RayTracer") == 0)
+		// {
+		// 	printf("Classname: %s\n",klassNameStr);
+		// }
+	/** AR07 Debug End */
 	if (J9_ARE_ALL_BITS_SET(options, J9_FINDCLASS_FLAG_ANON)) {
 		classLoader = javaVM->anonClassLoader;
 	}

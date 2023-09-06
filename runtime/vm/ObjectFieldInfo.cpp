@@ -47,8 +47,19 @@ ObjectFieldInfo::countInstanceFields(void)
 			if (modifiers & J9FieldFlagObject) {
 #ifdef J9VM_OPT_VALHALLA_VALUE_TYPES
 				J9UTF8 *fieldSig = J9ROMFIELDSHAPE_SIGNATURE(field);
+				/** AR07 Debug */
+				// char *fieldSignature = (char *)J9UTF8_DATA(J9ROMFIELDSHAPE_SIGNATURE(field));
+				// char *fieldName = (char *)J9UTF8_DATA(J9ROMFIELDSHAPE_NAME(field));
+				// J9UTF8 *klassName = NNSRP_GET(_romClass->className, J9UTF8 *);
+				// char *klassNameStr = (char *) klassName->data;
+				// if (strcmp(klassNameStr, "raytracer/RayTracer") == 0)
+				// {
+				// 	printf("\nField Name :%s Signature: %s",fieldName,fieldSignature);
+				// }
+				/** AR07 Debug End*/
 				U_8 *fieldSigBytes = J9UTF8_DATA(J9ROMFIELDSHAPE_SIGNATURE(field));
 				if ('Q' == *fieldSigBytes) {
+					// char *  fieldSignatureStr = (char *) J9UTF8_DATA(fieldSig);
 					J9Class *fieldClass = findJ9ClassInFlattenedClassCache(_flattenedClassCache, fieldSigBytes + 1, J9UTF8_LENGTH(fieldSig) - 2);
 					U_32 size = (U_32)fieldClass->totalInstanceSize;
 					/* AR07 - Additional check before inlining field. */
