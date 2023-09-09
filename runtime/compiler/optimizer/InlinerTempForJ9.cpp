@@ -1163,6 +1163,12 @@ TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSy
       TR::Node* conversionNode = TR::Node::create(conversionOpCode,
                                                  1, valueWithoutConversion);
       valueWithConversion = conversionNode;
+      /** AR07 Debug*/
+      if(strcmp("<init>",comp()->getMethodBeingCompiled()->nameChars()) == 0)
+      {
+         printf("Write Barrier inside constructor.");
+      }
+      /** AR07 Debug End*/
       unsafeNodeWithConversion = type == TR::Address && (TR::Compiler->om.writeBarrierType() != gc_modron_wrtbar_none)
          ? TR::Node::createWithSymRef(TR::awrtbari, 3, 3, unsafeAddress, valueWithConversion, unsafeCall->getChild(1), symRef)
          : TR::Node::createWithSymRef(comp()->il.opCodeForIndirectArrayStore(type), 2, 2, unsafeAddress, valueWithConversion, symRef);
@@ -1170,6 +1176,12 @@ TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSy
       debugTrace(tracer(), "\tConversion is Needed, conversionNode = %p unsafeNodeWithConversion = %p valueWithConversion = %p\n", conversionNode, unsafeNodeWithConversion, valueWithConversion);
 
       }
+      /** AR07 Debug*/
+      if(strcmp("<init>",comp()->getMethodBeingCompiled()->nameChars()) == 0)
+      {
+         printf("\nWrite Barrier inside constructor.");
+      }
+      /** AR07 Debug End*/
    TR::Node * unsafeNode = type == TR::Address && (TR::Compiler->om.writeBarrierType() != gc_modron_wrtbar_none)
       ? TR::Node::createWithSymRef(TR::awrtbari, 3, 3, unsafeAddress, valueWithoutConversion, unsafeCall->getChild(1), symRef)
       : TR::Node::createWithSymRef(comp()->il.opCodeForIndirectStore(type), 2, 2, unsafeAddress, valueWithoutConversion, symRef);

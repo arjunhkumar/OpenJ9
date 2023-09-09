@@ -505,7 +505,15 @@ jitFieldsAreIdentical (J9VMThread *vmStruct, J9ConstantPool *cp1, UDATA index1, 
 		UDATA f1 = findField(vmStruct, cp1, index1, isStatic, &c1);
 		if (0 != f1) {
 			J9Class *c2 = NULL;
-			UDATA f2 = findField(vmStruct, cp2, index2, isStatic, &c2);
+			// UDATA f2 = findField(vmStruct, cp2, index2, isStatic, &c2);
+			/** Fix for illegal casting of CP Item*/
+			U_32 * cpShapeDescription = J9ROMCLASS_CPSHAPEDESCRIPTION(cp2->ramClass->romClass);
+			U_32 shapeDesc = J9_CP_TYPE(cpShapeDescription, index2);
+			UDATA f2 = 0;
+			if(shapeDesc == J9CPTYPE_FIELD){
+				f2 = findField(vmStruct, cp2, index2, isStatic, &c2);
+			}
+			/** Fix for illegal casting of CP Item End*/
 			if (0 != f2) {
 					identical = ((f1 == f2) && (c1 == c2));
 			}

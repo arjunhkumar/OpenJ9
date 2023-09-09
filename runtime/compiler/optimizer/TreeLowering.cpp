@@ -1395,6 +1395,12 @@ StoreArrayElementTransformer::lower(TR::Node* const node, TR::TreeTop* const tt)
    TR::Node *elementAddress = J9::TransformUtil::calculateElementAddress(comp, anchoredArrayBaseAddressNode, anchoredElementIndexNode, TR::Address);
 
    TR::SymbolReference *elementSymRef = comp->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::Address, anchoredArrayBaseAddressNode);
+   /** AR07 Debug*/
+   if(strcmp("<init>",comp->getMethodBeingCompiled()->nameChars()) == 0) 
+   {
+      printf("\nWrite Barrier inside constructor.");
+   }
+   /** AR07 Debug End*/
    TR::Node *elementStoreNode = TR::Node::createWithSymRef(TR::awrtbari, 3, 3, elementAddress, anchoredValueNode, anchoredArrayBaseAddressNode, elementSymRef);
 
    TR::Node *arrayStoreCHKNode = NULL;

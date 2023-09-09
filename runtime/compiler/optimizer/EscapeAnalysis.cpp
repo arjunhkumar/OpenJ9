@@ -7428,6 +7428,12 @@ void TR_EscapeAnalysis::heapifyForColdBlocks(Candidate *candidate)
                      TR::TreeTop *translateTT = NULL;
                      if (stackFieldLoad->getDataType() == TR::Address)
                         {
+                        /** AR07 Debug*/
+                        if(strcmp("<init>",comp()->getMethodBeingCompiled()->nameChars()) == 0)
+                           {
+                              printf("\nWrite Barrier inside constructor.");
+                           }
+                        /** AR07 Debug End*/
                         heapFieldStore = TR::Node::createWithSymRef(TR::awrtbari, 3, 3, heapAllocation->getFirstChild(), stackFieldLoad, heapAllocation->getFirstChild(), field.fieldSymRef());
                         if (comp()->useCompressedPointers())
                            {

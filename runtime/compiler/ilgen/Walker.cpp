@@ -6973,6 +6973,15 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef)
 
    // code to handle volatiles moved to CodeGenPrep
    //
+   /** AR07 - Debug */
+   if(strcmp("in/ac/iitmandi/compl/ds/value/ValueTransaction.<init>(Ljava/lang/String;Lin/ac/iitmandi/compl/ds/CustomerDetails;Qin/ac/iitmandi/compl/ds/value/TransactionInfo;Qin/ac/iitmandi/compl/ds/value/PaymentInfo;)V",comp()->signature())==0)
+   {
+      if(!(parentObject->getOpCodeValue() == TR::aloadi || parentObject->getOpCodeValue() == TR::aload))
+      {
+         printf("\n%s",symbol->getName());
+      }
+   }
+   /** AR07 - Debug End */
    TR::Node * node;
    if ((type == TR::Address && _generateWriteBarriersForGC) || _generateWriteBarriersForFieldWatch)
       {
@@ -7455,6 +7464,12 @@ TR_J9ByteCodeIlGenerator::storeArrayElement(TR::DataType dataType, TR::ILOpCodes
    TR::Node * storeNode, * resultNode;
    if (generateWriteBarrier)
       {
+      /** AR07 Debug*/
+      if(strcmp("<init>",comp()->getMethodBeingCompiled()->nameChars()) == 0)
+         {
+            printf("\nWrite Barrier inside constructor.");
+         }
+      /** AR07 Debug End*/
       storeNode = resultNode = TR::Node::createWithSymRef(TR::awrtbari, 3, 3, elementAddress, value, arrayBaseAddress, symRef);
       usedArrayBaseAddress = true;
       }
