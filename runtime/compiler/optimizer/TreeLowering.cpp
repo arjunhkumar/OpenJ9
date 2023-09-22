@@ -1396,10 +1396,10 @@ StoreArrayElementTransformer::lower(TR::Node* const node, TR::TreeTop* const tt)
 
    TR::SymbolReference *elementSymRef = comp->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::Address, anchoredArrayBaseAddressNode);
    /** AR07 Debug*/
-   if(strcmp("<init>",comp->getMethodBeingCompiled()->nameChars()) == 0) 
-   {
-      printf("\nWrite Barrier inside constructor.");
-   }
+   // if(strcmp("<init>",comp->getMethodBeingCompiled()->nameChars()) == 0) 
+   // {
+   //    printf("\nWrite Barrier inside constructor.");
+   // }
    /** AR07 Debug End*/
    TR::Node *elementStoreNode = TR::Node::createWithSymRef(TR::awrtbari, 3, 3, elementAddress, anchoredValueNode, anchoredArrayBaseAddressNode, elementSymRef);
 

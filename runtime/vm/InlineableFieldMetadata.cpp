@@ -53,7 +53,7 @@ bool IFM_ClassMetadata::isFieldInlined(char const *fieldName,char const *fieldSi
 
 const char * IFM_ClassMetadata::createCopy(const char * targetString) 
 {
-    char * classSignature;
+    char * classSignature = NULL;
     if( targetString != NULL)
     {
         classSignature = (char *) malloc (strlen(targetString));

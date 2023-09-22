@@ -655,6 +655,14 @@ int32_t TR_EscapeAnalysis::performAnalysisOnce()
       comp()->dumpMethodTrees("Trees before Escape Analysis");
       }
 
+   /** AR07 - Debug */
+   // if( (strcmp(comp()->getMethodBeingCompiled()->classNameChars(),"in/ac/iitmandi/compl/Operator") == 0 )|| 
+   //    (strcmp(comp()->getMethodBeingCompiled()->classNameChars(),"in/ac/iitmandi/compl/OperatorSubClass") == 0 ) )
+   // {
+   //    printf("\nEscape Analysis pass over class: %s",comp()->getMethodBeingCompiled()->classNameChars());
+   //    printf("\nEscape Analysis pass over : %s",comp()->signature());
+   // }
+   /** AR07 - Debug End */
    _useDefInfo                 = NULL; // Build these only if required
    _invalidateUseDefInfo       = false;
    _valueNumberInfo            = NULL;
@@ -861,7 +869,7 @@ int32_t TR_EscapeAnalysis::performAnalysisOnce()
             && performTransformation(comp(), "%sDememoizing [%p]\n", OPT_DETAILS, candidate->_node))
             {
             // Dememoization worked!
-            // Inline the constructor and catch this candidate on the next pass
+            // Inline the constructor and catch thllSite which were devirtualizeis candidate on the next pass
             candidate->setLocalAllocation(false);
 
             if (trace())
@@ -1339,6 +1347,16 @@ int32_t TR_EscapeAnalysis::performAnalysisOnce()
    //
    for (candidate = _candidates.getFirst(); candidate; candidate = candidate->getNext())
       {
+      /** AR07 Debug */
+      if(strcmp("in/ac/iitmandi/compl/MainKlass.foo(I)D",comp()->signature())==0)
+      {
+         if(candidate->_kind == TR::newvalue)
+         {
+            printf("\nNew Value check.");
+         }
+         printf("\nCandidate check.");
+      }
+      /** AR07 Debug End*/
       if (candidate->isLocalAllocation())
          {
          if (performTransformation(comp(), "%sStack allocating candidate [%p]\n",OPT_DETAILS, candidate->_node))
@@ -1921,7 +1939,18 @@ Candidate *TR_EscapeAnalysis::createCandidateIfValid(TR::Node *node, TR_OpaqueCl
             }
          }
       }
-
+   /** AR07 Debug */
+   // if(node->getOpCodeValue() == TR::newvalue)
+   // {
+   //    printf("\nNon Escaping Candidate Found.");
+   // }
+   /** AR07 Debug End */
+   /** AR07 Debug */
+   // if(strcmp("in/ac/iitmandi/compl/MainKlass.foo(I)D",comp()->signature())==0)
+   // {
+   //    printf("\nCandidate found.");
+   // }
+   /** AR07 Debug End*/
    Candidate *result = NULL;
    result = new (trStackMemory()) Candidate(node, _curTree, _curBlock, size, classInfo, comp());
 
@@ -5245,13 +5274,19 @@ void TR_EscapeAnalysis::checkObjectSizes()
    int32_t totalSize = 0;
    int32_t i;
    Candidate *candidate, *next;
-
+   
    for (candidate = _candidates.getFirst(); candidate; candidate = next)
       {
       next = candidate->getNext();
       if (!candidate->isLocalAllocation())
          continue;
-
+      /** AR07 Debug */
+      if(candidate->_node->getOpCodeValue() == TR::newvalue && 
+         strcmp("in/ac/iitmandi/compl/MainKlass.foo(I)D",comp()->signature())==0)
+      {
+         printf("\nNon Escaping Candidate Found.");
+      }
+      /** AR07 Debug End*/
       // Make sure contiguous objects are not too big
       //
       if (candidate->isContiguousAllocation())
@@ -5273,15 +5308,29 @@ void TR_EscapeAnalysis::checkObjectSizes()
          {
          if (candidate->_fields)
             {
-            // Size of non-contiguous object is the sum of its referenced fields
-            //
-            for (i = candidate->_fields->size()-1; i >= 0; i--)
-               candidate->_fieldSize += candidate->_fields->element(i)._size;
-            totalSize += candidate->_fieldSize;
+               // Size of non-contiguous object is the sum of its referenced fields
+               //
+               // int32_t candidate_field_size = 0;
+               /** AR07 Debug */
+               // printf("\nCandidate opcode: %s. No. of fields for candidate: %d",candidate->_node->getOpCode().getName(),candidate->_fields->size());
+               for (i = candidate->_fields->size()-1; i >= 0; i--)
+               {
+                  candidate->_fieldSize += candidate->_fields->element(i)._size;
+                  // candidate_field_size+= candidate->_fields->element(i)._size;
+               }
+               totalSize += candidate->_fieldSize;
+               // printf("\nCandidate field size: %d",candidate_field_size);
+               /** AR07 Debug End*/
             }
+            
          }
       }
-
+   /** AR07 Debug */
+   if(strcmp("in/ac/iitmandi/compl/MainKlass.foo(I)D",comp()->signature())==0)
+   {
+      printf("\nTotal Size: %d",totalSize);
+   }
+   /** AR07 Debug End*/
    // If total size for local allocation is too big, remove candidates until the
    // total size becomes reasonable.
    //
@@ -7429,10 +7478,10 @@ void TR_EscapeAnalysis::heapifyForColdBlocks(Candidate *candidate)
                      if (stackFieldLoad->getDataType() == TR::Address)
                         {
                         /** AR07 Debug*/
-                        if(strcmp("<init>",comp()->getMethodBeingCompiled()->nameChars()) == 0)
-                           {
-                              printf("\nWrite Barrier inside constructor.");
-                           }
+                        // if(strcmp("<init>",comp()->getMethodBeingCompiled()->nameChars()) == 0)
+                        //    {
+                        //       printf("\nWrite Barrier inside constructor.");
+                        //    }
                         /** AR07 Debug End*/
                         heapFieldStore = TR::Node::createWithSymRef(TR::awrtbari, 3, 3, heapAllocation->getFirstChild(), stackFieldLoad, heapAllocation->getFirstChild(), field.fieldSymRef());
                         if (comp()->useCompressedPointers())
@@ -8172,6 +8221,12 @@ FieldInfo& Candidate::findOrSetFieldInfo(TR::Node *fieldRefNode, TR::SymbolRefer
    TR::DataType refType = symRef->getSymbol()->getDataType();
    TR::DataType fieldType = refType;
    int N = 1;
+   /** AR07 - Debug */
+   // if(this->_kind == TR::newvalue)
+   // {
+   //    printf("\n Setting field values to new value candidate.");
+   // }
+   /** AR07 - Debug End*/
    if (refType.isVector())
       {
       fieldType = refType.getVectorElementType();

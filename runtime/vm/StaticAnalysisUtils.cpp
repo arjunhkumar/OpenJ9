@@ -68,15 +68,6 @@ std::vector<IFM_ClassMetadata *> StaticAnalysisUtils::getStaticRes()
 
 void StaticAnalysisUtils::clearResults()
 {
-    // for (std::vector<IFM_ClassMetadata *>::iterator i = StaticAnalysisUtils::getStaticRes().begin(); i != StaticAnalysisUtils::getStaticRes().end(); ++i)
-    // {
-    //     IFM_ClassMetadata * element = (IFM_ClassMetadata *)*i;
-    //     char * element_className =  (char *)element->getClassName();
-    //     element->clearResults();
-    //     free(element_className);
-    //     delete(element);
-    // }
-
     std::vector<IFM_ClassMetadata *> staticRes = StaticAnalysisUtils::getStaticRes();
     for(size_t i = 0; i < staticRes.size(); ++i) 
     {

@@ -61,7 +61,7 @@ IFM_ClassMetadata * getClassMetadata(const char * className)
 
 const char * createCopy(char * targetString) 
 {
-    char * classSignature;
+    char * classSignature = NULL;
     if( targetString != NULL)
     {
         classSignature = (char *) malloc (strlen(targetString));
