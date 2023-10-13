@@ -2352,12 +2352,31 @@ TR_J9ByteCodeIlGenerator::genInstanceof(int32_t cpIndex)
    TR::SymbolReference *classSymRef = loadClassObjectForTypeTest(cpIndex, TR_DisableAOTInstanceOfInlining);
    TR::Node *node = genNodeAndPopChildren(TR::instanceof, 2, symRefTab()->findOrCreateInstanceOfSymbolRef(_methodSymbol));
    push(node);
+    const char * _methodName = comp()->getMethodBeingCompiled()->nameChars();
+   if(strncmp("foo",_methodName,3)==0)
+   {
+      // TR::DebugCounter::prependDebugCounter(comp(),"Instanceof Counter", tt);
+         TR::TreeTop * tt = _block->getFirstRealTreeTop();
+         printf("Treetop Node %d\n",tt->getNode()->getByteCodeIndex());
+   }
    if (classSymRef->isUnresolved())
       {
       // Anchor to ensure sequencing for the implied (conditional) ResolveCHK.
       genTreeTop(node);
       }
    _methodSymbol->setHasInstanceOfs(true);
+   /** AR07 - Debug */
+   if(strncmp("foo",_methodName,3)==0)
+   {
+      // TR::DebugCounter::prependDebugCounter(comp(),"Instanceof Counter", tt);
+         TR::TreeTop * tt = _block->getLastRealTreeTop(); //_block->getFirstRealTreeTop()
+         if(NULL != tt && NULL != tt->getNode()){
+            printf("Treetop Node %d\n",tt->getNode()->getByteCodeIndex());
+         }
+         // TR::DebugCounter::prependDebugCounter(comp(),"Instanceof Counter", node);
+      printf("Instanceof Counter: Method name: %s and BCI %d\n",_methodName,node->getByteCodeIndex());
+   }
+      /** AR07 - Debug */
    }
 
 TR::Node *
@@ -3002,7 +3021,13 @@ TR_J9ByteCodeIlGenerator::genInvokeVirtual(int32_t cpIndex)
          cpIndex,
          /* ignoreRtResolve = */ false,
          &unresolvedInCP);
-
+   /* AR07 - Debug statements */
+   // const char * _methodName = comp()->getMethodBeingCompiled()->nameChars();
+   // if(strcmp("foo",_methodName)==0)
+   // {
+   //    printf("Method name: %s and BCI %d\n",_methodName,cpIndex);
+   // }
+   /* AR07 - Debug statements */
    TR::SymbolReference * symRef = NULL;
    if (method != NULL && method->isPrivate())
       {
@@ -3313,6 +3338,13 @@ TR_J9ByteCodeIlGenerator::genInvokeHandle(TR::SymbolReference *invokeExactSymRef
 
    TR::Node* tmpTargetAddress = TR::Node::lconst(0);
    TR::Node *callNode = genInvoke(invokeExactSymRef, tmpTargetAddress, invokedynamicReceiver);
+   /* AR07 - Debug statements */
+   if(strcmp("B.foo()V",comp()->signature())==0)
+   {
+      const char * _methodName = comp()->getMethodBeingCompiled()->nameChars();
+      printf("Method name: %s and BCI %d\n",_methodName,callNode->getByteCodeIndex());
+   }
+   /* AR07 - Debug statements */
    _methodSymbol->setMayHaveIndirectCalls(true);
    _methodSymbol->setHasMethodHandleInvokes(true);
 
@@ -4434,7 +4466,14 @@ break
          }
          _intrinsicErrorHandling = false;
       }
-
+   /* AR07 - Debug statements */
+   const char * _methodName = comp()->getMethodBeingCompiled()->nameChars();
+   if(strcmp("foo",_methodName)==0)
+   {
+      TR::DebugCounter::prependDebugCounter(comp(),"Call-Site Counter", callNodeTreeTop);
+      printf("Call-Site Counter: Method name: %s and BCI %d\n",_methodName,callNode->getByteCodeIndex());
+   }
+   /* AR07 - Debug statements */
    // The call may be transformed into a non-OSR point. Check if bookkeeping is needed
    // before the transformation.
    bool needOSRBookkeeping = false;
@@ -6785,6 +6824,9 @@ TR_J9ByteCodeIlGenerator::genMultiANewArray(int32_t dims)
 int32_t
 TR_J9ByteCodeIlGenerator::genReturn(TR::ILOpCodes nodeop, bool monitorExit)
    {
+   /** AR07 - Debug */
+   TR::TreeTop * tt;
+   /** AR07 - Debug End*/
    if (!comp()->isPeekingMethod() &&
          (_methodSymbol->getMandatoryRecognizedMethod() == TR::java_lang_Object_init))
       {
@@ -6799,7 +6841,7 @@ TR_J9ByteCodeIlGenerator::genReturn(TR::ILOpCodes nodeop, bool monitorExit)
       TR::SymbolReference *finalizeSymRef = comp()->getSymRefTab()->findOrCreateRuntimeHelper(TR_jitCheckIfFinalizeObject, true, true, true);
       TR::Node *vcallNode = TR::Node::createWithSymRef(TR::call, 1, 1, receiverArg, finalizeSymRef);
       _finalizeCallsBeforeReturns.add(vcallNode);
-      genTreeTop(vcallNode);
+      tt = genTreeTop(vcallNode);
       }
 
    static const char* disableMethodHookForCallees = feGetEnv("TR_DisableMethodHookForCallees");
@@ -6824,7 +6866,7 @@ TR_J9ByteCodeIlGenerator::genReturn(TR::ILOpCodes nodeop, bool monitorExit)
          methodExitNode = TR::Node::createWithSymRef(TR::MethodExitHook, 1, 1, TR::Node::createWithSymRef(TR::loadaddr, 0, tempSymRef), methodExitSymRef);
          }
 
-      genTreeTop(methodExitNode);
+      tt = genTreeTop(methodExitNode);
       }
 
 
@@ -6855,10 +6897,9 @@ TR_J9ByteCodeIlGenerator::genReturn(TR::ILOpCodes nodeop, bool monitorExit)
       loadMonitorArg();
       genMonitorExit(true);
       }
-
    if (nodeop == TR::Return)
       {
-      genTreeTop(TR::Node::create(nodeop, 0));
+      tt = genTreeTop(TR::Node::create(nodeop, 0));
       }
    else
       {
@@ -6885,8 +6926,15 @@ TR_J9ByteCodeIlGenerator::genReturn(TR::ILOpCodes nodeop, bool monitorExit)
          default:
             break;
          }
-
-      genTreeTop(TR::Node::create(nodeop, 1, returnChild));
+      tt = genTreeTop(TR::Node::create(nodeop, 1, returnChild));
+      /** AR07 - Debug */
+      const char * _methodName = comp()->getMethodBeingCompiled()->nameChars();
+      if(strncmp("foobar",_methodName,6)==0)
+      {
+         TR::DebugCounter::prependDebugCounter(comp(),"Return Counter", tt);
+         printf("Return Counter: Method name: %s and BCI %d\n",_methodName,tt->getNode()->getByteCodeIndex());
+      }
+      /** AR07 - Debug */
       }
 
    discardEntireStack();
@@ -7293,7 +7341,15 @@ TR_J9ByteCodeIlGenerator::storeStatic(int32_t cpIndex)
 
    handleSideEffect(node);
 
-   genTreeTop(node);
+   TR::TreeTop * tt = genTreeTop(node);
+   /** AR07 - Debug */
+   const char * _methodName = comp()->getMethodBeingCompiled()->nameChars();
+   if(strncmp("foo",_methodName,3)==0)
+   {
+      TR::DebugCounter::prependDebugCounter(comp(),"Static Assignment Counter", tt);
+      printf("Static Assignment Counter: Method name: %s and BCI %d\n",_methodName,tt->getNode()->getByteCodeIndex());
+   }
+   /** AR07 - Debug */
    }
 
 void
