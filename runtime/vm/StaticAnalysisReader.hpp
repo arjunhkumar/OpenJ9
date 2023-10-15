@@ -11,6 +11,7 @@
 #ifdef __cplusplus
 extern "C" {
     void readStaticResults(char *filename);
+    void readStaticProfileData(char *filename);
     const char * createCopy(char * targetString);
     int fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field);
     int fieldInliningPreferenceWithRom(J9ROMClass* fieldClass, J9ROMFieldShape* field);

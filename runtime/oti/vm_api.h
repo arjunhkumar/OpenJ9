@@ -61,6 +61,8 @@ typedef struct J9CreateJavaVMParams {
 	UDATA flags;
 } J9CreateJavaVMParams;
 
+// const char * createARCopy(char * targetString);
+
 /* ---------------- FastJNI.cpp ---------------- */
 
 /**
@@ -204,7 +206,7 @@ getAnnotationsFromAnnotationInfo(J9AnnotationInfo *annInfo, UDATA annotationType
 void *
 getNamedElementFromAnnotation(J9AnnotationInfoEntry *annotation, char *name, U_32 nameLength);
 
-
+// const char * createARCopy(char * targetString);
 /* ---------------- bchelper.c ---------------- */
 
 /**

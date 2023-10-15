@@ -26,4 +26,6 @@ j9jit_files(
 	ilgen/J9ByteCodeIterator.cpp
 	ilgen/J9IlGeneratorMethodDetails.cpp
 	ilgen/Walker.cpp
+	ilgen/StaticProfilingSite.cpp
+	ilgen/StaticProfileInfoStorage.cpp
 )

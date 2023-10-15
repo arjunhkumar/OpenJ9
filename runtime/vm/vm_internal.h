@@ -541,8 +541,10 @@ UDATA initializeExclusiveAccess(J9JavaVM *vm);
 void shutDownExclusiveAccess(J9JavaVM *vm);
 /** AR07 - Using static analysis results */
 void readStaticResults(char *filename);
+void readStaticProfileData(char *filename);
 int fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field);
 int fieldInliningPreferenceWithRom(J9ROMClass* fieldClass, J9ROMFieldShape* field);
+const char * createARCopy(char * targetString);
 
 #if JAVA_SPEC_VERSION >= 16
 /* LayoutFFITypeHelpers.cpp */

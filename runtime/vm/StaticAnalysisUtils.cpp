@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include "InlineableFieldMetadata.hpp"
 #include "StaticAnalysisUtils.hpp"
+#include "StaticProfilingMetadata.hpp"
 
 std::vector<IFM_ClassMetadata *> StaticAnalysisUtils::staticResults;
+SPM_StaticProfilingMetadata * StaticAnalysisUtils::profilingData;
 
 bool StaticAnalysisUtils::fieldInliningPreference(J9Class *fieldClass, J9ROMFieldShape* field){
     J9UTF8* className = J9ROMCLASS_CLASSNAME(fieldClass->romClass);
@@ -66,6 +68,11 @@ std::vector<IFM_ClassMetadata *> StaticAnalysisUtils::getStaticRes()
     return StaticAnalysisUtils::staticResults;
 }
 
+// SPM_StaticProfilingMetadata * StaticAnalysisUtils::getProfileData()
+// {
+//     return StaticAnalysisUtils::profilingData;
+// }
+
 void StaticAnalysisUtils::clearResults()
 {
     std::vector<IFM_ClassMetadata *> staticRes = StaticAnalysisUtils::getStaticRes();
@@ -78,5 +85,55 @@ void StaticAnalysisUtils::clearResults()
         delete(element);
     }
 
+    // if(NULL != StaticAnalysisUtils::profilingData)
+    // {
+    //     StaticAnalysisUtils::getProfileData()->clearResults();
+    // }
+
 
 }
+
+void StaticAnalysisUtils::addCallSiteProfileData(SPM_StaticProfileInfo * staticProfileInfo)
+{
+    // if(NULL == StaticAnalysisUtils::profilingData)
+    // {
+    //     SPM_StaticProfilingMetadata * profileMetadata = (SPM_StaticProfilingMetadata *) malloc (sizeof(SPM_StaticProfilingMetadata));
+    //     // StaticAnalysisUtils::profilingData = (SPM_StaticProfilingMetadata *) malloc (sizeof(SPM_StaticProfilingMetadata));
+    //      std::vector<SPM_StaticProfileInfo *> callSiteProfilingDataCopy;
+    //      callSiteProfilingDataCopy.push_back(staticProfileInfo);
+    //      profileMetadata->callSiteProfilingData = callSiteProfilingDataCopy;
+    //      StaticAnalysisUtils::profilingData = profileMetadata;
+    // }
+    // else
+    // {
+        SPM_StaticProfilingMetadata * profileMetadata = StaticAnalysisUtils::getProfileData();
+        // std::vector<SPM_StaticProfileInfo *> callSiteProfilingDataCopy = profileMetadata->callSiteProfilingData;
+        profileMetadata->callSiteProfilingData.push_back(staticProfileInfo);
+    // }
+    // std::vector<SPM_StaticProfileInfo *> callSiteProfilingData = StaticAnalysisUtils::profilingData->callSiteProfilingData;
+    // // if(callSiteProfilingData.empty)
+    // // {
+   
+    //     callSiteProfilingData.push_back(staticProfileInfo);
+        
+    // }
+}
+
+bool StaticAnalysisUtils::getProfilingPreference4CallSite(char * methodSig, uint32_t bci)
+{
+    if(NULL != StaticAnalysisUtils::profilingData)
+    {
+        SPM_StaticProfilingMetadata * profilingMetadata = StaticAnalysisUtils::profilingData;
+        return profilingMetadata->getCallSitePreference(methodSig, bci);
+    }
+    return false;
+}
+
+const char * StaticAnalysisUtils::getDebugCounterName(char * methodSig, uint32_t bci)
+ {
+    if(NULL != StaticAnalysisUtils::profilingData)
+    {
+        return StaticAnalysisUtils::profilingData->getDebugCounterName(methodSig,bci);
+    }
+    return NULL;
+ }

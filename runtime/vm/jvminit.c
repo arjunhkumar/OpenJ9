@@ -2575,6 +2575,7 @@ VMInitStages(J9JavaVM *vm, IDATA stage, void* reserved)
 				{
 					vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME_USE_STATIC_ANALYSIS_RESULTS;
 					readStaticResults("static_results/res.out");
+					// readStaticProfileData("static_results/callSites.out");
 				} 
 				else 
 				{

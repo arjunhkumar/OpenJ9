@@ -45,6 +45,7 @@
 #include "ObjectAllocationAPI.hpp"
 #include "objhelp.h"
 
+
 typedef enum {
 	J9_BCLOOP_SEND_TARGET_INITIAL_STATIC = 0,
 	J9_BCLOOP_SEND_TARGET_INITIAL_SPECIAL,
