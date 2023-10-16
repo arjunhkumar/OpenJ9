@@ -68,22 +68,22 @@ void readStaticProfileInfo(SPM_StaticProfile * staticProfile)
     }
 }
 
-bool StaticProfileStorage::getProfilingPreference4CallSite(char * methodSig, uint32_t bci)
+bool StaticProfileStorage::getProfilingPreference4CallSite(TR_ResolvedMethod * _method, uint32_t bci)
 {
     SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
     if(NULL != staticProfile)
     {
-        return staticProfile->getCallSitePreference(methodSig, bci);
+        return staticProfile->getCallSitePreference(_method, bci);
     }
     return false;
 }
 
-const char * StaticProfileStorage::getDebugCounterName(char * methodSig, uint32_t bci)
+const char * StaticProfileStorage::getDebugCounterName(TR_ResolvedMethod * _method, uint32_t bci)
  {
     SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
     if(NULL != staticProfile)
     {
-        return staticProfile->getDebugCounterName(methodSig,bci);
+        return staticProfile->getDebugCounterName(_method,bci);
     }
     return NULL;
  }

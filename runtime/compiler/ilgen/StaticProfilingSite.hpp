@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include "j9.h"
+#include "compile/ResolvedMethod.hpp"
 
 
 class SPM_StaticProfileInfo 
@@ -49,8 +50,10 @@ class SPM_StaticProfile
     std::vector<SPM_StaticProfileInfo *> getStaticAssignSiteProfile();
 
     bool getCallSitePreference(char * methodSignature, uint32_t bci);
+    bool getCallSitePreference(TR_ResolvedMethod * _method, uint32_t bci);
 
     const char * getDebugCounterName(char * methodSignature, uint32_t bci);
+    const char * getDebugCounterName(TR_ResolvedMethod * _method, uint32_t bci);
 
     void clearResults();
 };

@@ -4447,16 +4447,17 @@ break
    if(strncmp("foo",_methodName,3)==0)
    {
       printf("Inside foo().");
-   }
-   char * _methodSig = comp()->getMethodBeingCompiled()->classNameChars();
-   uint32_t bci = callNode->getByteCodeIndex();
-   bool staticPreference = StaticProfileStorage::getProfilingPreference4CallSite(_methodSig,bci);
-   SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
-   if(staticPreference)
-   {
-      const char *  dcName = StaticProfileStorage::getDebugCounterName(_methodSig,bci);
-      TR::DebugCounter::prependDebugCounter(comp(),dcName, callNodeTreeTop);
-      printf("Call-Site Counter: Method name: %s and BCI %d\n",_methodName,callNode->getByteCodeIndex());
+   
+      char * _methodSig = comp()->getMethodBeingCompiled()->classNameChars();
+      uint32_t bci = callNode->getByteCodeIndex();
+      bool staticPreference = StaticProfileStorage::getProfilingPreference4CallSite(comp()->getMethodBeingCompiled(),bci);
+      SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
+      if(staticPreference)
+      {
+         const char *  dcName = StaticProfileStorage::getDebugCounterName(comp()->getMethodBeingCompiled(),bci);
+         TR::DebugCounter::prependDebugCounter(comp(),dcName, callNodeTreeTop);
+         printf("Call-Site Counter: DC Name:%s Method name: %s and BCI %d\n",dcName,_methodName,callNode->getByteCodeIndex());
+      }
    }
    // J9Class * classObject = (J9Class *) symbol->ClassObject;
    // 
