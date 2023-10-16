@@ -414,6 +414,9 @@ enum INIT_STAGE {
 /* AR07 - Flag to use static analysis results */
 #define VMOPT_USE_STATIC_ANALYSIS_RESULTS "-XX:+UseStaticResults"
 #define VMOPT_DONOT_USE_STATIC_ANALYSIS_RESULTS "-XX:-UseStaticResults"
+/* AR07 - Flag to profile static sites identified */
+#define VMOPT_PROFILE_STATIC_SITES "-XX:+ProfileStaticSites"
+#define VMOPT_DONOT_PROFILE_STATIC_SITES "-XX:-ProfileStaticSites"
 
 #if defined(J9VM_ZOS_3164_INTEROPERABILITY)
 #define VMOPT_XXENABLE3164INTEROPERABILITY "-XX:+Enable3164Interoperability"

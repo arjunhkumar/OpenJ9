@@ -59,10 +59,26 @@ const char * createCopy(const char * targetString)
     }
     return copyString;
 }
-
-const char * getDebugCounterName4CallSite(const char * ID)
+/** General util functions. */
+const char * getDCName4CallSite(const char * ID)
 {
 	char *debugCounterName =  (char*)malloc(strlen(callSiteCounterPrefix)+strlen(ID)+1);
+    strcpy(debugCounterName,callSiteCounterPrefix);
+    strcat(debugCounterName,ID);
+    return debugCounterName;
+}
+
+const char * getDCName4RetSite(const char * ID)
+{
+	char *debugCounterName =  (char*)malloc(strlen(returnSiteCounterPrefix)+strlen(ID)+1);
+    strcpy(debugCounterName,callSiteCounterPrefix);
+    strcat(debugCounterName,ID);
+    return debugCounterName;
+}
+
+const char * getDCName4SASite(const char * ID)
+{
+	char *debugCounterName =  (char*)malloc(strlen(staticAssignSiteCounterPrefix)+strlen(ID)+1);
     strcpy(debugCounterName,callSiteCounterPrefix);
     strcat(debugCounterName,ID);
     return debugCounterName;
@@ -83,27 +99,6 @@ bool SPM_StaticProfile::getCallSitePreference(char * methodSignature, uint32_t b
     return false;
 }
 
-bool SPM_StaticProfile::getCallSitePreference(TR_ResolvedMethod * _method, uint32_t bci)
-{
-    if(NULL != _method)
-    {
-        char * methodSig = createMethodSignature(_method);
-        std::vector<SPM_StaticProfileInfo *> callSiteProfile = getCallSiteProfile();
-        for (size_t i = 0; i < callSiteProfile.size(); ++i)
-        {
-            const char *method_sig = callSiteProfile[i]->getMethodSignature();
-            if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
-                && bci == callSiteProfile[i]->getBCI())
-            {
-                free(methodSig);
-                return true;
-            }
-        }
-        free(methodSig);
-    }
-    return false;
-}
-
 const char * SPM_StaticProfile::getDebugCounterName(char * methodSignature, uint32_t bci)
 {
     std::vector<SPM_StaticProfileInfo *> callSiteProfile = getCallSiteProfile();
@@ -116,36 +111,12 @@ const char * SPM_StaticProfile::getDebugCounterName(char * methodSignature, uint
             U_32 intID  = callSiteProfile[i]->getID();
             std::string ID_string = std::to_string(intID);
             const char * ID_char = ID_string.c_str();
-            return getDebugCounterName4CallSite(ID_char);
+            return getDCName4CallSite(ID_char);
         }
     }
     return NULL;
 }
 
-const char * SPM_StaticProfile::getDebugCounterName(TR_ResolvedMethod * _method, uint32_t bci)
-{
-    if(NULL != _method)
-    {
-        char * _methodSig = createMethodSignature(_method);
-        std::vector<SPM_StaticProfileInfo *> callSiteProfile = getCallSiteProfile();
-        for (size_t i = 0; i < callSiteProfile.size(); ++i)
-        {
-            const char *method_sig = callSiteProfile[i]->getMethodSignature();
-            if ( (strncmp(method_sig, _methodSig, strlen(method_sig)) == 0) 
-                && bci == callSiteProfile[i]->getBCI())
-            {
-                U_32 intID  = callSiteProfile[i]->getID();
-                std::string ID_string = std::to_string(intID);
-                const char * ID_char = ID_string.c_str();
-                free(_methodSig);
-                return getDebugCounterName4CallSite(ID_char);
-            }
-        }
-        free(_methodSig);
-    }
-    
-    return NULL;
-}
 
 void SPM_StaticProfile::clearResults()
 {
@@ -198,6 +169,151 @@ char * createMethodSignature(TR_ResolvedMethod * _method)
         free(methodName);
         free(methodSig);
         return _methodSig;
+    }
+    return NULL;
+}
+
+/** Call-Site util functions. */
+
+bool SPM_StaticProfile::getPreference4CallSite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        char * methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> callSiteProfile = getCallSiteProfile();
+        for (size_t i = 0; i < callSiteProfile.size(); ++i)
+        {
+            const char *method_sig = callSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
+                && bci == callSiteProfile[i]->getBCI())
+            {
+                free(methodSig);
+                return true;
+            }
+        }
+        free(methodSig);
+    }
+    return false;
+}
+
+const char * SPM_StaticProfile::getDebugCounterName4CallSite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        char * _methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> callSiteProfile = getCallSiteProfile();
+        for (size_t i = 0; i < callSiteProfile.size(); ++i)
+        {
+            const char *method_sig = callSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, _methodSig, strlen(method_sig)) == 0) 
+                && bci == callSiteProfile[i]->getBCI())
+            {
+                U_32 intID  = callSiteProfile[i]->getID();
+                std::string ID_string = std::to_string(intID);
+                const char * ID_char = ID_string.c_str();
+                free(_methodSig);
+                return getDCName4CallSite(ID_char);
+            }
+        }
+        free(_methodSig);
+    }
+    
+    return NULL;
+}
+
+
+
+/** Return-Site util functions. */
+
+bool SPM_StaticProfile::getPreference4ReturnSite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        char * methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> retSiteProfile = getReturnSiteProfile();
+        for (size_t i = 0; i < retSiteProfile.size(); ++i)
+        {
+            const char *method_sig = retSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
+                && bci == retSiteProfile[i]->getBCI())
+            {
+                free(methodSig);
+                return true;
+            }
+        }
+        free(methodSig);
+    }
+    return false;
+}
+
+const char * SPM_StaticProfile::getDebugCounterName4ReturnSite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        char * _methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> retSiteProfile = getReturnSiteProfile();
+        for (size_t i = 0; i < retSiteProfile.size(); ++i)
+        {
+            const char *method_sig = retSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, _methodSig, strlen(method_sig)) == 0) 
+                && bci == retSiteProfile[i]->getBCI())
+            {
+                U_32 intID  = retSiteProfile[i]->getID();
+                std::string ID_string = std::to_string(intID);
+                const char * ID_char = ID_string.c_str();
+                free(_methodSig);
+                return getDCName4RetSite(ID_char);
+            }
+        }
+        free(_methodSig);
+    }
+    return NULL;
+}
+
+
+/** Static-Assign Site util functions. */
+
+bool SPM_StaticProfile::getPreference4SASite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        char * methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> saSiteProfile = getStaticAssignSiteProfile();
+        for (size_t i = 0; i < saSiteProfile.size(); ++i)
+        {
+            const char *method_sig = saSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
+                && bci == saSiteProfile[i]->getBCI())
+            {
+                free(methodSig);
+                return true;
+            }
+        }
+        free(methodSig);
+    }
+    return false;
+}
+
+const char * SPM_StaticProfile::getDebugCounterName4SASite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        char * _methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> saSiteProfile = getStaticAssignSiteProfile();
+        for (size_t i = 0; i < saSiteProfile.size(); ++i)
+        {
+            const char *method_sig = saSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, _methodSig, strlen(method_sig)) == 0) 
+                && bci == saSiteProfile[i]->getBCI())
+            {
+                U_32 intID  = saSiteProfile[i]->getID();
+                std::string ID_string = std::to_string(intID);
+                const char * ID_char = ID_string.c_str();
+                free(_methodSig);
+                return getDCName4SASite(ID_char);
+            }
+        }
+        free(_methodSig);
     }
     return NULL;
 }

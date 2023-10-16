@@ -50,10 +50,17 @@ class SPM_StaticProfile
     std::vector<SPM_StaticProfileInfo *> getStaticAssignSiteProfile();
 
     bool getCallSitePreference(char * methodSignature, uint32_t bci);
-    bool getCallSitePreference(TR_ResolvedMethod * _method, uint32_t bci);
-
     const char * getDebugCounterName(char * methodSignature, uint32_t bci);
-    const char * getDebugCounterName(TR_ResolvedMethod * _method, uint32_t bci);
+    
+    // CALL-SITE PROFILING
+    bool getPreference4CallSite(TR_ResolvedMethod * _method, uint32_t bci);
+    const char * getDebugCounterName4CallSite(TR_ResolvedMethod * _method, uint32_t bci);
+    // RETURN-SITE PROFILING
+    bool getPreference4ReturnSite(TR_ResolvedMethod * _method, uint32_t bci);
+    const char * getDebugCounterName4ReturnSite(TR_ResolvedMethod * _method, uint32_t bci);
+    // STATIC-ASSIGN SITE PROFILING
+    bool getPreference4SASite(TR_ResolvedMethod * _method, uint32_t bci);
+    const char * getDebugCounterName4SASite(TR_ResolvedMethod * _method, uint32_t bci);
 
     void clearResults();
 };

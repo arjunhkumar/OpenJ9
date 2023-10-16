@@ -3534,8 +3534,26 @@ TR_J9ByteCodeIlGenerator::genInvokeWithVFTChild(TR::SymbolReference *symRef)
    return genInvoke(symRef, vftLoad);
    }
 
-
-
+/* AR07 - Profiling call-site if required. */
+void profileCallSite(TR::Compilation * comp,TR::Node * callNode, TR::TreeTop *callNodeTreeTop)
+{
+   /* AR07 - Check if static profiling is required. */
+   if( NULL != comp && NULL != callNode && NULL != callNodeTreeTop && 
+      StaticProfileStorage::isStaticProfilingMode(comp->j9VMThread()->javaVM) )
+   {
+      // printf("Profiling mode detected.");
+      uint32_t bci = callNode->getByteCodeIndex();
+      bool staticPreference = StaticProfileStorage::getProfilingPreference4CallSite(comp->getMethodBeingCompiled(),bci);
+      SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
+      if(staticPreference)
+      {
+         const char *  dcName = StaticProfileStorage::getDebugCounterName4CallSite(comp->getMethodBeingCompiled(),bci);
+         TR::DebugCounter::prependDebugCounter(comp,dcName, callNodeTreeTop);
+      }
+   }
+   /* AR07 - Check if static profiling is required. */
+}
+/* AR07 - Profiling call-site if required. */
 
 TR::Node*
 TR_J9ByteCodeIlGenerator::genInvoke(TR::SymbolReference * symRef, TR::Node *indirectCallFirstChild, TR::Node *invokedynamicReceiver)
@@ -4442,39 +4460,25 @@ break
          _intrinsicErrorHandling = false;
       }
 
-   /* AR07 - Debug statements */
-   const char * _methodName = comp()->getMethodBeingCompiled()->nameChars();
-   if(strncmp("foo",_methodName,3)==0)
-   {
-      printf("Inside foo().");
-   
-      char * _methodSig = comp()->getMethodBeingCompiled()->classNameChars();
-      uint32_t bci = callNode->getByteCodeIndex();
-      bool staticPreference = StaticProfileStorage::getProfilingPreference4CallSite(comp()->getMethodBeingCompiled(),bci);
-      SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
-      if(staticPreference)
-      {
-         const char *  dcName = StaticProfileStorage::getDebugCounterName(comp()->getMethodBeingCompiled(),bci);
-         TR::DebugCounter::prependDebugCounter(comp(),dcName, callNodeTreeTop);
-         printf("Call-Site Counter: DC Name:%s Method name: %s and BCI %d\n",dcName,_methodName,callNode->getByteCodeIndex());
-      }
-   }
-   // J9Class * classObject = (J9Class *) symbol->ClassObject;
-   // 
-   // J9Class* superClass = VM_VMHelpers::getSuperclass(classObject);
-   // const char * _methodNameCopy = createARCopy(_methodName);
-   // printf("%p",superClass);
-   // uint32_t bci = callNode->getByteCodeIndex();
-   // std::vector<IFM_ClassMetadata *> vectorTest = StaticAnalysisUtils::staticResults;
-   // printf("%lu",vectorTest.size());
-   // bool staticPreference = StaticAnalysisUtils::getProfilingPreference4CallSite(_methodName,bci);
-   // if(staticPreference)
+   /* AR07 - Check if static profiling is required. */
+   profileCallSite(comp(),callNode,callNodeTreeTop);
+   // const char * _methodName = comp()->getMethodBeingCompiled()->nameChars();
+   // if(StaticProfileStorage::isStaticProfilingMode(comp()->j9VMThread()->javaVM))
    // {
-   //    const char *  dcName = StaticAnalysisUtils::getDebugCounterName(_methodName,bci);
-   //    TR::DebugCounter::prependDebugCounter(comp(),dcName, callNodeTreeTop);
-   //    printf("Call-Site Counter: Method name: %s and BCI %d\n",_methodName,callNode->getByteCodeIndex());
+   //    printf("Profiling mode detected.");
+   
+   //    char * _methodSig = comp()->getMethodBeingCompiled()->classNameChars();
+   //    uint32_t bci = callNode->getByteCodeIndex();
+   //    bool staticPreference = StaticProfileStorage::getProfilingPreference4CallSite(comp()->getMethodBeingCompiled(),bci);
+   //    SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
+   //    if(staticPreference)
+   //    {
+   //       const char *  dcName = StaticProfileStorage::getDebugCounterName4CallSite(comp()->getMethodBeingCompiled(),bci);
+   //       TR::DebugCounter::prependDebugCounter(comp(),dcName, callNodeTreeTop);
+   //       // printf("Call-Site Counter: DC Name:%s Method name: %s and BCI %d\n",dcName,_methodName,callNode->getByteCodeIndex());
+   //    }
    // }
-   /* AR07 - Debug statements */
+   /* AR07 - Check if static profiling is required. */
    // The call may be transformed into a non-OSR point. Check if bookkeeping is needed
    // before the transformation.
    bool needOSRBookkeeping = false;
@@ -6818,6 +6822,27 @@ TR_J9ByteCodeIlGenerator::genMultiANewArray(int32_t dims)
    push(node);
    }
 
+/* AR07 - Profiling return-site if required. */
+void profileReturnSite(TR::Compilation * comp, TR::TreeTop *returnNodeTreeTop)
+{
+   /* AR07 - Check if static profiling is required. */
+   if( NULL != comp && NULL != returnNodeTreeTop && NULL != returnNodeTreeTop->getNode() &&
+      StaticProfileStorage::isStaticProfilingMode(comp->j9VMThread()->javaVM) )
+   {
+      TR::Node * returnNode = returnNodeTreeTop->getNode();
+      uint32_t bci = returnNode->getByteCodeIndex();
+      bool staticPreference = StaticProfileStorage::getProfilingPreference4ReturnSite(comp->getMethodBeingCompiled(),bci);
+      SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
+      if(staticPreference)
+      {
+         const char *  dcName = StaticProfileStorage::getDebugCounterName4ReturnSite(comp->getMethodBeingCompiled(),bci);
+         TR::DebugCounter::prependDebugCounter(comp,dcName,returnNodeTreeTop);
+      }
+   }
+   /* AR07 - Check if static profiling is required. */
+}
+/* AR07 - Profiling return-site if required. */
+
 //----------------------------------------------
 // genReturn
 //----------------------------------------------
@@ -6896,9 +6921,11 @@ TR_J9ByteCodeIlGenerator::genReturn(TR::ILOpCodes nodeop, bool monitorExit)
       genMonitorExit(true);
       }
 
+   /** AR07 - Commoning treetop for profiling. */
+   TR::TreeTop * tt;
    if (nodeop == TR::Return)
       {
-      genTreeTop(TR::Node::create(nodeop, 0));
+      tt = genTreeTop(TR::Node::create(nodeop, 0));
       }
    else
       {
@@ -6926,11 +6953,13 @@ TR_J9ByteCodeIlGenerator::genReturn(TR::ILOpCodes nodeop, bool monitorExit)
             break;
          }
 
-      genTreeTop(TR::Node::create(nodeop, 1, returnChild));
+      tt = genTreeTop(TR::Node::create(nodeop, 1, returnChild));
       }
-
+   /* AR07 - Check if static profiling is required. */
+   profileReturnSite(comp(),tt);
+   /* AR07 - Check if static profiling is required. */
    discardEntireStack();
-
+   
    return findNextByteCodeToGen();
    }
 
@@ -7253,6 +7282,27 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
       }
    }
 
+/* AR07 - Profiling static-assign sites if required. */
+void profileStaticAssignSite(TR::Compilation * comp, TR::TreeTop *staticAssignTreeTop)
+{
+   /* AR07 - Check if static profiling is required. */
+   if( NULL != comp && NULL != staticAssignTreeTop && NULL != staticAssignTreeTop->getNode() &&
+      StaticProfileStorage::isStaticProfilingMode(comp->j9VMThread()->javaVM) )
+   {
+      TR::Node * returnNode = staticAssignTreeTop->getNode();
+      uint32_t bci = returnNode->getByteCodeIndex();
+      bool staticPreference = StaticProfileStorage::getProfilingPreference4SASite(comp->getMethodBeingCompiled(),bci);
+      SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
+      if(staticPreference)
+      {
+         const char *  dcName = StaticProfileStorage::getDebugCounterName4SASite(comp->getMethodBeingCompiled(),bci);
+         TR::DebugCounter::prependDebugCounter(comp,dcName,staticAssignTreeTop);
+      }
+   }
+   /* AR07 - Check if static profiling is required. */
+}
+/* AR07 - Profiling static-assign sites if required. */
+
 void
 TR_J9ByteCodeIlGenerator::storeStatic(int32_t cpIndex)
    {
@@ -7332,8 +7382,10 @@ TR_J9ByteCodeIlGenerator::storeStatic(int32_t cpIndex)
       node = genResolveCheck(node);
 
    handleSideEffect(node);
-
-   genTreeTop(node);
+   /* AR07 - Check if static profiling is required and add debug counters appropriately */
+   TR::TreeTop * tt = genTreeTop(node);
+   profileStaticAssignSite(comp(),tt);
+   /* AR07 - Check if static profiling is required and add debug counters appropriately */
    }
 
 void

@@ -2584,6 +2584,21 @@ VMInitStages(J9JavaVM *vm, IDATA stage, void* reserved)
 				
 			}
 			/* AR07 - End - Set flag to use static analysis results inside the VM. */
+			/* AR07 - Set flag to profile static analysis sites inside the VM. */
+			{
+				IDATA profileStaticAnalysisSites = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_PROFILE_STATIC_SITES, NULL);
+				IDATA doNotProfileStaticAnalysisSites = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_DONOT_PROFILE_STATIC_SITES, NULL);
+				if (profileStaticAnalysisSites > doNotProfileStaticAnalysisSites) 
+				{
+					vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES;
+				} 
+				else 
+				{
+					vm->extendedRuntimeFlags2 &= ~J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES;
+				}
+				
+			}
+			/* AR07 - End - Set flag to profile static analysis sites inside the VM. */
 
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 #if JAVA_SPEC_VERSION >= 16
