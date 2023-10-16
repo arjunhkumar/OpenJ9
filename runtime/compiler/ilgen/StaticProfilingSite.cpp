@@ -8,9 +8,9 @@ std::vector<SPM_StaticProfileInfo *> callSiteProfilingData;
 std::vector<SPM_StaticProfileInfo *> returnSiteProfilingData;
 std::vector<SPM_StaticProfileInfo *> staticAssignSiteProfilingData;
 
-const char * callSiteCounterPrefix = "CALL-SITE-COUNTER/";
-const char * returnSiteCounterPrefix = "RETURN-SITE-COUNTER/";
-const char * staticAssignSiteCounterPrefix = "STATIC-ASSIGN-SITE-COUNTER/";
+const char * callSiteCounterPrefix = "SSRA/CALL-SITE-COUNTER/";
+const char * returnSiteCounterPrefix = "SSRA/RETURN-SITE-COUNTER/";
+const char * staticAssignSiteCounterPrefix = "SSRA/STATIC-ASSIGN-SITE-COUNTER/";
 
 const char * _methodSignature;
 U_32 _id;
@@ -71,7 +71,7 @@ const char * getDCName4CallSite(const char * ID)
 const char * getDCName4RetSite(const char * ID)
 {
 	char *debugCounterName =  (char*)malloc(strlen(returnSiteCounterPrefix)+strlen(ID)+1);
-    strcpy(debugCounterName,callSiteCounterPrefix);
+    strcpy(debugCounterName,returnSiteCounterPrefix);
     strcat(debugCounterName,ID);
     return debugCounterName;
 }
@@ -79,7 +79,7 @@ const char * getDCName4RetSite(const char * ID)
 const char * getDCName4SASite(const char * ID)
 {
 	char *debugCounterName =  (char*)malloc(strlen(staticAssignSiteCounterPrefix)+strlen(ID)+1);
-    strcpy(debugCounterName,callSiteCounterPrefix);
+    strcpy(debugCounterName,staticAssignSiteCounterPrefix);
     strcat(debugCounterName,ID);
     return debugCounterName;
 }
@@ -156,14 +156,17 @@ char * createMethodSignature(TR_ResolvedMethod * _method)
         strncpy(methodClassName,_method->classNameChars(),_method->classNameLength());
         strncpy(methodName,_method->nameChars(),_method->nameLength());
         strncpy(methodSig,_method->signatureChars(),_method->signatureLength());
-
+        if(strncmp(_method->nameChars(),"foobar",6)==0)
+        {
+            printf("Foobar\n");
+        }
         /** Create new string for signature. */
         char *_methodSig =  (char*)calloc(_method->classNameLength()+_method->nameLength()
-            +_method->signatureLength()+4,1);
+            +_method->signatureLength()+3,1);
         strncpy(_methodSig,methodClassName,_method->classNameLength());
-        strcat(_methodSig,"#");
+        strcat(_methodSig,"##");
         strncat(_methodSig,methodName,_method->nameLength());
-        strcat(_methodSig,"#");
+        // strcat(_methodSig,"#");
         strncat(_methodSig,methodSig,_method->signatureLength());
         free(methodClassName);
         free(methodName);

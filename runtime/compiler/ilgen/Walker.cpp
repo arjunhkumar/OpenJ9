@@ -3544,7 +3544,6 @@ void profileCallSite(TR::Compilation * comp,TR::Node * callNode, TR::TreeTop *ca
       // printf("Profiling mode detected.");
       uint32_t bci = callNode->getByteCodeIndex();
       bool staticPreference = StaticProfileStorage::getProfilingPreference4CallSite(comp->getMethodBeingCompiled(),bci);
-      SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
       if(staticPreference)
       {
          const char *  dcName = StaticProfileStorage::getDebugCounterName4CallSite(comp->getMethodBeingCompiled(),bci);
@@ -6832,7 +6831,6 @@ void profileReturnSite(TR::Compilation * comp, TR::TreeTop *returnNodeTreeTop)
       TR::Node * returnNode = returnNodeTreeTop->getNode();
       uint32_t bci = returnNode->getByteCodeIndex();
       bool staticPreference = StaticProfileStorage::getProfilingPreference4ReturnSite(comp->getMethodBeingCompiled(),bci);
-      SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
       if(staticPreference)
       {
          const char *  dcName = StaticProfileStorage::getDebugCounterName4ReturnSite(comp->getMethodBeingCompiled(),bci);
@@ -7292,7 +7290,6 @@ void profileStaticAssignSite(TR::Compilation * comp, TR::TreeTop *staticAssignTr
       TR::Node * returnNode = staticAssignTreeTop->getNode();
       uint32_t bci = returnNode->getByteCodeIndex();
       bool staticPreference = StaticProfileStorage::getProfilingPreference4SASite(comp->getMethodBeingCompiled(),bci);
-      SPM_StaticProfile * staticProfile = StaticProfileStorage::getProfilingData();
       if(staticPreference)
       {
          const char *  dcName = StaticProfileStorage::getDebugCounterName4SASite(comp->getMethodBeingCompiled(),bci);
