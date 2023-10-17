@@ -28,6 +28,8 @@ class StaticProfileStorage
     // Static-Assign Site Utils
     static bool getProfilingPreference4SASite(TR_ResolvedMethod * _method, uint32_t bci);
     static const char * getDebugCounterName4SASite(TR_ResolvedMethod * _method, uint32_t bci);
+    static const char * getDebugCounterName4FieldStore(char * className,char * fieldName);
+    static const char * getDebugCounterName4FieldLoad(char * className,char * fieldName);
 };
 
 #endif /* STATIC_PROFILE_STORAGE_HPP_ */

@@ -5086,7 +5086,24 @@ TR_J9ByteCodeIlGenerator::loadInstance(TR::SymbolReference * symRef)
          nodeToRemove->recursivelyDecReferenceCount();
          }
       }
-
+   /** AR07 - Debug */
+   // if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"barfoo",6)==0)
+   // {
+   //    // J9Class * containingJ9Class = (J9Class *)containingClass;
+   //    // J9UTF8 *classNameUTF8 = J9ROMCLASS_CLASSNAME(containingJ9Class->romClass);
+   //    // char * containingClassName = (char*)J9UTF8_DATA(classNameUTF8);
+   //    const char * fieldSymName;
+   //    if(comp()->getDebug())
+   //    {
+   //       fieldSymName = symRef->getName(comp()->getDebug());
+   //    }
+   //    else
+   //    {
+   //       fieldSymName = symRef->getName(comp()->findOrCreateDebug());
+   //    }
+   //    printf("Loading flattened field: %s\n",fieldSymName);
+   // }
+   /** AR07 - Debug End*/
    push(dummyLoad);
    }
 
@@ -5123,6 +5140,30 @@ static char * getTopLevelPrefixForFlattenedFields(TR_ResolvedJ9Method *owningMet
    newName[len+1] = '\0';
    return newName;
    }
+
+// static char * getTopLevelPrefixForFlattenedFields(TR_ResolvedJ9Method *owningMethod, int32_t cpIndex, int32_t &prefixLen, TR::Region &region)
+//    {
+//    int32_t len;
+//    const char * fieldNameChars = owningMethod->fieldNameChars(cpIndex, len);
+//    prefixLen = len + 1; // for '.'
+
+//    char * newName = new (region) char[len+2];
+//    strncpy(newName, fieldNameChars, len);
+
+//    newName[len] = '.';
+//    newName[len+1] = '\0';
+//    return newName;
+//    }
+// void profileFlattenedFieldLoads()
+// {
+//    J9Class * containingJ9Class = (J9Class *)containingClass;
+//    J9UTF8 *classNameUTF8 = J9ROMCLASS_CLASSNAME(containingJ9Class->romClass);
+//    char * containingClassName = (char*)J9UTF8_DATA(classNameUTF8);
+//    char * fieldNameChars = owningMethod->fieldNameChars(cpIndex, len);
+//    // printf("Loading flattened field: %s.%s \n",containingClassName,fieldNameChars);
+//    const char * dcName = StaticProfileStorage::getDebugCounterName4FieldLoad(containingClassName,fieldNameChars);
+//    TR::DebugCounter::prependDebugCounter(comp(),dcName,tt);
+// }
 
 void
 TR_J9ByteCodeIlGenerator::loadFlattenableInstance(int32_t cpIndex)
@@ -5205,7 +5246,7 @@ TR_J9ByteCodeIlGenerator::loadFlattenableInstance(int32_t cpIndex)
                   comp()->getDebug()->getName(fieldSymRef), idx, fieldEntry._fieldname,
                   fieldEntry._datatype.getDataType(), fieldEntry._offset);
             }
-
+         
          push(address);
          loadInstance(fieldSymRef);
 
@@ -5217,8 +5258,28 @@ TR_J9ByteCodeIlGenerator::loadFlattenableInstance(int32_t cpIndex)
    newValueNode->setIdentityless(true);
    _methodSymbol->setHasNews(true);
 
-   genTreeTop(newValueNode);
+   /** AR07 - Profiling inlined field accesses. */
+   TR::TreeTop * tt = genTreeTop(newValueNode);
    push(newValueNode);
+
+   
+   // if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"barfoo",6)==0)
+   // {
+   if(StaticProfileStorage::isStaticProfilingMode(comp()->j9VMThread()->javaVM))
+   {
+      J9Class * containingJ9Class = (J9Class *)containingClass;
+      J9UTF8 *classNameUTF8 = J9ROMCLASS_CLASSNAME(containingJ9Class->romClass);
+      char * containingClassName = (char*)J9UTF8_DATA(classNameUTF8);
+      char * fieldNameChars = owningMethod->fieldNameChars(cpIndex, len);
+      // printf("Loading flattened field: %s.%s \n",containingClassName,fieldNameChars);
+      const char * dcName = StaticProfileStorage::getDebugCounterName4FieldLoad(containingClassName,fieldNameChars);
+      TR::DebugCounter::prependDebugCounter(comp(),dcName,tt);
+   }
+   
+
+   // }
+   /** AR07 - Profiling inlined field accesses End*/
+
    genFlush(0);
    return;
    }
@@ -6478,7 +6539,19 @@ TR_J9ByteCodeIlGenerator::genFlattenableWithField(int32_t fieldCpIndex, TR_Opaqu
       newValueNode->setIdentityless(true);
       _methodSymbol->setHasNews(true);
 
-      genTreeTop(newValueNode);
+      /** AR07 - Profiling inlined field stores. */ 
+      TR::TreeTop * tt =genTreeTop(newValueNode);
+      if(StaticProfileStorage::isStaticProfilingMode(comp()->j9VMThread()->javaVM))
+      {
+         J9Class * containingJ9Class = (J9Class *)containingClass;
+         J9UTF8 *classNameUTF8 = J9ROMCLASS_CLASSNAME(containingJ9Class->romClass);
+         char * containingClassName = (char*)J9UTF8_DATA(classNameUTF8);
+         char * fieldNameChars = owningMethod->fieldNameChars(fieldCpIndex, len);
+         const char * dcName = StaticProfileStorage::getDebugCounterName4FieldStore(containingClassName,fieldNameChars);
+         TR::DebugCounter::prependDebugCounter(comp(),dcName,tt);
+      }
+      /** AR07 - Profiling inlined field stores End*/
+
       push(newValueNode);
       genFlush(0);
       return;

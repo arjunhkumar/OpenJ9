@@ -191,12 +191,12 @@ bool SPM_StaticProfile::getPreference4CallSite(TR_ResolvedMethod * _method, uint
         for (size_t i = 0; i < callSiteProfile.size(); ++i)
         {
             const char *method_sig = callSiteProfile[i]->getMethodSignature();
-            if((strncmp(_method->nameChars(), "trace", 5) == 0) && (bci == 65 || bci == 96) )
-            {
-                int cmpOut = strncmp(method_sig, methodSig, strlen(method_sig));
-                printf("method_sig:%s methodSig:%s strlen %lu. BCO: %u\n",method_sig,methodSig,strlen(method_sig),bci);
-                printf("Compare Out: %d\n",cmpOut);
-            }
+            // if((strncmp(_method->nameChars(), "trace", 5) == 0) && (bci == 65 || bci == 96) )
+            // {
+            //     int cmpOut = strncmp(method_sig, methodSig, strlen(method_sig));
+            //     printf("method_sig:%s methodSig:%s strlen %lu. BCO: %u\n",method_sig,methodSig,strlen(method_sig),bci);
+            //     printf("Compare Out: %d\n",cmpOut);
+            // }
             if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
                 && bci == callSiteProfile[i]->getBCI())
             {
@@ -244,11 +244,17 @@ bool SPM_StaticProfile::getPreference4ReturnSite(TR_ResolvedMethod * _method, ui
     if(NULL != _method)
     {
         const char * methodSig = createMethodSignature(_method);
-        // printf("Allocating return site memory: %s",methodSig);
         std::vector<SPM_StaticProfileInfo *> retSiteProfile = getReturnSiteProfile();
         for (size_t i = 0; i < retSiteProfile.size(); ++i)
         {
             const char *method_sig = retSiteProfile[i]->getMethodSignature();
+            // if((strncmp(_method->nameChars(), "getView", 7) == 0))
+            // // && (bci == 4) )
+            // {
+            //     int cmpOut = strncmp(method_sig, methodSig, strlen(method_sig));
+            //     printf("method_sig:%s methodSig:%s strlen %lu. BCO: %u\n",method_sig,methodSig,strlen(method_sig),bci);
+            //     printf("Compare Out: %d\n",cmpOut);
+            // }
             if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
                 && bci == retSiteProfile[i]->getBCI())
             {
@@ -299,6 +305,13 @@ bool SPM_StaticProfile::getPreference4SASite(TR_ResolvedMethod * _method, uint32
         for (size_t i = 0; i < saSiteProfile.size(); ++i)
         {
             const char *method_sig = saSiteProfile[i]->getMethodSignature();
+            // if((strncmp(_method->nameChars(), "getCenter", 9) == 0))
+            // // && (bci == 4) )
+            // {
+            //     int cmpOut = strncmp(method_sig, methodSig, strlen(method_sig));
+            //     printf("method_sig:%s methodSig:%s strlen %lu. BCO: %u\n",method_sig,methodSig,strlen(method_sig),bci);
+            //     printf("Compare Out: %d\n",cmpOut);
+            // }
             if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
                 && bci == saSiteProfile[i]->getBCI())
             {

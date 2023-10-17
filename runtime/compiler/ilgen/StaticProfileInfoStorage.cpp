@@ -9,6 +9,9 @@ void readStaticProfileInfo4CallSite(SPM_StaticProfile * staticProfile);
 void readStaticProfileInfo4ReturnSite(SPM_StaticProfile * staticProfile);
 void readStaticProfileInfo4SASite(SPM_StaticProfile * staticProfile);
 char * createCopy(char * targetString);
+// const char * DEBUG_PREFIX = "SSRA/";
+const char * DEBUG_PREFIX_LOAD = "SSRA/LOAD/";
+const char * DEBUG_PREFIX_STORE = "SSRA/STORE/";
 
 // Utils and Getters
 bool StaticProfileStorage::isStaticProfilingMode(J9JavaVM *javaVM)
@@ -258,6 +261,41 @@ const char * StaticProfileStorage::getDebugCounterName4SASite(TR_ResolvedMethod 
     if(NULL != staticProfile)
     {
         return staticProfile->getDebugCounterName4SASite(_method,bci);
+    }
+    return NULL;
+}
+
+
+/** AR07 - Field load debug utils.*/
+const char * StaticProfileStorage::getDebugCounterName4FieldLoad(char * className,char * fieldName)
+{
+    if(NULL != className && NULL !=fieldName)
+    {
+        /** Create new string for field signature. */
+        char *_fieldSig =  (char*)calloc(strlen(DEBUG_PREFIX_LOAD)+strlen(className)+strlen(fieldName)
+            +3,1);
+        strncpy(_fieldSig,DEBUG_PREFIX_LOAD,strlen(DEBUG_PREFIX_LOAD));
+        strncat(_fieldSig,className,strlen(className));
+        strcat(_fieldSig,"##");
+        strncat(_fieldSig,fieldName,strlen(fieldName));
+        return _fieldSig;
+    }
+    return NULL;
+}
+
+/** AR07 - Field load debug utils.*/
+const char * StaticProfileStorage::getDebugCounterName4FieldStore(char * className,char * fieldName)
+{
+    if(NULL != className && NULL !=fieldName)
+    {
+        /** Create new string for field signature. */
+        char *_fieldSig =  (char*)calloc(strlen(DEBUG_PREFIX_STORE)+strlen(className)+strlen(fieldName)
+            +3,1);
+        strncpy(_fieldSig,DEBUG_PREFIX_STORE,strlen(DEBUG_PREFIX_STORE));
+        strncat(_fieldSig,className,strlen(className));
+        strcat(_fieldSig,"##");
+        strncat(_fieldSig,fieldName,strlen(fieldName));
+        return _fieldSig;
     }
     return NULL;
 }
