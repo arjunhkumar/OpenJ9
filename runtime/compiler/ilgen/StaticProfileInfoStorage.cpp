@@ -35,7 +35,7 @@ char * createCopy(char * targetString)
     char * classSignature = NULL;
     if( targetString != NULL)
     {
-        classSignature = (char *) malloc (strlen(targetString));
+        classSignature = (char *) malloc (strlen(targetString)+1);
         strcpy(classSignature, targetString);
         
     }
@@ -73,6 +73,13 @@ void readStaticProfileInfo4CallSite(SPM_StaticProfile * staticProfile)
             callSiteVector.push_back(siteData);  
             staticProfile->callSiteProfilingData = callSiteVector;
         }
+        // free(methodSignature);
+        free(methodBCI);
+        free(siteID);
+    }
+    if (file)
+    {
+        fclose(file);
     }
 }
 
@@ -107,6 +114,13 @@ void readStaticProfileInfo4ReturnSite(SPM_StaticProfile * staticProfile)
             returnSiteVector.push_back(siteData);  
             staticProfile->returnSiteProfilingData = returnSiteVector;
         }
+        // free(methodSignature);
+        free(methodBCI);
+        free(siteID);
+    }
+    if (file)
+    {
+        fclose(file);
     }
 }
 
@@ -141,6 +155,13 @@ void readStaticProfileInfo4SASite(SPM_StaticProfile * staticProfile)
             staticAssignSiteVector.push_back(siteData);  
             staticProfile->staticAssignSiteProfilingData = staticAssignSiteVector;
         }
+        // free(methodSignature);
+        free(methodBCI);
+        free(siteID);
+    }
+    if (file)
+    {
+        fclose(file);
     }
 }
 
