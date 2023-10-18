@@ -7096,12 +7096,17 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
       }
 
    TR::SymbolReference * symRef = symRefTab()->findOrCreateShadowSymbol(_methodSymbol, cpIndex, true);
+   if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"barfoo",6)==0)
+   {
+      printf("Storing inside barfoo");
+   }
    storeInstance(symRef);
    }
 
 void
 TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef)
    {
+
    TR::Symbol * symbol = symRef->getSymbol();
    TR::DataType type = symbol->getDataType();
 
@@ -7211,10 +7216,8 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef)
       }
 
    handleSideEffect(node);
-
    if (!genTranslateTT)
       genTreeTop(node);
-
    if (comp()->useCompressedPointers() &&
          (type == TR::Address))
       {
@@ -7242,6 +7245,147 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef)
          genTreeTop(node);
       }
    }
+
+
+void
+TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef,const char * dcName)
+   {
+
+   TR::Symbol * symbol = symRef->getSymbol();
+   TR::DataType type = symbol->getDataType();
+
+   TR::Node * value = pop();
+   TR::Node * address = pop();
+
+   TR::Node * addressNode  = address;
+   TR::Node * parentObject = address;
+
+   // code to handle volatiles moved to CodeGenPrep
+   //
+   TR::Node * node;
+   if ((type == TR::Address && _generateWriteBarriersForGC) || _generateWriteBarriersForFieldWatch)
+      {
+      node = TR::Node::createWithSymRef(comp()->il.opCodeForIndirectWriteBarrier(type), 3, 3, addressNode, value, parentObject, symRef);
+      }
+   else
+      {
+      if (type == TR::Int8 && symRefTab()->isFieldTypeBool(symRef))
+         value = TR::Node::create(TR::iand, 2, value, TR::Node::create(TR::iconst, 0, 1));
+      node = TR::Node::createWithSymRef(comp()->il.opCodeForIndirectStore(type), 2, 2, addressNode, value, symRef);
+      }
+
+   if (symbol->isPrivate() && _classInfo && comp()->getNeedsClassLookahead())
+      {
+      if (!_classInfo->getFieldInfo())
+         performClassLookahead(_classInfo);
+
+      TR_PersistentFieldInfo * fieldInfo = _classInfo->getFieldInfo() ? _classInfo->getFieldInfo()->findFieldInfo(comp(), node, true) : NULL;
+      if (storeCanBeRemovedForUnreadField(fieldInfo, value) &&
+          performTransformation(comp(), "O^O CLASS LOOKAHEAD: Can skip store to instance field (that is never read) storing value %p based on class file examination\n", value))
+         {
+         //int32_t length;
+         //char *sig = TR_ClassLookahead::getFieldSignature(comp(), symbol, symRef, length);
+         //fprintf(stderr, "Skipping store for field %s in %s\n", sig, comp()->signature());
+ //fflush(stderr);
+         genTreeTop(value);
+         genTreeTop(address);
+         int32_t numChildren = node->getNumChildren();
+         int32_t i = 0;
+         while (i < numChildren)
+            {
+            node->getChild(i)->decReferenceCount();
+            i++;
+            }
+
+         if (!address->isNonNull())
+            {
+            TR::Node *passThruNode = TR::Node::create(TR::PassThrough, 1, address);
+            genTreeTop(genNullCheck(passThruNode));
+            }
+
+         return;
+         }
+      }
+   if (symbol->isPrivate() && !comp()->getOptions()->realTimeGC())
+      {
+      TR_ResolvedMethod  *method;
+
+      if (node->getInlinedSiteIndex() != -1)
+         method = comp()->getInlinedResolvedMethod(node->getInlinedSiteIndex());
+      else
+         method = comp()->getCurrentMethod();
+
+      if (method &&  method->getRecognizedMethod() == TR::java_lang_ref_SoftReference_get &&
+          symbol->getRecognizedField() == TR::Symbol::Java_lang_ref_SoftReference_age)
+         {
+         TR::Node *secondChild = node->getChild(1);
+         if (secondChild && secondChild->getOpCodeValue() == TR::iconst && secondChild->getInt() == 0)
+            {
+            handleSideEffect(node);
+            genTreeTop(node);
+            genFullFence(node);
+            return;
+            }
+         }
+      }
+   bool genTranslateTT = (comp()->useCompressedPointers() && (type == TR::Address));
+
+   if (symRef->isUnresolved())
+      {
+      if (!address->isNonNull())
+         node = genResolveAndNullCheck(node);
+      else
+         node = genResolveCheck(node);
+
+      genTranslateTT = false;
+      }
+   else if (!address->isNonNull())
+      {
+      TR::Node *nullChkNode = genNullCheck(node);
+      // in some cases a nullchk may not
+      // have been generated at all for the store
+      //
+      if (nullChkNode != node)
+         genTranslateTT = false;
+      node = nullChkNode;
+      }
+
+   handleSideEffect(node);
+   /** AR07 - Profiling field store operations for inlined field accesses*/
+   if (!genTranslateTT)
+   {
+      TR::TreeTop *tt = genTreeTop(node);
+      printf("Storing flattened field DC : %s \n",dcName);
+      TR::DebugCounter::prependDebugCounter(comp(),dcName,tt);
+   }
+   /** AR07 - Profiling field store operations for inlined field accesses End*/
+   if (comp()->useCompressedPointers() &&
+         (type == TR::Address))
+      {
+      // - J9JIT_COMPRESSED_POINTER J9CLASS HACK-
+      // remove this check when j9class is allocated on the heap
+      // do not compress fields that contain class pointers
+      //
+      TR::Node *storeValue = node;
+      if (storeValue->getOpCode().isCheck())
+         storeValue = storeValue->getFirstChild();
+
+      if (!symRefTab()->isFieldClassObject(symRef))
+         {
+         // returns non-null if the compressedRefs anchor is going to
+         // be part of the subtrees (for now, it is a treetop)
+         //
+         TR::Node *newValue = genCompressedRefs(storeValue, true, -1);
+         if (newValue)
+            {
+            node->getSecondChild()->decReferenceCount();
+            node->setAndIncChild(1, newValue);
+            }
+         }
+      else
+         genTreeTop(node);
+      }
+   }   
 
 void
 TR_J9ByteCodeIlGenerator::storeFlattenableInstanceWithHelper(int32_t cpIndex)
@@ -7348,7 +7492,23 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
          push(value);
 
          loadInstance(loadFieldSymRef);
-         storeInstance(fieldSymRef);
+         /** AR07 - Profiling inlined field stores. */
+         if(StaticProfileStorage::isStaticProfilingMode(comp()->j9VMThread()->javaVM))
+         {
+            J9Class * containingJ9Class = (J9Class *)containingClass;
+            J9UTF8 *classNameUTF8 = J9ROMCLASS_CLASSNAME(containingJ9Class->romClass);
+            char * containingClassName = (char*)J9UTF8_DATA(classNameUTF8);
+            char * fieldNameChars = owningMethod->fieldNameChars(cpIndex, len);
+            const char * dcName = StaticProfileStorage::getDebugCounterName4FieldStore(containingClassName,fieldNameChars);
+            printf("Storing flattened field: %s.%s \n",containingClassName,fieldNameChars);
+            printf("DC Name: %s \n",dcName);
+            storeInstance(fieldSymRef,dcName);
+         }
+         else
+         {
+            storeInstance(fieldSymRef);
+         }
+         /** AR07 - Profiling inlined field stores. */
          }
       }
    }

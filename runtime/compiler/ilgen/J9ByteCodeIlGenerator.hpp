@@ -202,6 +202,9 @@ private:
 
    void         storeInstance(int32_t);
    void         storeInstance(TR::SymbolReference *);
+   /** AR07 - Profiling stores to inlined fields */
+   void         storeInstance(TR::SymbolReference *, const char * dcName);
+   /** AR07 - Profiling stores to inlined fields */
    void         storeFlattenableInstance(int32_t);
    void         storeFlattenableInstanceWithHelper(int32_t);
    void         storeStatic(int32_t);
