@@ -10,8 +10,8 @@ void readStaticProfileInfo4ReturnSite(SPM_StaticProfile * staticProfile);
 void readStaticProfileInfo4SASite(SPM_StaticProfile * staticProfile);
 char * createCopy(char * targetString);
 // const char * DEBUG_PREFIX = "SSRA/";
-const char * DEBUG_PREFIX_LOAD = "SSRA/LOAD/";
-const char * DEBUG_PREFIX_STORE = "SSRA/STORE/";
+const char * SSRA_PROFILE_LOAD_PREFIX = "SSRA/LOAD/";
+const char * SSRA_PROFILE_STORE_PREFIX = "SSRA/STORE/";
 
 // Utils and Getters
 bool StaticProfileStorage::isStaticProfilingMode(J9JavaVM *javaVM)
@@ -265,36 +265,37 @@ const char * StaticProfileStorage::getDebugCounterName4SASite(TR_ResolvedMethod 
     return NULL;
 }
 
+const char * SEPERATOR = "||";
 
 /** AR07 - Field load debug utils.*/
-const char * StaticProfileStorage::getDebugCounterName4FieldLoad(char * className,char * fieldName)
+const char * StaticProfileStorage::getDebugCounterName4FieldLoad(char * className, U_16 classNameLength, char * fieldName, U_16 fieldNameLength)
 {
     if(NULL != className && NULL !=fieldName)
     {
         /** Create new string for field signature. */
-        char *_fieldSig =  (char*)calloc(strlen(DEBUG_PREFIX_LOAD)+strlen(className)+strlen(fieldName)
+        char *_fieldSig =  (char*)calloc(strlen(SSRA_PROFILE_LOAD_PREFIX)+classNameLength+fieldNameLength
             +3,1);
-        strncpy(_fieldSig,DEBUG_PREFIX_LOAD,strlen(DEBUG_PREFIX_LOAD));
-        strncat(_fieldSig,className,strlen(className));
-        strcat(_fieldSig,"##");
-        strncat(_fieldSig,fieldName,strlen(fieldName));
+        strncpy(_fieldSig,SSRA_PROFILE_LOAD_PREFIX,strlen(SSRA_PROFILE_LOAD_PREFIX));
+        strncat(_fieldSig,className,classNameLength);
+        strcat(_fieldSig,SEPERATOR);
+        strncat(_fieldSig,fieldName,fieldNameLength);
         return _fieldSig;
     }
     return NULL;
 }
 
-/** AR07 - Field load debug utils.*/
-const char * StaticProfileStorage::getDebugCounterName4FieldStore(char * className,char * fieldName)
+/** AR07 - Field store debug utils.*/
+const char * StaticProfileStorage::getDebugCounterName4FieldStore(char * className, U_16 classNameLength, char * fieldName, U_16 fieldNameLength)
 {
     if(NULL != className && NULL !=fieldName)
     {
         /** Create new string for field signature. */
-        char *_fieldSig =  (char*)calloc(strlen(DEBUG_PREFIX_STORE)+strlen(className)+strlen(fieldName)
+        char *_fieldSig =  (char*)calloc(strlen(SSRA_PROFILE_STORE_PREFIX)+classNameLength+fieldNameLength
             +3,1);
-        strncpy(_fieldSig,DEBUG_PREFIX_STORE,strlen(DEBUG_PREFIX_STORE));
-        strncat(_fieldSig,className,strlen(className));
-        strcat(_fieldSig,"##");
-        strncat(_fieldSig,fieldName,strlen(fieldName));
+        strncpy(_fieldSig,SSRA_PROFILE_STORE_PREFIX,strlen(SSRA_PROFILE_STORE_PREFIX));
+        strncat(_fieldSig,className,classNameLength);
+        strcat(_fieldSig,SEPERATOR);
+        strncat(_fieldSig,fieldName,fieldNameLength);
         return _fieldSig;
     }
     return NULL;

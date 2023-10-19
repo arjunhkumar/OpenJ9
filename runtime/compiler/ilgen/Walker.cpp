@@ -5262,18 +5262,21 @@ TR_J9ByteCodeIlGenerator::loadFlattenableInstance(int32_t cpIndex)
    TR::TreeTop * tt = genTreeTop(newValueNode);
    push(newValueNode);
 
-   
-   // if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"barfoo",6)==0)
-   // {
    if(StaticProfileStorage::isStaticProfilingMode(comp()->j9VMThread()->javaVM))
    {
       J9Class * containingJ9Class = (J9Class *)containingClass;
       J9UTF8 *classNameUTF8 = J9ROMCLASS_CLASSNAME(containingJ9Class->romClass);
+      U_16 classNameLength = J9UTF8_LENGTH(classNameUTF8);
       char * containingClassName = (char*)J9UTF8_DATA(classNameUTF8);
-      char * fieldNameChars = owningMethod->fieldNameChars(cpIndex, len);
-      // printf("Loading flattened field: %s.%s \n",containingClassName,fieldNameChars);
-      const char * dcName = StaticProfileStorage::getDebugCounterName4FieldLoad(containingClassName,fieldNameChars);
-      TR::DebugCounter::prependDebugCounter(comp(),dcName,tt);
+      J9ROMFieldRef * fieldRef = (J9ROMFieldRef *)(&(owningMethod->romCPBase())[cpIndex]);
+      if(fieldRef)
+      {
+         J9UTF8 *fieldNameUTF8 = J9ROMNAMEANDSIGNATURE_NAME(J9ROMFIELDREF_NAMEANDSIGNATURE(fieldRef));
+         char * fieldNameChars = (char*)J9UTF8_DATA(fieldNameUTF8);
+         U_16 fieldNameLength = J9UTF8_LENGTH(fieldNameUTF8);
+         const char * dcName = StaticProfileStorage::getDebugCounterName4FieldLoad(containingClassName,classNameLength,fieldNameChars,fieldNameLength);
+         TR::DebugCounter::prependDebugCounter(comp(),dcName,tt);
+      }
    }
    
 
@@ -6539,17 +6542,17 @@ TR_J9ByteCodeIlGenerator::genFlattenableWithField(int32_t fieldCpIndex, TR_Opaqu
       newValueNode->setIdentityless(true);
       _methodSymbol->setHasNews(true);
 
-      /** AR07 - Profiling inlined field stores. */ 
-      TR::TreeTop * tt =genTreeTop(newValueNode);
-      if(StaticProfileStorage::isStaticProfilingMode(comp()->j9VMThread()->javaVM))
-      {
-         J9Class * containingJ9Class = (J9Class *)containingClass;
-         J9UTF8 *classNameUTF8 = J9ROMCLASS_CLASSNAME(containingJ9Class->romClass);
-         char * containingClassName = (char*)J9UTF8_DATA(classNameUTF8);
-         char * fieldNameChars = owningMethod->fieldNameChars(fieldCpIndex, len);
-         const char * dcName = StaticProfileStorage::getDebugCounterName4FieldStore(containingClassName,fieldNameChars);
-         TR::DebugCounter::prependDebugCounter(comp(),dcName,tt);
-      }
+      /** AR07 - Profiling inlined field withfields. */ 
+      // TR::TreeTop * tt =genTreeTop(newValueNode);
+      // if(StaticProfileStorage::isStaticProfilingMode(comp()->j9VMThread()->javaVM))
+      // {
+      //    J9Class * containingJ9Class = (J9Class *)containingClass;
+      //    J9UTF8 *classNameUTF8 = J9ROMCLASS_CLASSNAME(containingJ9Class->romClass);
+      //    char * containingClassName = (char*)J9UTF8_DATA(classNameUTF8);
+      //    char * fieldNameChars = owningMethod->fieldNameChars(fieldCpIndex, len);
+      //    const char * dcName = StaticProfileStorage::getDebugCounterName4FieldStore(containingClassName,fieldNameChars);
+      //    TR::DebugCounter::prependDebugCounter(comp(),dcName,tt);
+      // }
       /** AR07 - Profiling inlined field stores End*/
 
       push(newValueNode);
@@ -7355,7 +7358,7 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef,const char 
    if (!genTranslateTT)
    {
       TR::TreeTop *tt = genTreeTop(node);
-      printf("Storing flattened field DC : %s \n",dcName);
+      // printf("Storing flattened field DC : %s \n",dcName);
       TR::DebugCounter::prependDebugCounter(comp(),dcName,tt);
    }
    /** AR07 - Profiling field store operations for inlined field accesses End*/
@@ -7495,14 +7498,25 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
          /** AR07 - Profiling inlined field stores. */
          if(StaticProfileStorage::isStaticProfilingMode(comp()->j9VMThread()->javaVM))
          {
+
             J9Class * containingJ9Class = (J9Class *)containingClass;
             J9UTF8 *classNameUTF8 = J9ROMCLASS_CLASSNAME(containingJ9Class->romClass);
+            U_16 classNameLength = J9UTF8_LENGTH(classNameUTF8);
             char * containingClassName = (char*)J9UTF8_DATA(classNameUTF8);
-            char * fieldNameChars = owningMethod->fieldNameChars(cpIndex, len);
-            const char * dcName = StaticProfileStorage::getDebugCounterName4FieldStore(containingClassName,fieldNameChars);
-            printf("Storing flattened field: %s.%s \n",containingClassName,fieldNameChars);
-            printf("DC Name: %s \n",dcName);
-            storeInstance(fieldSymRef,dcName);
+            J9ROMFieldRef * fieldRef = (J9ROMFieldRef *)(&(owningMethod->romCPBase())[cpIndex]);
+            if(fieldRef)
+            {
+               J9UTF8 *fieldNameUTF8 = J9ROMNAMEANDSIGNATURE_NAME(J9ROMFIELDREF_NAMEANDSIGNATURE(fieldRef));
+               char * fieldNameChars = (char*)J9UTF8_DATA(fieldNameUTF8);
+               U_16 fieldNameLength = J9UTF8_LENGTH(fieldNameUTF8);
+               const char * dcName = StaticProfileStorage::getDebugCounterName4FieldStore(containingClassName,classNameLength,fieldNameChars,fieldNameLength);
+               storeInstance(fieldSymRef,dcName);
+            }
+            else
+            {
+               printf("CC-1\n");
+               storeInstance(fieldSymRef);
+            }
          }
          else
          {

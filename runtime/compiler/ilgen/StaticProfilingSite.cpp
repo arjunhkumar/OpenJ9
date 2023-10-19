@@ -8,9 +8,9 @@ std::vector<SPM_StaticProfileInfo *> callSiteProfilingData;
 std::vector<SPM_StaticProfileInfo *> returnSiteProfilingData;
 std::vector<SPM_StaticProfileInfo *> staticAssignSiteProfilingData;
 
-const char * callSiteCounterPrefix = "SSRA/CALL-SITE-COUNTER/";
-const char * returnSiteCounterPrefix = "SSRA/RETURN-SITE-COUNTER/";
-const char * staticAssignSiteCounterPrefix = "SSRA/STATIC-ASSIGN-SITE-COUNTER/";
+const char * callSiteCounterPrefix = "SSRA/CSC/";
+const char * returnSiteCounterPrefix = "SSRA/RSC/";
+const char * staticAssignSiteCounterPrefix = "SSRA/SASC/";
 
 const char * _methodSignature;
 U_32 _id;

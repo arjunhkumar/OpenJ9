@@ -1690,6 +1690,11 @@ static void initThreadAfterCreation(J9VMThread *vmThread)
 
 static void accumulateAndPrintDebugCounters(J9JITConfig *jitConfig)
    {
+   bool staticProfiling = false;
+   if(J9_ARE_ALL_BITS_SET(jitConfig->javaVM->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES))
+   {
+      staticProfiling = true;
+   }
    TR_Debug *debug = TR::Options::getDebug();
    if (debug)
       {
@@ -1698,13 +1703,13 @@ static void accumulateAndPrintDebugCounters(J9JITConfig *jitConfig)
       if (counters)
          {
          counters->accumulate();
-         debug->printDebugCounters(counters, "Static debug counters");
+         debug->printDebugCounters(counters, "Static debug counters",staticProfiling);
          }
       counters = TR::CompilationInfo::get(jitConfig)->getPersistentInfo()->getDynamicCounters();
       if (counters)
          {
          counters->accumulate();
-         debug->printDebugCounters(counters, "Dynamic debug counters");
+         debug->printDebugCounters(counters, "Dynamic debug counters",staticProfiling);
          }
       }
    }
