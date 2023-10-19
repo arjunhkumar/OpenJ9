@@ -168,40 +168,6 @@ void readStaticProfileInfo4SASite(SPM_StaticProfile * staticProfile)
     }
 }
 
-// void readStaticProfileInfo4CallSite(SPM_StaticProfile * staticProfile)
-// {
-//     FILE *file = fopen("static_results/callSites.out", "r");
-//     if (file==NULL)
-//     {
-//         printf("Static results for callsites does not exist.\n");
-//         return;
-//     }
-//     char * line = NULL;
-//     size_t len = 1000;
-//     ssize_t read;
-
-//     while ((read = getline(&line, &len, file)) != -1) 
-//     {
-//         char _delim[] = "\t\n";
-//         char * signature = strtok(line, _delim);
-//         char * methodSignature = createCopy(signature);
-//         SPM_StaticProfileInfo* mem = (SPM_StaticProfileInfo *) malloc (sizeof(SPM_StaticProfileInfo));
-//         char * bci = strtok(NULL, _delim);
-//         char * methodBCI = createCopy(bci);
-//         char * ID = strtok(NULL, _delim);
-//         char * siteID = createCopy(ID);
-//         if (methodBCI != NULL && siteID != NULL) 
-//         {
-//             int _bci = atoi(methodBCI);
-//             int _id = atoi(siteID);
-//             SPM_StaticProfileInfo* siteData = new (mem) SPM_StaticProfileInfo(methodSignature,_id,_bci);
-//             std::vector<SPM_StaticProfileInfo *> callSiteVector = staticProfile->callSiteProfilingData;
-//             callSiteVector.push_back(siteData);  
-//             staticProfile->callSiteProfilingData = callSiteVector;
-//         }
-//     }
-// }
-
 // Call-Site Utils
 bool StaticProfileStorage::getProfilingPreference4CallSite(TR_ResolvedMethod * _method, uint32_t bci)
 {

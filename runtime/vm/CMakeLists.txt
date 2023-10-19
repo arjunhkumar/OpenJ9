@@ -166,7 +166,6 @@ set(main_sources
 	statistics.c
 	StaticAnalysisReader.cpp
 	StaticAnalysisUtils.cpp
-	StaticProfilingMetadata.cpp
 	stringhelpers.cpp
 	swalk.c
 	threadhelp.cpp

@@ -7,7 +7,6 @@
 #include <string.h>
 #include "j9.h"
 #include "InlineableFieldMetadata.hpp"
-#include "StaticProfilingMetadata.hpp"
 
 /* AR07 - This file takes care of all the functions required to read static analysis 
     for flattening as well as retrieving the field level preference during JIT. */
@@ -15,9 +14,6 @@
 
 class StaticAnalysisUtils 
 {
-    private:
-    static SPM_StaticProfilingMetadata * profilingData;
-
     public:
 
     static int value_debug;
@@ -32,24 +28,6 @@ class StaticAnalysisUtils
 
     static std::vector<IFM_ClassMetadata *> getStaticRes();
 
-    static SPM_StaticProfilingMetadata * getProfileData()
-    {
-        // SPM_StaticProfilingMetadata * StaticAnalysisUtils::profilingData;
-        // if(StaticAnalysisUtils::profilingData == NULL)
-        // {
-        //     StaticAnalysisUtils::profilingData = (SPM_StaticProfilingMetadata *) malloc (sizeof(SPM_StaticProfilingMetadata));
-        // }
-        return profilingData;
-    }
-    
-    static void addCallSiteProfileData(SPM_StaticProfileInfo * staticProfileInfo);
-
-    static bool getProfilingPreference4CallSite(char * methodSig, uint32_t bci);
-
-    static const char * getDebugCounterName(char * methodSig, uint32_t bci);
-
     static void clearResults();
-
-
 };    
 #endif /* STATIC_ANALYSIS_UTILS_HPP_ */ 

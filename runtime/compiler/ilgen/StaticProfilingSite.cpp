@@ -11,6 +11,7 @@ std::vector<SPM_StaticProfileInfo *> staticAssignSiteProfilingData;
 const char * callSiteCounterPrefix = "SSRA/CSC/";
 const char * returnSiteCounterPrefix = "SSRA/RSC/";
 const char * staticAssignSiteCounterPrefix = "SSRA/SASC/";
+const char * NAME_SEPERATOR = "||";
 
 const char * _methodSignature;
 U_32 _id;
@@ -163,9 +164,8 @@ const char * createMethodSignature(TR_ResolvedMethod * _method)
         char *_methodSig =  (char*)calloc(_method->classNameLength()+_method->nameLength()
             +_method->signatureLength()+3,1);
         strncpy(_methodSig,methodClassName,_method->classNameLength());
-        strcat(_methodSig,"##");
+        strcat(_methodSig,NAME_SEPERATOR);
         strncat(_methodSig,methodName,_method->nameLength());
-        // strcat(_methodSig,"#");
         strncat(_methodSig,methodSig,_method->signatureLength());
         free(methodClassName);
         free(methodName);
@@ -182,21 +182,10 @@ bool SPM_StaticProfile::getPreference4CallSite(TR_ResolvedMethod * _method, uint
     if(NULL != _method)
     {
         const char * methodSig = createMethodSignature(_method);
-        // printf("Allocating callsite site memory: %s",methodSig);
-        // if((strncmp(_method->nameChars(), "trace", 5) == 0) )
-        // {
-        //     printf("Inside trace. BCO: %u\n",bci);
-        // }
         std::vector<SPM_StaticProfileInfo *> callSiteProfile = getCallSiteProfile();
         for (size_t i = 0; i < callSiteProfile.size(); ++i)
         {
             const char *method_sig = callSiteProfile[i]->getMethodSignature();
-            // if((strncmp(_method->nameChars(), "trace", 5) == 0) && (bci == 65 || bci == 96) )
-            // {
-            //     int cmpOut = strncmp(method_sig, methodSig, strlen(method_sig));
-            //     printf("method_sig:%s methodSig:%s strlen %lu. BCO: %u\n",method_sig,methodSig,strlen(method_sig),bci);
-            //     printf("Compare Out: %d\n",cmpOut);
-            // }
             if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
                 && bci == callSiteProfile[i]->getBCI())
             {
@@ -214,7 +203,6 @@ const char * SPM_StaticProfile::getDebugCounterName4CallSite(TR_ResolvedMethod *
     if(NULL != _method)
     {
         const char * _methodSig = createMethodSignature(_method);
-        // printf("Allocating dc callsite site memory: %s",_methodSig);
         std::vector<SPM_StaticProfileInfo *> callSiteProfile = getCallSiteProfile();
         for (size_t i = 0; i < callSiteProfile.size(); ++i)
         {
@@ -248,13 +236,6 @@ bool SPM_StaticProfile::getPreference4ReturnSite(TR_ResolvedMethod * _method, ui
         for (size_t i = 0; i < retSiteProfile.size(); ++i)
         {
             const char *method_sig = retSiteProfile[i]->getMethodSignature();
-            // if((strncmp(_method->nameChars(), "getView", 7) == 0))
-            // // && (bci == 4) )
-            // {
-            //     int cmpOut = strncmp(method_sig, methodSig, strlen(method_sig));
-            //     printf("method_sig:%s methodSig:%s strlen %lu. BCO: %u\n",method_sig,methodSig,strlen(method_sig),bci);
-            //     printf("Compare Out: %d\n",cmpOut);
-            // }
             if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
                 && bci == retSiteProfile[i]->getBCI())
             {
@@ -272,7 +253,6 @@ const char * SPM_StaticProfile::getDebugCounterName4ReturnSite(TR_ResolvedMethod
     if(NULL != _method)
     {
         const char * _methodSig = createMethodSignature(_method);
-        // printf("Allocating dc return site memory: %s",_methodSig);
         std::vector<SPM_StaticProfileInfo *> retSiteProfile = getReturnSiteProfile();
         for (size_t i = 0; i < retSiteProfile.size(); ++i)
         {

@@ -3,7 +3,6 @@
 #include "StaticAnalysisReader.hpp"
 #include "StaticAnalysisUtils.hpp"
 #include "InlineableFieldMetadata.hpp"
-#include "StaticProfilingMetadata.hpp"
 
 /* AR07 - This file takes care of all the functions required to read static analysis 
     for flattening as well as retrieving the field level preference during JIT. */
@@ -41,43 +40,6 @@ void readStaticResults(char *filename)
     }
 
 }
-
-void readStaticProfileData(char *filename)
-{
-    FILE *file = fopen(filename, "r");
-    if (file==NULL)
-    {
-        printf("Static profile results does not exist.\n");
-        return;
-    }
-    // StaticAnalysisUtils::staticResults = (IFM_ClassMetadata *) malloc (sizeof(IFM_ClassMetadata));
-    char * line = NULL;
-    size_t len = 1000;
-    ssize_t read;
-
-    while ((read = getline(&line, &len, file)) != -1) 
-    {
-        char _delim[] = "\t\n";
-        char * signature = strtok(line, _delim);
-        const char * methodSignature = createCopy(signature);
-        // printf("Classname: %s.\n",classSignature);
-        SPM_StaticProfileInfo* mem = (SPM_StaticProfileInfo *) malloc (sizeof(SPM_StaticProfileInfo));
-        char * bci = strtok(NULL, _delim);
-        const char * methodBCI = createCopy(bci);
-        char * ID = strtok(NULL, _delim);
-        const char * siteID = createCopy(ID);
-        if (methodBCI != NULL && siteID != NULL) 
-        {
-            int _bci = atoi(methodBCI);
-            int _id = atoi(siteID);
-            SPM_StaticProfileInfo* siteData = new (mem) SPM_StaticProfileInfo(methodSignature,_id,_bci);
-            StaticAnalysisUtils::addCallSiteProfileData(siteData);         
-            // StaticAnalysisUtils::getProfileData()->getCallSiteProfile().push_back(siteData);
-        }
-    }
-}
-
-
 
 IFM_ClassMetadata * getClassMetadata(const char * className)
 {
