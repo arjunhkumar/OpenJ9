@@ -11,6 +11,8 @@ std::vector<SPM_StaticProfileInfo *> staticAssignSiteProfilingData;
 const char * callSiteCounterPrefix = "SSRA/CSC/";
 const char * returnSiteCounterPrefix = "SSRA/RSC/";
 const char * staticAssignSiteCounterPrefix = "SSRA/SASC/";
+const char * castSiteCounterPrefix = "SSRA/TCSC/";
+const char * equalsSiteCounterPrefix = "SSRA/ESC/";
 const char * NAME_SEPERATOR = "||";
 
 const char * _methodSignature;
@@ -30,6 +32,16 @@ std::vector<SPM_StaticProfileInfo *> SPM_StaticProfile::getReturnSiteProfile()
 std::vector<SPM_StaticProfileInfo *> SPM_StaticProfile::getStaticAssignSiteProfile()
 {
     return staticAssignSiteProfilingData;
+}
+
+std::vector<SPM_StaticProfileInfo *> SPM_StaticProfile::getCastSiteProfile()
+{
+    return castSiteProfilingData;
+}
+
+std::vector<SPM_StaticProfileInfo *> SPM_StaticProfile::getEqualsSiteProfile()
+{
+    return equalsSiteProfilingData;
 }
 
 const char * SPM_StaticProfileInfo::getMethodSignature()
@@ -88,6 +100,24 @@ const char * getDCName4SASite(const char * ID)
     return debugCounterName;
 }
 
+const char * getDCName4CastSite(const char * ID)
+{
+	char *debugCounterName =  (char*)malloc(strlen(castSiteCounterPrefix)+strlen(ID)+1);
+    strcpy(debugCounterName,castSiteCounterPrefix);
+    strcat(debugCounterName,ID);
+    return debugCounterName;
+}
+
+
+const char * getDCName4EqualsSite(const char * ID)
+{
+	char *debugCounterName =  (char*)malloc(strlen(equalsSiteCounterPrefix)+strlen(ID)+1);
+    strcpy(debugCounterName,equalsSiteCounterPrefix);
+    strcat(debugCounterName,ID);
+    return debugCounterName;
+}
+
+
 bool SPM_StaticProfile::getCallSitePreference(char * methodSignature, uint32_t bci)
 {
     std::vector<SPM_StaticProfileInfo *> callSiteProfile = getCallSiteProfile();
@@ -143,6 +173,22 @@ void SPM_StaticProfile::clearResults()
     for(size_t i = 0; i < staticAssignSiteProfilingData.size(); ++i) 
     {
         SPM_StaticProfileInfo * element = staticAssignSiteProfilingData[i];
+        char * methodSig =  (char *)element->getMethodSignature();
+        free(methodSig);
+        delete(element);
+    }
+
+    for(size_t i = 0; i < castSiteProfilingData.size(); ++i) 
+    {
+        SPM_StaticProfileInfo * element = castSiteProfilingData[i];
+        char * methodSig =  (char *)element->getMethodSignature();
+        free(methodSig);
+        delete(element);
+    }
+
+    for(size_t i = 0; i < equalsSiteProfilingData.size(); ++i) 
+    {
+        SPM_StaticProfileInfo * element = equalsSiteProfilingData[i];
         char * methodSig =  (char *)element->getMethodSignature();
         free(methodSig);
         delete(element);
@@ -285,13 +331,6 @@ bool SPM_StaticProfile::getPreference4SASite(TR_ResolvedMethod * _method, uint32
         for (size_t i = 0; i < saSiteProfile.size(); ++i)
         {
             const char *method_sig = saSiteProfile[i]->getMethodSignature();
-            // if((strncmp(_method->nameChars(), "getCenter", 9) == 0))
-            // // && (bci == 4) )
-            // {
-            //     int cmpOut = strncmp(method_sig, methodSig, strlen(method_sig));
-            //     printf("method_sig:%s methodSig:%s strlen %lu. BCO: %u\n",method_sig,methodSig,strlen(method_sig),bci);
-            //     printf("Compare Out: %d\n",cmpOut);
-            // }
             if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
                 && bci == saSiteProfile[i]->getBCI())
             {
@@ -328,3 +367,100 @@ const char * SPM_StaticProfile::getDebugCounterName4SASite(TR_ResolvedMethod * _
     }
     return NULL;
 }
+
+/** Type-cast site util functions. */
+
+bool SPM_StaticProfile::getPreference4CastSite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        const char * methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> castSiteProfile = getCastSiteProfile();
+        for (size_t i = 0; i < castSiteProfile.size(); ++i)
+        {
+            const char *method_sig = castSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
+                && bci == castSiteProfile[i]->getBCI())
+            {
+                free((char *)methodSig);
+                return true;
+            }
+        }
+        free((char *)methodSig);
+    }
+    return false;
+}
+
+const char * SPM_StaticProfile::getDebugCounterName4CastSite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        const char * _methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> castSiteProfile = getCastSiteProfile();
+        for (size_t i = 0; i < castSiteProfile.size(); ++i)
+        {
+            const char *method_sig = castSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, _methodSig, strlen(method_sig)) == 0) 
+                && bci == castSiteProfile[i]->getBCI())
+            {
+                U_32 intID  = castSiteProfile[i]->getID();
+                std::string ID_string = std::to_string(intID);
+                const char * ID_char = ID_string.c_str();
+                free((char *)_methodSig);
+                return getDCName4CastSite(ID_char);
+            }
+        }
+        free((char *)_methodSig);
+    }
+    
+    return NULL;
+}
+
+/** Equals site util functions. */
+
+bool SPM_StaticProfile::getPreference4EqualsSite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        const char * methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> equalsSiteProfile = getEqualsSiteProfile();
+        for (size_t i = 0; i < equalsSiteProfile.size(); ++i)
+        {
+            const char *method_sig = equalsSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, methodSig, strlen(method_sig)) == 0) 
+                && bci == equalsSiteProfile[i]->getBCI())
+            {
+                free((char *)methodSig);
+                return true;
+            }
+        }
+        free((char *)methodSig);
+    }
+    return false;
+}
+
+const char * SPM_StaticProfile::getDebugCounterName4EqualsSite(TR_ResolvedMethod * _method, uint32_t bci)
+{
+    if(NULL != _method)
+    {
+        const char * _methodSig = createMethodSignature(_method);
+        std::vector<SPM_StaticProfileInfo *> equalsSiteProfile = getEqualsSiteProfile();
+        for (size_t i = 0; i < equalsSiteProfile.size(); ++i)
+        {
+            const char *method_sig = equalsSiteProfile[i]->getMethodSignature();
+            if ( (strncmp(method_sig, _methodSig, strlen(method_sig)) == 0) 
+                && bci == equalsSiteProfile[i]->getBCI())
+            {
+                U_32 intID  = equalsSiteProfile[i]->getID();
+                std::string ID_string = std::to_string(intID);
+                const char * ID_char = ID_string.c_str();
+                free((char *)_methodSig);
+                return getDCName4EqualsSite(ID_char);
+            }
+        }
+        free((char *)_methodSig);
+    }
+    
+    return NULL;
+}
+

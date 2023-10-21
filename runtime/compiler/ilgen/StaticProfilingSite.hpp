@@ -43,11 +43,18 @@ class SPM_StaticProfile
     std::vector<SPM_StaticProfileInfo *> callSiteProfilingData;
     std::vector<SPM_StaticProfileInfo *> returnSiteProfilingData;
     std::vector<SPM_StaticProfileInfo *> staticAssignSiteProfilingData;
+    std::vector<SPM_StaticProfileInfo *> castSiteProfilingData;
+    std::vector<SPM_StaticProfileInfo *> equalsSiteProfilingData;
+
     std::vector<SPM_StaticProfileInfo *> getCallSiteProfile();
     
     std::vector<SPM_StaticProfileInfo *> getReturnSiteProfile();
     
     std::vector<SPM_StaticProfileInfo *> getStaticAssignSiteProfile();
+
+    std::vector<SPM_StaticProfileInfo *> getCastSiteProfile();
+    
+    std::vector<SPM_StaticProfileInfo *> getEqualsSiteProfile();
 
     bool getCallSitePreference(char * methodSignature, uint32_t bci);
     const char * getDebugCounterName(char * methodSignature, uint32_t bci);
@@ -61,6 +68,12 @@ class SPM_StaticProfile
     // STATIC-ASSIGN SITE PROFILING
     bool getPreference4SASite(TR_ResolvedMethod * _method, uint32_t bci);
     const char * getDebugCounterName4SASite(TR_ResolvedMethod * _method, uint32_t bci);
+    // TYPECAST-SITE PROFILING
+    bool getPreference4CastSite(TR_ResolvedMethod * _method, uint32_t bci);
+    const char * getDebugCounterName4CastSite(TR_ResolvedMethod * _method, uint32_t bci);
+    // EQUALS-SITE PROFILING
+    bool getPreference4EqualsSite(TR_ResolvedMethod * _method, uint32_t bci);
+    const char * getDebugCounterName4EqualsSite(TR_ResolvedMethod * _method, uint32_t bci);
 
     void clearResults();
 };

@@ -2356,6 +2356,12 @@ TR_J9ByteCodeIlGenerator::genLRem()
 void
 TR_J9ByteCodeIlGenerator::genInstanceof(int32_t cpIndex)
    {
+   /** AR07 - Debug */
+   if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"foo",3)==0)
+   {
+      printf("Inside genInstanceof foo().\n");
+   }
+   /** AR07 - Debug */
    TR::SymbolReference *classSymRef = loadClassObjectForTypeTest(cpIndex, TR_DisableAOTInstanceOfInlining);
    TR::Node *node = genNodeAndPopChildren(TR::instanceof, 2, symRefTab()->findOrCreateInstanceOfSymbolRef(_methodSymbol));
    push(node);
@@ -2568,7 +2574,7 @@ TR_J9ByteCodeIlGenerator::genIfAcmpEqNe(TR::ILOpCodes ifacmpOp)
    {
    if (!TR::Compiler->om.areValueTypesEnabled())
       return genIfTwoOperand(ifacmpOp);
-
+   
    int32_t branchBC = _bcIndex + next2BytesSigned();
 
    if (branchBC <= _bcIndex)
@@ -2594,6 +2600,26 @@ TR_J9ByteCodeIlGenerator::genIfAcmpEqNe(TR::ILOpCodes ifacmpOp)
    push(TR::Node::iconst(0));
    return genIfImpl(ifacmpOp == TR::ifacmpeq ? TR::ificmpeq : TR::ificmpne);
    }
+
+/* AR07 - Profiling call-site if required. */
+void profileCastSite(TR::Compilation * comp,TR::Node * instanceCheckNode, TR::TreeTop *ifNodeTreeTop)
+{
+   /* AR07 - Check if static profiling is required. */
+   if( StaticProfileStorage::isStaticProfilingMode(comp->j9VMThread()->javaVM) && 
+      comp && instanceCheckNode && instanceCheckNode->getOpCodeValue() == TR::instanceof 
+      && ifNodeTreeTop )
+   {
+      uint32_t bci = instanceCheckNode->getByteCodeIndex();
+      bool staticPreference = StaticProfileStorage::getProfilingPreference4CastSite(comp->getMethodBeingCompiled(),bci);
+      if(staticPreference)
+      {
+         const char *  dcName = StaticProfileStorage::getDebugCounterName4CastSite(comp->getMethodBeingCompiled(),bci);
+         TR::DebugCounter::prependDebugCounter(comp,dcName, ifNodeTreeTop);
+      }
+   }
+   /* AR07 - Check if static profiling is required. */
+}
+/* AR07 - Profiling call-site if required. */
 
 //----------------------------------------------
 // genIfImpl
@@ -2624,7 +2650,12 @@ TR_J9ByteCodeIlGenerator::genIfImpl(TR::ILOpCodes nodeop)
 
    TR::Node * second = pop();
    TR::Node * first = pop();
-
+   /** AR07 - Debug */
+   if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"foo",3)==0)
+   {
+      printf("Inside genIfImpl foo().\n");
+   }
+   /** AR07 - Debug */
    static char *disableIfFolding = feGetEnv("TR_DisableIfFolding");
    bool trace = comp()->getOption(TR_TraceILGen);
 
@@ -2774,7 +2805,7 @@ TR_J9ByteCodeIlGenerator::genIfImpl(TR::ILOpCodes nodeop)
             }
          else
             genTreeTop(TR::Node::createif(nodeop, first, second, branchDestination));
-
+            
          return findNextByteCodeToGen();
          }
       }
@@ -2789,8 +2820,12 @@ TR_J9ByteCodeIlGenerator::genIfImpl(TR::ILOpCodes nodeop)
          tt->getNode()->setSwappedChildren(true);
          }
       else
-         genTreeTop(TR::Node::createif(nodeop, first, second, branchDestination));
-
+      /** AR07 - Profiling typecast (instanceof) checks. */
+      {
+         TR::TreeTop *tt = genTreeTop(TR::Node::createif(nodeop, first, second, branchDestination));
+         profileCastSite(comp(),first,tt);
+      }
+      /** AR07 - Profiling typecast (instanceof) checks. */
       return findNextByteCodeToGen();
       }
    }
@@ -7099,10 +7134,10 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
       }
 
    TR::SymbolReference * symRef = symRefTab()->findOrCreateShadowSymbol(_methodSymbol, cpIndex, true);
-   if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"barfoo",6)==0)
-   {
-      printf("Storing inside barfoo");
-   }
+   // if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"barfoo",6)==0)
+   // {
+   //    printf("Storing inside barfoo");
+   // }
    storeInstance(symRef);
    }
 

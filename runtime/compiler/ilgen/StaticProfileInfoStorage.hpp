@@ -28,6 +28,13 @@ class StaticProfileStorage
     // Static-Assign Site Utils
     static bool getProfilingPreference4SASite(TR_ResolvedMethod * _method, uint32_t bci);
     static const char * getDebugCounterName4SASite(TR_ResolvedMethod * _method, uint32_t bci);
+    // TypeCast-Site Utils
+    static bool getProfilingPreference4CastSite(TR_ResolvedMethod * _method, uint32_t bci);
+    static const char * getDebugCounterName4CastSite(TR_ResolvedMethod * _method, uint32_t bci);
+    // Equals-Site Utils
+    static bool getProfilingPreference4EqualsSite(TR_ResolvedMethod * _method, uint32_t bci);
+    static const char * getDebugCounterName4EqualsSite(TR_ResolvedMethod * _method, uint32_t bci);
+    // Load-store utils
     static const char * getDebugCounterName4FieldLoad(char * className, U_16 classNameLength, char * fieldName, U_16 fieldNameLength);
     static const char * getDebugCounterName4FieldStore(char * className, U_16 classNameLength, char * fieldName, U_16 fieldNameLength);
 };
