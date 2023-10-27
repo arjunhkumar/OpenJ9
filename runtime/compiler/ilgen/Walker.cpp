@@ -2357,10 +2357,10 @@ void
 TR_J9ByteCodeIlGenerator::genInstanceof(int32_t cpIndex)
    {
    /** AR07 - Debug */
-   if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"foo",3)==0)
-   {
-      printf("Inside genInstanceof foo().\n");
-   }
+   // if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"foo",3)==0)
+   // {
+   //    printf("Inside genInstanceof foo().\n");
+   // }
    /** AR07 - Debug */
    TR::SymbolReference *classSymRef = loadClassObjectForTypeTest(cpIndex, TR_DisableAOTInstanceOfInlining);
    TR::Node *node = genNodeAndPopChildren(TR::instanceof, 2, symRefTab()->findOrCreateInstanceOfSymbolRef(_methodSymbol));
@@ -2651,10 +2651,10 @@ TR_J9ByteCodeIlGenerator::genIfImpl(TR::ILOpCodes nodeop)
    TR::Node * second = pop();
    TR::Node * first = pop();
    /** AR07 - Debug */
-   if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"foo",3)==0)
-   {
-      printf("Inside genIfImpl foo().\n");
-   }
+   // if(strncmp(comp()->getMethodBeingCompiled()->nameChars(),"foo",3)==0)
+   // {
+   //    printf("Inside genIfImpl foo().\n");
+   // }
    /** AR07 - Debug */
    static char *disableIfFolding = feGetEnv("TR_DisableIfFolding");
    bool trace = comp()->getOption(TR_TraceILGen);
@@ -3589,6 +3589,26 @@ void profileCallSite(TR::Compilation * comp,TR::Node * callNode, TR::TreeTop *ca
 }
 /* AR07 - Profiling call-site if required. */
 
+/* AR07 - Profiling call-site if required. */
+void profileEqualsCallSite(TR::Compilation * comp,TR::Node * callNode, TR::TreeTop *callNodeTreeTop)
+{
+   /* AR07 - Check if static profiling is required. */
+   if( NULL != comp && NULL != callNode && NULL != callNodeTreeTop && 
+      StaticProfileStorage::isStaticProfilingMode(comp->j9VMThread()->javaVM) )
+   {
+      // printf("Profiling mode detected.");
+      uint32_t bci = callNode->getByteCodeIndex();
+      bool staticPreference = StaticProfileStorage::getProfilingPreference4EqualsSite(comp->getMethodBeingCompiled(),bci);
+      if(staticPreference)
+      {
+         const char *  dcName = StaticProfileStorage::getDebugCounterName4EqualsSite(comp->getMethodBeingCompiled(),bci);
+         TR::DebugCounter::prependDebugCounter(comp,dcName, callNodeTreeTop);
+      }
+   }
+   /* AR07 - Check if static profiling is required. */
+}
+/* AR07 - Profiling call-site if required. */
+
 TR::Node*
 TR_J9ByteCodeIlGenerator::genInvoke(TR::SymbolReference * symRef, TR::Node *indirectCallFirstChild, TR::Node *invokedynamicReceiver)
    {
@@ -4496,6 +4516,15 @@ break
 
    /* AR07 - Check if static profiling is required. */
    profileCallSite(comp(),callNode,callNodeTreeTop);
+   if(calledMethod)
+   {
+      if( (strncmp(calledMethod->classNameChars(),"java/lang/Object",16)==0)
+      && (strncmp(calledMethod->nameChars(),"equals",6)==0) 
+      && (strncmp(calledMethod->signatureChars(),"(Ljava/lang/Object;)Z",21)==0) )
+      {
+         profileEqualsCallSite(comp(),callNode,callNodeTreeTop);
+      }
+   }
    // const char * _methodName = comp()->getMethodBeingCompiled()->nameChars();
    // if(StaticProfileStorage::isStaticProfilingMode(comp()->j9VMThread()->javaVM))
    // {
