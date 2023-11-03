@@ -645,6 +645,9 @@ class TR_EscapeAnalysis : public TR::Optimization
 
    void     makeContiguousLocalAllocation(Candidate *candidate);
    void     makeNonContiguousLocalAllocation(Candidate *candidate);
+   /** AR07 - Fix for illegal creation of awrtbari nodes without 3 nodes. Commoning up EA operations for value-types */
+   void     makeNewValueLocalAllocation(Candidate *candidate);
+   /** AR07 - Fix for illegal creation of awrtbari nodes without 3 nodes. Commoning up EA operations for value-types */
    void     heapifyForColdBlocks(Candidate *candidate);
 
    /**

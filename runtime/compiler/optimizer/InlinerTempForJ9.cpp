@@ -1163,29 +1163,36 @@ TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSy
       TR::Node* conversionNode = TR::Node::create(conversionOpCode,
                                                  1, valueWithoutConversion);
       valueWithConversion = conversionNode;
-      /** AR07 Debug*/
-      // if(strcmp("<init>",comp()->getMethodBeingCompiled()->nameChars()) == 0)
-      // {
-      //    printf("Write Barrier inside constructor.");
-      // }
-      /** AR07 Debug End*/
       unsafeNodeWithConversion = type == TR::Address && (TR::Compiler->om.writeBarrierType() != gc_modron_wrtbar_none)
          ? TR::Node::createWithSymRef(TR::awrtbari, 3, 3, unsafeAddress, valueWithConversion, unsafeCall->getChild(1), symRef)
          : TR::Node::createWithSymRef(comp()->il.opCodeForIndirectArrayStore(type), 2, 2, unsafeAddress, valueWithConversion, symRef);
 
+      /** AR07 Debug*/
+      // if(strncmp("avrora/avrora/syntax/elf/ELFParser",comp()->getMethodBeingCompiled()->classNameChars(),34) == 0)
+      // {
+      //    // if(unsafeNodeWithConversion->getLocalIndex() == 14)
+      //    // {
+      //       printf("\n Num Children: %d BCI: %d",unsafeNodeWithConversion->getNumChildren(),unsafeNodeWithConversion->getByteCodeIndex());
+      //       // printf("\n8: Write Barrier inside ELF class with local index 14.");
+      //    // }
+      // }
+      /** AR07 Debug End*/
       debugTrace(tracer(), "\tConversion is Needed, conversionNode = %p unsafeNodeWithConversion = %p valueWithConversion = %p\n", conversionNode, unsafeNodeWithConversion, valueWithConversion);
 
       }
-      /** AR07 Debug*/
-      // if(strcmp("<init>",comp()->getMethodBeingCompiled()->nameChars()) == 0)
-      // {
-      //    printf("\nWrite Barrier inside constructor.");
-      // }
-      /** AR07 Debug End*/
    TR::Node * unsafeNode = type == TR::Address && (TR::Compiler->om.writeBarrierType() != gc_modron_wrtbar_none)
       ? TR::Node::createWithSymRef(TR::awrtbari, 3, 3, unsafeAddress, valueWithoutConversion, unsafeCall->getChild(1), symRef)
       : TR::Node::createWithSymRef(comp()->il.opCodeForIndirectStore(type), 2, 2, unsafeAddress, valueWithoutConversion, symRef);
-
+      /** AR07 Debug*/
+      // if(strncmp("avrora/avrora/syntax/elf/ELFParser",comp()->getMethodBeingCompiled()->classNameChars(),34) == 0)
+      // {
+      //    // if(unsafeNode->getLocalIndex() == 14)
+      //    // {
+      //       printf("\n Num Children: %d BCI: %d",unsafeNode->getNumChildren(),unsafeNode->getByteCodeIndex());
+      //       // printf("\n9: Write Barrier inside ELF class with local index 14.");
+      //    // }
+      // }
+      /** AR07 Debug End*/
 
    TR::TreeTop *oldCallNodeTreeTop = 0;          // For Tracing Purposes Only
    if (tracer()->debugLevel())

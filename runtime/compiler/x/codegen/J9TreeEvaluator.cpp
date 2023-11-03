@@ -13339,7 +13339,7 @@ TR::Register *J9::X86::TreeEvaluator::awrtbariEvaluator(TR::Node *node, TR::Code
 TR::Register *J9::X86::TreeEvaluator::awrtbarEvaluator(TR::Node *node, TR::CodeGenerator *cg)
    {
    // For rdbar and wrtbar nodes we first evaluate the children we need to
-   // handle the side effects. Then we delegate the evaluation of the remaining
+   // handle the side effects. Then we delegate the evaluation of the remaining 
    // children and the load/store operation to the appropriate load/store evaluator.
    TR::Register *valueReg;
    TR::Register *sideEffectRegister;

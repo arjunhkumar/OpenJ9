@@ -2377,7 +2377,16 @@ TR::Node *
 TR_J9ByteCodeIlGenerator::genCompressedRefs(TR::Node * address, bool genTT, int32_t isLoad)
       {
    static char *pEnv = feGetEnv("TR_UseTranslateInTrees");
-
+    /** AR07 Debug*/
+   // if(strncmp("avrora/avrora/syntax/elf/ELFParser",comp()->getMethodBeingCompiled()->classNameChars(),34) == 0)
+   //    {
+   //       if(isLoad == -1 && address->getByteCodeIndex() == 0)
+   //       {
+   //          // printf("\n Num Children: %d BCI: %d",storeNode->getNumChildren(),storeNode->getByteCodeIndex());
+   //          printf("\n1: %d LS Compressed refs. BCI: %d.",isLoad, address->getByteCodeIndex());
+   //       }
+   //    }
+   /** AR07 Debug End*/
    TR::Node *value = address;
    if (pEnv && (isLoad < 0)) // store
       value = address->getSecondChild();
@@ -7864,12 +7873,6 @@ TR_J9ByteCodeIlGenerator::storeArrayElement(TR::DataType dataType, TR::ILOpCodes
    TR::Node * storeNode, * resultNode;
    if (generateWriteBarrier)
       {
-      /** AR07 Debug*/
-      // if(strcmp("<init>",comp()->getMethodBeingCompiled()->nameChars()) == 0)
-      //    {
-      //       printf("\nWrite Barrier inside constructor.");
-      //    }
-      /** AR07 Debug End*/
       storeNode = resultNode = TR::Node::createWithSymRef(TR::awrtbari, 3, 3, elementAddress, value, arrayBaseAddress, symRef);
       usedArrayBaseAddress = true;
       }

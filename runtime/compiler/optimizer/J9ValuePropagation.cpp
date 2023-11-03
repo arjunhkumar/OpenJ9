@@ -2085,11 +2085,19 @@ J9::ValuePropagation::transformIntoRegularArrayElementStore(TR::TreeTop *callTre
    TR::Node *oldAnchorNode = callTree->getNode();
 
    TR_ASSERT_FATAL_WITH_NODE(oldAnchorNode, (oldAnchorNode->getNumChildren() == 1) && oldAnchorNode->getFirstChild() == callNode, "Expected call node n%un for jitStoreFlattenableArrayElement was anchored under node n%un\n", callNode->getGlobalIndex(), oldAnchorNode->getGlobalIndex());
-
    TR::SymbolReference *elementSymRef = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::Address, arrayRefNode);
    TR::Node *elementStoreNode = TR::Node::recreateWithoutProperties(callNode, TR::awrtbari, 3, elementAddressNode,
                                              valueNode, arrayRefNode, elementSymRef);
-
+   /** AR07 Debug*/
+   // if(strncmp("avrora/avrora/syntax/elf/ELFParser",comp()->getMethodBeingCompiled()->classNameChars(),34) == 0)
+   // {
+   //    // if(elementStoreNode->getLocalIndex() == 14)
+   //    // {
+   //       printf("\n Num Children: %d BCI: %d",elementStoreNode->getNumChildren(),elementStoreNode->getByteCodeIndex());
+   //       // printf("\n10: Write Barrier inside ELF class with local index 14.");
+   //    // }
+   // }
+   /** AR07 Debug End*/
    if (needsStoreCheck)
       {
       TR::ResolvedMethodSymbol *methodSym = comp()->getMethodSymbol();

@@ -831,6 +831,16 @@ int32_t TR_UnsafeFastPath::perform()
                   if (type == TR::Address && (TR::Compiler->om.writeBarrierType() != gc_modron_wrtbar_none))
                      {
                      node = TR::Node::recreateWithoutProperties(node, TR::awrtbari, 3, addrCalc, value, object, unsafeSymRef);
+                     /** AR07 Debug*/
+                     // if(strncmp("avrora/avrora/syntax/elf/ELFParser",comp()->getMethodBeingCompiled()->classNameChars(),34) == 0)
+                     // {
+                     //    // if(node->getLocalIndex() == 14)
+                     //    // {
+                     //       printf("\n Num Children: %d BCI: %d",node->getNumChildren(),node->getByteCodeIndex());
+                     //       // printf("\n12: Write Barrier inside ELF class with local index 14.");
+                     //    // }
+                     // }
+                     /** AR07 Debug End*/
                      spineCHK->setAndIncChild(0, addrCalc);
                      }
                   else
@@ -923,6 +933,16 @@ int32_t TR_UnsafeFastPath::perform()
                   if (type == TR::Address && (TR::Compiler->om.writeBarrierType() != gc_modron_wrtbar_none))
                      {
                      node = TR::Node::recreateWithoutProperties(node, TR::awrtbari, 3, addrCalc, value, object, unsafeSymRef);
+                     /** AR07 Debug*/
+                     // if(strncmp("avrora/avrora/syntax/elf/ELFParser",comp()->getMethodBeingCompiled()->classNameChars(),34) == 0)
+                     // {
+                     //    // if(node->getLocalIndex() == 14)
+                     //    // {
+                     //       printf("\n Num Children: %d BCI: %d",node->getNumChildren(),node->getByteCodeIndex());
+                     //       // printf("\n13: Write Barrier inside ELF class with local index 14.");
+                     //    // }
+                     // }
+                     /** AR07 Debug End*/
                      }
                   else
                      {
