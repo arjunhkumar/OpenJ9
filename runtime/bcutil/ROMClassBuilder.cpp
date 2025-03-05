@@ -51,6 +51,8 @@
 #include "WritingCursor.hpp"
 #include "j9protos.h"
 #include "ut_j9bcu.h"
+//inliningjclclasses
+#include<iostream>
 
 static const UDATA INITIAL_CLASS_FILE_BUFFER_SIZE = 4096;
 static const UDATA INITIAL_BUFFER_MANAGER_SIZE = 32768 * 10;
@@ -584,6 +586,18 @@ ROMClassBuilder::prepareAndLaydown( BufferManager *bufferManager, ClassFileParse
 	romClassWriter.setSRPOffsetTable(&srpOffsetTable);
 
 	U_32 modifiers = classFileOracle.getAccessFlags();
+
+	//inliningjclclasses
+	if(classFileOracle.isFlattenablePrimitiveClassBH((char *)(classFileOracle.getUTF8Data(classFileOracle.getClassNameIndex()))))
+	{
+		//std::cout<<"TURNING OFF IDENTITY IN CLASS: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+		//(_classFile->accessFlags) &= ~CFR_ACC_IDENTITY;
+		if(!J9_ARE_ALL_BITS_SET(modifiers, CFR_ACC_IDENTITY))
+		{
+			std::cout<<"THE FOLLOWING CLASS HAS NO IDENTITY IN ROMCLASSBUILDER: "<< ((char *)(classFileOracle.getUTF8Data(classFileOracle.getClassNameIndex())))<<"\n";
+		}
+	}
+
 	U_32 extraModifiers = computeExtraModifiers(&classFileOracle, context);
 	U_32 optionalFlags = computeOptionalFlags(&classFileOracle, context);
 

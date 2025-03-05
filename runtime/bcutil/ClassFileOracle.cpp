@@ -35,6 +35,8 @@
 #include "ut_j9bcu.h"
 #include "util_api.h"
 #include "j9protos.h"
+//inliningjclclasses
+#include<iostream>
 
 /* The array entries must be in same order as the enums in ClassFileOracle.hpp */
 ClassFileOracle::KnownAnnotation ClassFileOracle::_knownAnnotations[] = {
@@ -368,6 +370,27 @@ ClassFileOracle::walkFields()
 
 		markConstantUTF8AsReferenced(field->nameIndex);
 		markConstantUTF8AsReferenced(field->descriptorIndex);
+		
+		//inliningjclclasses
+
+		if((isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(field->descriptorIndex))) && !isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))){
+			std::cerr<<"FLATTENABLE IN A NON LIBRARY CLASS, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+			_fieldsInfo[fieldIndex].isNullRestricted = true;
+		
+			std::cerr<<"FIELD VARIABLE NAME: "<<((char *)(this->getUTF8Data(field->nameIndex)))<<"\n";
+
+		}else{
+			if(isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+			{
+				//std::cout<<"LIBRARY CLASS HENCE AVOIDING NULLRESTRICTED SET: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+			}
+
+		}
+
+		/*if((isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(field->descriptorIndex))))){
+			std::cerr<<"FLATTENABLE FIELD BEING SET AS NULL RESTRICTED, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+			_fieldsInfo[fieldIndex].isNullRestricted = true;
+		}*/
 
 		if (isStatic) {
 			if (NULL != field->constantValueAttribute) {
@@ -410,6 +433,8 @@ ClassFileOracle::walkFields()
 				_fieldsInfo[fieldIndex].isSynthetic = true;
 				break;
 			case CFR_ATTRIBUTE_RuntimeVisibleAnnotations: {
+
+				//std::cout<< "FOUND RUNTIMEVISIBLEANNOTATIONS IN A FIELD!! It's Descriptor Is:" << (char *)(this->getUTF8Data(field->descriptorIndex)) << "!!\n";
 				J9CfrAttributeRuntimeVisibleAnnotations *attribAnnotations = (J9CfrAttributeRuntimeVisibleAnnotations *)attrib;
 				UDATA knownAnnotations = 0;
 				if ((NULL != _context->javaVM()) && (J9_ARE_ALL_BITS_SET(_context->javaVM()->extendedRuntimeFlags, J9_EXTENDED_RUNTIME_ALLOW_CONTENDED_FIELDS)) &&
@@ -426,7 +451,9 @@ ClassFileOracle::walkFields()
 						_fieldsInfo[fieldIndex].isFieldContended = true;
 					}
 #if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+					//inliningjclclasses
 					if (containsKnownAnnotation(foundAnnotations, NULLRESTRICTED_ANNOTATION)) {
+					//std::cout<< "FOUND NULL RESTRICTED FIELD!! It's Descriptor Is:" << (char *)(this->getUTF8Data(field->descriptorIndex)) << "!!\n";
 						if (!IS_CLASS_SIGNATURE(fieldChar)) {
 							if ('[' == fieldChar) {
 								throwGenericErrorWithCustomMsg(J9NLS_CFR_NO_NULLRESTRICTED_IN_ARRAYFIELD__ID, fieldIndex);
@@ -482,6 +509,33 @@ void
 ClassFileOracle::walkAttributes()
 {
 	ROMClassVerbosePhase v(_context, ClassFileAttributesAnalysis);
+
+	//inliningjclclasses: if we want this class to be inlined, implicit creation flags must be turned on
+	if(isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+	{
+		std::cerr<<"SETTING IMPLICITCREATEHASDEFAULTVALUE IN CLASS: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+		_hasImplicitCreationAttribute = true;
+		_implicitCreationFlags |= J9AccImplicitCreateHasDefaultValue;
+	}
+	// inliningjclclasses: setting identity to false if we want this class to get inlined. 
+	// "value" is determined by a lack of identity flag in the current openj9 version
+	if(isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+	{
+		std::cerr<<"TURNING OFF IDENTITY IN CLASS: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+		//(_classFile->accessFlags) &= ~CFR_ACC_IDENTITY;
+		(_classFile->accessFlags) &= ~J9AccClassHasIdentity;
+		(_classFile->accessFlags) &= ~J9AccInterface;
+	}
+
+	// inliningjclclasses: setting the right classfile version:
+	if(isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+	{
+		std::cerr<<"SETTING RIGHT VERSION IN CLASSFILE: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+		std::cerr<<"MAJOR VERSION: "<<_classFile->majorVersion<<", MINOR VERSION: "<< _classFile->minorVersion << "\n";
+		//_classFile->majorVersion = 68;
+		_classFile->minorVersion = 65535;
+	}
+	
 
 	for (U_16 attributeIndex = 0; attributeIndex < _classFile->attributesCount; attributeIndex++) {
 		J9CfrAttribute *attrib = _classFile->attributes[attributeIndex];
@@ -578,9 +632,11 @@ ClassFileOracle::walkAttributes()
 				}
 				if (containsKnownAnnotation(foundAnnotations, VALUEBASED_ANNOTATION)) {
 					_isClassValueBased = true;
+					//std::cout<< "FOUND VALUE BASED CLASS!! It's " << (char *)(this->getUTF8Data(this->getClassNameIndex())) << "!!\n";
 				}
 #if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
-				if (containsKnownAnnotation(foundAnnotations, IMPLICITLYCONSTRUCTIBLE_ANNOTATION)) {
+				// inliningjclclasses: added an OR with VALUEBASED_ANNOTATION
+				if (containsKnownAnnotation(foundAnnotations, IMPLICITLYCONSTRUCTIBLE_ANNOTATION) ) {// || containsKnownAnnotation(foundAnnotations, VALUEBASED_ANNOTATION)) {
 					_hasImplicitCreationAttribute = true;
 					_implicitCreationFlags |= J9AccImplicitCreateHasDefaultValue;
 				}

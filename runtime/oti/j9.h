@@ -345,6 +345,7 @@ static const struct { \
 /**
  * Disable flattening of volatile field that is > 8 bytes for now, as the current implementation of copyObjectFields() will tear this field.
  */
+// inliningjclclasses: removed null restricted condition for J9_IS_FIELD_FLATTENED
 #define J9_IS_FIELD_FLATTENED(fieldClazz, romFieldShape) \
 		(J9ROMFIELD_IS_NULL_RESTRICTED(romFieldShape) && \
 		J9_IS_J9CLASS_FLATTENED(fieldClazz) && \

@@ -54,6 +54,8 @@
 #include "Scheduler.hpp"
 #endif /* J9VM_GC_REALTIME */
 #include "VMAccess.hpp"
+//inliningjclclasses
+#include<iostream>
 
 extern "C" {
 
@@ -578,6 +580,8 @@ J9AllocateIndexableObject(J9VMThread *vmThread, J9Class *clazz, uint32_t numberO
 		Assert_MM_true(GC_ObjectModel::SCAN_PRIMITIVE_ARRAY_OBJECT == extensions->objectModel.getScanType(clazz));
 	}
 
+	//inliningjclclasses comment
+	//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : ONE"<<"\n";
 #if defined(J9VM_GC_THREAD_LOCAL_HEAP)
 	if (!env->isInlineTLHAllocateEnabled()) {
 		/* For duration of call restore TLH allocate fields;
@@ -588,6 +592,8 @@ J9AllocateIndexableObject(J9VMThread *vmThread, J9Class *clazz, uint32_t numberO
 	}	
 #endif /* J9VM_GC_THREAD_LOCAL_HEAP */
 
+	//inliningjclclasses comment
+	//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : TWO"<<"\n";
 	J9Object *objectPtr = NULL;
 	uintptr_t sizeInBytesRequired = 0;
 	MM_IndexableObjectAllocationModel indexableOAM(env, clazz, numberOfIndexedFields, allocateFlags);
@@ -604,6 +610,8 @@ J9AllocateIndexableObject(J9VMThread *vmThread, J9Class *clazz, uint32_t numberO
 		}
 	}
 	
+	//inliningjclclasses comment
+	//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : THREE"<<"\n";
 	if (env->_failAllocOnExcessiveGC && (NULL != objectPtr)) {
 		/* If we have garbage collected too much, return NULL as if we had failed to allocate the object (effectively triggering an OOM).
 		 * TODO: The ordering of this call wrt/ allocation really needs to change - this is just a temporary solution until
@@ -622,6 +630,8 @@ J9AllocateIndexableObject(J9VMThread *vmThread, J9Class *clazz, uint32_t numberO
 		Trc_MM_ArrayObjectAllocationFailedDueToExcessiveGC(vmThread);
 	}
 
+	//inliningjclclasses comment
+	//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR"<<"\n";
 	sizeInBytesRequired = indexableOAM.getAllocateDescription()->getBytesRequested();
 	if (NULL != objectPtr) {
 		/* The hook could release access and so the object address could change (the value is preserved).  Since this
@@ -646,6 +656,8 @@ J9AllocateIndexableObject(J9VMThread *vmThread, J9Class *clazz, uint32_t numberO
 					sizeInBytesRequired);
 			}
 		}
+		//inliningjclclasses comment
+		//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR ONE"<<"\n";
 	
 		/* If this was a non-TLH allocation, trigger the hook */
 		if( !indexableOAM.getAllocateDescription()->isCompletedFromTlh()) {
@@ -655,6 +667,8 @@ J9AllocateIndexableObject(J9VMThread *vmThread, J9Class *clazz, uint32_t numberO
 				objectPtr);
 		}
 		
+		//inliningjclclasses comment
+		//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR TWO"<<"\n";
 		uintptr_t lowThreshold = extensions->lowAllocationThreshold;
 		uintptr_t highThreshold = extensions->highAllocationThreshold;
 		if ( (sizeInBytesRequired >= lowThreshold) && (sizeInBytesRequired <= highThreshold) ) {
@@ -668,14 +682,23 @@ J9AllocateIndexableObject(J9VMThread *vmThread, J9Class *clazz, uint32_t numberO
 				highThreshold);
 		}
 		
+		//inliningjclclasses comment
+		//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR THREE"<<"\n";
 		objectPtr = traceAllocateObject(vmThread, objectPtr, clazz, sizeInBytesRequired, (uintptr_t)numberOfIndexedFields);
 		if (extensions->isStandardGC()) {
+
+			//inliningjclclasses comment
+			//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR FOUR"<<"\n";
 			if (OMR_GC_ALLOCATE_OBJECT_TENURED == (allocateFlags & OMR_GC_ALLOCATE_OBJECT_TENURED)) {
 				/* Object must be allocated in Tenure if it is requested */
 				Assert_MM_true(extensions->isOld(objectPtr));
 			}
+			//inliningjclclasses
+			//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR FIVE"<<"\n";
 #if defined(J9VM_GC_REALTIME)
 		} else if (extensions->isMetronomeGC()) {
+			//inliningjclclasses comment
+			//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR SIX"<<"\n";
 			if (env->saveObjects((omrobjectptr_t)objectPtr)) {
 				j9gc_startGCIfTimeExpired(vmThread->omrVMThread);
 				env->restoreObjects((omrobjectptr_t*)&objectPtr);
@@ -692,14 +715,36 @@ J9AllocateIndexableObject(J9VMThread *vmThread, J9Class *clazz, uint32_t numberO
 	}
 	/* TODO: Need to implement a more optimal path for cases where barriers are not required or where a batch barrier can be used. */ 
 	if ((NULL != objectPtr) && J9_ARE_ALL_BITS_SET(clazz->classFlags, J9ClassContainsUnflattenedFlattenables)) {
+		//inliningjclclasses comment
+		//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR SEVEN"<<"\n";
+
 		MM_ObjectAccessBarrierAPI objectAccessBarrier(vmThread);
 		J9Class * elementClass = ((J9ArrayClass *) clazz)->componentType; 
-		j9object_t defaultValue = elementClass->flattenedClassCache->defaultValue;
+
+		//inliningjclclasses comment
+		//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR EIGHT"<<"\n";
+
+		auto tempBH = elementClass->flattenedClassCache;
+
+		//j9object_t defaultValue = elementClass->flattenedClassCache->defaultValue;
+		std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR NINE"<<"\n";
+
+		//inliningjclclasses if condition for error check
+		if(tempBH == NULL)
+		{
+			//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : flattened class cache IS NULL!!"<<"\n";	
+		}	
+		
+		j9object_t defaultValue = tempBH->defaultValue;
+
+		//inliningjclclasses comment
+		//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR TEN"<<"\n";
 		for (UDATA index = 0; index < numberOfIndexedFields; index++) {
 			objectAccessBarrier.inlineIndexableObjectStoreObject(vmThread, objectPtr, index, defaultValue);
 		}
-	}
 
+	}
+	
 #if defined(J9VM_GC_THREAD_LOCAL_HEAP)
 	if (extensions->needDisableInlineAllocation()) {
 		env->disableInlineTLHAllocate();

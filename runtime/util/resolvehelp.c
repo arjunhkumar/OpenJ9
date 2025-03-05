@@ -41,6 +41,8 @@ getMethodForSpecialSend(J9VMThread *vmStruct, J9Class *currentClass, J9Class *re
 	 *	C) Resolved method is not <init>
 	 *	D) Skip checking vTables if resolved or current class is an interface
 	 */
+
+	//inliningjclclasses : attempting to comment out the J9AccSuper condition as per point (A) above
 	if (
 #if !defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 		J9_ARE_ALL_BITS_SET(currentClass->romClass->modifiers, J9AccSuper) ||

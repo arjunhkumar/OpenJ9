@@ -37,6 +37,8 @@
 #include "j9vmnls.h"
 #include "j2sever.h"
 #include "vm_internal.h"
+//inliningjclclasses : add include
+#include<iostream>
 
 #include "VMHelpers.hpp"
 
@@ -1982,15 +1984,56 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 						* ImplicitCreation attribute. The attribute must have the ACC_DEFAULT flag set.
 						* Static fields will be checked during class preparation.
 						*/
+						if(!J9_IS_CLASSFILE_OR_ROMCLASS_VALUETYPE_VERSION(valueROMClass)){
+							//inliningjclclasses : getting and printing name of this romclass
+							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							std::cerr<<"THIS CLASS IS NULL RESTRICTED BUT NOT VALUETYPE_VERSION: ";
+							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
+							std::cerr << std::endl;
+						}
+						if(!J9ROMCLASS_IS_VALUE(valueROMClass))
+						{
+							//inliningjclclasses : getting and printing name of this romclass
+							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							std::cerr<<"THIS CLASS IS NULL RESTRICTED, BUT NOT IS VALUE: ";
+							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
+							std::cerr << std::endl;
+						}
+
+						if(J9_ARE_NO_BITS_SET(valueROMClass->optionalFlags, J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE))
+						{
+							//inliningjclclasses : getting and printing name of this romclass
+							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							std::cerr<<"THIS CLASS IS NULL RESTRICTED, BUT NOT J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE: ";
+							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
+							std::cerr << std::endl;
+						}
+
+						if(J9_ARE_NO_BITS_SET(getImplicitCreationFlags(valueROMClass), J9AccImplicitCreateHasDefaultValue))
+						{
+							//inliningjclclasses : getting and printing name of this romclass
+							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							std::cerr<<"THIS CLASS IS NULL RESTRICTED, BUT NOT J9AccImplicitCreateHasDefaultValue: ";
+							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
+							std::cerr << std::endl;
+						}
+
 						if (!J9ROMCLASS_IS_VALUE(valueROMClass)
 							|| J9_ARE_NO_BITS_SET(valueROMClass->optionalFlags, J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE)
 							|| J9_ARE_NO_BITS_SET(getImplicitCreationFlags(valueROMClass), J9AccImplicitCreateHasDefaultValue)
 						) {
+
 							setCurrentExceptionForBadClass(currentThread, J9ROMCLASS_CLASSNAME(romClass), J9VMCONSTANTPOOL_JAVALANGINCOMPATIBLECLASSCHANGEERROR,
 								J9NLS_VM_NULLRESTRICTED_MUST_BE_IN_DEFAULT_IMPLICITCREATION_VALUE_CLASS);
 						}
 
 						if (!J9_IS_FIELD_FLATTENED(valueClass, field)) {
+							//inliningjclclasses : getting name of this romclass
+							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							std::cerr<<"THIS CLASS IS NULL RESTRICTED, BUT NOT J9_IS_FIELD_FLATTENED WITHIN THE CONTAINER CLASS: ";
+							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
+							std::cerr << std::endl;
+
 							*valueTypeFlags |= (J9ClassContainsUnflattenedFlattenables | J9ClassHasReferences);
 							eligibleForFastSubstitutability = false;
 						} else if (J9_ARE_NO_BITS_SET(valueClass->classFlags, J9ClassCanSupportFastSubstitutability)) {
@@ -2325,6 +2368,13 @@ nativeOOM:
 #endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 		if (J9ROMCLASS_IS_VALUE(romClass)) {
+			//inliningjclclasses : cerr print name of value class
+			
+			/*J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(romClass);
+			std::cerr<<"INSIDE J9ROMCLASS_IS_VALUE() CONDITION WITHIN CREATERAMCLASS: ";
+			std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
+			std::cerr << std::endl;*/
+
 			classFlags |= J9ClassIsValueType;
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 			/* superclass can be NULL if primitive classes are changed to value typess in the future. */
@@ -3461,9 +3511,11 @@ fail:
 					U_32 arrayFlags = J9ClassLargestAlignmentConstraintReference | J9ClassLargestAlignmentConstraintDouble;
 					if (J9_ARE_ALL_BITS_SET(options, J9_FINDCLASS_FLAG_CLASS_OPTION_NULL_RESTRICTED_ARRAY)) {
 						if (J9_ARE_ALL_BITS_SET(javaVM->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_ENABLE_VT_ARRAY_FLATTENING)) {
-							arrayFlags |= J9ClassIsFlattened;
+							//inliningjclclasses: commenting out this line
+							//arrayFlags |= J9ClassIsFlattened;
 						}
-						ramArrayClass->classFlags |= J9ClassArrayIsNullRestricted;
+						//inliningjclclasses : REMOVING THE SETTING OF NULLRESTRICTEDNESS 
+						//ramArrayClass->classFlags |= J9ClassArrayIsNullRestricted;
 					}
 					ramArrayClass->classFlags |= (elementClass->classFlags & arrayFlags);
 #endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
@@ -3493,7 +3545,8 @@ fail:
 					}
 				} else {
 					if (J9_IS_J9CLASS_ALLOW_DEFAULT_VALUE(elementClass)) {
-						ramArrayClass->classFlags |= J9ClassContainsUnflattenedFlattenables;
+						//inliningjclclasses : commenting out this line
+						//ramArrayClass->classFlags |= J9ClassContainsUnflattenedFlattenables;
 					}
 					J9ARRAYCLASS_SET_STRIDE(ramClass, (((UDATA) 1) << (((J9ROMArrayClass*)romClass)->arrayShape & 0x0000FFFF)));
 				}

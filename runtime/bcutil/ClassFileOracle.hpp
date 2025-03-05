@@ -34,6 +34,9 @@
 #include "ut_j9bcu.h"
 #include "bcnames.h"
 
+//inliningjclclasses
+#include<regex>
+
 #include "BuildResult.hpp"
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 #include "VMHelpers.hpp"
@@ -927,6 +930,27 @@ class RecordComponentIterator
 	/*
 	 * Query methods.
 	 */
+	//inliningjclclasses
+	bool isLibraryClassBH(char *descriptor) const {
+		static const std::regex prefix_regex(R"(^(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/))");
+		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
+	}
+
+	bool isFlattenablePrimitiveClassBH(char *descriptor) const {
+		static const std::regex prefix_regex(R"(^(?:L)?(?:java/lang/Integer|InlineField|java/lang/Number)(;)?$)");
+		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
+	}
+
+	bool isCustomFlattenablePrimitiveClassBH(char *descriptor) const {
+		static const std::regex prefix_regex(R"(^(?:L)?(?:InlineField)(;)?$)");
+		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
+	}
+
+	/*bool isFlattenablePrimitiveClassBH(char *descriptor) const {
+		static const std::regex prefix_regex(R"(^(?:L)?(?:java/lang/Integer)(;)?$)");
+		return false;
+		//return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
+	}*/
 
 	U_32 getClassFileSize() const { return _classFile->classFileSize; }
 	U_16 getAccessFlags() const { return _classFile->accessFlags; }

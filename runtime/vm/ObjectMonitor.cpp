@@ -328,12 +328,14 @@ objectMonitorEnterNonBlocking(J9VMThread *currentThread, j9object_t object)
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+	// inliningjclclasses: establishing equivalence between valuetype and valuebased
 	if (J9_IS_J9CLASS_VALUETYPE(objClass)) {
 		result = J9_OBJECT_MONITOR_VALUE_TYPE_IMSE;
 		goto done;
 	}
 #endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
 #if JAVA_SPEC_VERSION >= 16
+	
 	if (J9_IS_J9CLASS_VALUEBASED(objClass)) {
 		U_32 runtimeFlags2 = vm->extendedRuntimeFlags2;
 		if (J9_ARE_ALL_BITS_SET(runtimeFlags2, J9_EXTENDED_RUNTIME2_VALUE_BASED_EXCEPTION)) {
@@ -345,6 +347,7 @@ objectMonitorEnterNonBlocking(J9VMThread *currentThread, j9object_t object)
 			j9nls_printf(PORTLIB, J9NLS_WARNING, J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_BASED, J9UTF8_LENGTH(className), J9UTF8_DATA(className));
 		}
 	}
+	
 #endif /* JAVA_SPEC_VERSION >= 16 */
 
 restart:
