@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifdef J9ZTPF
@@ -27,6 +27,7 @@
 #include <algorithm>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include "j9.h"
 #include "j9protos.h"
 #include "j9thread.h"
@@ -55,10 +56,20 @@
 #include "env/VerboseLog.hpp"
 #include "omrformatconsts.h"
 
+// for madvise
+#ifdef LINUX
+#include <sys/mman.h>
+#ifndef MADV_NOHUGEPAGE
+#define MADV_NOHUGEPAGE  15
+#endif // MADV_NOHUGEPAGE
+#ifndef MADV_PAGEOUT
+#define MADV_PAGEOUT     21
+#endif // MADV_PAGEOUT
+#endif
+
 OMR::CodeCacheMethodHeader *getCodeCacheMethodHeader(char *p, int searchLimit, J9JITExceptionTable * metaData);
 
 #define addFreeBlock2(start, end) addFreeBlock2WithCallSite((start), (end), __FILE__, __LINE__)
-
 
 TR::CodeCache *
 J9::CodeCache::self()
@@ -134,7 +145,108 @@ J9::CodeCache::initialize(TR::CodeCacheManager *manager,
 
    if (!self()->OMR::CodeCache::initialize(manager, codeCacheSegment, allocatedCodeCacheSizeInBytes))
       return false;
+
+
+   if (OMR::RSSReport::instance())
+      {
+      J9JavaVM * javaVM = jitConfig->javaVM;
+      PORT_ACCESS_FROM_JAVAVM(javaVM); // for j9vmem_supported_page_sizes
+
+#if 0 // might be useful but better to track the whole CodeCache
+      TR_ASSERT_FATAL(_coldCodeRSSRegion == NULL, "Cold code RSS Region is already non-NULL");
+
+      _coldCodeRSSRegion = new (PERSISTENT_NEW) OMR::RSSRegion("cold code", _coldCodeAlloc, 0,
+                                                               OMR::RSSRegion::highToLow,
+                                                               j9vmem_supported_page_sizes()[0]);
+      OMR::RSSReport::instance()->addRegion(_coldCodeRSSRegion);
+#else
+
+      OMR::RSSRegion *codeCacheRSSRegion = new (PERSISTENT_NEW) OMR::RSSRegion("Code Cache", _warmCodeAlloc,
+                                                                               _coldCodeAlloc - _warmCodeAlloc,
+                                                               OMR::RSSRegion::lowToHigh,
+                                                               j9vmem_supported_page_sizes()[0]);
+      OMR::RSSReport::instance()->addRegion(codeCacheRSSRegion);
+#endif
+      }
+
    self()->setInitialAllocationPointers();
+
+#ifdef LINUX
+   if (manager->isDisclaimEnabled())
+      {
+      J9JavaVM * javaVM = jitConfig->javaVM;
+      PORT_ACCESS_FROM_JAVAVM(javaVM); // for j9vmem_supported_page_sizes
+      uintptr_t round = (uintptr_t)(j9vmem_supported_page_sizes()[0] - 1);
+
+      // The code cache segment start must be page aligned because it was allocated with mmap
+      // _warmCodeAllocBase may not be at the very beginning of the segment though (and not page alinged)
+      // Align on page boundary going backwards if needed.
+      uintptr_t warmSectionStart = (uintptr_t)_warmCodeAllocBase & ~round;
+      // The cold section may be followed by trampolines and helpers, so it may not be page aligned.
+      // Align it going forward. This will not go past the end of the segment which is page aligned.
+      uintptr_t coldSectionEnd = ((uintptr_t)_coldCodeAllocBase  + round) & ~round;
+      // Find the split point between the warm area (using large pages) and the cold area (using small pages).
+      // Experiments have shown that warm/cold code is about 50/50, so we need to find the middle point.
+      uintptr_t middle  = warmSectionStart + (coldSectionEnd - warmSectionStart) / 2;
+      uintptr_t coldSectionStart = middle;
+      // Since we want to use large pages for the warm area, its end needs to be large page aligned.
+      // We cannot determine the size of the THP page with j9vmem_supported_page_sizes(),
+      // but we know that on x86, the size of a THP page is 2 MB. Round up/down as needed.
+#if defined(TR_TARGET_X86)
+      static const uintptr_t THP_SIZE = 2 * 1024 * 1024; // 2 MB
+#elif defined(TR_TARGET_S390)
+      static const uintptr_t THP_SIZE = 1 * 1024 * 1024; // 1 MB
+#else
+      // Power has 64 KB and 16 MB pages (16 MB is too large to be useful for disclaiming)
+      // ARM can have many sizes for its large pages: 64 K, 1 MB, 2 MB, 16 MB)
+      static const uintptr_t THP_SIZE = 65536; // 64K
+#endif
+      static const uintptr_t ROUNDING_VALUE = THP_SIZE/2 - 1;
+      if (codeCacheSegment->segmentTop() - codeCacheSegment->segmentBase() >= 2 * THP_SIZE)
+         {
+         coldSectionStart = (middle + ROUNDING_VALUE) & ~ROUNDING_VALUE;
+         }
+      TR_ASSERT_FATAL(coldSectionEnd > coldSectionStart, "A code cache can't be smaller than a page");
+      _smallPageAreaStart = (uint8_t *)coldSectionStart;
+      _smallPageAreaEnd = (uint8_t *)coldSectionEnd;
+
+      size_t coldCacheSize = coldSectionEnd - coldSectionStart;
+
+      if (TR::Options::getCmdLineOptions()->getVerboseOption(TR_VerbosePerformance))
+         TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "Code cache warm area %p - %p (size=%zu); cold area %p - %p (size=%zu)",
+                                        (uint8_t*)warmSectionStart, _smallPageAreaStart, _smallPageAreaStart - (uint8_t*)warmSectionStart,
+                                        _smallPageAreaStart, _smallPageAreaEnd, coldCacheSize);
+
+      if (madvise(_smallPageAreaStart, coldCacheSize, MADV_NOHUGEPAGE) != 0)
+         {
+         const char *error = strerror(errno);
+         if (TR::Options::getCmdLineOptions()->getVerboseOption(TR_VerbosePerformance))
+            TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "Failed to set MADV_NOHUGEPAGE for code cache: %s: %p %zu", error, _smallPageAreaStart, coldCacheSize);
+         }
+      else if (TR::Options::getCmdLineOptions()->getVerboseOption(TR_VerbosePerformance))
+         {
+         TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "Forcing code cache cold region %p-%p of size %zu to use default size memory pages",
+                                        _smallPageAreaStart, _smallPageAreaStart + coldCacheSize, coldCacheSize);
+         }
+
+      // If the memory segment is backed by a file, disable read-ahead
+      // so that touching one byte brings a single page in
+      if (codeCacheSegment->j9segment()->vmemIdentifier.allocator == OMRPORT_VMEM_RESERVE_USED_MMAP_SHM)
+         {
+         if (madvise(_smallPageAreaStart, coldCacheSize, MADV_RANDOM) != 0)
+            {
+            if (TR::Options::getCmdLineOptions()->getVerboseOption(TR_VerbosePerformance))
+                TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "Failed to set MADV_RANDOM for cold code cache");
+            }
+         }
+      }
+   else // Disclaim is not allowed
+      {
+      // Note: if _smallPageAreaStart and _smallPageAreaEnd are the same, there will be no disclaim attempted
+      _smallPageAreaStart = _coldCodeAllocBase;
+      _smallPageAreaEnd = _coldCodeAllocBase;
+      }
+#endif // ifdef LINUX
 
    _manager->reportCodeLoadEvents();
 
@@ -440,7 +552,8 @@ J9::CodeCache::addFreeBlock(void  *voidMetaData)
                {
                // There could be several bodyInfo pointing to the same methodInfo
                // Prevent deallocating twice by freeing only for the last body
-               if (TR::Compiler->mtd.startPC((TR_OpaqueMethodBlock*)metaData->ramMethod) == (uintptr_t)metaData->startPC)
+               uintptr_t ramMethodStartPC = TR::Compiler->mtd.startPC((TR_OpaqueMethodBlock*)metaData->ramMethod);
+               if ((ramMethodStartPC != 0) && (ramMethodStartPC == (uintptr_t)metaData->startPC))
                   {
                   // Clear profile info
                   pmi->setBestProfileInfo(NULL);
@@ -637,8 +750,10 @@ J9::CodeCache::resetTrampolines()
       }
 
    //reset the trampoline marks back to their starting positions
-   _trampolineAllocationMark = _trampolineBase;
-   _trampolineReservationMark = _trampolineBase;
+   // Note that permanent trampolines are allocated from _tempTrampolineBase downwards
+   // see initialize in OMRCodeCache.cpp
+   _trampolineAllocationMark = _tempTrampolineBase;
+   _trampolineReservationMark = _tempTrampolineBase;
 
    OMR::CodeCacheTempTrampolineSyncBlock *syncBlock;
    if (!_tempTrampolinesMax)
@@ -762,4 +877,62 @@ extern "C"
       return TR::CodeCacheManager::instance()->replaceTrampoline(method, callSite, oldTrampoline, oldTargetPC, newTargetPC, needSync);
       }
 
+   }
+
+
+int32_t
+J9::CodeCache::disclaim(TR::CodeCacheManager *manager, bool canDisclaimOnSwap)
+   {
+   int32_t disclaimDone = 0;
+
+#ifdef LINUX
+   if ((uintptr_t)_smallPageAreaStart >= (uintptr_t)_smallPageAreaEnd)
+      return disclaimDone;
+   uint8_t *disclaimStart = _smallPageAreaStart;
+   // Some of the warm code could have been written into the small page area.
+   // We don't want to disclaim warm code.
+   if ((uintptr_t)_warmCodeAlloc > (uintptr_t)_smallPageAreaStart)
+      {
+      J9JavaVM * javaVM = jitConfig->javaVM;
+      PORT_ACCESS_FROM_JAVAVM(javaVM); // for j9vmem_supported_page_sizes
+      uintptr_t round = (uintptr_t)(j9vmem_supported_page_sizes()[0] - 1);
+      disclaimStart = (uint8_t *)(((uintptr_t)_warmCodeAlloc + round) & ~round);
+      if ((uintptr_t)disclaimStart >= (uintptr_t)_smallPageAreaEnd) // Nothing to disclaim
+         return disclaimDone;
+      }
+   TR_ASSERT_FATAL((uintptr_t)_smallPageAreaEnd >= (uintptr_t)disclaimStart, "disclaimStart is past the cold area end");
+
+   size_t disclaimSize = _smallPageAreaEnd - disclaimStart;
+   bool trace = TR::Options::getCmdLineOptions()->getVerboseOption(TR_VerbosePerformance);
+   if (trace)
+      {
+      size_t warm_size = _warmCodeAlloc - _warmCodeAllocBase;
+      size_t cold_size = _coldCodeAllocBase - _coldCodeAlloc;
+
+      TR_VerboseLog::writeLineLocked(TR_Vlog_PERF, "Disclaim code cache %p between Start=%p End=%p. coldStart=%p coldBase=%p warm_size=%zuB cold_size=%zuB cold_size/(cold_size + warm_size)=%5.2f%%",
+                                     this, disclaimStart, _smallPageAreaEnd, _coldCodeAlloc, _coldCodeAllocBase,
+                                     warm_size, cold_size, cold_size * 100.0/(cold_size + warm_size));
+      }
+
+   int32_t ret = madvise((void *)disclaimStart, disclaimSize, MADV_PAGEOUT);
+
+   if (ret != 0)
+      {
+      if (trace)
+         TR_VerboseLog::writeLineLocked(TR_Vlog_PERF, "WARNING: Failed to use madvise to disclaim memory for code cache");
+
+      if (errno != EAGAIN)
+         {
+         manager->setDisclaimEnabled(false); // Don't try to disclaim again, since support seems to be missing
+         if (trace)
+            TR_VerboseLog::writeLineLocked(TR_Vlog_PERF, "WARNING: Disabling data cache disclaiming from now on");
+         }
+      }
+   else
+      {
+      disclaimDone = 1;
+      }
+#endif // ifdef LINUX
+
+   return disclaimDone;
    }

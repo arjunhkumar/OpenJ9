@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef jvmtiInternal_h
@@ -43,6 +43,9 @@ typedef enum {
 	J9JVMTI_EVENT_COM_IBM_GARBAGE_COLLECTION_CYCLE_FINISH,
 	J9JVMTI_EVENT_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_MOUNT,
 	J9JVMTI_EVENT_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_UNMOUNT,
+	J9JVMTI_EVENT_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_DESTROY,
+	J9JVMTI_EVENT_OPENJ9_VM_CHECKPOINT,
+	J9JVMTI_EVENT_OPENJ9_VM_RESTORE,
 	J9JVMTI_AFTER_LAST_EXTENSION_EVENT
 } J9JVMTIExtensionEvent;
 
@@ -436,16 +439,16 @@ typedef struct jvmtiGcp_translation {
 		} \
 	} while(0) 
 
-#define ENSURE_JMETHODID_NON_NULL(var) \
+#define ENSURE_JMETHODID_VALID(var) \
 	do { \
-		if ((var) == NULL) { \
+		if ((NULL == (var)) || (UDATA_MAX == (UDATA)((J9JNIMethodID*)(var))->method)) { \
 			JVMTI_ERROR(JVMTI_ERROR_INVALID_METHODID); \
 		} \
 	} while(0)
 
-#define ENSURE_JFIELDID_NON_NULL(var) \
+#define ENSURE_JFIELDID_VALID(var) \
 	do { \
-		if ((var) == NULL) { \
+		if ((NULL == (var)) || (UDATA_MAX == (UDATA)((J9JNIFieldID*)(var))->declaringClass)) { \
 			JVMTI_ERROR(JVMTI_ERROR_INVALID_FIELDID); \
 		} \
 	} while(0)
@@ -515,8 +518,8 @@ typedef struct jvmtiGcp_translation {
 #define ENSURE_CAPABILITY(env, capability)
 #define ENSURE_NON_NULL(var)
 #define ENSURE_NON_NEGATIVE(var)
-#define ENSURE_JMETHODID_NON_NULL(var)
-#define ENSURE_JFIELDID_NON_NULL(var)
+#define ENSURE_JMETHODID_VALID(var)
+#define ENSURE_JFIELDID_VALID(var)
 #define ENSURE_JOBJECT_NON_NULL(var)
 #define ENSURE_JCLASS_NON_NULL(var)
 #define ENSURE_JTHREADGROUP_NON_NULL(var)
@@ -574,16 +577,27 @@ typedef struct jvmtiGcp_translation {
 /* These macros corresponds to the states in j.l.VirtualThread. */
 #define JVMTI_VTHREAD_STATE_NEW 0
 #define JVMTI_VTHREAD_STATE_STARTED 1
-#define JVMTI_VTHREAD_STATE_RUNNABLE 2
-#define JVMTI_VTHREAD_STATE_RUNNING 3
-#define JVMTI_VTHREAD_STATE_PARKING 4
-#define JVMTI_VTHREAD_STATE_PARKED 5
-#define JVMTI_VTHREAD_STATE_PINNED 6
-#define JVMTI_VTHREAD_STATE_YIELDING 7
+#define JVMTI_VTHREAD_STATE_RUNNING 2
+#define JVMTI_VTHREAD_STATE_PARKING 3
+#define JVMTI_VTHREAD_STATE_PARKED 4
+#define JVMTI_VTHREAD_STATE_PINNED 5
+#define JVMTI_VTHREAD_STATE_TIMED_PARKING 6
+#define JVMTI_VTHREAD_STATE_TIMED_PARKED 7
+#define JVMTI_VTHREAD_STATE_TIMED_PINNED 8
+#define JVMTI_VTHREAD_STATE_UNPARKED 9
+#define JVMTI_VTHREAD_STATE_YIELDING 10
+#define JVMTI_VTHREAD_STATE_YIELDED 11
+#if JAVA_SPEC_VERSION >= 24
+#define JVMTI_VTHREAD_STATE_BLOCKING  12
+#define JVMTI_VTHREAD_STATE_BLOCKED   13
+#define JVMTI_VTHREAD_STATE_UNBLOCKED 14
+#define JVMTI_VTHREAD_STATE_WAITING   15
+#define JVMTI_VTHREAD_STATE_WAIT      16
+#define JVMTI_VTHREAD_STATE_TIMED_WAITING 17
+#define JVMTI_VTHREAD_STATE_TIMED_WAIT 18
+#endif /* JAVA_SPEC_VERSION >= 24 */
 #define JVMTI_VTHREAD_STATE_TERMINATED 99
 #define JVMTI_VTHREAD_STATE_SUSPENDED (1 << 8)
-#define JVMTI_VTHREAD_STATE_RUNNABLE_SUSPENDED (JVMTI_VTHREAD_STATE_RUNNABLE | JVMTI_VTHREAD_STATE_SUSPENDED)
-#define JVMTI_VTHREAD_STATE_PARKED_SUSPENDED (JVMTI_VTHREAD_STATE_PARKED | JVMTI_VTHREAD_STATE_SUSPENDED)
 #endif /* JAVA_SPEC_VERSION >= 19 */
 
 /* The brace mismatches in the macros below are due to the usage pattern:

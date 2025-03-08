@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #ifndef STREAM_EXCEPTIONS_H
 #define STREAM_EXCEPTIONS_H
@@ -81,6 +81,25 @@ private:
    uint64_t _clientId;
    };
 
+
+class StreamAotCacheMapRequest: public virtual std::exception
+   {
+public:
+   StreamAotCacheMapRequest(std::string cacheName) : _cacheName(cacheName)
+      {
+      }
+   virtual const char* what() const throw()
+      {
+      return "Requesting AOT cache content";
+      }
+   const std::string& getCacheName() const
+      {
+      return _cacheName;
+      }
+private:
+   const std::string _cacheName;
+   };
+
 class StreamOOO : public virtual std::exception
    {
    public:
@@ -116,10 +135,7 @@ class StreamVersionIncompatible: public virtual std::exception
    {
 public:
    StreamVersionIncompatible() : _message("JITServer/JITClient incompatibility detected") { }
-   StreamVersionIncompatible(uint64_t serverVersion, uint64_t clientVersion)
-      {
-      _message = "JITServer expected version " + std::to_string(serverVersion) + " received " + std::to_string(clientVersion);
-      }
+   StreamVersionIncompatible(const std::string &message) : _message(message) { }
    virtual const char* what() const throw()
       {
       return _message.c_str();

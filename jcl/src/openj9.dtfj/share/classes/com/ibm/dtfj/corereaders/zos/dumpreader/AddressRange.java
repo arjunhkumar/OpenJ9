@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2006
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders.zos.dumpreader;
 
 /**
@@ -27,40 +27,40 @@ package com.ibm.dtfj.corereaders.zos.dumpreader;
  * a length.
  */
 public class AddressRange {
-    long startAddress;
-    long length;
+	long startAddress;
+	long length;
 
-    /**
-     * Create a new address range.
-     * @param startAddress the lower bound of the address range
-     * @param length the length of the address range
-     */
-    public AddressRange(long startAddress, long length) {
-        this.startAddress = startAddress;
-        this.length = length;
-    }
+	/**
+	 * Create a new address range.
+	 * @param startAddress the lower bound of the address range
+	 * @param length the length of the address range
+	 */
+	public AddressRange(long startAddress, long length) {
+		this.startAddress = startAddress;
+		this.length = length;
+	}
 
-    /**
-     * Get the lower bound of this address range.
-     * @return the start address
-     */
-    public long getStartAddress() {
-        return startAddress;
-    }
+	/**
+	 * Get the lower bound of this address range.
+	 * @return the start address
+	 */
+	public long getStartAddress() {
+		return startAddress;
+	}
 
-    /**
-     * Get the upper bound of this address range (inclusive).
-     * @return the end address
-     */
-    public long getEndAddress() {
-        return startAddress + length - 1;
-    }
+	/**
+	 * Get the upper bound of this address range (inclusive).
+	 * @return the end address
+	 */
+	public long getEndAddress() {
+		return startAddress + length - 1;
+	}
 
-    /**
-     * Get the length of this address range.
-     * @return the length
-     */
-    public long getLength() {
-        return length;
-    }
+	/**
+	 * Get the length of this address range.
+	 * @return the length
+	 */
+	public long getLength() {
+		return length;
+	}
 }

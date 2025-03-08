@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include "CacheMap.hpp"
 #include "Managers.hpp"
@@ -991,6 +991,7 @@ SH_CacheMap::initializeROMSegmentList(J9VMThread* currentThread)
 	config->cacheDescriptorList->romclassStartAddress = firstROMClassAddress;
 	config->cacheDescriptorList->metadataStartAddress = cacheDebugAreaStart;
 	config->cacheDescriptorList->cacheSizeBytes = _ccHead->getCacheMemorySize();
+	config->cacheDescriptorList->osPageSizeInHeader = _ccHead->getOSPageSizeInHeader();
 
 #if defined(J9VM_THR_PREEMPTIVE)
 	if (memorySegmentMutex) {
@@ -1221,7 +1222,7 @@ SH_CacheMap::readCache(J9VMThread* currentThread, SH_CompositeCacheImpl* cache, 
 
 /* THREADING: MUST be protected by cache write mutex - therefore single-threaded within this JVM */
 IDATA
-SH_CacheMap::checkForCrash(J9VMThread* currentThread, bool hasClassSegmentMutex)
+SH_CacheMap::checkForCrash(J9VMThread* currentThread, bool hasClassSegmentMutex, bool canUnlockCache)
 {
 	IDATA rc = 0;
 	PORT_ACCESS_FROM_PORT(_portlib);
@@ -1235,7 +1236,7 @@ SH_CacheMap::checkForCrash(J9VMThread* currentThread, bool hasClassSegmentMutex)
 		if (resetAllManagers(currentThread) != 0) {
 			return -1;
 		}
-		_cc->reset(currentThread);
+		_cc->reset(currentThread, canUnlockCache);
 		rc = refreshHashtables(currentThread, hasClassSegmentMutex);
 	}
 	return rc;
@@ -1567,7 +1568,7 @@ SH_CacheMap::addClasspathToCache(J9VMThread* currentThread, ClasspathItem* obj)
  * @return the number of items read, or -1 on error
  */
 IDATA
-SH_CacheMap::runEntryPointChecks(J9VMThread* currentThread, void* address, const char** p_subcstr)
+SH_CacheMap::runEntryPointChecks(J9VMThread* currentThread, void* address, const char** p_subcstr, bool canUnlockCache)
 {
 	bool hasClassSegmentMutex = false;
 	IDATA itemsAdded;
@@ -1600,7 +1601,7 @@ SH_CacheMap::runEntryPointChecks(J9VMThread* currentThread, void* address, const
 	if (!_ccHead->isRunningReadOnly()) {
 		if (_ccHead->hasWriteMutex(currentThread)) {
 			/* Can only call this function if we have the write mutex */
-			rc = checkForCrash(currentThread, hasClassSegmentMutex);
+			rc = checkForCrash(currentThread, hasClassSegmentMutex, canUnlockCache);
 			if(rc < 0) {
 				Trc_SHR_CM_runEntryPointChecks_Exit_Failed4(currentThread);
 				return rc;
@@ -2800,7 +2801,7 @@ SH_CacheMap::addROMClassResourceToCache(J9VMThread* currentThread, const void* r
 		/* TODO: In offline mode, should be fatal */
 		if (NULL != p_subcstr) {
 			const char* tmpstr = j9nls_lookup_message((J9NLS_INFO | J9NLS_DO_NOT_PRINT_MESSAGE_TAG),J9NLS_SHRC_CM_CANNOT_ALLOC_DATA_SIZE,"no space in cache for %d bytes");
-			j9str_printf(PORTLIB, (char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpstr, dataLength);
+			j9str_printf((char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpstr, dataLength);
 		}
 		return (void*)J9SHR_RESOURCE_STORE_ERROR;
 	}
@@ -2832,7 +2833,7 @@ SH_CacheMap::addROMClassResourceToCache(J9VMThread* currentThread, const void* r
 	if (itemInCache == NULL) {
 		if (NULL != p_subcstr) {
 			const char* tmpstr = j9nls_lookup_message((J9NLS_INFO | J9NLS_DO_NOT_PRINT_MESSAGE_TAG),J9NLS_SHRC_CM_CANNOT_ALLOC_DATA_SIZE, "no space in cache for %d bytes");
-			j9str_printf(PORTLIB, (char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpstr, dataLength);
+			j9str_printf((char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpstr, dataLength);
 		}
 		Trc_SHR_CM_addROMClassResourceToCache_Exit_Null(currentThread);
 		return (void*)J9SHR_RESOURCE_STORE_FULL;
@@ -2975,7 +2976,7 @@ SH_CacheMap::updateROMClassResource(J9VMThread* currentThread, const void* addre
 		}
 		hasWriteMutex = true;
 
-		if (runEntryPointChecks(currentThread, (void*)addressInCache, p_subcstr) == -1) {
+		if (runEntryPointChecks(currentThread, (void*)addressInCache, p_subcstr, false) == -1) {
 			Trc_SHR_CM_updateROMClassResource_Exit3(currentThread);
 			result = J9SHR_RESOURCE_STORE_ERROR;
 			break;
@@ -2989,7 +2990,7 @@ SH_CacheMap::updateROMClassResource(J9VMThread* currentThread, const void* addre
 			if ((UDATA)updateAtOffset+data->length > dataLength) {
 				if (NULL != p_subcstr) {
 					const char* tmpcstr = j9nls_lookup_message((J9NLS_INFO | J9NLS_DO_NOT_PRINT_MESSAGE_TAG), J9NLS_SHRC_CM_DATA_SIZE_LARGER, "data %d larger than available %d");
-					j9str_printf(PORTLIB, (char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpcstr, updateAtOffset+(data->length), dataLength);
+					j9str_printf((char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpcstr, updateAtOffset+(data->length), dataLength);
 				}
 				Trc_SHR_CM_updateROMClassResource_Exit4(currentThread, updateAtOffset, data->length, dataLength);
 				result = J9SHR_RESOURCE_STORE_ERROR;
@@ -3595,7 +3596,7 @@ SH_CacheMap::findAttachedData(J9VMThread* currentThread, const void* addressInCa
 				result = (U_8 *)J9SHR_RESOURCE_STORE_ERROR;
 				if (NULL != p_subcstr) {
 					const char *tmpcstr = j9nls_lookup_message((J9NLS_INFO | J9NLS_DO_NOT_PRINT_MESSAGE_TAG), J9NLS_SHRC_CM_DATA_SIZE_LARGER, "data %d larger than available %d");
-					j9str_printf(PORTLIB, (char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpcstr, dataLength, data->length);
+					j9str_printf((char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpcstr, dataLength, data->length);
 				}
 				goto _exitWithError;
 			}
@@ -3605,7 +3606,7 @@ SH_CacheMap::findAttachedData(J9VMThread* currentThread, const void* addressInCa
 				result = (const U_8 *)J9SHR_RESOURCE_BUFFER_ALLOC_FAILED;
 				if (NULL != p_subcstr) {
 					const char *tmpcstr = j9nls_lookup_message((J9NLS_INFO | J9NLS_DO_NOT_PRINT_MESSAGE_TAG), J9NLS_SHRC_CM_MEMORY_ALLOC_FAILED, "memory allocation of %d bytes failed");
-					j9str_printf(PORTLIB, (char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpcstr, dataLength);
+					j9str_printf((char *)*p_subcstr, VERBOSE_BUFFER_SIZE, tmpcstr, dataLength);
 				}
 				goto _exit;
 			}
@@ -3889,6 +3890,7 @@ SH_CacheMap::storeSharedData(J9VMThread* currentThread, const char* key, UDATA k
 	UDATA dataNotIndexed = (data != NULL) ? (data->flags & J9SHRDATA_NOT_INDEXED) : 0;
 	SH_ByteDataManager* localBDM;
 	bool overwrite = false;
+	U_32 extraStartupHints = 0;
 
 	PORT_ACCESS_FROM_VMC(currentThread);
 
@@ -3988,6 +3990,14 @@ SH_CacheMap::storeSharedData(J9VMThread* currentThread, const char* key, UDATA k
 	}
 
 _addData:
+	if (J9SHR_DATA_TYPE_STARTUP_HINTS == data->type) {
+		extraStartupHints = _ccHead->getExtraStartupHints();
+		if (0 == extraStartupHints) {
+			result = NULL;
+			Trc_SHR_CM_storeSharedData_NoMoreStartupHintsAllowed(currentThread);
+			goto _done;
+		}
+	}
 	/* If data is NULL or datalen <= 0, mark the original item(s) stale, but don't store anything */
 	if ((data != NULL) && (data->length > 0) && ((data->address != NULL) || (data->flags & J9SHRDATA_ALLOCATE_ZEROD_MEMORY))) {
 		const J9UTF8* tokenKey = NULL;
@@ -4020,6 +4030,12 @@ _addData:
 			}
 		}
 		result = (const U_8*)addByteDataToCache(currentThread, localBDM, tokenKey, data, NULL, false);
+		if (NULL != result) {
+			if (J9SHR_DATA_TYPE_STARTUP_HINTS == data->type) {
+				Trc_SHR_Assert_True(extraStartupHints > 0);
+				_ccHead->setExtraStartupHints(currentThread, extraStartupHints - 1);
+			}
+		}
 	}
 
 _done:
@@ -4410,7 +4426,7 @@ SH_CacheMap::markStale(J9VMThread* currentThread, ClasspathEntryItem* cpei, bool
 	currentThread->omrVMThread->vmState = J9VMSTATE_SHAREDCLASS_MARKSTALE;
 	while (retryCount < MARK_STALE_RETRY_TIMES) {
 		if (hasWriteMutex || (_ccHead->enterWriteMutex(currentThread, true,fnName)==0)) {	/* true = lockCache */
-			if (runEntryPointChecks(currentThread, NULL, NULL) == -1) {
+			if (runEntryPointChecks(currentThread, NULL, NULL, false) == -1) {
 				if (!hasWriteMutex) {
 					_ccHead->exitWriteMutex(currentThread, fnName);		/* Will unlock cache */
 				}
@@ -5001,6 +5017,15 @@ SH_CacheMap::printCacheStatsTopLayerStatsHelper(J9VMThread* currentThread, UDATA
 		CACHEMAP_PRINT1(J9NLS_DO_NOT_PRINT_MESSAGE_TAG, J9NLS_SHRC_CM_PRINTSTATS_FEATURE, "default");
 	}
 
+	UDATA osPageSizeInHeader = _sharedClassConfig->cacheDescriptorList->osPageSizeInHeader;
+	/* OS page size is not shown by default, as in most cases the osPage size is the same in cold and warm runs. */
+	if (J9_ARE_ALL_BITS_SET(runtimeFlags, J9SHR_RUNTIMEFLAG_ENABLE_DETAILED_STATS)
+		|| (osPageSizeInHeader != javacoreData->currentOSPageSize)
+	) {
+		j9tty_printf(_portlib, "\t");
+		CACHEMAP_PRINT2(J9NLS_DO_NOT_PRINT_MESSAGE_TAG, J9NLS_SHRC_CM_PRINTSTATS_PAGESIZEE, osPageSizeInHeader, javacoreData->currentOSPageSize);
+	}
+
 #if (defined(J9VM_ARCH_X86) || defined(J9VM_ARCH_S390) || defined(J9VM_ARCH_POWER))
 	if (currentThread->javaVM->jitConfig) {
 		j9tty_printf(_portlib, "\t");
@@ -5171,6 +5196,11 @@ SH_CacheMap::printCacheStatsAllLayersStatsHelper(J9VMThread* currentThread, UDAT
 	}
 	CACHEMAP_FMTPRINT1(J9NLS_DO_NOT_PRINT_MESSAGE_TAG, J9NLS_SHRC_CM_PRINTSTATS_SUMMARY_NUM_ZIP_CACHES_V2, javacoreData->numZipCaches);
 	CACHEMAP_FMTPRINT1(J9NLS_DO_NOT_PRINT_MESSAGE_TAG, J9NLS_SHRC_CM_PRINTSTATS_SUMMARY_NUM_STARTUP_HINTS, javacoreData->numStartupHints);
+	if (J9_ARE_ALL_BITS_SET(runtimeFlags, J9SHR_RUNTIMEFLAG_ENABLE_DETAILED_STATS)
+		|| J9_ARE_ALL_BITS_SET(showFlags, PRINTSTATS_SHOW_STARTUPHINT)
+	) {
+		CACHEMAP_FMTPRINT1(J9NLS_DO_NOT_PRINT_MESSAGE_TAG, J9NLS_SHRC_CM_PRINTSTATS_NUM_EXTRA_STARTUP_HINTS, javacoreData->extraStartupHints);
+	}
 	if (J9_ARE_ALL_BITS_SET(runtimeFlags, J9SHR_RUNTIMEFLAG_ENABLE_DETAILED_STATS)) {
 		CACHEMAP_FMTPRINT1(J9NLS_DO_NOT_PRINT_MESSAGE_TAG, J9NLS_SHRC_CM_PRINTSTATS_SUMMARY_NUM_JCL_ENTRIES, javacoreData->numJclEntries);
 	}
@@ -5465,10 +5495,10 @@ SH_CacheMap::getCachedUTFString(J9VMThread* currentThread, const char* local, U_
 	const char* fnName = "getCachedUTFString";
 	const J9UTF8* pathUTF = NULL;
 	U_8 temp[J9SH_MAXPATH + sizeof(J9UTF8)];
-	J9UTF8* temputf = (J9UTF8*)&temp;
-	char* tempstr = (char*)J9UTF8_DATA(temputf);
+	J9UTF8* temputf = (J9UTF8*)temp;
 	SH_ScopeManager* localSCM;
 	bool allowUpdate = true;
+	PORT_ACCESS_FROM_VMC(currentThread);
 
 	Trc_SHR_Assert_False(_ccHead->hasWriteMutex(currentThread));
 
@@ -5495,9 +5525,16 @@ SH_CacheMap::getCachedUTFString(J9VMThread* currentThread, const char* local, U_
 		allowUpdate = false;
 	}
 
-	J9UTF8_SET_LENGTH(temputf, localLen);
-	strncpy(tempstr, local, J9UTF8_LENGTH(temputf));
+	if (localLen > J9SH_MAXPATH) {
+		temputf = (J9UTF8 *)j9mem_allocate_memory(localLen + sizeof(J9UTF8), J9MEM_CATEGORY_CLASSES);
+		if (NULL == temputf) {
+			Trc_SHR_CM_getCachedUTFString_exit4(currentThread);
+			return NULL;
+		}
+	}
 
+	memcpy(J9UTF8_DATA(temputf), local, localLen);
+	J9UTF8_SET_LENGTH(temputf, localLen);
 	pathUTF = localSCM->findScopeForUTF(currentThread, temputf);
 	_ccHead->exitReadMutex(currentThread, fnName);
 	if (NULL == pathUTF) {
@@ -5509,6 +5546,9 @@ SH_CacheMap::getCachedUTFString(J9VMThread* currentThread, const char* local, U_
 				 */
 				if ((itemsRead = runEntryPointChecks(currentThread, NULL, NULL)) == -1) {
 					_ccHead->exitWriteMutex(currentThread, fnName);
+					if ((J9UTF8 *)temp != temputf) {
+						j9mem_free_memory(temputf);
+					}
 					Trc_SHR_CM_getCachedUTFString_exit3(currentThread);
 					return NULL;
 				}
@@ -5523,6 +5563,9 @@ SH_CacheMap::getCachedUTFString(J9VMThread* currentThread, const char* local, U_
 		}
 	}
 
+	if ((J9UTF8 *)temp != temputf) {
+		j9mem_free_memory(temputf);
+	}
 	Trc_SHR_CM_getCachedUTFString_exit2(currentThread, pathUTF);
 
 	return pathUTF;
@@ -5639,6 +5682,7 @@ SH_CacheMap::appendCacheDescriptorList(J9VMThread* currentThread, J9SharedClassC
 	cacheDesc->romclassStartAddress = ccToUse->getFirstROMClassAddress();
 	cacheDesc->metadataStartAddress = (U_8*)ccToUse->getClassDebugDataStartAddress() - sizeof(ShcItemHdr);
 	cacheDesc->cacheSizeBytes = ccToUse->getCacheMemorySize();
+	cacheDesc->osPageSizeInHeader = ccToUse->getOSPageSizeInHeader();
 
 	cacheDescriptorTail->next = cacheDesc;
 	cacheDesc->previous = cacheDescriptorTail;
@@ -5922,6 +5966,7 @@ SH_CacheMap::startupLowerLayerForStats(J9VMThread* currentThread, const char* ct
 	IDATA rc = CC_STARTUP_OK;
 	SH_CompositeCacheImpl* ccToUse = _ccHead;
 	const char* cacheName = NULL;
+	char cacheNameBuf[USER_SPECIFIED_CACHE_NAME_MAXLEN];
 	U_32 cacheType = oscache->getCacheType();
 	char cacheUniqueID[J9SHR_UNIQUE_CACHE_ID_BUFSIZE];
 	J9JavaVM *vm = currentThread->javaVM;
@@ -5958,7 +6003,6 @@ SH_CacheMap::startupLowerLayerForStats(J9VMThread* currentThread, const char* ct
 				rc = CC_STARTUP_FAILED;
 				break;
 			}
-			char cacheNameBuf[USER_SPECIFIED_CACHE_NAME_MAXLEN];
 			Trc_SHR_Assert_True(idLen < sizeof(cacheUniqueID));
 			memcpy(cacheUniqueID, cacheUniqueIDPtr, idLen);
 			cacheUniqueID[idLen] = '\0';
@@ -6095,7 +6139,7 @@ formatAttachedDataString(J9VMThread* currentThread, U_8 *attachedData, UDATA att
 
 	*stringCursor = '\0'; /* handle the zero-length case */
 	while ((bytesRemaining > 0) && ((stringCursor+BYTE_STRING_LENGTH) < stringBufferEnd)){
-		stringCursor += j9str_printf(PORTLIB, stringCursor, bufferLength, "0x%#02x ", *dataCursor); /* increment does not include the trailing '\0' */
+		stringCursor += j9str_printf(stringCursor, bufferLength, "0x%#02x ", *dataCursor); /* increment does not include the trailing '\0' */
 		++dataCursor;
 		--bytesRemaining;
 	}
@@ -6314,22 +6358,23 @@ SH_CacheMap::matchAotMethod(MethodSpecTable* specTable, IDATA numSpecs, J9UTF8* 
 		if (NULL == specTable[i].methodSig) {
 			/* Any signature */
 			sigMatch = true;
-		} else if (NULL == J9UTF8_DATA(romMethodSig)) {
-			/* Signature is missing */
-			sigMatch = false;
 		} else {
-			char* methodSig = (char *)J9UTF8_DATA(romMethodSig);
-			char* sigStart = strchr(methodSig, '(') + 1;
-			char* sigEnd = strchr(methodSig, ')');
-			IDATA sigLength = sigEnd - sigStart;
+			const char *methodSig = (const char *)J9UTF8_DATA(romMethodSig);
+			const char *sigStart = (const char *)memchr(methodSig, '(', J9UTF8_LENGTH(romMethodSig));
+			const char *sigEnd = (const char *)memchr(methodSig, ')', J9UTF8_LENGTH(romMethodSig));
 
-			/* Use string between '(' and ')' only */
-			if (sigLength < 0) {
+			if ((NULL == sigStart) || (NULL == sigEnd) || (sigEnd <= sigStart)) {
 				sigMatch = false;
 			} else {
-				sigMatch = (TRUE == wildcardMatch(specTable[i].methodSigMatchFlag,
-										(const char *)specTable[i].methodSig, specTable[i].methodSigLength,
-										(const char *)sigStart, sigLength));
+				/* Use string between '(' and ')' only. */
+				IDATA sigLength = sigEnd - sigStart - 1;
+
+				sigMatch = (TRUE == wildcardMatch(
+						specTable[i].methodSigMatchFlag,
+						(const char *)specTable[i].methodSig,
+						specTable[i].methodSigLength,
+						sigStart,
+						sigLength));
 			}
 		}
 
@@ -7062,4 +7107,19 @@ SH_CacheMap::getDataFromByteDataWrapper(const ByteDataWrapper* bdw)
 		ret = (U_8*)getAddressFromJ9ShrOffset(&(bdw->externalBlockOffset));
 	}
 	return ret;
+}
+
+void
+SH_CacheMap::setExtraStartupHints(J9VMThread* currentThread)
+{
+	PORT_ACCESS_FROM_PORT(_portlib);
+	const char* fnName = "setExtraStartupHints";
+	U_32 val = (U_32)currentThread->javaVM->sharedCacheAPI->newStartupHints;
+	if (_ccHead->enterWriteMutex(currentThread, false, fnName) != 0) {
+		CACHEMAP_TRACE(J9SHR_VERBOSEFLAG_ENABLE_VERBOSE_DEFAULT, J9NLS_ERROR, J9NLS_SHRC_CM_FAILED_ENTER_WRITE_MUTEX);
+		return;
+	}
+	_ccHead->setExtraStartupHints(currentThread, val);
+	CACHEMAP_TRACE1(J9SHR_VERBOSEFLAG_ENABLE_VERBOSE_DEFAULT, J9NLS_INFO, J9NLS_SHRC_CC_EXTRA_STARTUPHINTS_SET, val);
+	_ccHead->exitWriteMutex(currentThread, fnName);
 }

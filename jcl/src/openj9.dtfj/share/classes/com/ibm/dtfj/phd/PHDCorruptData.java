@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.phd;
 
 import com.ibm.dtfj.image.CorruptData;
@@ -35,7 +35,7 @@ public class PHDCorruptData implements CorruptData {
 	private final String reason;
 	private final ImagePointer address;
 	private final Exception cause;
-	
+
 	/**
 	 * Build a CorruptData object from a CorruptDataException possibly from another dump type.
 	 * @param space
@@ -44,21 +44,21 @@ public class PHDCorruptData implements CorruptData {
 	PHDCorruptData(ImageAddressSpace space, CorruptDataException e) {
 		this(e.getCorruptData().toString(), convPointer(space, e.getCorruptData().getAddress()), e);
 	}
-	
+
 	PHDCorruptData(ImageAddressSpace space, CorruptData cd) {
 		this(cd.toString(), convPointer(space, cd.getAddress()));
 	}
-	
+
 	PHDCorruptData(String desc, ImagePointer addr) {
 		this(desc, addr, null);
 	}
-	
+
 	PHDCorruptData(String desc, ImagePointer addr, Exception exc) {
 		reason = desc;
 		address = addr;
 		cause = exc;
 	}
-	
+
 	public ImagePointer getAddress() {
 		return address;
 	}
@@ -68,7 +68,7 @@ public class PHDCorruptData implements CorruptData {
 		if (reason != null) {
 			buf.append(reason);
 		}
-		if (address != null) { 
+		if (address != null) {
 			if (buf.length() > 0) buf.append(" at ");
 			buf.append("0x").append(Long.toHexString(address.getAddress()));
 		}
@@ -78,18 +78,18 @@ public class PHDCorruptData implements CorruptData {
 		}
 		return buf.toString();
 	}
-	
+
 	static CorruptDataException newCorruptDataException(PHDCorruptData cd) {
 		CorruptDataException e = new CorruptDataException(cd);
 		cd.initCause(e);
 		return e;
 	}
-	
+
 	CorruptDataException initCause(CorruptDataException t) {
 		if (cause != null) t.initCause(cause);
 		return t;
 	}
-	
+
 	private static ImagePointer convPointer(ImageAddressSpace space, ImagePointer p) {
 		if (p != null) {
 			// Convert the image pointer to the current address space.

@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <math.h>
@@ -699,20 +699,20 @@ MM_MemorySubSpaceTarok::replenishAllocationContextFailed(MM_EnvironmentBase *env
 	Assert_MM_true(NULL != collector);
 
 	allocateDescription->saveObjects(env);
-	if(!env->acquireExclusiveVMAccessForGC(collector, true, true)) {
+	if (!env->acquireExclusiveVMAccessForGC(collector, true)) {
 		allocateDescription->restoreObjects(env);
 		/* don't have exclusive access - another thread beat us to the GC.  retry the allocate using the standard locking path */
 		result = context->allocate(env, objectAllocationInterface, allocateDescription, allocationType);
 
-		if(NULL == result) {
+		if (NULL == result) {
 			allocateDescription->saveObjects(env);
 			/* still can't satisfy - grab exclusive at all costs and retry the allocate */
-			if(!env->acquireExclusiveVMAccessForGC(collector)) {
+			if (!env->acquireExclusiveVMAccessForGC(collector)) {
 				allocateDescription->restoreObjects(env);
 				/* now that we have exclusive, see if there is memory to satisfy the allocate (since we might not be the first to get in here) */
 				result = lockedAllocate(env, context, objectAllocationInterface, allocateDescription, allocationType);
 
-				if(NULL != result) {
+				if (NULL != result) {
 					/* Satisfied the allocate after having grabbed exclusive access to perform a GC (without actually performing the GC).  Raise
 					 * an event for tracing / verbose to report the occurrence.
 					 */

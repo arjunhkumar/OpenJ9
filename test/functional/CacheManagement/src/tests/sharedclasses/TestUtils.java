@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2010
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package tests.sharedclasses;
 
@@ -147,7 +147,7 @@ public class TestUtils {
 		    config.put("cmd.runCompileSimpleApp","%java5c_exe% %1%/SimpleApp.java");
 		    config.put("cmd.runCompileSimpleApp2","%java5c_exe% %1%/SimpleApp2.java");
 		    config.put("cmd.runJarClassesInDir","%java5jar_exe% cf MySimpleApp.jar -C %1% .");
-		    config.put("cmd.runProgramSimpleApp","%java_exe% "+(isRealtimeDefined ? "-Xrealtime " : "")+"-Xshareclasses:"+(isRealtimeDefined ? "grow," : "")+"persistent,name=%1%,verbose  -classpath %2% SimpleApp");
+		    config.put("cmd.runProgramSimpleApp","%java_exe% "+(isRealtimeDefined ? "-Xrealtime " : "")+"-Xshareclasses:"+(isRealtimeDefined ? "grow," : "")+"persistent,name=%1%,verbose -Xscmx16m -classpath %2% SimpleApp");
 		    
 		    System.out.println("\n--------- PROGRAM RUN COMMANDLINE INFO ---------");
 		    System.out.println("java_exe =\t" + config.get("java_exe"));

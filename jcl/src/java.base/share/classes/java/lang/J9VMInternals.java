@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -18,23 +18,25 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang;
 
 import com.ibm.oti.vm.J9UnmodifiableClass;
 import java.lang.ref.SoftReference;
 import java.lang.reflect.*;
+/*[IF JAVA_SPEC_VERSION < 24]*/
+import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Properties;
 import java.util.WeakHashMap;
-import java.security.AccessControlContext;
-import java.security.CodeSource;
-import java.security.ProtectionDomain;
 import java.io.FileDescriptor;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -42,14 +44,14 @@ import java.io.PrintStream;
 import java.net.URL;
 import java.nio.charset.Charset;
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 import jdk.internal.ref.CleanerShutdown;
 import jdk.internal.ref.CleanerImpl;
 import jdk.internal.misc.InnocuousThread;
 import jdk.internal.misc.Unsafe;
-/*[ELSE]*/
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 import sun.misc.Unsafe;
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 import com.ibm.oti.util.Msg;
 
 @J9UnmodifiableClass
@@ -97,7 +99,7 @@ final class J9VMInternals {
 	static void threadCompleteInitialization() {
 		/*[PR CMVC 99755] Implement -Djava.system.class.loader option */
 		Thread.currentThread().internalSetContextClassLoader(ClassLoader.getSystemClassLoader());
-		/*[IF JAVA_SPEC_VERSION > 8] */
+		/*[IF JAVA_SPEC_VERSION > 8]*/
 		jdk.internal.misc.VM.initLevel(4);
 		/*[ELSE] JAVA_SPEC_VERSION > 8 */
 		sun.misc.VM.booted();
@@ -106,7 +108,7 @@ final class J9VMInternals {
 		System.startSNMPAgent();
 		/*[ENDIF] Sidecar18-SE-OpenJ9 | (JAVA_SPEC_VERSION > 8) */
 
-		/*[IF JAVA_SPEC_VERSION >= 11] */
+		/*[IF JAVA_SPEC_VERSION >= 11]*/
 		System.finalizeConsoleEncoding();
 		/*[ENDIF] JAVA_SPEC_VERSION >= 11 */
 	}
@@ -121,7 +123,7 @@ final class J9VMInternals {
 		ClassLoader.completeInitialization();
 		threadCompleteInitialization();
 
-		/*[IF Sidecar19-SE]*/
+		/*[IF JAVA_SPEC_VERSION >= 9]*/
 		System.initGPUAssist();
 
 		if (Boolean.getBoolean("ibm.java9.forceCommonCleanerShutdown")) { //$NON-NLS-1$
@@ -170,7 +172,19 @@ final class J9VMInternals {
 			};
 			Runtime.getRuntime().addShutdownHook(new Thread(runnable, "CommonCleanerShutdown", true, false, false, null)); //$NON-NLS-1$
 		}
-		/*[ENDIF] Sidecar19-SE */
+		/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
+/*[IF CRAC_SUPPORT]*/
+		if (openj9.internal.criu.InternalCRIUSupport.isCRaCSupportEnabled()) {
+			// export java.base/jdk.crac unconditionally
+			J9VMInternals.class.getModule().implAddExports("jdk.crac"); //$NON-NLS-1$
+
+			// export jdk.management/jdk.crac.management unconditionally
+			java.util.Optional<Module> om = ModuleLayer.boot().findModule("jdk.management"); //$NON-NLS-1$
+			if (om.isPresent()) {
+				om.get().implAddExports("jdk.crac.management"); //$NON-NLS-1$
+			}
+		}
+/*[ENDIF] CRAC_SUPPORT */
 	}
 
 	/**
@@ -259,8 +273,11 @@ final class J9VMInternals {
 	private static native Throwable newInstance(Class exceptionClass, Class constructorClass);
 
 	private static Throwable cloneThrowable(final Throwable throwable, final HashMap hashMapThrowable) {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		return (Throwable)AccessController.doPrivileged(new PrivilegedAction() {
+			@Override
 			public Object run() {
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 				Throwable clone;
 				try {
 					Class cls = throwable.getClass();
@@ -293,8 +310,10 @@ final class J9VMInternals {
 					clone = new Throwable(Msg.getString("K05c3", e, throwable.toString())); //$NON-NLS-1$
 				}
 				return clone;
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 			}
 		});
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	}
 
 	/**
@@ -373,12 +392,13 @@ final class J9VMInternals {
 		}
 	}
 
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	/*[PR CVMC 124584] checkPackageAccess(), not defineClassImpl(), should use ProtectionDomain */
-	private static void checkPackageAccess(final Class clazz, ProtectionDomain pd) {
+	private static void checkPackageAccess(final Class<?> clazz, ProtectionDomain pd) {
 		@SuppressWarnings("removal")
 		final SecurityManager sm = System.getSecurityManager();
 		if (sm != null) {
-			ProtectionDomain[] pdArray = (pd == null) ? new ProtectionDomain[]{} : new ProtectionDomain[]{pd};
+			ProtectionDomain[] pdArray = (pd == null) ? new ProtectionDomain[] {} : new ProtectionDomain[] { pd };
 			AccessController.doPrivileged(new PrivilegedAction<Object>() {
 				@Override
 				public Object run() {
@@ -388,7 +408,7 @@ final class J9VMInternals {
 					}
 					if (Proxy.isProxyClass(clazz)) {
 						/*[PR CMVC 198986] Fix proxies */
-						ClassLoader	cl = clazz.getClassLoaderImpl();
+						ClassLoader cl = clazz.getClassLoaderImpl();
 						sun.reflect.misc.ReflectUtil.checkProxyPackageAccess(cl, clazz.getInterfaces());
 					}
 					return null;
@@ -396,6 +416,7 @@ final class J9VMInternals {
 			}, new AccessControlContext(pdArray));
 		}
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 	/*[PR CMVC 104341] Exceptions in Object.finalize() not ignored */
 
@@ -477,21 +498,20 @@ final class J9VMInternals {
 		if (null == h) {
 			return identityHashCode(anObject); /* use early returns to make the JIT code faster */
 		}
+		if (h.isArray(anObject)) {
+			return identityHashCode(anObject); /* use early returns to make the JIT code faster */
+		}
 		if (h.is32Bit()) {
 			int ptr = h.getIntFromObject(anObject, 0L);
 			if ((ptr & com.ibm.oti.vm.VM.OBJECT_HEADER_HAS_BEEN_MOVED_IN_CLASS) != 0) {
-				if (!h.isArray(anObject)) {
-					int j9class = ptr & com.ibm.oti.vm.VM.J9_JAVA_CLASS_MASK;
-					return h.getIntFromObject(anObject, h.getBackfillOffsetFromJ9Class32(j9class));
-				}
+				int j9class = ptr & com.ibm.oti.vm.VM.J9_JAVA_CLASS_MASK;
+				return h.getIntFromObject(anObject, h.getBackfillOffsetFromJ9Class32(j9class));
 			}
 		} else {
 			long ptr = (com.ibm.oti.vm.VM.FJ9OBJECT_SIZE == 4) ? Integer.toUnsignedLong(h.getIntFromObject(anObject, 0L)) : h.getLongFromObject(anObject, 0L);
 			if ((ptr & com.ibm.oti.vm.VM.OBJECT_HEADER_HAS_BEEN_MOVED_IN_CLASS) != 0) {
-				if (!h.isArray(anObject)) {
-					long j9class = ptr & com.ibm.oti.vm.VM.J9_JAVA_CLASS_MASK;
-					return h.getIntFromObject(anObject, h.getBackfillOffsetFromJ9Class64(j9class));
-				}
+				long j9class = ptr & com.ibm.oti.vm.VM.J9_JAVA_CLASS_MASK;
+				return h.getIntFromObject(anObject, h.getBackfillOffsetFromJ9Class64(j9class));
 			}
 		}
 		return identityHashCode(anObject);
@@ -591,7 +611,6 @@ final class J9VMInternals {
 	 */
 	public static native void dumpString(String str);
 
-
 	private static String[] getClassInfoStrings(final Class<?> clazz, String classPath){
 		String classLoaderStr = "<Bootstrap Loader>"; //$NON-NLS-1$
 		String cpResult = "<Unknown>"; //$NON-NLS-1$
@@ -600,9 +619,11 @@ final class J9VMInternals {
 			ClassLoader classLoader = clazz.getClassLoader();
 			if (classLoader != null) {
 				classLoaderStr = classLoader.toString();
+				/*[IF JAVA_SPEC_VERSION < 24]*/
 				classPath = AccessController.doPrivileged(new PrivilegedAction<String>() {
 					@Override
 					public String run() {
+				/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 						String path = null;
 						try {
 							ProtectionDomain pd = clazz.getProtectionDomain();
@@ -617,9 +638,13 @@ final class J9VMInternals {
 							}
 						} catch (Exception e) {
 						}
+				/*[IF JAVA_SPEC_VERSION >= 24]*/
+						classPath = path;
+				/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 						return path;
 					}
 				});
+				/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 			}
 		}
 		if (classPath != null) {

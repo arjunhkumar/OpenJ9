@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9cfg.h"
@@ -77,6 +77,16 @@ J9::Power::CodeGenerator::initialize()
       cg->setSupportsInlineConcurrentLinkedQueue();
       }
 
+   static bool disableInlineVectorizedMismatch = feGetEnv("TR_disableInlineVectorizedMismatch") != NULL;
+   if (cg->getSupportsArrayCmpLen() &&
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+         !TR::Compiler->om.isOffHeapAllocationEnabled() &&
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
+         !disableInlineVectorizedMismatch)
+      {
+      cg->setSupportsInlineVectorizedMismatch();
+      }
+
    cg->setSupportsNewInstanceImplOpt();
 
    static char *disableMonitorCacheLookup = feGetEnv("TR_disableMonitorCacheLookup");
@@ -90,6 +100,25 @@ J9::Power::CodeGenerator::initialize()
       comp->target().is64Bit() && !comp->getOption(TR_DisableFastStringIndexOf) &&
       !TR::Compiler->om.canGenerateArraylets())
       cg->setSupportsInlineStringIndexOf();
+
+   static bool disableStringInflateIntrinsic = feGetEnv("TR_DisableStringInflateIntrinsic") != NULL;
+   if (comp->target().cpu.isAtLeast(OMR_PROCESSOR_PPC_P8) && comp->target().cpu.supportsFeature(OMR_FEATURE_PPC_HAS_VSX) &&
+      comp->target().is64Bit() &&
+      !TR::Compiler->om.canGenerateArraylets() &&
+      !disableStringInflateIntrinsic)
+      cg->setSupportsInlineStringLatin1Inflate();
+
+   static bool disableCASInlining = feGetEnv("TR_DisableCASInlining") != NULL;
+   if (!disableCASInlining)
+      {
+      cg->setSupportsInlineUnsafeCompareAndSet();
+      }
+
+   static bool disableCAEInlining = feGetEnv("TR_DisableCAEInlining") != NULL;
+   if (!disableCAEInlining)
+      {
+      cg->setSupportsInlineUnsafeCompareAndExchange();
+      }
 
    if (!comp->getOption(TR_DisableReadMonitors))
       cg->setSupportsReadOnlyLocks();
@@ -116,6 +145,12 @@ J9::Power::CodeGenerator::initialize()
    if (!disableDualTLH && !comp->getOption(TR_DisableDualTLH) && !comp->compileRelocatableCode() && !comp->getOptions()->realTimeGC())
       {
       cg->setIsDualTLH();
+      }
+
+   static bool disableInlineMath_MaxMin_FD = feGetEnv("TR_disableInlineMaxMin") != NULL;
+   if (!disableInlineMath_MaxMin_FD && comp->target().cpu.isAtLeast(OMR_PROCESSOR_PPC_P7))
+      {
+      cg->setSupportsInlineMath_MaxMin_FD();
       }
 
    /*
@@ -570,7 +605,7 @@ J9::Power::CodeGenerator::insertPrefetchIfNecessary(TR::Node *node, TR::Register
                      generateTrg1MemInstruction(self(), TR::InstOpCode::lwz, node, temp3Reg, TR::MemoryReference::createWithDisplacement(self(), pointerReg, (int32_t)(TR::Compiler->om.sizeofReferenceField()*2), 4));
                   }
 
-               if (comp->getOptions()->getHeapBase() != NULL)
+               if (comp->getOptions()->getHeapBase() != 0)
                   {
                   loadAddressConstant(self(), comp->compileRelocatableCode(), node, (intptr_t)(comp->getOptions()->getHeapBase()), tempReg);
                   generateTrg1Src2Instruction(self(), TR::InstOpCode::cmpl4, node, condReg, temp3Reg, tempReg);

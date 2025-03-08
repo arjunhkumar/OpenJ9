@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 
@@ -108,7 +108,7 @@ MM_HeapRootScanner::doFinalizableObject(J9Object *objectPtr)
 void
 MM_HeapRootScanner::doMonitorReference(J9ObjectMonitor *objectMonitor, GC_HashTableIterator *monitorReferenceIterator)
 {
-	J9ThreadAbstractMonitor * monitor = (J9ThreadAbstractMonitor *)objectMonitor->monitor;
+	J9ThreadAbstractMonitor *monitor = (J9ThreadAbstractMonitor *)objectMonitor->monitor;
 	
 	void *userData = (void *)monitor->userData;
 	
@@ -173,6 +173,7 @@ MM_HeapRootScanner::scanClasses()
 #if defined(J9VM_GC_DYNAMIC_CLASS_UNLOADING)
 	J9ClassLoader *sysClassLoader = _javaVM->systemClassLoader;
 	J9ClassLoader *appClassLoader = _javaVM->applicationClassLoader;
+	J9ClassLoader *extClassLoader = _javaVM->extensionClassLoader;
 	MM_GCExtensions::DynamicClassUnloading dynamicClassUnloadingFlag = (MM_GCExtensions::DynamicClassUnloading )_extensions->dynamicClassUnloading;
 #endif
 	
@@ -190,7 +191,8 @@ MM_HeapRootScanner::scanClasses()
 				/* if -Xnoclassgc, all classes are strong */
 				reachability = RootScannerEntityReachability_Strong;
 			} else {
-				if ((sysClassLoader == clazz->classLoader) || (appClassLoader == clazz->classLoader)) {
+				J9ClassLoader *classLoader = clazz->classLoader;
+				if ((classLoader == sysClassLoader) || (classLoader == appClassLoader) || (classLoader == extClassLoader)) {
 					reachability = RootScannerEntityReachability_Strong;
 				} else {
 					reachability = RootScannerEntityReachability_Weak;
@@ -264,9 +266,10 @@ MM_HeapRootScanner::scanClassLoaders()
 #if defined(J9VM_GC_DYNAMIC_CLASS_UNLOADING)
 	J9ClassLoader *sysClassLoader = _javaVM->systemClassLoader;
 	J9ClassLoader *appClassLoader = _javaVM->applicationClassLoader;
+	J9ClassLoader *extClassLoader = _javaVM->extensionClassLoader;
 	MM_GCExtensions::DynamicClassUnloading dynamicClassUnloadingFlag = (MM_GCExtensions::DynamicClassUnloading )_extensions->dynamicClassUnloading;
 #endif
-	J9ClassLoader *classLoader;	
+	J9ClassLoader *classLoader = NULL;
 	GC_ClassLoaderIterator classLoaderIterator(_javaVM->classLoaderBlocks);
 	
 	reportScanningStarted(RootScannerEntity_ClassLoaders);
@@ -278,7 +281,7 @@ MM_HeapRootScanner::scanClassLoaders()
 			/* if -Xnoclassgc, all class loader refs are strong */
 			reachability = RootScannerEntityReachability_Strong;
 		} else {
-			if (classLoader == appClassLoader || classLoader == sysClassLoader) {
+			if ((classLoader == appClassLoader) || (classLoader == sysClassLoader) || (classLoader == extClassLoader)) {
 				reachability = RootScannerEntityReachability_Strong;
 			} else {
 				reachability = RootScannerEntityReachability_Weak;	
@@ -354,7 +357,7 @@ MM_HeapRootScanner::scanFinalizableObjects()
 	reportScanningStarted(RootScannerEntity_FinalizableObjects);
 	setReachability(RootScannerEntityReachability_Strong);
 	
-	GC_FinalizeListManager * finalizeListManager = _extensions->finalizeListManager;
+	GC_FinalizeListManager *finalizeListManager = _extensions->finalizeListManager;
 	{
 		/* walk finalizable objects created by the system class loader */
 		j9object_t systemObject = finalizeListManager->peekSystemFinalizableObject();

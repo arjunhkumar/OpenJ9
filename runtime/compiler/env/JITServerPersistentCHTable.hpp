@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef JITSERVER_PERSISTENT_CHTABLE_H
@@ -212,6 +212,7 @@ public:
    virtual void setShouldNotBeNewlyExtended(int32_t ID) override;
    virtual void resetShouldNotBeNewlyExtended(int32_t ID) override;
    virtual void clearShouldNotBeNewlyExtended() override;
+   virtual void setAlreadyScannedForFinalPutstatic() override;
    virtual void setHasRecognizedAnnotations(bool v = true) override;
    virtual void setAlreadyCheckedForAnnotations(bool v = true) override;
    virtual void setCannotTrustStaticFinal(bool v = true) override;

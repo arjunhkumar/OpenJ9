@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -33,7 +33,7 @@
 #include "ObjectAccessBarrier.hpp"
 #include "ReferenceObjectList.hpp"
 
-MM_ReferenceObjectBuffer::MM_ReferenceObjectBuffer(UDATA maxObjectCount)
+MM_ReferenceObjectBuffer::MM_ReferenceObjectBuffer(uintptr_t maxObjectCount)
 	: MM_BaseVirtual()
 	, _maxObjectCount(maxObjectCount)
 {
@@ -60,7 +60,7 @@ MM_ReferenceObjectBuffer::reset()
 }
 
 void 
-MM_ReferenceObjectBuffer::flush(MM_EnvironmentBase* env)
+MM_ReferenceObjectBuffer::flush(MM_EnvironmentBase *env)
 {
 	if (NULL != _head) {
 		flushImpl(env);
@@ -69,13 +69,13 @@ MM_ReferenceObjectBuffer::flush(MM_EnvironmentBase* env)
 }
 
 UDATA
-MM_ReferenceObjectBuffer::getReferenceObjectType(MM_EnvironmentBase* env, j9object_t object) 
+MM_ReferenceObjectBuffer::getReferenceObjectType(MM_EnvironmentBase *env, j9object_t object)
 { 
 	return J9CLASS_FLAGS(J9GC_J9OBJECT_CLAZZ(object, env)) & J9AccClassReferenceMask;
 }
 
 void
-MM_ReferenceObjectBuffer::add(MM_EnvironmentBase* env, j9object_t object)
+MM_ReferenceObjectBuffer::add(MM_EnvironmentBase *env, j9object_t object)
 {
 	MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env);
 

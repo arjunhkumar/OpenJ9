@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2019
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.pointer.helper;
 
 import java.lang.invoke.MethodHandle;
@@ -40,6 +40,7 @@ import com.ibm.j9ddr.vm29.pointer.generated.J9BuildFlags;
 import com.ibm.j9ddr.vm29.pointer.generated.J9ClassPointer;
 import com.ibm.j9ddr.vm29.pointer.generated.J9ROMClassPointer;
 import com.ibm.j9ddr.vm29.pointer.generated.J9ROMFieldShapePointer;
+import com.ibm.j9ddr.vm29.structure.J9Consts;
 import com.ibm.j9ddr.vm29.structure.J9JavaAccessFlags;
 import com.ibm.j9ddr.vm29.structure.J9JavaClassFlags;
 import com.ibm.j9ddr.vm29.types.U32;
@@ -185,7 +186,11 @@ public class ValueTypeHelper {
 			int index = 0;
 
 			if (Pattern.matches("\\[\\d+\\]", nestingHierarchy[0])) {
-				resultClasses[0] = containerClazz.arrayClass();
+				try {
+					resultClasses[0] = containerClazz.nullRestrictedArrayClass();
+				} catch (NoSuchFieldException e) {
+					throw new CorruptDataException("J9Class.nullRestrictedArrayClass field does not exist", e);
+				}
 				index = 1;
 			}
 			resultClasses[index] = containerClazz;
@@ -217,17 +222,16 @@ public class ValueTypeHelper {
 
 		@Override
 		public boolean isRomClassAValueType(J9ROMClassPointer romClass) throws CorruptDataException {
-			return romClass.modifiers().allBitsIn(J9JavaAccessFlags.J9AccValueType);
+			long flag = J9JavaAccessFlags.J9AccClassHasIdentity;
+			return (flag != 0) /* Always return false if identity flag isn't defined. */
+				&& (J9Consts.VALUE_TYPES_MAJOR_VERSION <= romClass.majorVersion().longValue())
+				&& (J9Consts.PREVIEW_MINOR_VERSION == romClass.minorVersion().longValue())
+				&& !romClass.modifiers().anyBitsIn(flag);
 		}
 
 		@Override
 		public boolean isJ9ClassAValueType(J9ClassPointer clazz) throws CorruptDataException {
 			return clazz.classFlags().allBitsIn(J9JavaClassFlags.J9ClassIsValueType);
-		}
-
-		@Override
-		public boolean isJ9ClassAPrimitiveValueType(J9ClassPointer clazz) throws CorruptDataException {
-			return clazz.classFlags().allBitsIn(J9JavaClassFlags.J9ClassIsPrimitiveValueType);
 		}
 
 		@Override
@@ -268,7 +272,7 @@ public class ValueTypeHelper {
 		public boolean isJ9ClassIsFlattened(J9ClassPointer clazz) throws CorruptDataException {
 			return J9ClassHelper.extendedClassFlags(clazz).allBitsIn(J9JavaClassFlags.J9ClassIsFlattened);
 		}
-		
+
 		@Override
 		public boolean isJ9FieldIsFlattened(J9ClassPointer fieldClazz, J9ROMFieldShapePointer fieldShape) throws CorruptDataException {
 			UDATA modifiers = fieldShape.modifiers();
@@ -277,7 +281,7 @@ public class ValueTypeHelper {
 			if (classRequires4BytePrePadding(fieldClazz)) {
 				size = size.sub(U32.SIZEOF);
 			}
-			return isJ9ClassIsFlattened(fieldClazz) && 
+			return isJ9ClassIsFlattened(fieldClazz) &&
 					(!modifiers.anyBitsIn(J9JavaAccessFlags.J9AccVolatile) || (size.lte(largeSize)));
 		}
 
@@ -297,9 +301,7 @@ public class ValueTypeHelper {
 	}
 
 	private static boolean checkIfValueTypesAreSupported() {
-		/* Older builds have builds flags in camel case, newer builds have flags capitalized */
-		return J9ConstantHelper.getBoolean(J9BuildFlags.class, "J9VM_OPT_VALHALLA_VALUE_TYPES", false)
-			|| J9ConstantHelper.getBoolean(J9BuildFlags.class, "opt_valhallaValueTypes", false);
+		return J9BuildFlags.J9VM_OPT_VALHALLA_VALUE_TYPES;
 	}
 
 	/**
@@ -401,17 +403,6 @@ public class ValueTypeHelper {
 	}
 
 	/**
-	 * Queries if J9Class is a primitive value type
-	 *
-	 * @param clazz clazz to query
-	 * @return true if class is a primitive value type, false otherwise
-	 * @throws CorruptDataException
-	 */
-	public boolean isJ9ClassAPrimitiveValueType(J9ClassPointer clazz) throws CorruptDataException {
-		return false;
-	}
-
-	/**
 	 * Queries whether field is flattened of not.
 	 *
 	 * @param clazz clazz containing the field
@@ -458,7 +449,7 @@ public class ValueTypeHelper {
 	public boolean isJ9ClassIsFlattened(J9ClassPointer clazz) throws CorruptDataException {
 		return false;
 	}
-	
+
 	/**
 	 * Queries if a field in a class is flattened
 	 * @param fieldClazz J9Class of the field
@@ -468,7 +459,7 @@ public class ValueTypeHelper {
 	public boolean isJ9FieldIsFlattened(J9ClassPointer fieldClazz, J9ROMFieldShapePointer fieldShape) throws CorruptDataException {
 		return false;
 	}
-	
+
 	/**
 	 * Queries if class is has 4byte pre-padding in the stand-alone case
 	 * @param clazz J9Class

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.classloader;
 
 import com.ibm.dtfj.javacore.parser.framework.tag.ILineRule;
@@ -32,7 +32,7 @@ public class ClassLoaderTagParser extends TagParser implements IClassLoaderTypes
 	public ClassLoaderTagParser() {
 		super(CLASSLOADER_SECTION);
 	}
-	
+
 	protected void initTagAttributeRules() {
 		addTag(T_1CLTEXTCLLOS, null);
 		addTag(T_1CLTEXTCLLSS, null);
@@ -46,11 +46,9 @@ public class ClassLoaderTagParser extends TagParser implements IClassLoaderTypes
 		addTextCLLoad();
 		addTextClass();
 	}
-	
-
 
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addTextCLLoader() {
@@ -72,11 +70,9 @@ public class ClassLoaderTagParser extends TagParser implements IClassLoaderTypes
 		};
 		addTag(T_2CLTEXTCLLOADER, lineRule);
 	}
-	
-	
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addNumberLoadedLib() {
@@ -87,11 +83,9 @@ public class ClassLoaderTagParser extends TagParser implements IClassLoaderTypes
 		};
 		addTag(T_3CLNMBRLOADEDLIB, lineRule);
 	}
-	
-	
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addNumberLoadedClasses() {
@@ -102,11 +96,9 @@ public class ClassLoaderTagParser extends TagParser implements IClassLoaderTypes
 		};
 		addTag(T_3CLNMBRLOADEDCL, lineRule);
 	}
-	
-	
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addTextCLLib2() {
@@ -118,12 +110,9 @@ public class ClassLoaderTagParser extends TagParser implements IClassLoaderTypes
 		};
 		addTag(T_2CLTEXTCLLIB, lineRule);
 	}
-	
-	
-	
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addTextLib() {
@@ -135,11 +124,9 @@ public class ClassLoaderTagParser extends TagParser implements IClassLoaderTypes
 		};
 		addTag(T_3CLTEXTLIB, lineRule);
 	}
-	
-	
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addTextCLLoad() {
@@ -151,11 +138,9 @@ public class ClassLoaderTagParser extends TagParser implements IClassLoaderTypes
 		};
 		addTag(T_2CLTEXTCLLOAD, lineRule);
 	}
-	
-	
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addTextClass() {

@@ -6,7 +6,7 @@ import java.util.jar.*;
 import java.io.IOException;
 import java.lang.reflect.*;
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2002
  *
  * This program and the accompanying materials are made available under
@@ -25,13 +25,13 @@ import java.lang.reflect.*;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 public class JarRunner {
 
 	public static void main(String args[]) throws Exception {
-		
+
 		//Manifest from the jarfile
 		Manifest manifest = getManifest(args[0]);
 		if (null==manifest) {
@@ -40,7 +40,7 @@ public class JarRunner {
 			System.err.println(com.ibm.oti.util.Msg.getString("K0222", args[0])); //$NON-NLS-1$
 			return;
 		}
-		
+
 		// Main class name from the jarFile
 		String mainClass = JarRunner.mainClassName(manifest);
 		if (mainClass == null) {
@@ -48,21 +48,21 @@ public class JarRunner {
 			System.err.println(com.ibm.oti.util.Msg.getString("K01c6", args[0])); //$NON-NLS-1$
 			return;
 		}
-		
+
 		// Get the main method from the mainClass
 		Class runnable = Class.forName(mainClass, true, ClassLoader.getSystemClassLoader());
 		Class mainParams[] = new Class[1];
 		mainParams[0] = args.getClass();
 		Method mainMethod =  runnable.getMethod("main", mainParams); //$NON-NLS-1$
-		
-		// Run the main method	
+
+		// Run the main method
 		Object params[] = new Object[1];
 		String margs[] = new String[args.length - 1];
 		System.arraycopy(args, 1, margs, 0, (args.length - 1));
 		params[0] = margs;
 		mainMethod.invoke(null, params);
 	}
-	
+
 	private static String mainClassName(Manifest manifest) throws IOException {
 		Attributes mainAttrib = manifest.getMainAttributes();
 		String name = mainAttrib.getValue(Attributes.Name.MAIN_CLASS);
@@ -70,11 +70,10 @@ public class JarRunner {
 		if (name != null) name = name.replace('/', '.');
 		return name;
 	}
-	
+
 	private static Manifest getManifest(String jarFileName) throws IOException {
 		/*[PR 98078]*/
 		JarFile jar = new JarFile(jarFileName);
 		return jar.getManifest();
-	}	
+	}
 }
-

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION < 17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang;
 
 import java.io.Serializable;
@@ -37,15 +37,15 @@ import java.nio.charset.Charset;
 import java.util.function.Function;
 import java.util.Optional;
 /*[ENDIF] JAVA_SPEC_VERSION >= 12 */
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 import java.util.Spliterator;
 import java.util.stream.StreamSupport;
 
 import jdk.internal.misc.Unsafe;
 import java.util.stream.IntStream;
-/*[ELSE] Sidecar19-SE*/
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 import sun.misc.Unsafe;
-/*[ENDIF] Sidecar19-SE*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9*/
 
 /*[IF JAVA_SPEC_VERSION >= 11]*/
 import java.util.stream.Stream;
@@ -87,7 +87,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 		}
 	}
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 	// DO NOT CHANGE OR MOVE THIS LINE
 	// IT MUST BE THE FIRST THING IN THE INITIALIZATION
 	private static final long serialVersionUID = -6849794470754667710L;
@@ -113,7 +113,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 	/**
 	 * Copy bytes from value starting at srcIndex into the bytes array starting at
 	 * destIndex. No range checking is needed. Caller ensures bytes is in UTF16.
-	 * 
+	 *
 	 * @param bytes copy destination
 	 * @param srcIndex index into value
 	 * @param destIndex index into bytes
@@ -133,7 +133,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 		}
 	}
 /*[ENDIF] JAVA_SPEC_VERSION >= 16 */
-	
+
 	// no range checking, caller ensures bytes is in UTF16
 	// coder is one of LATIN1 or UTF16
 	void getBytes(byte[] bytes, int offset, byte coder) {
@@ -719,7 +719,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 				StringLatin1.inflate(s.value, 0, value, 0, slen);
 			} else {
 				decompressedArrayCopy(s.value, 0, value, 0, slen);
-			}		
+			}
 
 			helpers.putCharInArrayByIndex(value, slen, c);
 
@@ -805,7 +805,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 		}
 	}
 
-	String(byte[] data, int start, int length, boolean compressed) {
+	private String(byte[] data, int start, int length, boolean compressed) {
 		if (length == 0) {
 			value = emptyValue;
 
@@ -824,19 +824,25 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 			} else {
 				char theChar = helpers.getCharFromArrayByIndex(data, start);
 
-				if (theChar <= 255) {
-					value = decompressedAsciiTable[theChar];
+				if (COMPACT_STRINGS && (theChar <= 255)) {
+					value = compressedAsciiTable[theChar];
+					coder = LATIN1;
+					hash = theChar;
 				} else {
-					value = new byte[2];
+					if (theChar <= 255) {
+						value = decompressedAsciiTable[theChar];
+					} else {
+						value = new byte[2];
 
-					helpers.putCharInArrayByIndex(value, 0, theChar);
-				}
+						helpers.putCharInArrayByIndex(value, 0, theChar);
+					}
 
-				coder = UTF16;
-				hash = theChar;
+					coder = UTF16;
+					hash = theChar;
 
-				if (COMPACT_STRINGS) {
-					initCompressionFlag();
+					if (COMPACT_STRINGS) {
+						initCompressionFlag();
+					}
 				}
 			}
 		} else {
@@ -845,17 +851,19 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 					value = data;
 				} else {
 					value = new byte[length];
-
 					compressedArrayCopy(data, start, value, 0, length);
 				}
 
+				coder = LATIN1;
+			} else if (COMPACT_STRINGS && helpers.canEncodeAsLatin1(data, start, length)) {
+				value = new byte[length];
+				compress(data, start, value, 0, length);
 				coder = LATIN1;
 			} else {
 				if (start == 0 && data.length == length * 2) {
 					value = data;
 				} else {
 					value = StringUTF16.newBytesFor(length);
-
 					decompressedArrayCopy(data, start, value, 0, length);
 				}
 
@@ -868,7 +876,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 		}
 	}
 
-	String(byte[] data, int start, int length, boolean compressed, boolean sharingIsAllowed) {
+	private String(byte[] data, int start, int length, boolean compressed, boolean sharingIsAllowed) {
 		if (length == 0) {
 			value = emptyValue;
 
@@ -887,41 +895,38 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 			} else {
 				char theChar = helpers.getCharFromArrayByIndex(data, start);
 
-				if (theChar <= 255) {
-					value = decompressedAsciiTable[theChar];
+				if (COMPACT_STRINGS && (theChar <= 255)) {
+					value = compressedAsciiTable[theChar];
+					coder = LATIN1;
+					hash = theChar;
 				} else {
-					value = new byte[2];
+					if (theChar <= 255) {
+						value = decompressedAsciiTable[theChar];
+					} else {
+						value = new byte[2];
+						helpers.putCharInArrayByIndex(value, 0, theChar);
+					}
 
-					helpers.putCharInArrayByIndex(value, 0, theChar);
-				}
+					coder = UTF16;
+					hash = theChar;
 
-				coder = UTF16;
-				hash = theChar;
-
-				if (COMPACT_STRINGS) {
-					initCompressionFlag();
+					if (COMPACT_STRINGS) {
+						initCompressionFlag();
+					}
 				}
 			}
 		} else {
 			if (COMPACT_STRINGS && compressed) {
-				if (sharingIsAllowed && start == 0 && data.length == length) {
-					value = data;
-				} else {
-					value = new byte[length];
-
-					compressedArrayCopy(data, start, value, 0, length);
-				}
-
+				value = new byte[length];
+				compressedArrayCopy(data, start, value, 0, length);
+				coder = LATIN1;
+			} else if (COMPACT_STRINGS && helpers.canEncodeAsLatin1(data, start, length)) {
+				value = new byte[length];
+				compress(data, start, value, 0, length);
 				coder = LATIN1;
 			} else {
-				if (sharingIsAllowed && start == 0 && data.length == length * 2) {
-					value = data;
-				} else {
-					value = StringUTF16.newBytesFor(length);
-
-					decompressedArrayCopy(data, start, value, 0, length);
-				}
-
+				value = StringUTF16.newBytesFor(length);
+				decompressedArrayCopy(data, start, value, 0, length);
 				coder = UTF16;
 
 				if (COMPACT_STRINGS) {
@@ -2581,7 +2586,12 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 				helpers.putCharInArrayByIndex(buffer, index++, (char) newChar);
 			} while ((index = indexOf(oldChar, index)) != -1);
 
-			return new String(buffer, UTF16);
+			if (newChar > 255) {
+				// If the original String isn't compressed and the replacement character isn't Latin1, the result is uncompressed.
+				return new String(buffer, UTF16);
+			}
+
+			return new String(buffer, 0, len, false);
 		}
 	}
 
@@ -3192,39 +3202,60 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 			int length = lengthInternal();
 			if (substituteLength < 2) {
 				if (COMPACT_STRINGS && isCompressed() && (substituteLength == 0 || substitute.isCompressed())) {
+					if (!regex.isCompressed()) {
+						return this;
+					}
 					byte[] newChars = new byte[length];
 					byte toReplace = helpers.getByteFromArrayByIndex(regex.value, 0);
-					byte replacement = (byte)-1;  // assign dummy value that will never be used
+					byte replacement = (byte)0; // assign dummy value that isn't used
 					if (substituteLength == 1) {
 						replacement = helpers.getByteFromArrayByIndex(substitute.value, 0);
 						checkLastChar((char)replacement);
 					}
 					int newCharIndex = 0;
+					boolean replaced = false;
 					for (int i = 0; i < length; ++i) {
 						byte current = helpers.getByteFromArrayByIndex(value, i);
 						if (current != toReplace) {
 							helpers.putByteInArrayByIndex(newChars, newCharIndex++, current);
-						} else if (substituteLength == 1) {
-							helpers.putByteInArrayByIndex(newChars, newCharIndex++, replacement);
+						} else {
+							replaced = true;
+							if (substituteLength == 1) {
+								helpers.putByteInArrayByIndex(newChars, newCharIndex++, replacement);
+							}
 						}
+					}
+					if (!replaced) {
+						return this;
 					}
 					return new String(newChars, 0, newCharIndex, true);
 				} else if (!COMPACT_STRINGS || !isCompressed()) {
 					byte[] newChars = StringUTF16.newBytesFor(length);
 					char toReplace = regex.charAtInternal(0);
-					char replacement = (char)-1; // assign dummy value that will never be used
+					char replacement = (char)0; // assign dummy value that must be Latin1 (0 - 255)
 					if (substituteLength == 1) {
 						replacement = substitute.charAtInternal(0);
 						checkLastChar(replacement);
 					}
 					int newCharIndex = 0;
+					boolean replaced = false;
 					for (int i = 0; i < length; ++i) {
 						char current = helpers.getCharFromArrayByIndex(value, i);
 						if (current != toReplace) {
 							helpers.putCharInArrayByIndex(newChars, newCharIndex++, current);
-						} else if (substituteLength == 1) {
-							helpers.putCharInArrayByIndex(newChars, newCharIndex++, replacement);
+						} else {
+							replaced = true;
+							if (substituteLength == 1) {
+								helpers.putCharInArrayByIndex(newChars, newCharIndex++, replacement);
+							}
 						}
+					}
+					if (!replaced) {
+						return this;
+					}
+					if (replacement > 255) {
+						// If the original String isn't compressed and the replacement character isn't Latin1, the result is uncompressed.
+						return new String(newChars, UTF16);
 					}
 					return new String(newChars, 0, newCharIndex, false);
 				}
@@ -4097,7 +4128,7 @@ public final class String implements Serializable, Comparable<String>, CharSeque
 	}
 	/*[ENDIF] JAVA_SPEC_VERSION >= 11 */
 
-/*[ELSE] Sidecar19-SE*/
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 	// DO NOT CHANGE OR MOVE THIS LINE
 	// IT MUST BE THE FIRST THING IN THE INITIALIZATION
 	private static final long serialVersionUID = -6849794470754667710L;
@@ -7587,6 +7618,9 @@ written authorization of the copyright holder.
 			int length = lengthInternal();
 			if (substituteLength < 2) {
 				if (COMPACT_STRINGS && isCompressed() && (substituteLength == 0 || substitute.isCompressed())) {
+					if (!regex.isCompressed()) {
+						return this;
+					}
 					char[] newChars = new char[(length + 1) >>> 1];
 					byte toReplace = helpers.getByteFromArrayByIndex(regex.value, 0);
 					byte replacement = (byte)-1;  // assign dummy value that will never be used
@@ -7595,13 +7629,20 @@ written authorization of the copyright holder.
 						checkLastChar((char)replacement);
 					}
 					int newCharIndex = 0;
+					boolean replaced = false;
 					for (int i = 0; i < length; ++i) {
 						byte current = helpers.getByteFromArrayByIndex(value, i);
 						if (current != toReplace) {
 							helpers.putByteInArrayByIndex(newChars, newCharIndex++, current);
-						} else if (substituteLength == 1) {
-							helpers.putByteInArrayByIndex(newChars, newCharIndex++, replacement);
+						} else {
+							replaced = true;
+							if (substituteLength == 1) {
+								helpers.putByteInArrayByIndex(newChars, newCharIndex++, replacement);
+							}
 						}
+					}
+					if (!replaced) {
+						return this;
 					}
 					return new String(newChars, 0, newCharIndex, true);
 				} else if (!COMPACT_STRINGS || !isCompressed()) {
@@ -7613,13 +7654,20 @@ written authorization of the copyright holder.
 						checkLastChar(replacement);
 					}
 					int newCharIndex = 0;
+					boolean replaced = false;
 					for (int i = 0; i < length; ++i) {
 						char current = helpers.getCharFromArrayByIndex(value, i);
 						if (current != toReplace) {
 							helpers.putCharInArrayByIndex(newChars, newCharIndex++, current);
-						} else if (substituteLength == 1) {
-							helpers.putCharInArrayByIndex(newChars, newCharIndex++, replacement);
+						} else {
+							replaced = true;
+							if (substituteLength == 1) {
+								helpers.putCharInArrayByIndex(newChars, newCharIndex++, replacement);
+							}
 						}
+					}
+					if (!replaced) {
+						return this;
 					}
 					return new String(newChars, 0, newCharIndex, false);
 				}
@@ -8461,7 +8509,7 @@ written authorization of the copyright holder.
 		return stringJoiner.toString();
 	}
 
-/*[ENDIF] Sidecar19-SE*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 /*[IF JAVA_SPEC_VERSION >= 12]*/
 	/**
@@ -8575,7 +8623,7 @@ written authorization of the copyright holder.
 	 * @return the formatted result
 	 *
 	 * @see #format(String, Object...)
-	 * 
+	 *
 	 * @since 15
 	 */
 	public String formatted(Object... args) {
@@ -8587,8 +8635,8 @@ written authorization of the copyright holder.
 	 * removes the trailing spaces in every line from the string
 	 *
 	 * @return this string with incidental whitespaces removed from every line
-	 * 
-	 * @since 15 
+	 *
+	 * @since 15
 	 */
 	public String stripIndent() {
 		if (isEmpty()) {
@@ -8641,7 +8689,6 @@ written authorization of the copyright holder.
 			builder.append("\n");
 		}
 
-
 		if (!trailingNewLine) {
 			builder.setLength(builder.length() - 1);
 		}
@@ -8656,7 +8703,7 @@ written authorization of the copyright holder.
 	 *
 	 * @throws IllegalArgumentException
 	 *          If invalid escape sequence is detected
-	 * 
+	 *
 	 * @since 15
 	 */
 	public String translateEscapes() {
@@ -8701,7 +8748,7 @@ written authorization of the copyright holder.
 				case '2':
 				case '3':
 					octal = charArray[index] - '0';
-					/* If the octal escape sequence only has a single digit, then translate the escape and search for next escape sequence 
+					/* If the octal escape sequence only has a single digit, then translate the escape and search for next escape sequence
 					 * If there is more than one digit, fall though to case 4-7 and save the current digit as the first digit of the sequence
 					 */
 					if ((index < strLength - 1) && ('0' <= charArray[index + 1]) && ('7' >= charArray[index + 1])) {
@@ -8727,7 +8774,7 @@ written authorization of the copyright holder.
 					break;
 				/**
 				 * JEP 368: Text Blocks (Second Preview)
-				 * '\r', "\r\n" and '\n' are ignored as per new continuation \<line-terminator> escape sequence 
+				 * '\r', "\r\n" and '\n' are ignored as per new continuation \<line-terminator> escape sequence
 				 * i.e. ignore line terminator and continue line
 				 * */
 				case '\r':

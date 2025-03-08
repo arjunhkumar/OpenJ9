@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(VM_OUTOFLINEINL_HPP_)
@@ -34,20 +34,20 @@ extern "C" {
 typedef VM_BytecodeAction J9OutOfLineINLMethod(J9VMThread *, J9Method *);
 
 J9OutOfLineINLMethod OutOfLineINL_jdk_internal_misc_Unsafe_fullFence;
-J9OutOfLineINLMethod OutOfLineINL_jdk_internal_misc_Unsafe_compareAndExchangeObjectVolatile;
-J9OutOfLineINLMethod OutOfLineINL_jdk_internal_misc_Unsafe_compareAndExchangeIntVolatile;
-J9OutOfLineINLMethod OutOfLineINL_jdk_internal_misc_Unsafe_compareAndExchangeLongVolatile;
+J9OutOfLineINLMethod OutOfLineINL_jdk_internal_misc_Unsafe_compareAndExchangeInt;
+J9OutOfLineINLMethod OutOfLineINL_jdk_internal_misc_Unsafe_compareAndExchangeLong;
+J9OutOfLineINLMethod OutOfLineINL_jdk_internal_misc_Unsafe_compareAndExchangeObject;
 J9OutOfLineINLMethod OutOfLineINL_com_ibm_jit_JITHelpers_acmplt;
-#if defined(J9VM_OPT_PANAMA)
-J9OutOfLineINLMethod OutOfLineINL_java_lang_invoke_NativeMethodHandle_initJ9NativeCalloutDataRef;
-J9OutOfLineINLMethod OutOfLineINL_java_lang_invoke_NativeMethodHandle_freeJ9NativeCalloutDataRef;
-#endif /* defined(J9VM_OPT_PANAMA) */
 
 #if JAVA_SPEC_VERSION >= 16
-J9OutOfLineINLMethod OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_resolveRequiredFields;
 J9OutOfLineINLMethod OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_initCifNativeThunkData;
+#if JAVA_SPEC_VERSION >= 22
+J9OutOfLineINLMethod OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_isFfiProtoEnabled;
+J9OutOfLineINLMethod OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_setNativeInvokeCache;
+#endif /* JAVA_SPEC_VERSION >= 22 */
+J9OutOfLineINLMethod OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_resolveRequiredFields;
 J9OutOfLineINLMethod OutOfLineINL_openj9_internal_foreign_abi_InternalUpcallHandler_allocateUpcallStub;
-J9OutOfLineINLMethod OutOfLineINL_openj9_internal_foreign_abi_UpcallMHMetaData_resolveUpcallDataFields;
+J9OutOfLineINLMethod OutOfLineINL_openj9_internal_foreign_abi_UpcallMHMetaData_resolveUpcallDataInfo;
 #endif /* JAVA_SPEC_VERSION >= 16 */
 }
 
@@ -134,7 +134,6 @@ public:
  	restoreInternalNativeStackFrame(J9VMThread *currentThread)
  	{
  		J9SFNativeMethodFrame *nativeMethodFrame = (J9SFNativeMethodFrame*)currentThread->sp;
- 		currentThread->jitStackFrameFlags = nativeMethodFrame->specialFrameFlags & J9_SSF_JIT_NATIVE_TRANSITION_FRAME;
  		restoreSpecialStackFrameLeavingArgs(currentThread, ((UDATA*)(nativeMethodFrame + 1)) - 1);
  	}
 };

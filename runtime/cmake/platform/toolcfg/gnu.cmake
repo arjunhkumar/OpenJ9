@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 list(APPEND OMR_PLATFORM_COMPILE_OPTIONS -O3 -g -fstack-protector)
@@ -34,8 +34,9 @@ list(APPEND OMR_PLATFORM_CXX_COMPILE_OPTIONS -fno-threadsafe-statics)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions -fno-rtti")
 
 # Raise an error if a shared library has any unresolved symbols.
-# This flag isn't supported on OSX, but it has this behaviour by default
-if(NOT OMR_OS_OSX)
+# This flag isn't supported on OSX or AIX with OpenXL,
+# but it has this behaviour by default.
+if(NOT OMR_OS_OSX AND (NOT OMR_OS_AIX OR NOT CMAKE_C_COMPILER_IS_OPENXL))
 	set(CMAKE_SHARED_LINKER_FLAGS "-Wl,-z,defs ${CMAKE_SHARED_LINKER_FLAGS}")
 endif()
 

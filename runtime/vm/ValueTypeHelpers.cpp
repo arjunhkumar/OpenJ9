@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "ValueTypeHelpers.hpp"
@@ -110,15 +110,9 @@ valueTypeCapableAcmp(J9VMThread *currentThread, j9object_t lhs, j9object_t rhs)
 }
 
 BOOLEAN
-isNameOrSignatureQtype(J9UTF8 *utfWrapper)
+isFieldNullRestricted(J9ROMFieldShape *field)
 {
-	return VM_ValueTypeHelpers::isNameOrSignatureQtype(utfWrapper);
-}
-
-BOOLEAN
-isClassRefQtype(J9Class *cpContextClass, U_16 cpIndex)
-{
-	return VM_ValueTypeHelpers::isClassRefQtype(cpContextClass->ramConstantPool, cpIndex);
+	return VM_ValueTypeHelpers::isFieldNullRestricted(field);
 }
 
 UDATA
@@ -143,18 +137,21 @@ J9Class *
 findJ9ClassInFlattenedClassCache(J9FlattenedClassCache *flattenedClassCache, U_8 *className, UDATA classNameLength)
 {
         UDATA length = flattenedClassCache->numberOfEntries;
-        J9Class *clazz = NULL;
+        J9Class *foundClass = NULL;
 
         for (UDATA i = 0; i < length; i++) {
-                J9UTF8* currentClassName = J9ROMCLASS_CLASSNAME(J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, i)->clazz->romClass);
-                if (J9UTF8_DATA_EQUALS(J9UTF8_DATA(currentClassName), J9UTF8_LENGTH(currentClassName), className, classNameLength)) {
-                        clazz = J9_VM_FCC_CLASS_FROM_ENTRY(J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, i));
-                        break;
+                J9Class *currentClass = J9_VM_FCC_CLASS_FROM_ENTRY(J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, i));
+                if (NULL != currentClass) {
+                        J9UTF8* currentClassName = J9ROMCLASS_CLASSNAME(currentClass->romClass);
+                        if (J9UTF8_DATA_EQUALS(J9UTF8_DATA(currentClassName), J9UTF8_LENGTH(currentClassName), className, classNameLength)) {
+                                foundClass = currentClass;
+                                break;
+                        }
                 }
         }
 
-        Assert_VM_notNull(clazz);
-        return clazz;
+        Assert_VM_notNull(foundClass);
+        return foundClass;
 }
 
 UDATA
@@ -248,6 +245,16 @@ areValueTypesEnabled(J9JavaVM *vm)
 #else /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	return FALSE;
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+}
+
+BOOLEAN
+areFlattenableValueTypesEnabled(J9JavaVM *vm)
+{
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	return TRUE;
+#else /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
+	return FALSE;
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 }
 
 j9object_t*

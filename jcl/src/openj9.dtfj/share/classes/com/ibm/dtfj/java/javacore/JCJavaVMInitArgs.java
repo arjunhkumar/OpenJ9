@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.javacore;
 
 import java.util.Iterator;
@@ -34,20 +34,20 @@ import com.ibm.dtfj.java.JavaVMInitArgs;
  * contain the set of initialization options passed into the VM (in the ENVINFO
  * section of the javacore), but do not provide the JNI level or the setting of
  * the JNI 'ignoreUnrecognized' flag.
- * 
+ *
  * @see com.ibm.dtfj.java.JavaRuntime
  */
 public class JCJavaVMInitArgs implements JavaVMInitArgs {
-	
+
 	private Vector fOptions = new Vector();
 	private JCJavaRuntime fRuntime;
-		
-	public JCJavaVMInitArgs(JCJavaRuntime javaRuntime, int version, boolean ignoreUnrecognized) 
+
+	public JCJavaVMInitArgs(JCJavaRuntime javaRuntime, int version, boolean ignoreUnrecognized)
 				throws JCInvalidArgumentsException 	{
 		fRuntime = javaRuntime;
 		fRuntime.addJavaVMInitArgs(this);
 	}
-	
+
 	public int getVersion() throws DataUnavailable, CorruptDataException {
 		// JNI version not available in javacore
 		throw new DataUnavailable("JNI version not available");
@@ -61,10 +61,10 @@ public class JCJavaVMInitArgs implements JavaVMInitArgs {
 	public Iterator getOptions() throws DataUnavailable {
 		return fOptions.iterator();
 	}
-	
+
 	/**
 	 * Not in DTFJ. Used only for building purposes.
-	 * 
+	 *
 	 */
 	public void addOption(JCJavaVMOption option) throws JCInvalidArgumentsException {
 		if (option == null) {

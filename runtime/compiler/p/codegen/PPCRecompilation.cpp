@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "p/codegen/PPCRecompilation.hpp"
@@ -41,6 +41,7 @@
 #include "p/codegen/PPCInstruction.hpp"
 #include "p/codegen/PPCRecompilationSnippet.hpp"
 #include "env/CompilerEnv.hpp"
+#include "env/j9method.h"
 
 // Allocate a machine-specific recompilation processor for this compilation
 //
@@ -64,9 +65,8 @@ TR_PPCRecompilation::TR_PPCRecompilation(TR::Compilation * comp)
 
 TR_PersistentMethodInfo *TR_PPCRecompilation::getExistingMethodInfo(TR_ResolvedMethod *method)
    {
-   int8_t *startPC = (int8_t *)method->startAddressForInterpreterOfJittedMethod();
-   TR_PersistentMethodInfo *info = getJittedBodyInfoFromPC(startPC)->getMethodInfo();
-   return(info);
+   TR_PersistentJittedBodyInfo *bodyInfo = (static_cast<TR_ResolvedJ9Method *>(method))->getExistingJittedBodyInfo();
+   return bodyInfo ? bodyInfo->getMethodInfo() : NULL;
    }
 
 TR::Instruction *TR_PPCRecompilation::generatePrePrologue()
@@ -135,9 +135,9 @@ TR::Instruction *TR_PPCRecompilation::generatePrologue(TR::Instruction *cursor)
          {
          intptr_t adjustedAddr = HI_VALUE(addr);
          // lis gr11, upper 16-bits
-         cursor = generateTrg1ImmInstruction(cg(), TR::InstOpCode::lis, firstNode, gr11, (int16_t)adjustedAddr>>32, cursor );
+         cursor = generateTrg1ImmInstruction(cg(), TR::InstOpCode::lis, firstNode, gr11, (int16_t)(adjustedAddr >> 32), cursor );
          // ori gr11, gr11, next 16-bit
-         cursor = generateTrg1Src1ImmInstruction(cg(), TR::InstOpCode::ori, firstNode, gr11, gr11, ((adjustedAddr>>16) & 0x0000FFFF), cursor);
+         cursor = generateTrg1Src1ImmInstruction(cg(), TR::InstOpCode::ori, firstNode, gr11, gr11, ((adjustedAddr >> 16) & 0x0000FFFF), cursor);
          // rldicr gr11, gr11, 32, 31
          cursor = generateTrg1Src1Imm2Instruction(cg(), TR::InstOpCode::rldicr, firstNode, gr11, gr11, 32, CONSTANT64(0xFFFFFFFF00000000), cursor);
          // oris  gr11, gr11, next 16-bits

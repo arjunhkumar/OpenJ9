@@ -17,13 +17,13 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 This document describes at a high level what the various relocation records
 are used for. The exact data stored into the SCC can be found in
-`initializeCommonAOTRelocationHeader` and the various 
-`initializePlatformSpecificAOTRelocationHeader` functions. Similarly, the 
+`initializeCommonAOTRelocationHeader` and the various
+`initializePlatformSpecificAOTRelocationHeader` functions. Similarly, the
 exact type of the API class for each relocation kind can be found in
 `TR_RelocationRecord::create`.
 
@@ -95,8 +95,8 @@ exact type of the API class for each relocation kind can be found in
 |`TR_AbsoluteMethodAddressOrderedPair`|Relocates an address that is within the method being compiled. The exact method of relocation depends on the sequence enum specified.|
 |`TR_FixedSequenceAddress`|Only used on POWER. Relocates the load of a 64 bit address of a label in the method being compiled. The exact method of relocation depends on the sequence enum specified.|
 |`TR_FixedSequenceAddress2`|Relocates the load of an address in the method being compiled. The exact method of relocation depends on the sequence enum specified.|
-|`TR_BodyInfoAddress`|Relocates the address to the `TR_PersistentJittedBodyInfo` for the method being compiled. Also relocates some fields, as well as the `TR_PersistentMethodInfo`.|
-|`TR_BodyInfoAddressLoad`|Relocates the address to the `TR_PersistentJittedBodyInfo` for the method being compiled.|
+|`TR_BodyInfoAddress`|Relocates the address to the `TR_PersistentJittedBodyInfo` for the method being compiled. This is used to relocate that address in the method's preprologue, and is also used on X and Z to relocate the address to the recompilation counter, which is the first field of the `TR_PersistentJittedBodyInfo`. Also relocates some fields, as well as the `TR_PersistentMethodInfo`.|
+|`TR_BodyInfoAddressLoad`|Relocates the address to the `TR_PersistentJittedBodyInfo` for the method being compiled. This is only used on Power and ARM, and only to relocate loads from the address of the recompilation counter, which is the first field of the `TR_PersistentJittedBodyInfo`.|
 |`TR_CheckMethodEnter`|Patches the code if method enter tracing is enabled. Note, the AOT code should have been compiled with the assumption that tracing could be enabled.|
 |`TR_CheckMethodExit`|Patches the code if method enter tracing is enabled. Note, the AOT code should have been compiled with the assumption that tracing could be enabled.|
 |`TR_JNIVirtualTargetAddress`|Relocates the start address of a virtual JNI method.|
@@ -134,4 +134,10 @@ exact type of the API class for each relocation kind can be found in
 |`TR_SymbolFromManager`|Relocates a pointer materialized by using its SVM ID.|
 |`TR_DiscontiguousSymbolFromManager`|Relocates a discontiguous pointer materialized by using its SVM ID.|
 |`TR_MethodCallAddress`|Relocates the address of a call target. Only used in JitServer (in AOT, all other methods are assumed to be interpreted).|
-
+|`TR_CatchBlockCounter`|Relocates the address of the catch block counter in the `TR_PersistentMethodInfo` of the method being compiled.|
+|`TR_StartPC`|Relocates the startPC of the method being compiled. Only implemented and used on Power.|
+|`TR_MethodEnterExitHookAddress`|Relocates the address of the method enter or exit hook.|
+|`TR_ValidateDynamicMethodFromCallsiteIndex`|Validates the target method of an `invokeDynamic` invocation.|
+|`TR_ValidateHandleMethodFromCPIndex`|Validates the target method of an `invokeHandle` invocation.|
+|`TR_CallsiteTableEntryAddress`|Relocates the callsite table entry address.|
+|`TR_MethodTypeTableEntryAddress`|Relocates the method type table entry address.|

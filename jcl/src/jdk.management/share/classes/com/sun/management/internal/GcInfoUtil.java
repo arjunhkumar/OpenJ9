@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2016
  *
  * This program and the accompanying materials are made available under
@@ -18,13 +18,15 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.sun.management.internal;
 
 import java.lang.management.MemoryUsage;
 import java.lang.reflect.Constructor;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import java.util.Map;
 
 import javax.management.openmbean.CompositeData;
@@ -39,7 +41,7 @@ import com.ibm.java.lang.management.internal.MemoryUsageUtil;
 import com.sun.management.GcInfo;
 
 /**
- * Support for the {@link GcInfo} class. 
+ * Support for the {@link GcInfo} class.
  */
 public final class GcInfoUtil {
 
@@ -47,11 +49,23 @@ public final class GcInfoUtil {
 
 	private static Constructor<GcInfo> gcInfoPrivateConstructor = null;
 
-	/*[IF JAVA_SPEC_VERSION >= 17]*/
+	/*[IF (17 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24)]*/
 	@SuppressWarnings("removal")
-	/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
+	/*[ENDIF] (17 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24) */
 	private static Constructor<GcInfo> getGcInfoPrivateConstructor() {
 		if (null == gcInfoPrivateConstructor) {
+			/*[IF JAVA_SPEC_VERSION >= 24]*/
+			try {
+				gcInfoPrivateConstructor = GcInfo.class.getDeclaredConstructor(Long.TYPE, Long.TYPE, Long.TYPE, Map.class, Map.class);
+				gcInfoPrivateConstructor.setAccessible(true);
+			} catch (NoSuchMethodException e) {
+				/* Handle all sorts of internal errors arising due to reflection by rethrowing an InternalError. */
+				/*[MSG "K0660", "Internal error while obtaining private constructor."]*/
+				InternalError error = new InternalError(com.ibm.oti.util.Msg.getString("K0660")); //$NON-NLS-1$
+				error.initCause(e);
+				throw error;
+			}
+			/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 			gcInfoPrivateConstructor = java.security.AccessController.doPrivileged(new PrivilegedAction<Constructor<GcInfo>>() {
 				@Override
 				public Constructor<GcInfo> run() {
@@ -68,6 +82,7 @@ public final class GcInfoUtil {
 					}
 				}
 			});
+			/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 		}
 		return gcInfoPrivateConstructor;
 	}
@@ -127,16 +142,16 @@ public final class GcInfoUtil {
 	}
 
 	/**
-     * @param index
-     * 			  the identifier of this garbage collection which is the number of collections that this collector has done
-     * @param startTime
-     * 			  the start time of the collection in milliseconds since the Java virtual machine was started.
-     * @param endTime
-     * 			  the end time of the collection in milliseconds since the Java virtual machine was started.
-     * @param usageBeforeGc
-     * 			  the memory usage of all memory pools at the beginning of this GC.
-     * @param usageAfterGc
-     * 			  the memory usage of all memory pools at the end of this GC.
+	 * @param index
+	 * 			  the identifier of this garbage collection which is the number of collections that this collector has done
+	 * @param startTime
+	 * 			  the start time of the collection in milliseconds since the Java virtual machine was started.
+	 * @param endTime
+	 * 			  the end time of the collection in milliseconds since the Java virtual machine was started.
+	 * @param usageBeforeGc
+	 * 			  the memory usage of all memory pools at the beginning of this GC.
+	 * @param usageAfterGc
+	 * 			  the memory usage of all memory pools at the end of this GC.
 	 * @return a <code>GcInfo</code> object
 	 */
 	public static GcInfo newGcInfoInstance(long index, long startTime, long endTime, Map<String,MemoryUsage> usageBeforeGc, Map<String,MemoryUsage> usageAfterGc) {

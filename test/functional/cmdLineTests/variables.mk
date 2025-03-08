@@ -17,7 +17,17 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ##############################################################################
 
-CMDLINETESTER_JVM_OPTIONS=$(Q)-Xshareclasses:none$(Q)
+# if JDK_IMPL is openj9 or ibm
+ifneq ($(filter openj9 ibm, $(JDK_IMPL)),)
+    CMDLINETESTER_JVM_OPTIONS=$(Q)-Xshareclasses:none$(Q)
+endif
+
+# Set ENABLE_PREVIEW to --enable-preview when testing a Valhalla build.
+ifeq ($(findstring VTSTANDARD, $(TEST_FLAG)), VTSTANDARD)
+ ENABLE_PREVIEW=--enable-preview
+else
+ ENABLE_PREVIEW=
+endif

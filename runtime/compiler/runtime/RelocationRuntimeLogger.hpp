@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef RELOCATION_RUNTIME_LOGGER_INCL
@@ -50,8 +50,8 @@ class TR_RelocationRuntimeLogger {
       bool logEnabled()                                    { return _logEnabled; }
       bool logDetailEnabled(int32_t n)                     { return (n <=_logLevel); }
 
-      void debug_printf(char *format, ...);
-      void printf(char *format, ...);
+      void debug_printf(const char *format, ...);
+      void printf(const char *format, ...);
 
       void relocatableDataHeader();
       void method(bool newLine);

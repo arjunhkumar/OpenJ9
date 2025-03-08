@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION == 8]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.oti.vm;
 
 import java.lang.ref.SoftReference;
@@ -49,8 +49,8 @@ public abstract class AbstractClassLoader extends ClassLoader {
 	/*[PR JAZZ 88959] Use URLStreamHandler when creating bootstrap resource URLs */
 	private static URLStreamHandler	urlJarStreamHandler;
 	private static URLStreamHandler	urlFileStreamHandler;
-	
-public AbstractClassLoader(){
+
+public AbstractClassLoader() {
 }
 
 void fillCache(final int i) {
@@ -116,7 +116,6 @@ private void setParsedPathElement(int i, String value) {
 	}
 }
 
-
 /**
  * Answers a string representing the URL which matches the
  * given filename. The argument should be specified using the
@@ -126,7 +125,7 @@ private void setParsedPathElement(int i, String value) {
  *
  * @param filename the filename String to convert to URL form
  * @param cpType an int which indicates type of the URL
- * 
+ *
  * @return the URL formatted filename
  */
 static String toURLString(String filename, int cpType) {
@@ -274,7 +273,7 @@ protected Enumeration findResources(final String res) throws IOException {
 		}
 		result = reduced;
 	}
-	
+
 	ConcurrentHashMap<String, Vector> resourceCache;
 	if (resourceCacheRef == null || (resourceCache = resourceCacheRef.get()) == null) {
 		synchronized(cacheLock) {

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "env/J2IThunk.hpp"
@@ -62,7 +62,8 @@ TR_MHJ2IThunk::allocate(
    else
 #endif /* defined(J9VM_OPT_JITSERVER) */
       {
-      result = (TR_MHJ2IThunk*)cg->allocateCodeMemory(totalSize, true, false);
+      bool disclaim = TR::Options::getCmdLineOptions()->getOption(TR_EnableCodeCacheDisclaiming);
+      result = (TR_MHJ2IThunk*)cg->allocateCodeMemory(totalSize, !disclaim, false);
       }
    omrthread_jit_write_protect_disable();
    result->_codeSize  = codeSize;
@@ -73,7 +74,7 @@ TR_MHJ2IThunk::allocate(
    }
 
 
-TR_MHJ2IThunkTable::TR_MHJ2IThunkTable(TR_PersistentMemory *m, char *name):
+TR_MHJ2IThunkTable::TR_MHJ2IThunkTable(TR_PersistentMemory *m, const char *name):
    _name(name),
    _monitor(TR::Monitor::create(name)),
    _nodes(m)
@@ -110,7 +111,6 @@ char TR_MHJ2IThunkTable::terseTypeChar(char *type)
       {
       case '[':
       case 'L':
-      case 'Q':
          return TR::Compiler->target.is64Bit()? 'L' : 'I';
       case 'Z':
       case 'B':

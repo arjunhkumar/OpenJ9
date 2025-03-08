@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "omrport.h"
@@ -362,9 +362,11 @@ J9::Simplifier::simplifylCallMethods(TR::Node * node, TR::Block * block)
 //
 //   to:
 //
+// <new tree>
+//    lcall currentTimeMaxPrecision
 // <tree>
 //    ldiv
-//      lcall currentTimeMaxPrecision
+//      ==>lcall currentTimeMaxPrecision
 //      lconst <divisor value>
 TR::Node *J9::Simplifier::convertCurrentTimeMillis(TR::Node * node, TR::Block * block)
    {
@@ -386,6 +388,7 @@ TR::Node *J9::Simplifier::convertCurrentTimeMillis(TR::Node * node, TR::Block * 
       divConstNode->setLongInt(OMRPORT_TIME_HIRES_MILLITIME_DIVISOR);
 
       TR::Node::recreate(node, TR::ldiv);
+      callTreeTop->insertBefore(TR::TreeTop::create(comp(), TR::Node::create(node, TR::treetop, 1, lcallNode)));
       node->setNumChildren(2);
       node->setAndIncChild(0, lcallNode);
 
@@ -745,7 +748,7 @@ J9::Simplifier::simplifyiOrPatterns(TR::Node *node)
    //   ior
    //     imul
    //       bu2i
-   //         ibload #245[0x107AF564] Shadow[<Unsafe shadow sym>]
+   //         bloadi #245[0x107AF564] Shadow[<Unsafe shadow sym>]
    //           isub
    //             l2i
    //               lload #202[0x107A1050] Parm[<parm 1 J>]
@@ -754,20 +757,20 @@ J9::Simplifier::simplifyiOrPatterns(TR::Node *node)
    //     ior
    //       imul
    //         bu2i
-   //           ibload #245[0x107AF564] Shadow[<Unsafe shadow sym>]
+   //           bloadi #245[0x107AF564] Shadow[<Unsafe shadow sym>]
    //             isub
    //               ==>l2i at [0x107AE8F4]
    //               iconst -3
    //         iconst 16777216
    //       imul
    //         bu2i
-   //           ibload #245[0x107AF564] Shadow[<Unsafe shadow sym>]
+   //           bloadi #245[0x107AF564] Shadow[<Unsafe shadow sym>]
    //             isub
    //               ==>l2i at [0x107AE8F4]
    //               iconst -2
    //         iconst 65536
    //   bu2i
-   //     ibload #245[0x107AF564] Shadow[<Unsafe shadow sym>]
+   //     bloadi #245[0x107AF564] Shadow[<Unsafe shadow sym>]
    //       ==>l2i at [0x107AE8F4]
    //
 
@@ -789,7 +792,7 @@ J9::Simplifier::simplifyiOrPatterns(TR::Node *node)
       if ((addr = getUnsafeBaseAddr(byte2, -1)) && addr == byte1 &&
           (addr = getUnsafeBaseAddr(byte3, -2)) && addr == byte1 &&
           (addr = getUnsafeBaseAddr(byte4, -3)) && addr == byte1 &&
-          performTransformation(comp(), "%sconvert ior to iiload node [" POINTER_PRINTF_FORMAT "]\n", optDetailString(), node))
+          performTransformation(comp(), "%sconvert ior to iloadi node [" POINTER_PRINTF_FORMAT "]\n", optDetailString(), node))
          {
          TR::Node::recreate(node, TR::iloadi);
          node->setNumChildren(1);
@@ -983,11 +986,11 @@ J9::Simplifier::getOrOfTwoConsecutiveBytes(TR::Node * ior)
    // ior
    //   imul
    //     b2i
-   //       ibload #231[0x10D06670] Shadow[unknown field]
+   //       bloadi #231[0x10D06670] Shadow[unknown field]
    //         address
    //     iconst 256
    //   bu2i
-   //     ibload #231[0x10D06670] Shadow[unknown field]
+   //     bloadi #231[0x10D06670] Shadow[unknown field]
    //       isub
    //         ==>address
    //         iconst -1
@@ -996,13 +999,13 @@ J9::Simplifier::getOrOfTwoConsecutiveBytes(TR::Node * ior)
    // ior
    //   imul
    //     b2i
-   //       ibload #231[0x10D06670] Shadow[unknown field]
+   //       bloadi #231[0x10D06670] Shadow[unknown field]
    //         isub
    //           address
    //           iconst -1
    //     iconst 256
    //   bu2i
-   //     ibload #231[0x10D06670] Shadow[unknown field]
+   //     bloadi #231[0x10D06670] Shadow[unknown field]
    //       ==>address
    //
    TR::Node *byte1, *byte2, *temp, *addr;
@@ -1031,7 +1034,7 @@ J9::Simplifier::simplifyi2sPatterns(TR::Node *node)
    if (firstChild->getOpCodeValue() == TR::ior && 
        firstChild->getReferenceCount() == 1 &&
        (address = getOrOfTwoConsecutiveBytes(firstChild)) &&
-       performTransformation(comp(), "%sconvert ior to isload node [" POINTER_PRINTF_FORMAT "]\n", optDetailString(), node))
+       performTransformation(comp(), "%sconvert ior to sloadi node [" POINTER_PRINTF_FORMAT "]\n", optDetailString(), node))
       {
       TR::Node::recreate(node, TR::sloadi);
       node->setSymbolReference(getSymRefTab()->findOrCreateUnsafeSymbolRef(TR::Int16));
@@ -1200,8 +1203,13 @@ J9::Simplifier::simplifyIndirectLoadPatterns(TR::Node *node)
 
          TR::SymbolReference *childSymref = firstChild->getSymbolReference();
 
+         // Temporarily disable simplification of j9class->java/lang/Class->j9class to j9class
+         // The potential introduction of an l2a is causing problems for l2aEvaluator,
+         // which makes the assumption that l2a is only used for compressed references
+#if 0
          if (symRefPairMatches(nodeSymref, childSymref, getSymRefTab()->findClassFromJavaLangClassSymbolRef(), getSymRefTab()->findJavaLangClassFromClassSymbolRef()))
             fieldsAreComplementary = true;
+#endif
 
          if (symRefPairMatches(nodeSymref, childSymref, getSymRefTab()->findClassFromJavaLangClassAsPrimitiveSymbolRef(), getSymRefTab()->findJavaLangClassFromClassSymbolRef()))
             fieldsAreComplementary = true;

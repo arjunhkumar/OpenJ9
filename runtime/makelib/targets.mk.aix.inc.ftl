@@ -17,7 +17,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 <#assign lib_target_rule>
@@ -55,7 +55,11 @@ endif
 ifeq ($(j9vm_env_data64),1)
   UMA_ASPP_DEBUG += -g
   UMA_LIB_LINKER_FLAGS += -X64
-  UMA_CC_MODE += -q64
+  ifeq (openxl,$(OMR_TOOLCHAIN))
+    UMA_CC_MODE += -m64
+  else
+    UMA_CC_MODE += -q64
+  endif
 else
   UMA_ASPP_DEBUG += $(VMASMDEBUG)
   UMA_LIB_LINKER_FLAGS += -X32
@@ -98,13 +102,22 @@ else
 endif
 
 ifeq (,$(findstring xlclang,$(notdir $(CC))))
-  # xlc options
-  CFLAGS += -q mbcs -qinfo=pro
+  ifeq (openxl,$(OMR_TOOLCHAIN))
+    # for openxl do nothing
+  else
+    # xlc options
+    CFLAGS += -q mbcs -qinfo=pro
+  endif
 else
- # xlclang options
+  # xlclang options
   CFLAGS += -qxlcompatmacros
 endif
-CFLAGS += -qlanglvl=extended -qarch=ppc -qalias=noansi -qxflag=LTOL:LTOL0 -qsuppress=1506-1108 -qstackprotect
+ifeq (openxl,$(OMR_TOOLCHAIN))
+  #openxl options
+  CFLAGS += -std=c89 -qarch=ppc -fno-strict-aliasing -fstack-protector
+else
+  CFLAGS += -qlanglvl=extended -qarch=ppc -qalias=noansi -qxflag=LTOL:LTOL0 -qsuppress=1506-1108 -qstackprotect
+endif
 CFLAGS += -D_XOPEN_SOURCE_EXTENDED=1 -D_ALL_SOURCE -DRS6000 -DAIXPPC -D_LARGE_FILES
 
 ifdef I5_VERSION
@@ -114,13 +127,23 @@ else
 endif
 
 ifeq (,$(findstring xlclang++,$(notdir $(CXX))))
-  # xlc++ options
-  CXXFLAGS += -q mbcs -qinfo=pro
+  ifeq (openxl,$(OMR_TOOLCHAIN))
+    # openxl options
+    CXXFLAGS += -fno-rtti -fno-exceptions
+  else
+    # xlc++ options
+    CXXFLAGS += -q mbcs -qinfo=pro
+  endif
 else
   # xlclang++ options
   CXXFLAGS += -qxlcompatmacros -fno-rtti -fno-exceptions
 endif
-CXXFLAGS += -qlanglvl=extended0x -qarch=ppc -qalias=noansi -qxflag=LTOL:LTOL0 -qsuppress=1506-1108 -qstackprotect
+ifeq (openxl,$(OMR_TOOLCHAIN))
+  # openxl options
+  CXXFLAGS += -std=c++11 -qarch=ppc -fno-strict-aliasing -fstack-protector
+else
+  CXXFLAGS += -qlanglvl=extended0x -qarch=ppc -qalias=noansi -qxflag=LTOL:LTOL0 -qsuppress=1506-1108 -qstackprotect
+endif
 CXXFLAGS += -D_XOPEN_SOURCE_EXTENDED=1 -D_ALL_SOURCE -DRS6000 -DAIXPPC -D_LARGE_FILES
 CPPFLAGS += -D_XOPEN_SOURCE_EXTENDED=1 -D_ALL_SOURCE -DRS6000 -DAIXPPC -D_LARGE_FILES
 
@@ -143,7 +166,11 @@ endif
 UMA_SYS_LINK_PATH := -L/usr/lib/threads
 
 ifeq ($(j9vm_env_data64),1)
-  UMA_DLL_LINK_FLAGS += -q64
+  ifeq (openxl,$(OMR_TOOLCHAIN))
+    UMA_DLL_LINK_FLAGS += -m64
+  else
+    UMA_DLL_LINK_FLAGS += -q64
+  endif
 else
   UMA_DLL_LINK_FLAGS += -q32
 endif
@@ -178,7 +205,12 @@ $(patsubst %.s,%.o,$(filter %.s,$(UMA_FILES_TO_PREPROCESS))) : %$(UMA_DOT_O) : %
 
 ifdef UMA_TREAT_WARNINGS_AS_ERRORS
   ifndef UMA_SUPPRESS_WARNINGS_AS_ERRORS
-    CFLAGS += -qhalt=w
-    CXXFLAGS += -qhalt=w
+    ifeq (openxl,$(OMR_TOOLCHAIN))
+      CFLAGS += -Werror
+      CXXFLAGS += -Werror
+    else
+      CFLAGS += -qhalt=w
+      CXXFLAGS += -qhalt=w
+    endif
   endif
 endif

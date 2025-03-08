@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -28,6 +28,8 @@
 #include "objhelp.h"
 #include "omrthread.h"
 #include "ut_j9vm.h"
+
+#include "VMHelpers.hpp"
 
 #include <string.h>
 
@@ -49,12 +51,12 @@ validateTimeouts(J9VMThread *vmThread, I_64 millis, I_32 nanos)
 
 	if (millis < 0) {
 		setCurrentExceptionNLS(
-			vmThread, 
+			vmThread,
 			J9VMCONSTANTPOOL_JAVALANGILLEGALARGUMENTEXCEPTION,
 			J9NLS_JCL_TIMEOUT_VALUE_IS_NEGATIVE);
 	} else if (nanos < 0 || nanos >= 1000000) {
 		setCurrentExceptionNLS(
-			vmThread, 
+			vmThread,
 			J9VMCONSTANTPOOL_JAVALANGILLEGALARGUMENTEXCEPTION,
 			J9NLS_JCL_NANOSECOND_TIMEOUT_VALUE_OUT_OF_RANGE);
 	} else {
@@ -80,6 +82,12 @@ monitorWaitImpl(J9VMThread *vmThread, j9object_t object, I_64 millis, I_32 nanos
 	} else {
 		UDATA thrstate = 0;
 		J9JavaVM *javaVM = vmThread->javaVM;
+		PORT_ACCESS_FROM_JAVAVM(javaVM);
+		J9Class *monitorClass = NULL;
+		I_64 startTicks = j9time_nano_time();
+
+		monitorClass = J9OBJECT_CLAZZ(vmThread, object);
+
 		if ((millis > 0) || (nanos > 0)) {
 			thrstate = J9_PUBLIC_FLAGS_THREAD_WAITING | J9_PUBLIC_FLAGS_THREAD_TIMED;
 		} else {
@@ -104,7 +112,7 @@ monitorWaitImpl(J9VMThread *vmThread, j9object_t object, I_64 millis, I_32 nanos
 		internalAcquireVMAccessClearStatus(vmThread, thrstate);
 		J9VMTHREAD_SET_BLOCKINGENTEROBJECT(vmThread, vmThread, NULL);
 		omrthread_monitor_unpin(monitor, vmThread->osThread);
-		TRIGGER_J9HOOK_VM_MONITOR_WAITED(javaVM->hookInterface, vmThread, monitor, millis, nanos, rc);
+		TRIGGER_J9HOOK_VM_MONITOR_WAITED(javaVM->hookInterface, vmThread, monitor, millis, nanos, rc, startTicks, (UDATA) monitor, VM_VMHelpers::currentClass(monitorClass));
 
 		switch (rc) {
 		case 0:
@@ -162,15 +170,20 @@ threadSleepImpl(J9VMThread *vmThread, I_64 millis, I_32 nanos)
 		/* An IllegalArgumentException has been set. */
 		rc = -1;
 	} else {
+		PORT_ACCESS_FROM_JAVAVM(javaVM);
+		I_64 startTicks = (U_64) j9time_nano_time();
+
 #ifdef J9VM_OPT_SIDECAR
 		/* Increment the wait count even if the deadline is past. */
 		vmThread->mgmtWaitedCount++;
 #endif
-		TRIGGER_J9HOOK_VM_SLEEP(javaVM->hookInterface, vmThread, millis, nanos);
-		internalReleaseVMAccessSetStatus(vmThread, J9_PUBLIC_FLAGS_THREAD_SLEEPING);
-		rc = timeCompensationHelper(vmThread, HELPER_TYPE_THREAD_SLEEP, NULL, millis, nanos);
-		internalAcquireVMAccessClearStatus(vmThread, J9_PUBLIC_FLAGS_THREAD_SLEEPING);
-		TRIGGER_J9HOOK_VM_SLEPT(javaVM->hookInterface, vmThread);
+		if (0 == rc) {
+			TRIGGER_J9HOOK_VM_SLEEP(javaVM->hookInterface, vmThread, millis, nanos);
+			internalReleaseVMAccessSetStatus(vmThread, J9_PUBLIC_FLAGS_THREAD_SLEEPING);
+			rc = timeCompensationHelper(vmThread, HELPER_TYPE_THREAD_SLEEP, NULL, millis, nanos);
+			internalAcquireVMAccessClearStatus(vmThread, J9_PUBLIC_FLAGS_THREAD_SLEEPING);
+			TRIGGER_J9HOOK_VM_SLEPT(javaVM->hookInterface, vmThread, millis, nanos, startTicks);
+		}
 
 		if (0 == rc) {
 			/* Trc_JCL_sleep_Exit(vmThread); */
@@ -225,7 +238,7 @@ getMonitorForWait(J9VMThread* vmThread, j9object_t object)
 			return NULL;
 		}
 		lockEA = &objectMonitor->alternateLockword;
-	} 
+	}
 	else {
 		lockEA = J9OBJECT_MONITOR_EA(vmThread, object);
 	}
@@ -233,7 +246,7 @@ getMonitorForWait(J9VMThread* vmThread, j9object_t object)
 
 	if (J9_LOCK_IS_INFLATED(lock)) {
 		objectMonitor = J9_INFLLOCK_OBJECT_MONITOR(lock);
-		
+
 		monitor = objectMonitor->monitor;
 //		Trc_JCL_foundMonitorInLockword(vmThread, monitor, object);
 

@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -36,6 +36,13 @@
  * Signature for the callback function passed to the stack walker
  */
 typedef void J9MODRON_OSLOTITERATOR(J9JavaVM *javaVM, J9Object **objectIndirect, void *localData, J9StackWalkState *walkState, const void *stackLocation);
+
+extern "C" {
+
+void gc_vmThreadStackDoOSlotIterator(J9VMThread *vmThread, J9StackWalkState *walkState, j9object_t *oSlotPointer, const void * stackLocation);
+
+} /* extern "C" */
+
 
 /**
  * Iterate over all slots on the stack of a given thread which contain object references.
@@ -71,6 +78,7 @@ public:
 #if JAVA_SPEC_VERSION >= 19
 	static void scanSlots(
 			J9VMThread *vmThread,
+			J9VMThread *walkThread,
 			J9VMContinuation *continuation,
 			void *userData,
 			J9MODRON_OSLOTITERATOR *oSlotIterator,

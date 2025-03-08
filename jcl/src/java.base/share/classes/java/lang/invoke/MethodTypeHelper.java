@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
+/*
  * Copyright IBM Corp. and others 2020
  *
  * This program and the accompanying materials are made available under
@@ -18,26 +18,23 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.lang.StringBuilder;
-/*[IF INLINE-TYPES]*/
-import jdk.internal.value.PrimitiveClass;
-/*[ENDIF] INLINE-TYPES */
 
 import com.ibm.oti.util.Msg;
+import com.ibm.oti.vm.VM;
 
 /**
- * MethodTypeHelper - static methods
- *
- * @since Java 11
+ * MethodTypeHelper - static methods.
  */
 final class MethodTypeHelper {
 	static final Set<Class<?>> WRAPPER_SET;
@@ -46,7 +43,7 @@ final class MethodTypeHelper {
 		WRAPPER_SET = Collections.unmodifiableSet(new HashSet<Class<?>>(Arrays.asList(wrappers)));
 	}
 
-	/*[IF ]*/
+	/*[IF]*/
 	/* Do not include 'primitives.put("V", void.class)' as void.class is not yet loaded when
 	 * MethodType gets loaded and this will cause the VM not to start.  See the code
 	 * in Class#getPrimitiveClass() for the issue. */
@@ -106,7 +103,7 @@ final class MethodTypeHelper {
 	 * @param wrapperClass The class to check for primitive classes.
 	 * @return The corresponding primitive class or the input class.
 	 */
-	/*[IF ]*/
+	/*[IF]*/
 	/* Note that Void.class is not handled by this method as it is only viewed as a
 	 * wrapper when it is the return class.
 	 */
@@ -178,14 +175,7 @@ final class MethodTypeHelper {
 		}
 		/*[ENDIF] JAVA_SPEC_VERSION >= 15 */
 		if (c.isArray()) {
-		}
-		/*[IF INLINE-TYPES]*/
-		else if (PrimitiveClass.isPrimitiveClass(c)) {
-			name = new StringBuilder(name.length() + 2).
-				append('Q').append(name).append(';').toString();
-		}
-		/*[ENDIF] INLINE-TYPES */
-		else {
+		} else {
 			name = new StringBuilder(name.length() + 2).
 				append('L').append(name).append(';').toString();
 		}
@@ -195,17 +185,13 @@ final class MethodTypeHelper {
 	/*
 	 * Convert the string from bytecode format to the format needed for ClassLoader#loadClass().
 	 * Change all '/' to '.'.
-	 * Remove the 'L', 'Q', and ';' from objects, unless they are array classes.
+	 * Remove the 'L' and ';' from objects, unless they are array classes.
 	 */
 	private static final Class<?> nonPrimitiveClassFromString(String name, ClassLoader classLoader) {
 		try {
 			name = name.replace('/', '.');
-			if ((name.charAt(0) == 'L')
-				/*[IF INLINE-TYPES]*/
-				|| (name.charAt(0) == 'Q')
-				/*[ENDIF] INLINE-TYPES */
-			) {
-				// Remove the 'L'/'Q' and ';'.
+			if (name.charAt(0) == 'L') {
+				// Remove the 'L' and ';'.
 				name = name.substring(1, name.length() - 1);
 			}
 			return Class.forName(name, false, classLoader);
@@ -222,21 +208,13 @@ final class MethodTypeHelper {
 		char current = signature[index];
 		Class<?> c;
 
-		if ((current == 'L') || (current == '[')
-			/*[IF INLINE-TYPES]*/
-			|| (current == 'Q')
-			/*[ENDIF] INLINE-TYPES */
-		) {
+		if ((current == 'L') || (current == '[')) {
 			int start = index;
 			while(signature[index] == '[') {
 				index++;
 			}
 			String name;
-			if ((signature[index] != 'L')
-				/*[IF INLINE-TYPES]*/
-				&& (signature[index] != 'Q')
-				/*[ENDIF] INLINE-TYPES */
-			) {
+			if (signature[index] != 'L') {
 				name = descriptor.substring(start, index + 1);
 			} else {
 				int end = descriptor.indexOf(';', index);
@@ -271,6 +249,116 @@ final class MethodTypeHelper {
 	}
 
 	/**
+	 * Parse the MethodDescriptor string into a list of Class objects. The last class in the list
+	 * is the return type.
+	 *
+	 * @param methodDescriptor the method descriptor string
+	 * @param classLoader the ClassLoader to be used or null for System ClassLoader
+	 * @return list of classes representing the parameters and return type
+	 * @throws IllegalArgumentException if the string is not well-formed
+	 */
+	static final ArrayList<Class<?>> parseIntoClasses(String methodDescriptor, ClassLoader classLoader) {
+		int length = methodDescriptor.length();
+		if (length == 0) {
+			/*[MSG "K05d3", "invalid descriptor: {0}"]*/
+			throw new IllegalArgumentException(Msg.getString("K05d3", methodDescriptor)); //$NON-NLS-1$
+		}
+
+		char[] signature = new char[length];
+		methodDescriptor.getChars(0, length, signature, 0);
+		int index = 0;
+		boolean closeBracket = false;
+
+		if (signature[index] != '(') {
+			/*[MSG "K05d4", "missing opening '(': {0}"]*/
+			throw new IllegalArgumentException(Msg.getString("K05d4", methodDescriptor)); //$NON-NLS-1$
+		}
+		index++;
+
+		ArrayList<Class<?>> args = new ArrayList<Class<?>>();
+
+		while(index < length) {
+			/* Ensure we only see one ')' closing bracket */
+			if ((signature[index] == ')')) {
+				if (closeBracket) {
+					/*[MSG "K05d5", "too many ')': {0}"]*/
+					throw new IllegalArgumentException(Msg.getString("K05d5", methodDescriptor)); //$NON-NLS-1$
+				}
+				closeBracket = true;
+				index++;
+				continue;
+			}
+
+			index = parseIntoClass(signature, index, args, classLoader, methodDescriptor);
+			index++;
+		}
+		return args;
+	}
+
+	/**
+	 * Convenience Method to create a MethodType from bytecode-level method descriptor.
+	 * (See JVM Spec 2nd Ed. section 4.4.3).
+	 *
+	 * All of the classes used in the method descriptor string must be reachable from a
+	 * common ClassLoader or an exception will result.
+	 *
+	 * The ClassLoader parameter may be null, in which case the System ClassLoader will be used.
+	 *
+	 * Note, the Class names must use JVM syntax in the method descriptor String and therefore
+	 * java.lang.Class will be represented as Ljava/lang/Class;
+	 *
+	 * Example method descriptors:
+	 *    (II)V - method taking two ints and return void
+	 *    (I)Ljava/lang/Integer; - method taking an int and returning an Integer
+	 *    ([I)I - method taking an array of ints and returning an int
+	 *
+	 * @param methodDescriptor the method descriptor string
+	 * @param loader the ClassLoader to be used or null for System ClassLoader
+	 * @return a MethodType object representing the method descriptor string
+	 * @throws IllegalArgumentException if the string is not well-formed
+	 * @throws TypeNotPresentException if a named type cannot be found
+	 */
+	static MethodType fromMethodDescriptorStringInternal(String methodDescriptor, ClassLoader loader) {
+		ClassLoader classLoader = loader;
+		if (classLoader == null) {
+			/*[IF (14 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24)]*/
+			@SuppressWarnings("removal")
+			SecurityManager security = System.getSecurityManager();
+			if (security != null) {
+				security.checkPermission(sun.security.util.SecurityConstants.GET_CLASSLOADER_PERMISSION);
+			}
+			/*[ENDIF] (14 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24) */
+			classLoader = ClassLoader.getSystemClassLoader();
+		}
+
+		// Check cache
+		Map<String, MethodType> classLoaderMethodTypeCache = VM.getVMLangAccess().getMethodTypeCache(classLoader);
+		MethodType mt = classLoaderMethodTypeCache != null ? classLoaderMethodTypeCache.get(methodDescriptor) : null;
+
+		// MethodDescriptorString is not in cache
+		if (null == mt) {
+			// ensure '.' is not included in the descriptor
+			if (methodDescriptor.indexOf((int)'.') != -1) {
+				throw new IllegalArgumentException(methodDescriptor);
+			}
+
+			// split descriptor into classes - last one is the return type
+			ArrayList<Class<?>> classes = parseIntoClasses(methodDescriptor, classLoader);
+			if (classes.size() == 0) {
+				throw new IllegalArgumentException(methodDescriptor);
+			}
+
+			Class<?> returnType = classes.remove(classes.size() - 1);
+			mt = MethodType.methodType(returnType, classes);
+			if (classLoaderMethodTypeCache != null) {
+				classLoaderMethodTypeCache.put(mt.toMethodDescriptorString(), mt);
+			}
+		}
+
+		return mt;
+	}
+
+	/**
 	 * This helper calls MethodType.fromMethodDescriptorString(...) or
 	 * MethodType.fromMethodDescriptorStringAppendArg(...) but throws
 	 * NoClassDefFoundError instead of TypeNotPresentException during
@@ -287,7 +375,7 @@ final class MethodTypeHelper {
 	 */
 	static final MethodType vmResolveFromMethodDescriptorString(String methodDescriptor, ClassLoader loader, Class<?> appendArgumentType) throws Throwable {
 		try {
-			MethodType result = MethodType.fromMethodDescriptorString(methodDescriptor, loader);
+			MethodType result = fromMethodDescriptorStringInternal(methodDescriptor, loader);
 			if (null != appendArgumentType) {
 				result = result.appendParameterTypes(appendArgumentType);
 			}

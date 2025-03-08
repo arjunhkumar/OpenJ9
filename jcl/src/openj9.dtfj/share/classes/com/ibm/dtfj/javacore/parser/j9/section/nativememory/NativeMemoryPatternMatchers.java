@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.nativememory;
 
 import java.util.regex.Matcher;
@@ -30,13 +30,13 @@ import com.ibm.dtfj.javacore.parser.j9.section.common.CommonPatternMatchers;
 public class NativeMemoryPatternMatchers
 {
 	public static final Matcher pipes = CommonPatternMatchers.generateMatcher("\\s*(\\|\\s*)*", 0);
-	
+
 	public static final Matcher crossminusminus = CommonPatternMatchers.generateMatcher("+--", Pattern.LITERAL);
-	
+
 	public static final Matcher categoryName = CommonPatternMatchers.generateMatcher("[^:]+(?=:)", 0);
-	
+
 	public static final Matcher commaDelimitedNumeric = CommonPatternMatchers.generateMatcher("[0-9,]+", 0);
-	
+
 	public static final Matcher bytesAndSeparator = CommonPatternMatchers.generateMatcher(" bytes / ", Pattern.LITERAL);
-	
+
 }

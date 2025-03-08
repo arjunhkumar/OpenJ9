@@ -1,5 +1,5 @@
-/*[INCLUDE-IF CRIU_SUPPORT]*/
-/*******************************************************************************
+/*[INCLUDE-IF CRIU_SUPPORT & (JAVA_SPEC_VERSION < 24)]*/
+/*
  * Copyright IBM Corp. and others 2021
  *
  * This program and the accompanying materials are made available under
@@ -18,21 +18,21 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.eclipse.openj9.criu;
 
 import java.security.BasicPermission;
 
 /**
  * The permission class for operations on the org.eclipse.openj9.criu.CRIUSupport class.
- * Allowing code access to this permission will allow applications to trigger 
- * CRIU dumps
- * 
- * A dump file will be a complete image of the applications memory. Code with read
+ * Allowing code access to this permission will allow applications to trigger
+ * CRIU dumps.
+ *
+ * A dump file will be a complete image of the application's memory. Code with read
  * access to dump files produced by org.eclipse.openj9.criu.CRIUSupport should be considered as having
  * access to any information that was within the application at the time the dump
- * was taken. 
+ * was taken.
  */
 public class CRIUDumpPermission extends BasicPermission {
 
@@ -42,7 +42,7 @@ public class CRIUDumpPermission extends BasicPermission {
 	private static final long serialVersionUID = -8218410156654287322L;
 
 	/**
-	 * Creates CRIUDumpPermission
+	 * Creates CRIUDumpPermission.
 	 */
 	public CRIUDumpPermission() {
 		super("CRIUDumpPermission"); //$NON-NLS-1$

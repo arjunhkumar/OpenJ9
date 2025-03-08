@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17 & !OPENJDK_METHODHANDLES]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 /*[IF JAVA_SPEC_VERSION >= 15]*/
@@ -37,16 +37,16 @@ abstract class PassThroughHandle extends MethodHandle {
 	/**
 	 * Create a new PassThroughHandle that will call 'equivalent' MethodHandle
 	 * when invoked in the interpreter.
-	 * 
+	 *
 	 * @param equivalent the equivalent methodhandle, usually using the collect-operate-spread pattern
 	 * @param name subclass name
-	 * @param thunkArg extra thunkArg used in computeThunks.  
+	 * @param thunkArg extra thunkArg used in computeThunks.
 	 */
 	PassThroughHandle(MethodHandle equivalent, Object thunkArg) {
 		super(equivalent.type, KIND_PASSTHROUGH, thunkArg);
 		this.equivalent = equivalent;
 	}
-	
+
 	/**
 	 * Helper constructor.  Calls {@link #PassThroughHandle(MethodHandle, Object)} with null thunkArg
 	 */
@@ -61,7 +61,7 @@ abstract class PassThroughHandle extends MethodHandle {
 		super(originalHandle, newType);
 		this.equivalent = originalHandle.equivalent;
 	}
-	
+
 /*[IF JAVA_SPEC_VERSION >= 15]*/
 	@Override
 	boolean addRelatedMHs(List<MethodHandle> relatedMHs) {

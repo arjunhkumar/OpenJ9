@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -46,8 +46,6 @@ static J9PortLibrary MainPortLibraryTable = {
 	j9sysinfo_startup,
 	j9sysinfo_shutdown,
 	j9sysinfo_get_classpathSeparator, /* sysinfo_get_classpathSeparator */
-	j9sysinfo_get_processor_description, /* sysinfo_get_processor_description */
-	j9sysinfo_processor_has_feature, /* sysinfo_processor_has_feature */
 	j9sysinfo_get_hw_info, /* sysinfo_get_hw_info */
 	j9sysinfo_get_cache_info, /* sysinfo_get_cache_info */
 	j9sock_startup, /* sock_startup */

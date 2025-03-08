@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.diagnostics.utils.commands;
 
 import java.io.PrintStream;
@@ -29,7 +29,7 @@ import com.ibm.java.diagnostics.utils.IDTFJContext;
 
 /**
  * Command to quit out of the interactive command parser
- * 
+ *
  * @author adam
  *
  */
@@ -39,7 +39,7 @@ public class QuitCommand extends BaseCommand {
 		addCommand("quit", "", "Exit the application");
 		addCommand("exit", "", "Exit the application");
 	}
-	
+
 	public void run(String command, String[] args, IContext context, PrintStream out) throws CommandException {
 		switch (args.length) {
 			case 0 :		//no arguments so quit out
@@ -58,7 +58,6 @@ public class QuitCommand extends BaseCommand {
 				out.println("The supplied parameters were not recognised");
 				break;
 		}
-		
 
 	}
 

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdlib.h>
@@ -79,6 +79,12 @@ static I_32 dumpPermittedSubclasses(J9PortLibrary *portLib, J9ROMClass *romClass
 #if JAVA_SPEC_VERSION >= 11
 static I_32 dumpNest (J9PortLibrary *portLib, J9ROMClass *romClass, U_32 flags);
 #endif /* JAVA_SPEC_VERSION >= 11 */
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+static I_32 dumpLoadableDescriptors(J9PortLibrary *portLib, J9ROMClass *romClass);
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+static I_32 dumpImplicitCreationFlags (J9PortLibrary *portLib, J9ROMClass *romClass);
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 static I_32 dumpSimpleName (J9PortLibrary *portLib, J9ROMClass *romClass, U_32 flags);
 static I_32 dumpUTF ( J9UTF8 *utfString, J9PortLibrary *portLib, U_32 flags);
 static I_32 dumpSourceDebugExtension (J9PortLibrary *portLib, J9ROMClass *romClass, U_32 flags);
@@ -130,7 +136,7 @@ IDATA j9bcutil_dumpRomClass( J9ROMClass *romClass, J9PortLibrary *portLib, J9Tra
 	dumpEnclosingMethod(portLib, romClass, flags);
 
 	j9tty_printf( PORTLIB,  "Basic Access Flags (0x%X): ", romClass->modifiers);
-	printModifiers(PORTLIB, romClass->modifiers, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_CLASS);
+	printModifiers(PORTLIB, romClass->modifiers, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_CLASS, J9ROMCLASS_IS_VALUE(romClass));
 	j9tty_printf( PORTLIB,  "\n");
 	j9tty_printf( PORTLIB,  "J9 Access Flags (0x%X): ", romClass->extraModifiers);
 	j9_printClassExtraModifiers(portLib, romClass->extraModifiers);
@@ -163,7 +169,7 @@ IDATA j9bcutil_dumpRomClass( J9ROMClass *romClass, J9PortLibrary *portLib, J9Tra
 		}
 		j9tty_printf( PORTLIB, "\n");
 		j9tty_printf( PORTLIB,  "Member Access Flags (0x%X): ", romClass->memberAccessFlags);
-		printModifiers(PORTLIB, romClass->memberAccessFlags, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_CLASS);
+		printModifiers(PORTLIB, romClass->memberAccessFlags, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_CLASS, J9ROMCLASS_IS_VALUE(romClass));
 
 		j9tty_printf( PORTLIB,  "\n");
 	}
@@ -189,6 +195,18 @@ IDATA j9bcutil_dumpRomClass( J9ROMClass *romClass, J9PortLibrary *portLib, J9Tra
 	/* dump the nest members or nest host, if defined */
 	dumpNest(portLib, romClass, flags);
 #endif /* JAVA_SPEC_VERSION >= 11 */
+
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+	if (J9_ARE_ALL_BITS_SET(romClass->optionalFlags, J9_ROMCLASS_OPTINFO_LOADABLEDESCRIPTORS_ATTRIBUTE)) {
+		dumpLoadableDescriptors(portLib, romClass);
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	if (J9_ARE_ALL_BITS_SET(romClass->optionalFlags, J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE)) {
+		dumpImplicitCreationFlags(portLib, romClass);
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 	j9tty_printf( PORTLIB, "Fields (%i):\n", romClass->romFieldCount);
 	currentField = romFieldsStartDo(romClass, &state);
@@ -305,7 +323,7 @@ static I_32 dumpRomField( J9ROMFieldShape *romField, J9PortLibrary *portLib, U_3
 	j9tty_printf( PORTLIB,  "\n");
 
 	j9tty_printf( PORTLIB, "  Access Flags (%X): ", romField->modifiers);
-	printModifiers(PORTLIB, romField->modifiers, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_FIELD);
+	printModifiers(PORTLIB, romField->modifiers, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_FIELD, FALSE);
 	j9tty_printf( PORTLIB, "\n");
 	return BCT_ERR_NO_ERROR;
 }
@@ -329,7 +347,7 @@ static I_32 dumpRomStaticField( J9ROMFieldShape *romStatic, J9PortLibrary *portL
 	j9tty_printf( PORTLIB,  "\n");
 
 	j9tty_printf( PORTLIB, "  Access Flags (%X): ", romStatic->modifiers);
-	printModifiers(PORTLIB, romStatic->modifiers, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_FIELD);
+	printModifiers(PORTLIB, romStatic->modifiers, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_FIELD, FALSE);
 	j9tty_printf( PORTLIB, "\n");
 
 	return BCT_ERR_NO_ERROR;
@@ -871,6 +889,35 @@ dumpNest(J9PortLibrary *portLib, J9ROMClass *romClass, U_32 flags)
 }
 #endif /* JAVA_SPEC_VERSION >= 11 */
 
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+static I_32
+dumpLoadableDescriptors(J9PortLibrary *portLib, J9ROMClass *romClass)
+{
+	PORT_ACCESS_FROM_PORT(portLib);
+	U_32 *loadableDescriptorsInfoPtr = getLoadableDescriptorsInfoPtr(romClass);
+	U_32 loadableDescriptorsCount = *loadableDescriptorsInfoPtr;
+	U_16 i = 0;
+
+	j9tty_printf(PORTLIB, "Loadable descriptors (%i):\n", loadableDescriptorsCount);
+	for (; i < loadableDescriptorsCount; i++) {
+		J9UTF8 *loadableDescriptorUtf8 = loadableDescriptorAtIndex(loadableDescriptorsInfoPtr, i);
+		j9tty_printf(PORTLIB, "  %.*s\n", J9UTF8_LENGTH(loadableDescriptorUtf8), J9UTF8_DATA(loadableDescriptorUtf8));
+	}
+	return BCT_ERR_NO_ERROR;
+}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+static I_32
+dumpImplicitCreationFlags(J9PortLibrary *portLib, J9ROMClass *romClass)
+{
+	PORT_ACCESS_FROM_PORT(portLib);
+	U_16 implicitCreationFlags = getImplicitCreationFlags(romClass);
+	j9tty_printf(PORTLIB, "ImplicitCreation flags: 0x%X\n", implicitCreationFlags);
+	return BCT_ERR_NO_ERROR;
+}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
+
 static I_32
 dumpSimpleName(J9PortLibrary *portLib, J9ROMClass *romClass, U_32 flags)
 {
@@ -907,10 +954,17 @@ I_32 j9bcutil_dumpRomMethod( J9ROMMethod *romMethod, J9ROMClass *romClass, J9Por
 	j9tty_printf( PORTLIB,  "\n");
 
 	j9tty_printf( PORTLIB, "  Access Flags (%X): ", romMethod->modifiers);
-	printModifiers(PORTLIB, (U_32)romMethod->modifiers, INCLUDE_INTERNAL_MODIFIERS, MODIFIERSOURCE_METHOD);
+	printModifiers(PORTLIB, (U_32)romMethod->modifiers, INCLUDE_INTERNAL_MODIFIERS, MODIFIERSOURCE_METHOD, FALSE);
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	if (J9_ARE_ALL_BITS_SET(romClass->optionalFlags, J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE)) {
+		if (J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(J9ROMMETHOD_NAME(romMethod)), J9UTF8_LENGTH(J9ROMMETHOD_NAME(romMethod)), "<init>")) {
+			j9tty_printf(PORTLIB, " implicit");
+		}
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	j9tty_printf( PORTLIB,  "\n");
 
-	j9tty_printf( PORTLIB, "  Extended modfiers (%X): ", getExtendedModifiersDataFromROMMethod(romMethod));
+	j9tty_printf( PORTLIB, "  Extended modifiers (%X): ", getExtendedModifiersDataFromROMMethod(romMethod));
 	printMethodExtendedModifiers(PORTLIB, (U_32)getExtendedModifiersDataFromROMMethod(romMethod));
 	j9tty_printf( PORTLIB,  "\n");
 
@@ -968,7 +1022,7 @@ I_32 j9bcutil_dumpRomMethod( J9ROMMethod *romMethod, J9ROMClass *romClass, J9Por
 				dumpUTF( parameterNameUTF8, portLib, 0);
 			}
 			j9tty_printf( PORTLIB, "    0x%x ( ", parameters[i].flags);
-			printModifiers(PORTLIB, parameters[i].flags, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_METHODPARAMETER);
+			printModifiers(PORTLIB, parameters[i].flags, ONLY_SPEC_MODIFIERS, MODIFIERSOURCE_METHODPARAMETER, FALSE);
 			j9tty_printf( PORTLIB, " )\n");
 		}
 		j9tty_printf( PORTLIB, "\n");
@@ -1068,7 +1122,7 @@ dumpModifierWord(J9PortLibrary *portLib, U_32 modifiers, J9ModifierInfo *modInfo
 }
 
 void
-printModifiers(J9PortLibrary *portLib, U_32 modifiers, modifierScope modScope, modifierSource modifierSrc)
+printModifiers(J9PortLibrary *portLib, U_32 modifiers, modifierScope modScope, modifierSource modifierSrc, BOOLEAN valueTypeClass)
 {
 	PORT_ACCESS_FROM_PORT(portLib);
 
@@ -1130,6 +1184,7 @@ printModifiers(J9PortLibrary *portLib, U_32 modifiers, modifierScope modScope, m
 					{J9AccMethodHasMethodAnnotations, "(has method annotations)"},
 					{J9AccMethodHasParameterAnnotations, "(has parameter annotations)"},
 					{J9AccMethodHasDefaultAnnotation, "(has default annotation)"},
+					{J9AccMethodAllowFinalFieldWrites, "(allows final field writes)"},
 					{0, ""} /* terminator */
 			};
 			modifiers = dumpModifierWord(portLib, modifiers,modInfo);
@@ -1295,6 +1350,13 @@ printModifiers(J9PortLibrary *portLib, U_32 modifiers, modifierScope modScope, m
 			if(modifiers) j9tty_printf(PORTLIB, " ");
 		}
 	}
+
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+	if (MODIFIERSOURCE_CLASS == modifierSrc && valueTypeClass) {
+		j9tty_printf(PORTLIB, "value");
+		if(modifiers) j9tty_printf(PORTLIB, " ");
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 
 	if (modifiers) j9tty_printf(PORTLIB, "unknown_flags = 0x%X" , modifiers);
 }

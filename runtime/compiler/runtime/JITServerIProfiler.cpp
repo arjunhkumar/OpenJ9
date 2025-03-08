@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "runtime/JITServerIProfiler.hpp"
@@ -37,7 +37,11 @@
 JITServerIProfiler *
 JITServerIProfiler::allocate(J9JITConfig *jitConfig)
    {
-   JITServerIProfiler * profiler = new (PERSISTENT_NEW) JITServerIProfiler(jitConfig);
+   // The global persistent allocator will be used to allocate the singleton JITServerIProfiler object.
+   // All other allocations for data structures used by JITServerIProfiler will be done using
+   // the per-client persistent allocator.
+   TR_IProfiler::setAllocator(&TR::Compiler->persistentAllocator());
+   JITServerIProfiler * profiler = new JITServerIProfiler(jitConfig);
    return profiler;
    }
 
@@ -200,7 +204,7 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
 #if defined(DEBUG) || defined(PROD_WITH_ASSUMES)
          // sanity check
          // Ask the client again and see if the two sources of information match
-         auto stream = TR::CompilationInfo::getStream();
+         auto stream = comp->getStream();
          stream->write(JITServer::MessageType::IProfiler_profilingSample, method, byteCodeIndex, (uintptr_t)1);
          auto recv = stream->read<std::string, bool, bool, bool>();
          auto &ipdata = std::get<0>(recv);
@@ -215,7 +219,7 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
          if (!clientData && entry)
             {
             uint8_t bytecode = *(uint8_t *)(methodStart + byteCodeIndex);
-            fprintf(stderr, "Error cached IP data for method %p bcIndex %u bytecode=%x: ipdata is empty but we have a cached entry=%p\n", 
+            fprintf(stderr, "Error cached IP data for method %p bcIndex %u bytecode=%x: ipdata is empty but we have a cached entry=%p\n",
                method, byteCodeIndex, bytecode, entry);
             }
 
@@ -236,8 +240,7 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
       }
 
    // Now ask the client
-   //
-   auto stream = TR::CompilationInfo::getStream();
+   auto stream = comp->getStream();
    stream->write(JITServer::MessageType::IProfiler_profilingSample, method, byteCodeIndex, (uintptr_t)(_useCaching ? 0 : 1));
    auto recv = stream->read<std::string, bool, bool, bool>();
    auto &ipdata = std::get<0>(recv);
@@ -259,12 +262,12 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
          // this method contains empty data
          if (usePersistentCache && !clientSessionData->cacheIProfilerInfo(method, byteCodeIndex, NULL, isCompiled))
             _statsIProfilerInfoCachingFailures++;
-         else if (!usePersistentCache && !compInfoPT->cacheIProfilerInfo(method, byteCodeIndex, NULL))   
+         else if (!usePersistentCache && !compInfoPT->cacheIProfilerInfo(method, byteCodeIndex, NULL))
             _statsIProfilerInfoCachingFailures++;
          }
       return NULL;
       }
-   
+
    uintptr_t methodStart = TR::Compiler->mtd.bytecodeStart(method);
 
    if (doCache)
@@ -285,7 +288,7 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
             entry->deserialize(storage);
             // Add the entry to the cache if allowed
             // Note that it's possible that the method got unloaded since we last talked
-            // to the client and the unload event was communicated through another compilation 
+            // to the client and the unload event was communicated through another compilation
             // request which is going to be handled by another thread
             //
             // Interfaces are weird; we may have to add 2 to the bci that is going to be the key
@@ -294,7 +297,7 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
             if (storage->ID == TR_IPBCD_CALL_GRAPH)
                {
                U_8* pc = (U_8*)entry->getPC();
-               uint32_t methodSize = TR::Compiler->mtd.bytecodeSize(method); 
+               uint32_t methodSize = TR::Compiler->mtd.bytecodeSize(method);
                TR_ASSERT(bci < methodSize, "Bytecode index can't be higher than the methodSize: bci=%u methodSize=%u", bci, methodSize);
                if (*pc == JBinvokeinterface2)
                   {
@@ -307,7 +310,7 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
                {
                // If caching failed we must delete the entry allocated with persistent memory
                _statsIProfilerInfoCachingFailures++;
-               jitPersistentFree(entry);
+               comp->trMemory()->freeMemory(entry, persistentAlloc);
                // should we break here or keep going?
                }
             else if (!usePersistentCache && !compInfoPT->cacheIProfilerInfo(method, bci, entry))
@@ -331,7 +334,7 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
          entry = clientSessionData->getCachedIProfilerInfo(method, byteCodeIndex, &methodInfoPresent);
       else
          entry = compInfoPT->getCachedIProfilerInfo(method, byteCodeIndex, &methodInfoPresent);
-      } 
+      }
    else // No caching
       {
       // Did the client sent an entire method? Such a waste
@@ -351,7 +354,7 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
             if (storage->ID == TR_IPBCD_CALL_GRAPH)
                {
                U_8* pc = (U_8*)entry->getPC();
-               uint32_t methodSize = TR::Compiler->mtd.bytecodeSize(method); 
+               uint32_t methodSize = TR::Compiler->mtd.bytecodeSize(method);
                TR_ASSERT(bci < methodSize, "Bytecode index can't be higher than the methodSize: bci=%u methodSize=%u", bci, methodSize);
                if (*pc == JBinvokeinterface2)
                   {
@@ -377,7 +380,7 @@ JITServerIProfiler::profilingSample(TR_OpaqueMethodBlock *method, uint32_t byteC
             entry->deserialize(storage);
          }
       }
-  
+
    return entry;
    }
 
@@ -434,7 +437,7 @@ JITServerIProfiler::validateCachedIPEntry(TR_IPBytecodeHashTableEntry *entry, TR
                {
                TR_IPBCDataFourBytes *concreteEntry = entry->asIPBCDataFourBytes();
                TR_ASSERT(concreteEntry, "Cached IP entry is not of type TR_IPBCDataFourBytes");
-               uint32_t sentData = ((TR_IPBCDataFourBytesStorage *)clientData)->data; 
+               uint32_t sentData = ((TR_IPBCDataFourBytesStorage *)clientData)->data;
                uint32_t foundData = (uint32_t)concreteEntry->getData();
                if (sentData != foundData)
                   {
@@ -464,14 +467,14 @@ JITServerIProfiler::validateCachedIPEntry(TR_IPBytecodeHashTableEntry *entry, TR
                // Check that the dominant target is the same in both cases
                CallSiteProfileInfo *csInfoServer = concreteEntry->getCGData();
                CallSiteProfileInfo *csInfoClient = &(((TR_IPBCDataCallGraphStorage *)clientData)->_csInfo);
-              
+
                int32_t sumW;
                int32_t maxW;
                uintptr_t domClazzClient = csInfoClient->getDominantClass(sumW, maxW);
                uintptr_t domClazzServer = csInfoServer->getDominantClass(sumW, maxW);
-               
+
                   if(!fromPerCompilationCache && isCompiledWhenProfiling)
-                     TR_ASSERT(domClazzClient == domClazzServer, "Missmatch dominant class client=%p server=%p", (void*)domClazzClient, (void*)domClazzServer);            
+                     TR_ASSERT(domClazzClient == domClazzServer, "Missmatch dominant class client=%p server=%p", (void*)domClazzClient, (void*)domClazzServer);
                }
                break;
             default:
@@ -498,7 +501,7 @@ JITServerIProfiler::setCallCount(TR_OpaqueMethodBlock *method, int32_t bcIndex, 
        bytecode == JBinvokeinterface2)
       return;
 
-   bool sendRemoteMessage = false; 
+   bool sendRemoteMessage = false;
    bool createNewEntry = false;
    bool methodInfoPresentInPersistent = false;
    ClientSessionData *clientData = TR::compInfoPT->getClientData(); // Find clientSessionData
@@ -550,7 +553,7 @@ JITServerIProfiler::setCallCount(TR_OpaqueMethodBlock *method, int32_t bcIndex, 
       }
    if (sendRemoteMessage)
       {
-      auto stream = TR::CompilationInfo::getStream();
+      auto stream = comp->getStream();
       stream->write(JITServer::MessageType::IProfiler_setCallCount, method, bcIndex, count);
       auto recv = stream->read<bool>();
       bool isCompiled = std::get<0>(recv);
@@ -574,12 +577,12 @@ JITServerIProfiler::setCallCount(TR_OpaqueMethodBlock *method, int32_t bcIndex, 
       }
    }
 
-void 
+void
 JITServerIProfiler::persistIprofileInfo(TR::ResolvedMethodSymbol *methodSymbol, TR_ResolvedMethod *method, TR::Compilation *comp)
    {
    // resolvedMethodSymbol is only used for debugging on the client, so we don't have to send it
-   auto stream = TR::CompilationInfo::getStream();
-   auto compInfoPT = (TR::CompilationInfoPerThreadRemote *)(comp->fej9()->_compInfoPT);
+   auto stream = comp->getStream();
+   auto compInfoPT = (TR::CompilationInfoPerThreadRemote *)comp->fej9()->_compInfoPT;
    ClientSessionData *clientSessionData = compInfoPT->getClientData();
 
    if (clientSessionData->getOrCacheVMInfo(stream)->_elgibleForPersistIprofileInfo)
@@ -592,7 +595,9 @@ JITServerIProfiler::persistIprofileInfo(TR::ResolvedMethodSymbol *methodSymbol, 
 JITClientIProfiler *
 JITClientIProfiler::allocate(J9JITConfig *jitConfig)
    {
-   JITClientIProfiler * profiler = new (PERSISTENT_NEW) JITClientIProfiler(jitConfig);
+   // Create a dedicated persistent allocator to be used by the IProfiler
+   TR_IProfiler::setAllocator(TR_IProfiler::createPersistentAllocator(jitConfig));
+   JITClientIProfiler * profiler = new JITClientIProfiler(jitConfig);
    return profiler;
    }
 
@@ -607,7 +612,7 @@ JITClientIProfiler::JITClientIProfiler(J9JITConfig *jitConfig)
  * Given a method, use the bytecodeIterator to walk over its bytecodes and determine
  * the bytecodePCs that have IProfiler information. Create a sorted array with such
  * bytecodePCs
- * 
+ *
  * @param pcEntries An array that needs to be populated (in sorted fashion)
  * @param numEntries (output) Returns the number of entries in the array
  * @param bcIterator The bytecodeIterator (must be allocated by the caller)

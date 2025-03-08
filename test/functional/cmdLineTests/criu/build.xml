@@ -19,7 +19,7 @@
   [1] https://www.gnu.org/software/classpath/license.html
   [2] https://openjdk.org/legal/assembly-exception.html
 
-  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 <project name="criu" default="build" basedir=".">
@@ -33,7 +33,9 @@
 	<!-- set properties for this build -->
 	<property name="DEST" value="${BUILD_ROOT}/functional/cmdLineTests/criu" />
 	<property name="src" location="./src"/>
+	<property name="TestUtilities" location="../../TestUtilities/src"/>
 	<property name="build" location="./bin"/>
+	<property name="TestUtilitiesJ9" location="../../TestUtilitiesJ9/src" />
 
 	<target name="init">
 		<mkdir dir="${DEST}" />
@@ -41,8 +43,6 @@
 	</target>
 
 	<target name="compile" depends="init" description="Using java ${JDK_VERSION} to compile the source ">
-		<property name="addExports" value="--add-exports java.base/openj9.internal.criu=ALL-UNNAMED --add-exports java.base/jdk.internal.misc=ALL-UNNAMED" />
-		<echo>===addExports:        ${addExports}</echo>
 		<echo>Ant version is ${ant.version}</echo>
 		<echo>============COMPILER SETTINGS============</echo>
 		<echo>===fork:                         yes</echo>
@@ -50,17 +50,55 @@
 		<echo>===debug:                        on</echo>
 		<echo>===destdir:                      ${DEST}</echo>
 		<if>
+			<not>
+				<matches string="${JDK_VERSION}" pattern="^(8|9|1[0-9])$$" />
+			</not>
+			<then>
+				<property name="enablePreview" value="--enable-preview -source ${JDK_VERSION}" />
+			</then>
+			<else>
+				<property name="enablePreview" value="" />
+				<property name="excludeTestMachineResourceChange" value="org/openj9/criu/TestMachineResourceChange.java" />
+			</else>
+		</if>
+		<if>
+			<not>
+				<contains string="${TEST_FLAG}" substring="CRAC" />
+			</not>
+			<then>
+				<property name="excludeTestJDKCRAC" value="org/openj9/criu/TestJDKCRAC.java" />
+			</then>
+		</if>
+		<if>
 			<equals arg1="${JDK_VERSION}" arg2="8" />
 			<then>
-				<property name="excludeFile" value="org/openj9/criu/JDK11UpTimeoutAdjustmentTest.java" />
+				<property name="excludeJDK11UpTimeoutAdjustmentTest" value="org/openj9/criu/JDK11UpTimeoutAdjustmentTest.java" />
 				<javac srcdir="${src}" destdir="${build}" debug="true" fork="true" executable="${compiler.javac}" includeAntRuntime="false" encoding="ISO-8859-1">
-					<exclude name="${excludeFile}" />
+					<exclude name="${excludeJDK11UpTimeoutAdjustmentTest}" />
+					<exclude name="${excludeTestMachineResourceChange}" />
+					<src path="${src}" />
+					<src path="${TestUtilities}" />
+					<classpath>
+						<pathelement location="${LIB_DIR}/testng.jar"/>
+					</classpath>
 				</javac>
 			</then>
 			<else>
-				<property name="addExports" value="--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED --add-exports=java.base/openj9.internal.criu=ALL-UNNAMED" />
+				<property name="addExports" value="--add-exports jdk.management/jdk.crac.management=ALL-UNNAMED --add-exports java.base/jdk.crac=ALL-UNNAMED
+					--add-exports java.base/openj9.internal.criu=ALL-UNNAMED --add-exports java.base/jdk.internal.misc=ALL-UNNAMED" />
+				<echo>===addExports:        ${addExports}</echo>
+				<echo>===enablePreview:     ${enablePreview}</echo>
 				<javac srcdir="${src}" destdir="${build}" debug="true" fork="true" executable="${compiler.javac}" includeAntRuntime="false" encoding="ISO-8859-1">
 					<compilerarg line="${addExports}" />
+					<compilerarg line="${enablePreview}" />
+					<exclude name="${excludeTestJDKCRAC}" />
+					<exclude name="${excludeTestMachineResourceChange}" />
+					<src path="${src}" />
+					<src path="${TestUtilities}" />
+					<src path="${TestUtilitiesJ9}" />
+					<classpath>
+						<pathelement location="${LIB_DIR}/testng.jar"/>
+					</classpath>
 				</javac>
 			</else>
 		</if>
@@ -75,6 +113,7 @@
 			<fileset dir="${src}/../" includes="*.xml" />
 			<fileset dir="${src}/../" includes="*.mk" />
 			<fileset dir="${src}/../" includes="*.sh" />
+			<fileset dir="${src}/../../jitserver" includes="jitserverconfig.sh" />
 		</copy>
 	</target>
 
@@ -85,7 +124,10 @@
 
 	<target name="build" depends="buildCmdLineTestTools">
 		<if>
-			<contains string="${TEST_FLAG}" substring="CRIU" />
+			<or>
+				<contains string="${TEST_FLAG}" substring="CRAC" />
+				<contains string="${TEST_FLAG}" substring="CRIU" />
+			</or>
 			<then>
 				<antcall target="clean" inheritall="true" />
 			</then>

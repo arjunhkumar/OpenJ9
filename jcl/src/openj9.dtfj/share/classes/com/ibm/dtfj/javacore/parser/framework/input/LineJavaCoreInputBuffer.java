@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,28 +18,27 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.framework.input;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
 
-
 /**
  * Input buffer for javacore scanner. Consumes a subsection of characters from the buffer
  *
  */
 public class LineJavaCoreInputBuffer extends OffsetBasedJavaCoreInputBuffer {
-	
+
 	private BufferedReader fReader;
 
 	public LineJavaCoreInputBuffer(Reader reader) throws IOException {
 		super();
 		init(reader);
 	}
-	
+
 	/**
 	 * Initialize fields and read the first line.
 	 * @param reader
@@ -56,13 +55,12 @@ public class LineJavaCoreInputBuffer extends OffsetBasedJavaCoreInputBuffer {
 		fReader.close();
 	}
 
-	
 	/**
-	 * 
+	 *
 	 * Consumes elements from the current line.
 	 * @see com.ibm.dtfj.javacore.parser.framework.input.IInputBuffer#consume(int)
-	 * 
-	 * 
+	 *
+	 *
 	 * @param amount of characters to consume.
 	 * @return return the offset value of the consumed portion. Note that this does not return the new offset after consumption
 	 * but the offset of the section being consumed.
@@ -78,11 +76,9 @@ public class LineJavaCoreInputBuffer extends OffsetBasedJavaCoreInputBuffer {
 		updateOffset(length);
 		return offset;
 	}
-	
-	
-	
+
 	/**
-	 * 
+	 *
 	 */
 	public boolean nextLine() throws IOException{
 		boolean readNext = false;
@@ -99,12 +95,5 @@ public class LineJavaCoreInputBuffer extends OffsetBasedJavaCoreInputBuffer {
 		}
 		return readNext;
 	}
-	
-	
-
-
-	
-
-
 
 }

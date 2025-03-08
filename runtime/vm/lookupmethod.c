@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -242,7 +242,14 @@ processMethod(J9VMThread * currentThread, UDATA lookupOptions, J9Method * method
 					lookupSig = J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig);
 				}
 				
-				if (j9bcv_checkClassLoadingConstraintsForSignature(currentThread, cl1, cl2, lookupSig, methodSig) != 0) {
+				if (0 != j9bcv_checkClassLoadingConstraintsForSignature(
+						currentThread,
+						cl1,
+						cl2,
+						lookupSig,
+						methodSig,
+						J9_ARE_ALL_BITS_SET(lookupOptions, J9_LOOK_DIRECT_NAS))
+				) {
 					*exception = J9VMCONSTANTPOOL_JAVALANGLINKAGEERROR; /* was VerifyError; but Sun throws Linkage */
 					*exceptionClass = methodClass;
 					*errorType = J9_VISIBILITY_NON_MODULE_ACCESS_ERROR;
@@ -251,12 +258,6 @@ processMethod(J9VMThread * currentThread, UDATA lookupOptions, J9Method * method
 				}
 			}
 		}
-	}
-
-	/* Check for forwarder methods */
-
-	if (lookupOptions & J9_LOOK_ALLOW_FWD) {
-		method = getForwardedMethod(currentThread, method);
 	}
 
 	/* Method is valid */
@@ -573,7 +574,6 @@ doneItableSearch:
  * 		J9_LOOK_DIRECT_NAS						NAS contains direct pointers to UTF8, not SRPs (this option is mutually exclusive with lookupOptionsJNI)
  * 		J9_LOOK_CLCONSTRAINTS					Check that the found method doesn't violate any class loading constraints between the found class and the sender class.
  * 		J9_LOOK_PARTIAL_SIGNATURE				Allow the search to match a partial signature
- *		J9_LOOK_ALLOW_FWD						Allow lookup to follow the forwarding chain
  *		J9_LOOK_NO_VISIBILITY_CHECK				Do not perform any visilbity checking
  *		J9_LOOK_NO_JLOBJECT						When doing an interface lookup, do not consider method in java.lang.Object
  *		J9_LOOK_REFLECT_CALL					Use reflection behaviour when dealing with module visibility
@@ -965,25 +965,25 @@ defaultMethodConflictExceptionMessage(J9VMThread *currentThread, J9Class *target
 	listString[listLength] = '\0'; /* Overallocated by 1 to enable null termination */
 
 	/* Write error message to buffer */
-	bufLen = j9str_printf(PORTLIB, NULL, 0, errorMsg,
-				nameLength,
-				name,
-				sigLength,
-				sig,
-				(UDATA)J9UTF8_LENGTH(targetClassNameUTF),
-				J9UTF8_DATA(targetClassNameUTF),
-				listString);
+	bufLen = j9str_printf(NULL, 0, errorMsg,
+			nameLength,
+			name,
+			sigLength,
+			sig,
+			(UDATA)J9UTF8_LENGTH(targetClassNameUTF),
+			J9UTF8_DATA(targetClassNameUTF),
+			listString);
 	if (bufLen > 0) {
 		buf = j9mem_allocate_memory(bufLen, OMRMEM_CATEGORY_VM);
 		if (NULL != buf) {
-			bufLen = j9str_printf(PORTLIB, buf, bufLen, errorMsg,
-						nameLength,
-						name,
-						sigLength,
-						sig,
-						J9UTF8_LENGTH(targetClassNameUTF),
-						J9UTF8_DATA(targetClassNameUTF),
-						listString);
+			bufLen = j9str_printf(buf, bufLen, errorMsg,
+					nameLength,
+					name,
+					sigLength,
+					sig,
+					J9UTF8_LENGTH(targetClassNameUTF),
+					J9UTF8_DATA(targetClassNameUTF),
+					listString);
 		}
 	}
 	j9mem_free_memory(listString);
@@ -1004,9 +1004,10 @@ defaultMethodConflictExceptionMessage(J9VMThread *currentThread, J9Class *target
  * @return a char pointer to the module name
  */
 static char *
-getModuleNameUTF(J9VMThread *currentThread, j9object_t	moduleObject, char *buffer, UDATA bufferLength)
+getModuleNameUTF(J9VMThread *currentThread, j9object_t moduleObject, char *buffer, UDATA bufferLength)
 {
-	J9JavaVM const * const vm = currentThread->javaVM;
+	J9JavaVM const *const vm = currentThread->javaVM;
+	J9InternalVMFunctions const *const vmFuncs = vm->internalVMFunctions;
 	J9Module *module = J9OBJECT_ADDRESS_LOAD(currentThread, moduleObject, vm->modulePointerOffset);
 	char *nameBuffer = NULL;
 
@@ -1015,13 +1016,14 @@ getModuleNameUTF(J9VMThread *currentThread, j9object_t	moduleObject, char *buffe
 		/* ensure bufferLength is not less than 128 which is enough for unnamed module */
 		PORT_ACCESS_FROM_VMC(currentThread);
 		Assert_VM_true(bufferLength >= 128);
-		j9str_printf(PORTLIB, buffer, bufferLength, "%s0x%p", UNNAMED_MODULE, moduleObject);
+		j9str_printf(buffer, bufferLength, "%s0x%p", UNNAMED_MODULE, moduleObject);
 		nameBuffer = buffer;
 #undef UNNAMED_MODULE
 	} else {
-		nameBuffer = copyStringToUTF8WithMemAlloc(
-			currentThread, module->moduleName, J9_STR_NULL_TERMINATE_RESULT, "", 0, buffer, bufferLength, NULL);
+		nameBuffer = vmFuncs->copyJ9UTF8ToUTF8WithMemAlloc(
+				currentThread, module->moduleName, J9_STR_NULL_TERMINATE_RESULT, "", 0, buffer, bufferLength);
 	}
+
 	return nameBuffer;
 }
 #endif /* JAVA_SPEC_VERSION >= 11 */
@@ -1114,7 +1116,7 @@ illegalAccessMessage(J9VMThread *currentThread, IDATA badMemberModifier, J9Class
 					NULL);
 		}
 
-		bufLen = j9str_printf(PORTLIB, NULL, 0, errorMsg,
+		bufLen = j9str_printf(NULL, 0, errorMsg,
 				J9UTF8_LENGTH(nestMemberNameUTF),
 				J9UTF8_DATA(nestMemberNameUTF),
 				J9UTF8_LENGTH(nestHostNameUTF),
@@ -1125,7 +1127,7 @@ illegalAccessMessage(J9VMThread *currentThread, IDATA badMemberModifier, J9Class
 			if (NULL == buf) {
 				goto allocationFailure;
 			}
-			j9str_printf(PORTLIB, buf, bufLen, errorMsg,
+			j9str_printf(buf, bufLen, errorMsg,
 					J9UTF8_LENGTH(nestMemberNameUTF),
 					J9UTF8_DATA(nestMemberNameUTF),
 					J9UTF8_LENGTH(nestHostNameUTF),
@@ -1148,7 +1150,7 @@ illegalAccessMessage(J9VMThread *currentThread, IDATA badMemberModifier, J9Class
 		if (J9_VISIBILITY_MODULE_READ_ACCESS_ERROR == errorType) {
 			/* module read access NOT allowed */
 			errorMsg = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, J9NLS_VM_ILLEGAL_ACCESS_MODULE_READ, NULL);
-			bufLen = j9str_printf(PORTLIB, NULL, 0, errorMsg,
+			bufLen = j9str_printf(NULL, 0, errorMsg,
 					J9UTF8_LENGTH(senderClassNameUTF),
 					J9UTF8_DATA(senderClassNameUTF),
 					srcModuleMsg,
@@ -1158,7 +1160,7 @@ illegalAccessMessage(J9VMThread *currentThread, IDATA badMemberModifier, J9Class
 			if (bufLen > 0) {
 				buf = j9mem_allocate_memory(bufLen, OMRMEM_CATEGORY_VM);
 				if (NULL != buf) {
-					j9str_printf(PORTLIB, buf, bufLen, errorMsg,
+					j9str_printf(buf, bufLen, errorMsg,
 							J9UTF8_LENGTH(senderClassNameUTF),
 							J9UTF8_DATA(senderClassNameUTF),
 							srcModuleMsg,
@@ -1190,7 +1192,7 @@ illegalAccessMessage(J9VMThread *currentThread, IDATA badMemberModifier, J9Class
 			}
 			*(packageNameMsg + packageNameLength) = '\0';
 			errorMsg = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, J9NLS_VM_ILLEGAL_ACCESS_MODULE_EXPORT, NULL);
-			bufLen = j9str_printf(PORTLIB, NULL, 0, errorMsg,
+			bufLen = j9str_printf(NULL, 0, errorMsg,
 					J9UTF8_LENGTH(senderClassNameUTF),
 					J9UTF8_DATA(senderClassNameUTF),
 					srcModuleMsg,
@@ -1201,7 +1203,7 @@ illegalAccessMessage(J9VMThread *currentThread, IDATA badMemberModifier, J9Class
 			if (bufLen > 0) {
 				buf = j9mem_allocate_memory(bufLen, OMRMEM_CATEGORY_VM);
 				if (NULL != buf) {
-					j9str_printf(PORTLIB, buf, bufLen, errorMsg,
+					j9str_printf(buf, bufLen, errorMsg,
 							J9UTF8_LENGTH(senderClassNameUTF),
 							J9UTF8_DATA(senderClassNameUTF),
 							srcModuleMsg,
@@ -1254,7 +1256,7 @@ illegalAccessMessage(J9VMThread *currentThread, IDATA badMemberModifier, J9Class
 		 * second is member access flag
 		 * third  is declaring class
 		 */
-		bufLen = j9str_printf(PORTLIB, NULL, 0, errorMsg,
+		bufLen = j9str_printf(NULL, 0, errorMsg,
 				J9UTF8_LENGTH(senderClassNameUTF),
 				J9UTF8_DATA(senderClassNameUTF),
 				modifierStr,
@@ -1264,7 +1266,7 @@ illegalAccessMessage(J9VMThread *currentThread, IDATA badMemberModifier, J9Class
 			buf = j9mem_allocate_memory(bufLen, OMRMEM_CATEGORY_VM);
 			if (buf) {
 				/* j9str_printf return value doesn't include the NULL terminator */
-				j9str_printf(PORTLIB, buf, bufLen, errorMsg,
+				j9str_printf(buf, bufLen, errorMsg,
 						J9UTF8_LENGTH(senderClassNameUTF),
 						J9UTF8_DATA(senderClassNameUTF),
 						modifierStr,

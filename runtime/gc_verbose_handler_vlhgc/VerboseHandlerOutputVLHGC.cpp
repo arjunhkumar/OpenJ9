@@ -17,18 +17,23 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "VerboseHandlerOutputVLHGC.hpp"
 
 #include "CollectionStatisticsVLHGC.hpp"
 #include "ConcurrentPhaseStatsBase.hpp"
+#include "ContinuationStats.hpp"
 #include "CopyForwardStats.hpp"
 #include "CycleStateVLHGC.hpp"
 #include "EnvironmentBase.hpp"
 #include "GCExtensions.hpp"
 #include "MarkVLHGCStats.hpp"
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+#include "SparseAddressOrderedFixedSizeDataPool.hpp"
+#include "SparseVirtualMemory.hpp"
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 #include "ReferenceStats.hpp"
 #include "VerboseManager.hpp"
 #include "VerboseWriterChain.hpp"
@@ -281,6 +286,25 @@ MM_VerboseHandlerOutputVLHGC::outputContinuationInfo(MM_EnvironmentBase *env, UD
 	}
 }
 
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+void
+MM_VerboseHandlerOutputVLHGC::outputOffHeapInfo(MM_EnvironmentBase *env, UDATA indent, UDATA offHeapRegionCandidates, UDATA offHeapRegionsCleared)
+{
+	if (0 != offHeapRegionCandidates) {
+		_manager->getWriterChain()->formatAndOutput(env, indent, "<offheap candidates=\"%zu\" cleared=\"%zu\" />", offHeapRegionCandidates, offHeapRegionsCleared);
+	}
+}
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
+
+void
+MM_VerboseHandlerOutputVLHGC::outputContinuationObjectInfo(MM_EnvironmentBase *env, uintptr_t indent)
+{
+	MM_ContinuationStats *continuationStats = &static_cast<MM_CycleStateVLHGC*>(env->_cycleState)->_vlhgcIncrementStats._continuationStats;
+	if (0 != continuationStats->_total) {
+		_manager->getWriterChain()->formatAndOutput(env, indent, "<continuation-objects total=\"%zu\" started=\"%zu\" />", continuationStats->_total, continuationStats->_started);
+	}
+}
+
 void
 MM_VerboseHandlerOutputVLHGC::outputReferenceInfo(MM_EnvironmentBase *env, UDATA indent, const char *referenceType, MM_ReferenceStats *referenceStats, UDATA dynamicThreshold, UDATA maxThreshold)
 {
@@ -337,7 +361,14 @@ MM_VerboseHandlerOutputVLHGC::outputMemoryInfoInnerStanza(MM_EnvironmentBase *en
 				stats->_edenFreeHeapSize, stats->_edenHeapSize,
 				((UDATA)(((U_64)stats->_edenFreeHeapSize*100) / (U_64)stats->_edenHeapSize)));
 	}
-
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env->getOmrVM());
+	if (extensions->isVirtualLargeObjectHeapEnabled) {
+		writer->formatAndOutput(env, indent, "<offheap-objects objects=\"%zu\" bytes=\"%zu\" />",
+				extensions->largeObjectVirtualMemory->getSparseDataPool()->getAllocObjectCount(),
+				extensions->largeObjectVirtualMemory->getSparseDataPool()->getFreeListPoolAllocBytes());
+	}
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 	if (0 != stats->_arrayletReferenceObjects) {
 		writer->formatAndOutput(env, indent, "<arraylet-reference objects=\"%zu\" leaves=\"%zu\" largest=\"%zu\" />",
 				stats->_arrayletReferenceObjects, stats->_arrayletReferenceLeaves, stats->_largestReferenceArraylet);
@@ -362,7 +393,7 @@ MM_VerboseHandlerOutputVLHGC::outputMemoryInfoInnerStanza(MM_EnvironmentBase *en
 	}
 
 	MM_VerboseHandlerJava::outputFinalizableInfo(_manager, env, indent);
-
+	outputContinuationObjectInfo(env, indent);
 	UDATA rememberedSetFreePercent = (UDATA)((100 * (U_64)stats->_rememberedSetBytesFree) / ((U_64)stats->_rememberedSetBytesTotal));
 
 	writer->formatAndOutput(env, indent, "<remembered-set count=\"%zu\" freebytes=\"%zu\" totalbytes=\"%zu\" percent=\"%zu\" regionsoverflowed=\"%zu\" regionsstable=\"%zu\" regionsrebuilding=\"%zu\"/>",
@@ -429,6 +460,9 @@ MM_VerboseHandlerOutputVLHGC::handleCopyForwardEnd(J9HookInterface** hook, UDATA
 	}
 	outputRememberedSetClearedInfo(env, irrsStats);
 
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	outputOffHeapInfo(env, 1, copyForwardStats->_offHeapRegionCandidates, copyForwardStats->_offHeapRegionsCleared);
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 	outputUnfinalizedInfo(env, 1, copyForwardStats->_unfinalizedCandidates, copyForwardStats->_unfinalizedEnqueued);
 	outputOwnableSynchronizerInfo(env, 1, copyForwardStats->_ownableSynchronizerCandidates, (copyForwardStats->_ownableSynchronizerCandidates-copyForwardStats->_ownableSynchronizerSurvived));
 	outputContinuationInfo(env, 1, copyForwardStats->_continuationCandidates, copyForwardStats->_continuationCleared);
@@ -577,6 +611,9 @@ MM_VerboseHandlerOutputVLHGC::outputMarkSummary(MM_EnvironmentBase *env, const c
 		outputRememberedSetClearedInfo(env, irrsStats);
 	}
 
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	outputOffHeapInfo(env, 1, markStats->_offHeapRegionCandidates, markStats->_offHeapRegionsCleared);
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 	outputUnfinalizedInfo(env, 1, markStats->_unfinalizedCandidates, markStats->_unfinalizedEnqueued);
 	outputOwnableSynchronizerInfo(env, 1, markStats->_ownableSynchronizerCandidates, markStats->_ownableSynchronizerCleared);
 	outputContinuationInfo(env, 1, markStats->_continuationCandidates, markStats->_continuationCleared);

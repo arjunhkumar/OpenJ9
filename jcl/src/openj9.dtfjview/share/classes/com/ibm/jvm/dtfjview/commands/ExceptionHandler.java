@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands;
 
 import java.io.PrintWriter;
@@ -38,9 +38,9 @@ import com.ibm.jvm.dtfjview.commands.BaseJdmpviewCommand.ArtifactType;
 
 /**
  * Class which attempts to handle exceptions thrown by the DTFJ API in a consistent manner.
- * It is context aware and knows which DTFJ calls will not be possible when analyzing certain 
+ * It is context aware and knows which DTFJ calls will not be possible when analyzing certain
  * artifacts. e.g. it understands that thread information is not available from a PHD file.
- * 
+ *
  * @author adam
  *
  */
@@ -49,19 +49,18 @@ public class ExceptionHandler {
 	private static final int WORKS = 1;
 	private static final int CAN_FAIL = 2;
 	private static final int FAILS = 3;
-	
+
 	private static HashMap<String, DTFJClass> methodTable = new HashMap<String, DTFJClass>();
-	private static IDTFJContext ctx;		//current DTFJ context		
+	private static IDTFJContext ctx;		//current DTFJ context
 	private static final Logger logger = Logger.getLogger("com.ibm.jvm.dtfjview.logger.command");
-	
+
 	static {
 		init();
 	}
-	
-	
+
 	/**
 	 * Handle an exception thrown by the DTFJ API.
-	 * 
+	 *
 	 * @param cmd the command current executing the API. This is required to provide access to context information.
 	 * @param cause exception to be handled
 	 * @return textual data to be written out
@@ -167,11 +166,11 @@ public class ExceptionHandler {
 		}
 		return sb.toString();
 	}
-	
+
 	/**
 	 * Get the DTFJ method which caused the exception by examining the call stack for the
 	 * exception.
-	 * 
+	 *
 	 * @param myStack stack from an exception
 	 * @return the DTFJ method which caused the exception or null if it could not determined
 	 */
@@ -206,7 +205,7 @@ public class ExceptionHandler {
 
 	/**
 	 * Find the DTFJ interface for a specified class
-	 * 
+	 *
 	 * @param c class to check
 	 * @param methodName method name to find in the DTFJ interface
 	 * @return the located method or null if no match is found

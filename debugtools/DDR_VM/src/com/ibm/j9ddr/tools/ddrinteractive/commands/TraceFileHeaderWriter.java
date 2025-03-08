@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2010
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.tools.ddrinteractive.commands;
 
 import java.io.IOException;
@@ -47,8 +47,9 @@ public class TraceFileHeaderWriter {
 	private int type = 0;
 	private int generations = 0;
 	
-	private final static String[] Archs = { "Unknown", "x86", "S390", "Power", "IA64", "S390X", "AMD64" };
-	private final static String[] SubTypes = { "i486", "i586", "Pentium II", "Pentium III", "Merced", "McKinley", "PowerRS", "PowerPC", "GigaProcessor", "ESA", "Pentium IV", "T-Rex", "Opteron" };
+	private final static String[] Archs = { "Unknown", "x86", "S390", "Power", "IA64", "S390X", "AMD64", "RISCV", "AArch64" };
+	private final static String[] SubTypes = { "i486", "i586", "Pentium II", "Pentium III", "Merced", "McKinley",
+		"PowerRS", "PowerPC", "GigaProcessor", "ESA", "Pentium IV", "T-Rex", "Opteron", "RV64G", "Armv8-A" };
 	private final static String[] trCounter = { "Sequence Counter", "Special", "RDTSC Timer", "AIX Timer", "MFSPR Timer", "MFTB Timer", "STCK Timer", "J9 timer" };
 	
 	/**

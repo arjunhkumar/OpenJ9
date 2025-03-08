@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 set(gcchk_sources
@@ -40,6 +40,7 @@ target_link_libraries(j9gcchk
 		j9stackmap
 		j9pool
 		j9hookable
+		j9modronstartup
 
 		#TODO do we just want to link against j9gc?
 		j9gcbase
@@ -47,6 +48,10 @@ target_link_libraries(j9gcchk
 		j9gcstats
 		j9gccheck
 		omrgc
+		j9gctrc
+		j9gctrcstandard
+		j9gctrcvlhgc
+		j9gc
 )
 
 omr_add_exports(j9gcchk J9VMDllMain)
@@ -74,6 +79,7 @@ if(OMR_MIXED_REFERENCES_MODE_STATIC)
 			j9stackmap
 			j9pool
 			j9hookable
+			j9modronstartup
 
 			#TODO do we just want to link against j9gc?
 			j9gcbase_full
@@ -81,6 +87,10 @@ if(OMR_MIXED_REFERENCES_MODE_STATIC)
 			j9gcstats_full
 			j9gccheck_full
 			omrgc_full
+			j9gctrc_full
+			j9gctrcstandard_full
+			j9gctrcvlhgc_full
+			j9gc_full
 	)
 
 	omr_add_exports(j9gcchk_full J9VMDllMain)

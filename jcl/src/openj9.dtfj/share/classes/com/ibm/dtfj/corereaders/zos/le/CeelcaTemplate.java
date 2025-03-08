@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2006
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders.zos.le;
 
 import javax.imageio.stream.ImageInputStream;
@@ -29,30 +29,34 @@ import java.io.IOException;
 
 public final class CeelcaTemplate {
 
-    public static int length() {
-        return 864;
-    }
+	public static int length() {
+		return 864;
+	}
 
-    public static long getCeelca_caa(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 8);
-        return inputStream.readLong();
-    }
-    public static int getCeelca_caa$offset() {
-        return 8;
-    }
-    public static int getCeelca_caa$length() {
-        return 64;
-    }
-    
-    //CMVC 156864 : : updated code to fix traversal of native stacks
-    public static long getCeelca_savstack(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 32);
-        return inputStream.readLong();
-    }
-    public static int getCeelca_savstack$offset() {
-        return 32;
-    }
-    public static int getCeelca_savstack$length() {
-        return 64;
-    }
+	public static long getCeelca_caa(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 8);
+		return inputStream.readLong();
+	}
+
+	public static int getCeelca_caa$offset() {
+		return 8;
+	}
+
+	public static int getCeelca_caa$length() {
+		return 64;
+	}
+
+	//CMVC 156864 : : updated code to fix traversal of native stacks
+	public static long getCeelca_savstack(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 32);
+		return inputStream.readLong();
+	}
+
+	public static int getCeelca_savstack$offset() {
+		return 32;
+	}
+
+	public static int getCeelca_savstack$length() {
+		return 64;
+	}
 }

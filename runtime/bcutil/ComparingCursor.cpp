@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 /*
  * ComparingCursor.cpp
@@ -39,10 +39,10 @@
 
 ComparingCursor::ComparingCursor(J9JavaVM *javaVM, SRPOffsetTable *srpOffsetTable,
 		SRPKeyProducer *srpKeyProducer, ClassFileOracle *classFileOracle, U_8 *romClass, 
-		bool romClassIsShared, ROMClassCreationContext * context, bool isComparingLambdaFromSCC) :
+		bool romClassIsShared, ROMClassCreationContext *context) :
 	Cursor(0, srpOffsetTable, context),
 	_javaVM(javaVM),
-	_checkRangeInSharedCache(romClassIsShared),
+	_romClassIsShared(romClassIsShared),
 	_classFileOracle(classFileOracle),
 	_srpKeyProducer(srpKeyProducer),
 	_romClass(romClass),
@@ -52,10 +52,9 @@ ComparingCursor::ComparingCursor(J9JavaVM *javaVM, SRPOffsetTable *srpOffsetTabl
 	_mainHelper(srpOffsetTable, romClass, context),
 	_lineNumberHelper(srpOffsetTable, romClass, context),
 	_varInfoHelper(srpOffsetTable, romClass, context),
-	_isEqual(true),
-	_isComparingLambdaFromSCC(isComparingLambdaFromSCC)
+	_isEqual(true)
 {
-	if (!_checkRangeInSharedCache && (NULL != javaVM)) {
+	if (!_romClassIsShared && (NULL != javaVM)) {
 		/* Enter mutex in order to safely iterate over the segments in getMaximumValidLengthForPtrInSegment(). */
 		omrthread_monitor_enter(javaVM->classMemorySegments->segmentMutex);
 	}
@@ -64,7 +63,7 @@ ComparingCursor::ComparingCursor(J9JavaVM *javaVM, SRPOffsetTable *srpOffsetTabl
 
 ComparingCursor::~ComparingCursor()
 {
-	if (!_checkRangeInSharedCache && (NULL != _javaVM)) {
+	if (!_romClassIsShared && (NULL != _javaVM)) {
 		/* Exit mutex that was entered in the constructor. */
 		omrthread_monitor_exit(_javaVM->classMemorySegments->segmentMutex);
 	}
@@ -430,20 +429,28 @@ ComparingCursor::shouldCheckForEquality(DataType dataType, U_32 u32Value)
 
 	switch (dataType) {
 	case SRP_TO_UTF8_CLASS_NAME:
-		if (isComparingLambdaFromSCC()) {
-			/* if the class is a lambda class don't compare the class names because lambda classes might have different index numbers from run to run */
+#if JAVA_SPEC_VERSION < 21
+		if (_context->isLambdaClass() && _romClassIsShared) {
+			/*
+			 * If the class is a lambda class, don't compare the class names because lambda
+			 * classes might have different index numbers from run to run.
+			 */
 			return false;
 		}
+#endif /* JAVA_SPEC_VERSION < 21 */
 		break;
 	case BYTECODE: /* fall through */
 	case GENERIC: /* fall through */
 	case CLASS_FILE_SIZE: /* fall through */
+#if JAVA_SPEC_VERSION < 21
 		if ((CLASS_FILE_SIZE == dataType) 
-			&& isComparingLambdaFromSCC()
+			&& _context->isLambdaClass()
+			&& _romClassIsShared
 		) {
 			/* If comparing a lambda class from the shared cache, class file size comparison is already done in ROMClassBuilder::compareROMClassForEquality().  */
 			return false;
 		}
+#endif /* JAVA_SPEC_VERSION < 21 */
 	case SRP_TO_DEBUG_DATA: /* fall through */
 	case SRP_TO_GENERIC: /* fall through */
 	case SRP_TO_UTF8: /* fall through */
@@ -457,10 +464,6 @@ ComparingCursor::shouldCheckForEquality(DataType dataType, U_32 u32Value)
 	case INTERMEDIATE_CLASS_DATA_LENGTH:
 		return false;
 	case ROM_CLASS_MODIFIERS:
-		if (u32Value == (u32Value & _context->romMethodModifiers())) {
-			/*It's ok if the existing rom class has extra debug information and it is not required*/
-			return false;
-		}
 		break;
 	case OPTIONAL_FLAGS:
 		if (u32Value == (u32Value & _context->romClassOptionalFlags())) {
@@ -525,7 +528,7 @@ ComparingCursor::isRangeValid(UDATA length, DataType dataType)
 	ComparingCursorHelper * countingcursor = getCountingCursor(dataType);
 	
 	if (countingcursor != &(_mainHelper)) {
-		if (_checkRangeInSharedCache) {
+		if (_romClassIsShared) {
 			return j9shr_Query_IsAddressInCache(_javaVM, countingcursor->getBaseAddress() + countingcursor->getCount(), length) ? true : false;
 		}
 		return true;
@@ -538,7 +541,7 @@ ComparingCursor::isRangeValid(UDATA length, DataType dataType)
 bool
 ComparingCursor::isRangeValidForPtr(U_8 *ptr, UDATA length)
 {
-	if (_checkRangeInSharedCache) {
+	if (_romClassIsShared) {
 		return (j9shr_Query_IsAddressInCache(_javaVM, ptr, length) ? true : false);
 	} else {
 		return length < getMaximumValidLengthForPtrInSegment(ptr);
@@ -553,7 +556,7 @@ ComparingCursor::isRangeValidForUTF8Ptr(J9UTF8 *utf8)
 	 * Need to check the UTF8 to verify that it is either in a J9MemorySegment or in the
 	 * SCC.
 	 */
-	if (_checkRangeInSharedCache) {
+	if (_romClassIsShared) {
 		/* Need to check if the header (length field) is in range first, before reading the length
 		 * to determine if the rest of the data is in range. Failure to do so results in potentially
 		 * dereferencing inaccessible memory.
@@ -570,7 +573,7 @@ ComparingCursor::isRangeValidForUTF8Ptr(J9UTF8 *utf8)
 UDATA 
 ComparingCursor::getMaximumValidLengthForPtrInSegment(U_8 *ptr)
 {
-	Trc_BCU_Assert_False(_checkRangeInSharedCache);
+	Trc_BCU_Assert_False(_romClassIsShared);
 
 	if (NULL != _javaVM) {
 		/* There is an AVL tree of class memory segments, use it to efficiently find a potential segment that
@@ -583,7 +586,7 @@ ComparingCursor::getMaximumValidLengthForPtrInSegment(U_8 *ptr)
 		return 0;
 	}
 
-	/* If _checkRangeInSharedCache is false and _javaVM is NULL, don't validate address ranges. */
+	/* If _romClassIsShared is false and _javaVM is NULL, don't validate address ranges. */
 	return UDATA_MAX;
 }
 

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "omrcfg.h"
@@ -53,6 +53,7 @@
 #include "ConcurrentSweepScheme.hpp"
 #endif /* J9VM_GC_CONCURRENT_SWEEP */
 #include "ConfigurationDelegate.hpp"
+#include "ContinuationStats.hpp"
 #include "EnvironmentStandard.hpp"
 #include "ExcessiveGCStats.hpp"
 #include "FinalizableObjectBuffer.hpp"
@@ -158,6 +159,7 @@ MM_ScavengerDelegate::tearDown(MM_EnvironmentBase *env)
 void
 MM_ScavengerDelegate::mainSetupForGC(MM_EnvironmentBase * envBase)
 {
+	_extensions->continuationStats.clear();
 	/* Remember the candidates of OwnableSynchronizerObject before
 	 * clearing scavenger statistics
 	 */
@@ -186,6 +188,7 @@ MM_ScavengerDelegate::mainSetupForGC(MM_EnvironmentBase * envBase)
 	private_setupForOwnableSynchronizerProcessing(MM_EnvironmentStandard::getEnvironment(envBase));
 
 	_shouldScavengeContinuationObjects = false;
+	_shouldIterateContinuationObjects = false;
 
 	/* Sort all hot fields for all classes if scavenger dynamicBreadthFirstScanOrdering is enabled */
 	if (MM_GCExtensions::OMR_GC_SCAVENGER_SCANORDERING_DYNAMIC_BREADTH_FIRST == _extensions->scavengerScanOrdering) {
@@ -200,6 +203,7 @@ MM_ScavengerDelegate::workerSetupForGC_clearEnvironmentLangStats(MM_EnvironmentB
 {
 	/* clear thread-local java-only gc stats */
 	envBase->getGCEnvironment()->_scavengerJavaStats.clear();
+	envBase->getGCEnvironment()->_continuationStats.clear();
 }
 
 void
@@ -228,6 +232,8 @@ MM_ScavengerDelegate::mergeGCStats_mergeLangStats(MM_EnvironmentBase * envBase)
 
 	finalGCJavaStats->_unfinalizedCandidates += scavJavaStats->_unfinalizedCandidates;
 	finalGCJavaStats->_unfinalizedEnqueued += scavJavaStats->_unfinalizedEnqueued;
+
+	_extensions->continuationStats.merge(&env->getGCEnvironment()->_continuationStats);
 
 	finalGCJavaStats->_ownableSynchronizerCandidates += scavJavaStats->_ownableSynchronizerCandidates;
 	finalGCJavaStats->_ownableSynchronizerTotalSurvived += scavJavaStats->_ownableSynchronizerTotalSurvived;
@@ -364,7 +370,7 @@ MM_ScavengerDelegate::scanContinuationNativeSlots(MM_EnvironmentStandard *env, o
 
 		GC_VMThreadStackSlotIterator::scanContinuationSlots(currentThread, objectPtr, (void *)&localData, stackSlotIteratorForScavenge, false, false);
 		if (isConcurrentGC) {
-			VM_VMHelpers::exitConcurrentGCScan(currentThread, objectPtr, isGlobalGC);
+			MM_GCExtensions::exitContinuationConcurrentGCScan(currentThread, objectPtr, isGlobalGC);
 		}
 	}
 	return 	shouldRemember;
@@ -890,6 +896,7 @@ MM_ScavengerDelegate::MM_ScavengerDelegate(MM_EnvironmentBase* env)
 	, _shouldScavengeFinalizableObjects(false)
 	, _shouldScavengeUnfinalizedObjects(false)
 	, _shouldScavengeContinuationObjects(false)
+	, _shouldIterateContinuationObjects(false)
 	, _shouldScavengeSoftReferenceObjects(false)
 	, _shouldScavengeWeakReferenceObjects(false)
 	, _shouldScavengePhantomReferenceObjects(false)

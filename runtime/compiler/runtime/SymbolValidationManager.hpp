@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef SYMBOL_VALIDATION_MANAGER_INCL
@@ -158,7 +158,7 @@ struct ClassValidationRecord : public SymbolValidationRecord
 struct ClassValidationRecordWithChain : public ClassValidationRecord
    {
    ClassValidationRecordWithChain(TR_ExternalRelocationTargetKind kind, TR_OpaqueClassBlock *clazz)
-      : ClassValidationRecord(kind), _class(clazz), _classChain(NULL)
+      : ClassValidationRecord(kind), _class(clazz), _classChainOffset(TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET)
       {
 #if defined(J9VM_OPT_JITSERVER)
       _aotCacheClassChainRecord = NULL;
@@ -168,13 +168,13 @@ struct ClassValidationRecordWithChain : public ClassValidationRecord
    virtual void printFields();
 
 #if defined(J9VM_OPT_JITSERVER)
-   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() { return _aotCacheClassChainRecord; }
+   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() const { return _aotCacheClassChainRecord; }
 #else /* defined(J9VM_OPT_JITSERVER) */
-   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() { return NULL; }
+   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() const { return NULL; }
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
    TR_OpaqueClassBlock *_class;
-   void *_classChain;
+   uintptr_t _classChainOffset;
 #if defined(J9VM_OPT_JITSERVER)
    const AOTCacheClassChainRecord *_aotCacheClassChainRecord;
 #endif /* defined(J9VM_OPT_JITSERVER) */
@@ -196,10 +196,10 @@ struct ClassByNameRecord : public ClassValidationRecordWithChain
 
 struct ProfiledClassRecord : public ClassValidationRecord
    {
-   ProfiledClassRecord(TR_OpaqueClassBlock *clazz, void *classChain,
+   ProfiledClassRecord(TR_OpaqueClassBlock *clazz, uintptr_t classChainOffset,
                        const AOTCacheClassChainRecord *aotCacheClassChainRecord = NULL)
       : ClassValidationRecord(TR_ValidateProfiledClass),
-        _class(clazz), _classChain(classChain)
+        _class(clazz), _classChainOffset(classChainOffset)
       {
 #if defined(J9VM_OPT_JITSERVER)
       _aotCacheClassChainRecord = aotCacheClassChainRecord;
@@ -210,13 +210,13 @@ struct ProfiledClassRecord : public ClassValidationRecord
    virtual void printFields();
 
 #if defined(J9VM_OPT_JITSERVER)
-   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() { return _aotCacheClassChainRecord; }
+   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() const { return _aotCacheClassChainRecord; }
 #else /* defined(J9VM_OPT_JITSERVER) */
-   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() { return NULL; }
+   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() const { return NULL; }
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
    TR_OpaqueClassBlock *_class;
-   void *_classChain;
+   uintptr_t _classChainOffset;
 #if defined(J9VM_OPT_JITSERVER)
    const AOTCacheClassChainRecord *_aotCacheClassChainRecord;
 #endif /* defined(J9VM_OPT_JITSERVER) */
@@ -388,11 +388,11 @@ struct ConcreteSubClassFromClassRecord : public ClassValidationRecord
 
 struct ClassChainRecord : public SymbolValidationRecord
    {
-   ClassChainRecord(TR_OpaqueClassBlock *clazz, void *classChain,
+   ClassChainRecord(TR_OpaqueClassBlock *clazz, uintptr_t classChainOffset,
                     const AOTCacheClassChainRecord *aotCacheClassChainRecord = NULL)
       : SymbolValidationRecord(TR_ValidateClassChain),
         _class(clazz),
-        _classChain(classChain)
+        _classChainOffset(classChainOffset)
       {
 #if defined(J9VM_OPT_JITSERVER)
       _aotCacheClassChainRecord = aotCacheClassChainRecord;
@@ -403,13 +403,13 @@ struct ClassChainRecord : public SymbolValidationRecord
    virtual void printFields();
 
 #if defined(J9VM_OPT_JITSERVER)
-   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() { return _aotCacheClassChainRecord; }
+   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() const { return _aotCacheClassChainRecord; }
 #else /* defined(J9VM_OPT_JITSERVER) */
-   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() { return NULL; }
+   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() const { return NULL; }
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
    TR_OpaqueClassBlock *_class;
-   void *_classChain;
+   uintptr_t _classChainOffset;
 #if defined(J9VM_OPT_JITSERVER)
    const AOTCacheClassChainRecord *_aotCacheClassChainRecord;
 #endif /* defined(J9VM_OPT_JITSERVER) */
@@ -708,12 +708,52 @@ struct IsClassVisibleRecord : public SymbolValidationRecord
    bool _isVisible;
    };
 
+struct DynamicMethodFromCallsiteIndexRecord : public MethodValidationRecord
+   {
+   DynamicMethodFromCallsiteIndexRecord(TR_OpaqueMethodBlock *method,
+                                        TR_OpaqueMethodBlock *caller,
+                                        int32_t callsiteIndex,
+                                        bool appendixObjectNull)
+      : MethodValidationRecord(TR_ValidateDynamicMethodFromCallsiteIndex, method),
+      _caller(caller),
+      _callsiteIndex(callsiteIndex),
+      _appendixObjectNull(appendixObjectNull)
+      {}
+
+   virtual bool isLessThanWithinKind(SymbolValidationRecord *other);
+   virtual void printFields();
+
+   TR_OpaqueMethodBlock *_caller;
+   int32_t _callsiteIndex;
+   bool _appendixObjectNull;
+   };
+
+struct HandleMethodFromCPIndex  : public MethodValidationRecord
+   {
+   HandleMethodFromCPIndex(TR_OpaqueMethodBlock *method,
+                           TR_OpaqueMethodBlock *caller,
+                           int32_t cpIndex,
+                           bool appendixObjectNull)
+      : MethodValidationRecord(TR_ValidateHandleMethodFromCPIndex, method),
+      _caller(caller),
+      _cpIndex(cpIndex),
+      _appendixObjectNull(appendixObjectNull)
+      {}
+
+   virtual bool isLessThanWithinKind(SymbolValidationRecord *other);
+   virtual void printFields();
+
+   TR_OpaqueMethodBlock *_caller;
+   int32_t _cpIndex;
+   bool _appendixObjectNull;
+   };
+
 class SymbolValidationManager
    {
 public:
-   TR_ALLOC(TR_MemoryBase::SymbolValidationManager);
+   TR_ALLOC(TR_MemoryBase::SymbolValidationManager)
 
-   SymbolValidationManager(TR::Region &region, TR_ResolvedMethod *compilee);
+   SymbolValidationManager(TR::Region &region, TR_ResolvedMethod *compilee, TR::Compilation *comp);
 
    struct SystemClassNotWorthRemembering
       {
@@ -724,7 +764,6 @@ public:
 
    #define WELL_KNOWN_CLASS_COUNT 9
 
-   static void getWellKnownClassesSCCKey(char *buffer, size_t size, unsigned int includedClasses);
    void populateWellKnownClasses();
    bool validateWellKnownClasses(const uintptr_t *wellKnownClassChainOffsets);
    bool isWellKnownClass(TR_OpaqueClassBlock *clazz);
@@ -788,6 +827,8 @@ public:
                                           TR_OpaqueClassBlock *thisClass,
                                           int32_t vftSlot,
                                           TR_OpaqueMethodBlock *callerMethod);
+   bool addDynamicMethodFromCallsiteIndex(TR_OpaqueMethodBlock *method, TR_OpaqueMethodBlock *caller, int32_t callsiteIndex, bool appendixObjectNull);
+   bool addHandleMethodFromCPIndex(TR_OpaqueMethodBlock *method, TR_OpaqueMethodBlock *caller, int32_t cpIndex, bool appendixObjectNull);
 
    bool addStackWalkerMaySkipFramesRecord(TR_OpaqueMethodBlock *method, TR_OpaqueClassBlock *methodClass, bool skipFrames);
    bool addClassInfoIsInitializedRecord(TR_OpaqueClassBlock *clazz, bool isInitialized);
@@ -835,6 +876,18 @@ public:
                                                uint16_t thisClassID,
                                                int32_t vftSlot,
                                                uint16_t callerMethodID);
+   bool validateDynamicMethodFromCallsiteIndex(uint16_t methodID,
+                                               uint16_t callerID,
+                                               int32_t callsiteIndex,
+                                               bool appendixObjectNull,
+                                               uint16_t definingClassID,
+                                               uint32_t methodIndex);
+   bool validateHandleMethodFromCPIndex(uint16_t methodID,
+                                        uint16_t callerID,
+                                        int32_t cpIndex,
+                                        bool appendixObjectNull,
+                                        uint16_t definingClassID,
+                                        uint32_t methodIndex);
 
    bool validateStackWalkerMaySkipFramesRecord(uint16_t methodID, uint16_t methodClassID, bool couldSkipFrames);
    bool validateClassInfoIsInitializedRecord(uint16_t classID, bool wasInitialized);
@@ -862,8 +915,6 @@ public:
    static int getSystemClassesNotWorthRememberingCount();
 
 #if defined(J9VM_OPT_JITSERVER)
-   std::string serializeValueToSymbolMap();
-   void deserializeValueToSymbolMap(const std::string &valueToSymbolStr);
    static void populateSystemClassesNotWorthRemembering(ClientSessionData *clientData);
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
@@ -889,7 +940,7 @@ private:
    struct ClassChainInfo
       {
       ClassChainInfo()
-         : _baseComponent(NULL), _baseComponentClassChain(NULL), _arrayDims(0)
+         : _baseComponent(NULL), _baseComponentClassChainOffset(TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET), _arrayDims(0)
          {
 #if defined(J9VM_OPT_JITSERVER)
          _baseComponentAOTCacheClassChainRecord = NULL;
@@ -897,7 +948,7 @@ private:
          }
 
       TR_OpaqueClassBlock *_baseComponent;
-      void *_baseComponentClassChain;
+      uintptr_t _baseComponentClassChainOffset;
       int32_t _arrayDims;
 #if defined(J9VM_OPT_JITSERVER)
       const AOTCacheClassChainRecord *_baseComponentAOTCacheClassChainRecord;

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "ConcurrentMarkingDelegate.hpp"
@@ -157,7 +157,7 @@ MM_ConcurrentMarkingDelegate::scanThreadRoots(MM_EnvironmentBase *env)
 
 #if JAVA_SPEC_VERSION >= 19
 	if (NULL != vmThread->currentContinuation) {
-		GC_VMThreadStackSlotIterator::scanSlots(vmThread, vmThread->currentContinuation, (void *)&localData, concurrentStackSlotIterator, true, false);
+		GC_VMThreadStackSlotIterator::scanSlots(vmThread, vmThread, vmThread->currentContinuation, (void *)&localData, concurrentStackSlotIterator, true, false);
 	}
 #endif /* JAVA_SPEC_VERSION >= 19 */
 
@@ -426,9 +426,6 @@ MM_ConcurrentMarkingDelegate::concurrentClassMark(MM_EnvironmentBase *env, bool 
 						J9Module * const module = *modulePtr;
 
 						_markingScheme->markObject(env, (j9object_t)module->moduleObject);
-						if (NULL != module->moduleName) {
-							_markingScheme->markObject(env, (j9object_t)module->moduleName);
-						}
 						if (NULL != module->version) {
 							_markingScheme->markObject(env, (j9object_t)module->version);
 						}
@@ -439,7 +436,7 @@ MM_ConcurrentMarkingDelegate::concurrentClassMark(MM_EnvironmentBase *env, bool 
 					}
 
 					if (classLoader == _javaVM->systemClassLoader) {
-						_markingScheme->markObject(env, _javaVM->unamedModuleForSystemLoader->moduleObject);
+						_markingScheme->markObject(env, _javaVM->unnamedModuleForSystemLoader->moduleObject);
 					}
 				}
 

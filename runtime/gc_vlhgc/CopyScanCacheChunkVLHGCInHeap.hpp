@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -46,15 +46,15 @@ public:
 	 * @param env[in] A GC thread
 	 * @return The number of caches which will be allocated as part of an instance of the receiver
 	 */
-	static UDATA numberOfCachesInChunk(MM_EnvironmentVLHGC *env);
+	static uintptr_t numberOfCachesInChunk(MM_EnvironmentVLHGC *env);
 	/**
 	 * The number of bytes required to allocate an instance of the receiver (since they are all currently the same size).
 	 * @param env[in] A GC thread
 	 * @return The size, in bytes, of the memory extent required to hold one instance of the receiver
 	 */
-	static UDATA bytesRequiredToAllocateChunkInHeap(MM_EnvironmentVLHGC *env);
-	static MM_CopyScanCacheChunkVLHGCInHeap *newInstance(MM_EnvironmentVLHGC *env, void *buffer, UDATA bufferLengthInBytes, MM_CopyScanCacheVLHGC **nextCacheAddr, MM_CopyScanCacheChunkVLHGC *nextChunk);
-	bool initialize(MM_EnvironmentVLHGC *env, UDATA cacheEntryCount, MM_CopyScanCacheVLHGC **nextCacheAddr, MM_CopyScanCacheChunkVLHGC *nextChunk);
+	static uintptr_t bytesRequiredToAllocateChunkInHeap(MM_EnvironmentVLHGC *env);
+	static MM_CopyScanCacheChunkVLHGCInHeap *newInstance(MM_EnvironmentVLHGC *env, void *buffer, uintptr_t bufferLengthInBytes, MM_CopyScanCacheVLHGC **nextCacheAddr, MM_CopyScanCacheChunkVLHGC *nextChunk);
+	bool initialize(MM_EnvironmentVLHGC *env, uintptr_t cacheEntryCount, MM_CopyScanCacheVLHGC **nextCacheAddr, MM_CopyScanCacheChunkVLHGC *nextChunk);
 	virtual void kill(MM_EnvironmentVLHGC *env);
 
 	/**

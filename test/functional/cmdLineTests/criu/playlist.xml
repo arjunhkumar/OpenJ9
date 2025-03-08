@@ -18,7 +18,7 @@
   [1] https://www.gnu.org/software/classpath/license.html
   [2] https://openjdk.org/legal/assembly-exception.html
 
-  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <playlist xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../TKG/playlist.xsd">
 	<include>../variables.mk</include>
@@ -42,6 +42,12 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>
@@ -64,6 +70,7 @@
 			<variation>-Xjit -XX:+CRIURestoreNonPortableMode</variation>
 			<variation>-Xint -XX:+CRIURestoreNonPortableMode</variation>
 			<variation>-Xjit:count=0 -XX:+CRIURestoreNonPortableMode</variation>
+			<variation>-XX:+DebugOnRestore</variation>
 		</variations>
 		<command>
 			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
@@ -73,6 +80,12 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>
@@ -91,11 +104,15 @@
 		<variations>
 			<variation>-Xjit -XX:+CRIURestoreNonPortableMode</variation>
 			<variation>-Xint -XX:+CRIURestoreNonPortableMode</variation>
+			<variation>-XX:+JVMPortableRestoreMode</variation>
+			<variation>-Xjit:count=0 -XX:+JVMPortableRestoreMode</variation>
 			<variation>-Xjit:count=0 -XX:+CRIURestoreNonPortableMode</variation>
 			<variation>-Xgcpolicy:optthruput</variation>
 			<variation>-Xgcpolicy:optavgpause</variation>
 			<variation>-Xgcpolicy:gencon -Xgcthreads64 -XX:CheckpointGCThreads=1</variation>
 			<variation>-Xgcpolicy:gencon -Xgcthreads1</variation>
+			<variation>-XX:+DebugOnRestore -Xjit</variation>
+			<variation>-XX:+DebugOnRestore -Xjit:count=0</variation>
 		</variations>
 		<command>
 			TR_Options=$(Q)exclude={org/openj9/criu/TimeChangeTest.nanoTimeInt()J},dontInline={org/openj9/criu/TimeChangeTest.nanoTimeInt()J|org/openj9/criu/TimeChangeTest.nanoTimeJit()J},{org/openj9/criu/TimeChangeTest.nanoTimeJit()J}(count=1)$(Q) \
@@ -106,6 +123,172 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
+		<features>
+			<feature>CRIU:required</feature>
+		</features>
+		<levels>
+			<level>sanity</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
+		<impls>
+			<impl>openj9</impl>
+		</impls>
+	</test>
+	<test>
+		<testCaseName>cmdLineTester_criu_nonPortableRestore_jdk_crac</testCaseName>
+		<variations>
+			<variation>-Xgcpolicy:optthruput</variation>
+			<variation>-Xgcpolicy:optavgpause</variation>
+			<variation>-Xgcpolicy:gencon -Xgcthreads64 -XX:CheckpointGCThreads=1</variation>
+			<variation>-Xgcpolicy:gencon -Xgcthreads1</variation>
+			<variation>-XX:+DebugOnRestore</variation>
+		</variations>
+		<command>
+			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
+			-DSCRIPPATH=$(TEST_RESROOT)$(D)cracScript.sh -DTEST_RESROOT=$(TEST_RESROOT) \
+			-DJAVA_COMMAND=$(JAVA_COMMAND) -DENABLE_PREVIEW=$(ENABLE_PREVIEW) -DJVM_OPTIONS=$(Q)$(JVM_OPTIONS)$(Q) -DTESTNG=$(TESTNG) \
+			-jar $(CMDLINETESTER_JAR) -config $(Q)$(TEST_RESROOT)$(D)criu_nonPortable_jdk_crac.xml$(Q) \
+			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
+			$(TEST_STATUS)
+		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
+		<features>
+			<feature>CRAC:required</feature>
+		</features>
+		<levels>
+			<level>sanity</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
+		<impls>
+			<impl>openj9</impl>
+		</impls>
+	</test>
+	<test>
+		<testCaseName>cmdLineTester_criu_jitPostRestore</testCaseName>
+		<variations>
+			<variation>-Xjit</variation>
+			<variation>-Xjit:count=0</variation>
+			<variation>-Xjit:vlog=vlog</variation>
+			<variation>-XX:+DebugOnRestore -Xjit</variation>
+			<variation>-XX:+DebugOnRestore -Xjit:count=0</variation>
+		</variations>
+		<command>
+			TR_Options=$(Q)disableSuffixLogs$(Q) \
+			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
+			-DSCRIPPATH=$(TEST_RESROOT)$(D)criuScript.sh -DTEST_RESROOT=$(TEST_RESROOT) \
+			-DCATSCRIPPATH=$(TEST_RESROOT)$(D)criuCatVlog.sh \
+			-DJAVA_COMMAND=$(JAVA_COMMAND) -DJVM_OPTIONS=$(Q)$(JVM_OPTIONS)$(Q) \
+			-jar $(CMDLINETESTER_JAR) -config $(Q)$(TEST_RESROOT)$(D)criu_jitPostRestore.xml$(Q) \
+			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
+			$(TEST_STATUS)
+		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
+		<features>
+			<feature>CRIU:required</feature>
+		</features>
+		<levels>
+			<level>sanity</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
+		<impls>
+			<impl>openj9</impl>
+		</impls>
+	</test>
+	<test>
+		<testCaseName>cmdLineTester_criu_jitserverAcrossCheckpoint</testCaseName>
+		<variations>
+			<variation>NoOptions</variation>
+		</variations>
+		<command>
+			if [ -x $(Q)$(TEST_JDK_BIN)$(D)jitserver$(Q) ]; \
+			then \
+				TR_Options=$(Q)disableSuffixLogs$(Q) \
+				$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
+				-DSCRIPPATH=$(TEST_RESROOT)$(D)criuJitServerScript.sh -DTEST_RESROOT=$(TEST_RESROOT) \
+				-DCATSCRIPPATH=$(TEST_RESROOT)$(D)criuCatVlog.sh \
+				-DTEST_JDK_BIN=$(TEST_JDK_BIN) -DJVM_OPTIONS=$(Q)$(JVM_OPTIONS)$(Q) \
+				-jar $(CMDLINETESTER_JAR) -config $(Q)$(TEST_RESROOT)$(D)criu_jitserverAcrossCheckpoint.xml$(Q) \
+				-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
+			else \
+				echo; \
+				echo $(Q)$(TEST_JDK_BIN)$(D)jitserver doesn't exist; assuming this JDK does not support JITServer and trivially passing the test.$(Q); \
+			fi; \
+			$(TEST_STATUS)
+		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux,^arch.arm,bits.64,os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux,^arch.arm,bits.64,os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux,^arch.arm,bits.64,os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux,^arch.arm,bits.64,os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
+		<features>
+			<feature>JITAAS:nonapplicable</feature>
+		</features>
+		<levels>
+			<level>sanity</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
+		<impls>
+			<impl>openj9</impl>
+		</impls>
+		<versions>
+			<version>11+</version>
+		</versions>
+	</test>
+	<test>
+		<testCaseName>cmdLineTester_criu_jitserverPostRestore</testCaseName>
+		<variations>
+			<variation>-Xjit</variation>
+			<variation>-Xjit:count=0</variation>
+			<variation>-Xjit:vlog=vlog</variation>
+			<variation>-XX:+JVMPortableRestoreMode</variation>
+		</variations>
+		<command>
+			if [ -x $(Q)$(TEST_JDK_BIN)$(D)jitserver$(Q) ]; \
+			then \
+				TR_Options=$(Q)disableSuffixLogs$(Q) \
+				$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
+				-DSCRIPPATH=$(TEST_RESROOT)$(D)criuJitServerScript.sh -DTEST_RESROOT=$(TEST_RESROOT) \
+				-DCATSCRIPPATH=$(TEST_RESROOT)$(D)criuCatVlog.sh \
+				-DTEST_JDK_BIN=$(TEST_JDK_BIN) -DJVM_OPTIONS=$(Q)$(JVM_OPTIONS)$(Q) \
+				-jar $(CMDLINETESTER_JAR) -config $(Q)$(TEST_RESROOT)$(D)criu_jitserverPostRestore.xml$(Q) \
+				-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
+			else \
+				echo; \
+				echo $(Q)$(TEST_JDK_BIN)$(D)jitserver doesn't exist; assuming this JDK does not support JITServer and trivially passing the test.$(Q); \
+			fi; \
+			$(TEST_STATUS)
+		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux,^arch.arm,bits.64,os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux,^arch.arm,bits.64,os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux,^arch.arm,bits.64,os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux,^arch.arm,bits.64,os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>
@@ -137,6 +320,12 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>
@@ -168,6 +357,12 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>
@@ -199,6 +394,12 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>
@@ -230,6 +431,12 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>
@@ -249,6 +456,7 @@
 			<variation>-Xjit -XX:+CRIURestoreNonPortableMode</variation>
 			<variation>-Xint -XX:+CRIURestoreNonPortableMode</variation>
 			<variation>-Xjit:count=0 -XX:+CRIURestoreNonPortableMode</variation>
+			<variation>-XX:+JVMPortableRestoreMode</variation>
 		</variations>
 		<command>
 			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
@@ -258,6 +466,12 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>
@@ -275,6 +489,43 @@
 		</versions>
 	</test>
 	<test>
+		<testCaseName>cmdLineTester_criu_nonPortableRestoreJDK20Up</testCaseName>
+		<variations>
+			<variation>-Xjit -XX:+CRIURestoreNonPortableMode</variation>
+			<variation>-Xint -XX:+CRIURestoreNonPortableMode</variation>
+			<variation>-Xjit:count=0 -XX:+CRIURestoreNonPortableMode</variation>
+		</variations>
+		<command>
+			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
+			-DSCRIPPATH=$(TEST_RESROOT)$(D)criuScript.sh -DTEST_RESROOT=$(TEST_RESROOT) \
+			-DJAVA_COMMAND=$(JAVA_COMMAND) -DJVM_OPTIONS=$(Q)$(JVM_OPTIONS)$(Q) \
+			-jar $(CMDLINETESTER_JAR) -config $(Q)$(TEST_RESROOT)$(D)criu_nonPortableJDK20Up.xml$(Q) \
+			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
+			$(TEST_STATUS)
+		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
+		<features>
+			<feature>CRIU:required</feature>
+		</features>
+		<levels>
+			<level>sanity</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
+		<impls>
+			<impl>openj9</impl>
+		</impls>
+		<versions>
+			<version>20+</version>
+		</versions>
+	</test>
+	<test>
 		<testCaseName>cmdLineTester_criu_security</testCaseName>
 		<variations>
 			<variation>-XX:+CRIURestoreNonPortableMode -Denable.j9internal.checkpoint.security.api.debug=true</variation>
@@ -287,6 +538,12 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>
@@ -313,6 +570,46 @@
 			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
 			$(TEST_STATUS)
 		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
+		<features>
+			<feature>CRIU:required</feature>
+		</features>
+		<levels>
+			<level>sanity</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
+		<impls>
+			<impl>openj9</impl>
+		</impls>
+	</test>
+	<test>
+		<testCaseName>cmdLineTester_criu_softmx</testCaseName>
+		<disables>
+			<disable>
+				<comment>https://github.com/eclipse-openj9/openj9/pull/18532#discussion_r1450778067</comment>
+			</disable>
+		</disables>
+		<command>
+			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xdump \
+			-DSCRIPPATH=$(TEST_RESROOT)$(D)criuSoftmxScript.sh -DTEST_RESROOT=$(TEST_RESROOT) \
+			-DJAVA_COMMAND=$(JAVA_COMMAND) -DJVM_OPTIONS=$(SQ)$(JVM_OPTIONS)$(SQ) \
+			-jar $(CMDLINETESTER_JAR) -config $(Q)$(TEST_RESROOT)$(D)criu_softmx.xml$(Q) \
+			-explainExcludes -xids all,$(PLATFORM),$(VARIATION) -nonZeroExitWhenError; \
+			$(TEST_STATUS)
+		</command>
+		<platformRequirementsList>
+			<platformRequirements>os.linux.ubuntu.22+</platformRequirements>
+			<platformRequirements>os.linux.rhel.8+</platformRequirements>
+			<platformRequirements>os.linux.sles.15+</platformRequirements>
+			<platformRequirements>os.linux.cent.8+</platformRequirements>
+		</platformRequirementsList>
 		<features>
 			<feature>CRIU:required</feature>
 		</features>

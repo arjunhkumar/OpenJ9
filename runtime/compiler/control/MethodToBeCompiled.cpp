@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "control/MethodToBeCompiled.hpp"
@@ -42,7 +42,7 @@ TR_MethodToBeCompiled *TR_MethodToBeCompiled::allocate(J9JITConfig *jitConfig)
       return NULL;
 
    entry->_index = _globalIndex++;
-   sprintf(entry->_monitorName, "JIT-QueueSlotMonitor-%d", (int32_t)entry->_index);
+   snprintf(entry->_monitorName, sizeof(entry->_monitorName), "JIT-QueueSlotMonitor-%d", (int32_t)entry->_index);
    entry->_monitor = TR::Monitor::create(entry->_monitorName);
    if (!entry->_monitor)
       {
@@ -77,7 +77,7 @@ void TR_MethodToBeCompiled::initialize(TR::IlGeneratorMethodDetails &details, vo
    _unloadedMethod = false;
    _doAotLoad = false;
    _useAotCompilation = false;
-   _doNotUseAotCodeFromSharedCache = false;
+   _doNotAOTCompile = false;
    _tryCompilingAgain = false;
    _async = false;
    _changedFromAsyncToSync = false;
@@ -89,10 +89,13 @@ void TR_MethodToBeCompiled::initialize(TR::IlGeneratorMethodDetails &details, vo
    _weight = 0;
    _jitStateWhenQueued = UNDEFINED_STATE;
 
+   _checkpointInProgress = false;
+
 #if defined(J9VM_OPT_JITSERVER)
    _remoteCompReq = false;
    _shouldUpgradeOutOfProcessCompilation = false;
    _doNotLoadFromJITServerAOTCache = false;
+   _useAOTCacheCompilation = false;
    _origOptLevel = unknownHotness;
    _stream = NULL;
 #endif /* defined(J9VM_OPT_JITSERVER) */
@@ -145,7 +148,7 @@ TR_MethodToBeCompiled::setAotCodeToBeRelocated(const void *m)
    }
 
 #if defined(J9VM_OPT_JITSERVER)
-uint64_t 
+uint64_t
 TR_MethodToBeCompiled::getClientUID() const
    {
    return _stream->getClientId();

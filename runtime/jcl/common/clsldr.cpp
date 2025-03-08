@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include "ArrayCopyHelpers.hpp"
 #include "VMHelpers.hpp"
@@ -108,8 +108,10 @@ Java_java_lang_ClassLoader_defineClassImpl1(JNIEnv *env, jobject receiver, jclas
 	if (J9_ARE_ALL_BITS_SET(flags, CLASSOPTION_FLAG_HIDDEN)) {
 		options |= (J9_FINDCLASS_FLAG_HIDDEN | J9_FINDCLASS_FLAG_UNSAFE);
 	} else {
+#if JAVA_SPEC_VERSION < 21
 		/* Validate the name for a normal (non-hidden) class. */
 		validateName = TRUE;
+#endif /* JAVA_SPEC_VERSION < 21 */
 	}
 	if (J9_ARE_ALL_BITS_SET(flags, CLASSOPTION_FLAG_NESTMATE)) {
 		options |= J9_FINDCLASS_FLAG_CLASS_OPTION_NESTMATE;

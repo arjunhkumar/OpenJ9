@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.javacore;
 
 import java.util.Iterator;
@@ -33,13 +33,13 @@ import com.ibm.dtfj.java.JavaClassLoader;
 import com.ibm.dtfj.java.JavaObject;
 
 public class JCJavaClassLoader implements JavaClassLoader {
-	
+
 	private final ImagePointer fID;
-	
+
 	private LinkedHashMap fClassNames;
 	private JCJavaRuntime fRuntime;
 	private JCJavaObject fObject;
-	
+
 	public JCJavaClassLoader(JCJavaRuntime javaRuntime, long id) throws JCInvalidArgumentsException {
 		if (javaRuntime == null) {
 			throw new JCInvalidArgumentsException("Must pass a valid runtime.");
@@ -55,7 +55,7 @@ public class JCJavaClassLoader implements JavaClassLoader {
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	public JavaClass findClass(String className) {
 		JavaClass foundClass = null;
@@ -72,7 +72,7 @@ public class JCJavaClassLoader implements JavaClassLoader {
 		}
 		return foundClass;
 	}
-	
+
 	/**
 	 * TODO: javacore appears to only list defined classes per class loader. If this changes
 	 * in the future, this implementation must be changed.
@@ -82,15 +82,15 @@ public class JCJavaClassLoader implements JavaClassLoader {
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	public Iterator getDefinedClasses() {
 		return getClasses();
 	}
-	
+
 	/**
-	 * 
-	 * 
+	 *
+	 *
 	 */
 	private Iterator getClasses() {
 		Vector classes = new Vector();
@@ -103,39 +103,37 @@ public class JCJavaClassLoader implements JavaClassLoader {
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	public JavaObject getObject() throws CorruptDataException {
 		return fObject;
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param object
 	 */
 	public void setObject(JCJavaObject object) {
 		fObject = object;
 	}
-	
-	
-	
+
 	/**
 	 * NON-DTFJ. For internal building purposes only.
 	 * @param className
-	 * 
+	 *
 	 */
 	public JCJavaClass internalGetClass(String className) {
 		return (JCJavaClass) findClass(className);
 	}
-	
+
 	/**
 	 * NON-DTFJ, don't use outside DTFJ. For internal building purposes only.
-	 * 
+	 *
 	 */
 	public JCJavaObject getInternalObject() {
 		return fObject;
 	}
-	
+
 	/**
 	 * NOT in DTFJ
 	 * @param name
@@ -145,7 +143,7 @@ public class JCJavaClassLoader implements JavaClassLoader {
 			fClassNames.put(name, null);
 		}
 	}
-		
+
 	/**
 	 * NOT in DTFJ
 	 * @param name
@@ -153,10 +151,10 @@ public class JCJavaClassLoader implements JavaClassLoader {
 	public void addClass(String name, ImagePointer ip) {
 		fClassNames.put(name, ip);
 	}
-	
+
 	/**
 	 * NON-DTFJ
-	 * 
+	 *
 	 */
 	public ImagePointer getPointerID() {
 		return fID;

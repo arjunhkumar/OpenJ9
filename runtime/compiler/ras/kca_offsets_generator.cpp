@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /*
@@ -47,8 +47,8 @@
 #include <stdio.h>
 
 
-char *
-J9::Options::kcaOffsets(char *option, void *, TR::OptionTable *entry)
+const char *
+J9::Options::kcaOffsets(const char *option, void *, TR::OptionTable *entry)
    {
    char szFileName[40];
    char szCMPRSS[8];
@@ -63,7 +63,7 @@ J9::Options::kcaOffsets(char *option, void *, TR::OptionTable *entry)
    szRT[0]='\0';
 
    // The generated file looks like this: kca_offsets_gen_R#_#[_CMPRSS][_RT].h
-   sprintf( szFileName, "kca_offsets_gen_R%d_%d%s%s.h", EsVersionMajor, EsVersionMinor, szCMPRSS, szRT );
+   snprintf( szFileName, sizeof(szFileName), "kca_offsets_gen_R%d_%d%s%s.h", EsVersionMajor, EsVersionMinor, szCMPRSS, szRT );
    TR_ASSERT( strlen(szFileName)<40, "szFileName array needs to be increased" );
 
    auto file = fopen( szFileName, "wt" );
@@ -205,9 +205,22 @@ J9::Options::kcaOffsets(char *option, void *, TR::OptionTable *entry)
       fprintf( file, "#define OSTHREAD_TID               (%" OMR_PRIuSIZE ")\n", offsetof(J9AbstractThread,tid) );
 
       fprintf( file, "#define J9JITSTACKATLAS_MAPBYTES   (%" OMR_PRIuSIZE ")\n", offsetof(J9JITStackAtlas,numberOfMapBytes) );
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Winvalid-offsetof"
+#elif defined(__GNUC__) || defined(__GNUG__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif
       fprintf( file, "#define BODYINFO_HOTNESS           (%" OMR_PRIuSIZE ")\n", offsetof(TR_PersistentJittedBodyInfo,_hotness) );
       fprintf( file, "#define PERSISTENTINFO_CHTABLE     (%" OMR_PRIuSIZE ")\n", offsetof(TR::PersistentInfo,_persistentCHTable) );
       fprintf( file, "#define PERSISTENTCLASS_VISITED    (%" OMR_PRIuSIZE ")\n", offsetof(TR_PersistentClassInfo,_visitedStatus) );
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__) || defined(__GNUG__)
+#pragma GCC diagnostic pop
+#endif
 
       fprintf( file, "#define ELS_OLDELS                 (%" OMR_PRIuSIZE ")\n", offsetof(J9VMEntryLocalStorage,oldEntryLocalStorage) );
       fprintf( file, "#define ELS_I2JSTATE               (%" OMR_PRIuSIZE ")\n", offsetof(J9VMEntryLocalStorage,i2jState) );

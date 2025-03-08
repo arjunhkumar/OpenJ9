@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.openj9.test.java.lang;
 
 import java.lang.ref.WeakReference;
@@ -233,31 +233,6 @@ public class Test_Thread {
 		try {
 			t.join();
 		} catch (InterruptedException e) {
-		}
-	}
-
-	/**
-	 * @tests java.lang.Thread#countStackFrames()
-	 */
-	@Test
-	public void test_countStackFrames() {
-		int versionMajor = org.openj9.test.util.VersionCheck.major();
-		if (versionMajor < 13) {
-			AssertJUnit.assertTrue("Test failed.", Thread.currentThread().countStackFrames() == 0);
-		} else if (versionMajor < 14) {
-			try {
-				Thread.currentThread().countStackFrames();
-				Assert.fail("Should thrown IllegalThreadStateException!");
-			} catch (IllegalThreadStateException itse) {
-				// pass with expected exception
-			}
-		} else {
-			try {
-				Thread.currentThread().countStackFrames();
-				Assert.fail("Should thrown UnsupportedOperationException!");
-			} catch (UnsupportedOperationException uoe) {
-				// pass with expected exception
-			}
 		}
 	}
 

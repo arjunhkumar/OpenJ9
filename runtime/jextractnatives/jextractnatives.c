@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jni.h"
@@ -25,7 +25,6 @@
 #include "j9dbgext.h"
 #include "j9protos.h"
 #include "j9port.h"
-#include "jextractnatives_internal.h"
 #include "j9version.h"
 
 #include <stdarg.h>
@@ -132,7 +131,7 @@ validateDump(JNIEnv *env, jboolean disableBuildIdCheck)
 		}
 
 		if (eyecatcher == (jlong)-1) {
-			j9str_printf(PORTLIB,
+			j9str_printf(
 					errBuf, sizeof(errBuf),
 					"JVM anchor block (J9VMRAS) not found in dump. Dump may be truncated, corrupted or contains a partially initialized JVM.");
 			(*env)->ThrowNew(env, errorClazz, errBuf);
@@ -141,10 +140,10 @@ validateDump(JNIEnv *env, jboolean disableBuildIdCheck)
 
 #if !defined(J9VM_ENV_DATA64)
 		if ((U_64)eyecatcher > (U_64)0xFFFFFFFF) {
-			j9str_printf(PORTLIB,
-				errBuf, sizeof(errBuf),
-				"J9RAS is out of range for a 32-bit pointer (0x%16.16llx). This version of jextract is incompatible with this dump.",
-				eyecatcher);
+			j9str_printf(
+					errBuf, sizeof(errBuf),
+					"J9RAS is out of range for a 32-bit pointer (0x%16.16llx). This version of jextract is incompatible with this dump.",
+					eyecatcher);
 			(*env)->ThrowNew(env, errorClazz, errBuf);
 			return JNI_FALSE;
 		}
@@ -156,20 +155,20 @@ validateDump(JNIEnv *env, jboolean disableBuildIdCheck)
 		if (ras != NULL) {
 			if (ras->bitpattern1 == 0xaa55aa55 && ras->bitpattern2 == 0xaa55aa55) {
 				if (ras->version != J9RASVersion) {
-					j9str_printf(PORTLIB,
-						errBuf, sizeof(errBuf),
-						"J9RAS.version is incorrect (found %u, expecting %u). This version of jextract is incompatible with this dump.",
-						ras->version,
-						J9RASVersion);
+					j9str_printf(
+							errBuf, sizeof(errBuf),
+							"J9RAS.version is incorrect (found %u, expecting %u). This version of jextract is incompatible with this dump.",
+							ras->version,
+							J9RASVersion);
 					(*env)->ThrowNew(env, errorClazz, errBuf);
 					return JNI_FALSE;
 				}
 				if (ras->length != sizeof(J9RAS)) {
-					j9str_printf(PORTLIB,
-						errBuf, sizeof(errBuf),
-						"J9RAS.length is incorrect (found %u, expecting %u). This version of jextract is incompatible with this dump.",
-						ras->length,
-						sizeof(J9RAS));
+					j9str_printf(
+							errBuf, sizeof(errBuf),
+							"J9RAS.length is incorrect (found %u, expecting %u). This version of jextract is incompatible with this dump.",
+							ras->length,
+							sizeof(J9RAS));
 					(*env)->ThrowNew(env, errorClazz, errBuf);
 					return JNI_FALSE;
 				}
@@ -181,13 +180,13 @@ validateDump(JNIEnv *env, jboolean disableBuildIdCheck)
 							ras->buildID,
 							(U_64)J9UniqueBuildID);
 					} else {
-						j9str_printf(PORTLIB,
-							errBuf, sizeof(errBuf),
-							"J9RAS.buildID is incorrect (found %llx, expecting %llx)."
-							" This version of jextract is incompatible with this dump"
-							" (use '-r' option to relax this check).",
-							ras->buildID,
-							(U_64)J9UniqueBuildID);
+						j9str_printf(
+								errBuf, sizeof(errBuf),
+								"J9RAS.buildID is incorrect (found %llx, expecting %llx)."
+								" This version of jextract is incompatible with this dump"
+								" (use '-r' option to relax this check).",
+								ras->buildID,
+								(U_64)J9UniqueBuildID);
 						(*env)->ThrowNew(env, errorClazz, errBuf);
 						return JNI_FALSE;
 					}
@@ -202,10 +201,10 @@ validateDump(JNIEnv *env, jboolean disableBuildIdCheck)
 			/* On 64-bit platforms, the code that tries to allocate the scratch space J9DBGEXT_SCRATCH_SIZE
 			 * scratch space will have issued it's own informative error already.
 			 */
-			j9str_printf(PORTLIB,
-				errBuf, sizeof(errBuf),
-				"Cannot allocate %zu bytes of memory for initial RAS eyecatcher, cannot continue processing this dump.",
-				sizeof(J9RAS));
+			j9str_printf(
+					errBuf, sizeof(errBuf),
+					"Cannot allocate %zu bytes of memory for initial RAS eyecatcher, cannot continue processing this dump.",
+					sizeof(J9RAS));
 			(*env)->ThrowNew(env, errorClazz, errBuf);
 			return JNI_FALSE;
 		}
@@ -287,30 +286,6 @@ cacheIDs(JNIEnv* env, jobject dumpObj)
 	}
 
 	return 0;
-}
-
-void JNICALL
-Java_com_ibm_jvm_j9_dump_extract_Main_doCommand(JNIEnv *env, jobject obj, jobject dumpObj, jstring commandObject)
-{
-	const char *command = (*env)->GetStringUTFChars(env, commandObject, 0);
-	PORT_ACCESS_FROM_VMC((J9VMThread*)env);
-
-	if (command == NULL) {
-		return;
-	}
-
-	if (cacheIDs(env, dumpObj)) {
-		return;
-	}
-
-	/* hook the debug extension's malloc and free up to ours, so that it can benefit from -memorycheck */
-	OMRPORT_FROM_J9PORT(dbgGetPortLibrary())->mem_allocate_memory = OMRPORT_FROM_J9PORT(PORTLIB)->mem_allocate_memory;
-	OMRPORT_FROM_J9PORT(dbgGetPortLibrary())->mem_free_memory = OMRPORT_FROM_J9PORT(PORTLIB)->mem_free_memory;
-	OMRPORT_FROM_J9PORT(dbgGetPortLibrary())->port_control = OMRPORT_FROM_J9PORT(PORTLIB)->port_control;
-
-	run_command(command);
-
-	(*env)->ReleaseStringUTFChars(env, commandObject, command);
 }
 
 /**

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9;
 
 import java.util.ArrayList;
@@ -35,25 +35,21 @@ public class J9TagManager implements ITagManager {
 	private HashMap fTagParsers;
 	private static J9TagManager fTagManager;
 	public static final String CHECK_ALL = "check_all";
-	
+
 	private String fCommentType = ICommonTypes.NULL;
-	
+
 	public static J9TagManager getCurrent() {
 		if (fTagManager == null) {
 			fTagManager = new J9TagManager();
 		}
 		return fTagManager;
 	}
-	
-	
+
 	public J9TagManager()	 {
 		fAllTags = new HashMap();
 		fTagParsers = new HashMap();
 	}
-	
-	
-	
-	
+
 	/**
 	 * Hardcoded for now.
 	 *
@@ -73,9 +69,8 @@ public class J9TagManager implements ITagManager {
 		fillAllTags();
 	}
 
-	
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void fillAllTags() {
@@ -90,9 +85,8 @@ public class J9TagManager implements ITagManager {
 		}
 	}
 
-	
 	/**
-	 * 
+	 *
 	 * @param tag to check whether it exists in the Tag Manager.
 	 * @return true if the Tag Manager has this tag registered.
 	 */
@@ -100,18 +94,15 @@ public class J9TagManager implements ITagManager {
 		return fAllTags.containsKey(identifier);
 	}
 
-	
-	
 	public ITagParser getTagParser(String section) {
 		return (ITagParser)fTagParsers.get(section);
 	}
-	
-	
+
 	/**
-	 * 
+	 *
 	 * @param tag
 	 * @param section
-	 * 
+	 *
 	 */
 	public boolean isTagInSection(String tag, String section) {
 		boolean result = false;
@@ -126,17 +117,11 @@ public class J9TagManager implements ITagManager {
 		}
 		return result;
 	}
-	
-	
-
-	
-
-
 
 	/**
-	 * 
+	 *
 	 * @param source
-	 * 
+	 *
 	 */
 	public boolean isComment(CharSequence source) {
 		boolean result = false;

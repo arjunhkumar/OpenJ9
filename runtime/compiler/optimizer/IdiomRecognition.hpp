@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef IDIOMRECOGNITION_INCL
@@ -38,6 +38,7 @@
 #include "infra/HashTab.hpp"
 #include "infra/Link.hpp"
 #include "infra/List.hpp"
+#include "infra/String.hpp"
 #include "infra/TRlist.hpp"
 #include "optimizer/LoopCanonicalizer.hpp"
 #include "optimizer/OptimizationManager.hpp"
@@ -65,15 +66,15 @@ typedef enum
    TR_ahconst,          // constant for array header
    TR_variableORconst,
    TR_quasiConst,       // Currently, variable or constant or arraylength
-   TR_quasiConst2,      // Currently, variable or constant, arraylength, or *iiload* (for non-array)
-                        // We shouldn't use it in an idiom including iistore to *non-array* variable.
+   TR_quasiConst2,      // Currently, variable or constant, arraylength, or *iloadi* (for non-array)
+                        // We shouldn't use it in an idiom including istorei to *non-array* variable.
    TR_iaddORisub,       // addition or subtraction
    TR_conversion,       // all data conversions, such as b2i, c2i, i2l, ...
    TR_ifcmpall,         // all if instructions
    TR_ishrall,          // ishr and iushr
    TR_bitop1,           // AND, OR, and XOR
    TR_arrayindex,       // variable or addition
-   TR_arraybase,        // variable or iaload
+   TR_arraybase,        // variable or aloadi
    TR_inbload,          // indirect non-byte load
    TR_inbstore,         // indirect non-byte store
    TR_indload,          // indirect load
@@ -1303,7 +1304,7 @@ class TR_CISCTransformer : public TR_LoopTransformer
 
    bool computeTopologicalEmbedding(TR_CISCGraph *P, TR_CISCGraph *T);
    bool embeddingHasConflictingBranches();
-   void showEmbeddedData(char *title, uint8_t *data);
+   void showEmbeddedData(const char *title, uint8_t *data);
    bool computeEmbeddedForData();
    bool computeEmbeddedForCFG();
    bool dagEmbed(TR_CISCNode *, TR_CISCNode*);
@@ -1451,7 +1452,7 @@ class TR_CISCTransformer : public TR_LoopTransformer
    void showCandidates();
    void registerCandidates();
    void moveCISCNodesInList(List<TR_CISCNode> *l, TR_CISCNode *from, TR_CISCNode *to, TR_CISCNode *moveTo);
-   void moveCISCNodes(TR_CISCNode *from, TR_CISCNode *to, TR_CISCNode *moveTo, char *debugStr = NULL);
+   void moveCISCNodes(TR_CISCNode *from, TR_CISCNode *to, TR_CISCNode *moveTo, const char *debugStr = NULL);
    TR::Block *searchPredecessorOfBlock(TR::Block *block);
    TR::Block *modifyBlockByVersioningCheck(TR::Block *block, TR::TreeTop *startTop, TR::Node *lengthNode, List<TR::Node> *guardList = NULL);
    TR::Block *modifyBlockByVersioningCheck(TR::Block *block, TR::TreeTop *startTop, List<TR::Node> *guardList);
@@ -1468,6 +1469,9 @@ class TR_CISCTransformer : public TR_LoopTransformer
 
    TR_RegionStructure *getCurrentLoop() { return _loopStructure; }
    void setCurrentLoop(TR_RegionStructure *loop) { _loopStructure = loop; }
+
+   void countFail(const char *fmt, ...) TR_PRINTF_FORMAT_ATTR(2, 3);
+   void countUnhandledOpcode(const char *where, uint32_t opcode);
 
 private:
    List<TR::Block> _bblistPred;
@@ -1510,6 +1514,8 @@ private:
    uint8_t *_DE;        // just for working
    bool _isGenerateI2L;
    bool _showMesssagesStdout;
+
+   TR::StringBuf _countFailBuf;
    };
 
 #endif

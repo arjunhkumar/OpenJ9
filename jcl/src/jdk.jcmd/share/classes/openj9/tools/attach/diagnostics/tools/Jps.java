@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2019
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package openj9.tools.attach.diagnostics.tools;
 
@@ -66,7 +66,7 @@ public class Jps {
 		AttachProvider theProvider = null;
 		if (0 != providers.size()) {
 			theProvider = providers.get(0);
-		} 
+		}
 		if (null == theProvider) {
 			System.err.println("no attach providers available"); //$NON-NLS-1$
 			rc = 1;
@@ -75,7 +75,7 @@ public class Jps {
 			for (VirtualMachineDescriptor vmd : vmds) {
 				StringBuilder outputBuffer = new StringBuilder(vmd.id());
 				if (!vmidOnly) {
-					Util.getTargetInformation(theProvider, vmd, 
+					Util.getTargetInformation(theProvider, vmd,
 							printJvmArguments, noPackageName, printApplicationArguments, outputBuffer);
 				}
 				System.out.println(outputBuffer.toString());
@@ -83,7 +83,7 @@ public class Jps {
 		}
 		System.exit(rc);
 	}
-	
+
 	private static void parseArguments(String[] args) {
 		printApplicationArguments = false;
 		printJvmArguments = false;

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.stack;
 
 import java.util.Properties;
@@ -43,7 +43,7 @@ public class StackSectionParser extends SectionParser implements IStackTypes {
 
 	private IImageAddressSpaceBuilder fImageAddressSpaceBuilder;
 	private IImageProcessBuilder fImageProcessBuilder;
-	
+
 	public StackSectionParser() {
 		super(STACK_SECTION);
 	}
@@ -53,20 +53,20 @@ public class StackSectionParser extends SectionParser implements IStackTypes {
 	 * @throws ParserException
 	 */
 	protected void topLevelRule() throws ParserException {
-		
+
 		fImageAddressSpaceBuilder = fImageBuilder.getCurrentAddressSpaceBuilder();
 		fImageProcessBuilder = fImageAddressSpaceBuilder.getCurrentImageProcessBuilder();
-		
+
 		parseStackLine();
 	}
-	
+
 	/**
 	 * Parse the native stack line information
 	 * @throws ParserException
 	 */
 	private void parseStackLine() throws ParserException {
 		IAttributeValueMap results = null;
-		
+
 		// Process the version lines
 		while ((results = processTagLineOptional(T_BTTHREADID)) != null) {
 			long threadID = results.getLongValue(STACK_THREAD);
@@ -78,7 +78,7 @@ public class StackSectionParser extends SectionParser implements IStackTypes {
 				long offset = results.getLongValue(STACK_OFFSET);
 				String file = results.getTokenValue(STACK_FILE);
 				int line = results.getIntValue(STACK_LINE);
-				
+
 				// Allow for missing data
 				if (routine_address == IBuilderData.NOT_AVAILABLE
 					&& address != IBuilderData.NOT_AVAILABLE
@@ -93,7 +93,7 @@ public class StackSectionParser extends SectionParser implements IStackTypes {
 						&& routine_address != IBuilderData.NOT_AVAILABLE) {
 					address = routine_address + offset;
 				}
-				
+
 				String name;
 				if (module != null) {
 					name = module;
@@ -128,7 +128,7 @@ public class StackSectionParser extends SectionParser implements IStackTypes {
 					if (routine != null) {
 						if (offset != IBuilderData.NOT_AVAILABLE) {
 							name = "::"+routine+(offset >= 0 ? "+" : "-") + offset;
-						} else {	
+						} else {
 							name = "::"+routine;
 						}
 					} else {
@@ -143,7 +143,7 @@ public class StackSectionParser extends SectionParser implements IStackTypes {
 			}
 		}
 	}
-	
+
 	/**
 	 * Empty hook for now.
 	 */

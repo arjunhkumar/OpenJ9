@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #ifndef java_lang_Class_h
 #define java_lang_Class_h
@@ -25,11 +25,13 @@
 /* @ddr_namespace: default */
 #include "j9.h"
 
+#if JAVA_SPEC_VERSION < 24
 typedef struct DoPrivilegedMethodArgs {
 	UDATA frameCounter;		/* the frame just walked */
 	j9object_t accControlContext;	/* arg0EA[-1] - AccessControlContext */
 	j9object_t permissions;	/* arg0EA[-2] - Limited permission array */
 	struct DoPrivilegedMethodArgs* next;	/* next DoPrivilegedMethodArgs structure */
 } DoPrivilegedMethodArgs;
+#endif /* JAVA_SPEC_VERSION < 24 */
 
 #endif	/* java_lang_Class_h */

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2005
  *
  * This program and the accompanying materials are made available under
@@ -18,11 +18,13 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management.internal;
 
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import javax.management.Notification;
 
 import com.ibm.lang.management.AvailableProcessorsNotificationInfo;
@@ -49,13 +51,16 @@ final class OperatingSystemNotificationThread implements Runnable {
 	 * then enter the native that services an internal notification queue.
 	 */
 	@Override
-	/*[IF JAVA_SPEC_VERSION >= 17]*/
+	/*[IF (17 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24)]*/
 	@SuppressWarnings("removal")
-	/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
+	/*[ENDIF] (17 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24) */
 	public void run() {
 		Thread myShutdownNotifier = new OperatingSystemNotificationThreadShutdown(Thread.currentThread());
 
 		try {
+			/*[IF JAVA_SPEC_VERSION >= 24]*/
+			Runtime.getRuntime().addShutdownHook(myShutdownNotifier);
+			/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 			java.security.AccessController.doPrivileged(new PrivilegedAction<Void>() {
 				@Override
 				public Void run() {
@@ -63,6 +68,7 @@ final class OperatingSystemNotificationThread implements Runnable {
 					return null;
 				}
 			});
+			/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 		} catch (IllegalStateException e) {
 			/* if by chance we are already shutting down when we try to
 			 * register the shutdown hook, allow this thread to terminate
@@ -76,7 +82,7 @@ final class OperatingSystemNotificationThread implements Runnable {
 
 	/**
 	 * Registers a signal handler for SIGRECONFIG, then processes notifications
-	 * on an internal VM queue until a shutdown request is received. 
+	 * on an internal VM queue until a shutdown request is received.
 	 */
 	private native void processNotificationLoop();
 

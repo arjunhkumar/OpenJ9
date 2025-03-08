@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands.xcommands;
 
 import java.io.PrintStream;
@@ -35,9 +35,9 @@ import com.ibm.jvm.dtfjview.commands.helpers.Utils;
 @DTFJPlugin(version="1.*", runtime=false)
 public class XXCommand extends XCommand {
 	{
-		addCommand("x/x", "<hex address>", "displays the hex value of the bytes at the specified address");	
+		addCommand("x/x", "<hex address>", "displays the hex value of the bytes at the specified address");
 	}
-	
+
 	@Override
 	public boolean recognises(String command, IContext context) {
 		if(super.recognises(command, context)) {
@@ -45,7 +45,7 @@ public class XXCommand extends XCommand {
 		}
 		return false;
 	}
-	
+
 	public void doCommand(String[] args)
 	{
 		Long address;
@@ -59,19 +59,19 @@ public class XXCommand extends XCommand {
 		}
 
 		out.print("\n");
-		
+
 		boolean found = false;
 		for (int index = 0; index < argUnitNumber; index++)
 		{
 			long currAddr = address.longValue() + (index * argUnitSize);
-			
+
 			out.print("\t");
 			out.print(Utils.toHex(currAddr));
 			out.print(": ");
 
 			ImageAddressSpace ias = ctx.getAddressSpace();
 			ImagePointer ip = ias.getPointer(currAddr);
-			
+
 			byte b = 0;
 			short s = 0;
 			int i = 0;
@@ -92,7 +92,7 @@ public class XXCommand extends XCommand {
 					l = ip.getLongAt(0);
 					break;
 				}
-				
+
 				found = true;
 			} catch (CorruptDataException e) {
 				found = false;
@@ -120,13 +120,13 @@ public class XXCommand extends XCommand {
 			}
 			out.print("\n");
 		}
-			
+
 		if (!found)
 		{
 			out.print("<address not found in any address space>");
 		}
 		out.print("\n");
-		
+
 	}
 
 	@Override
@@ -141,5 +141,5 @@ public class XXCommand extends XCommand {
 				"it by the \"x/\" command.\n"
 		);
 	}
-	
+
 }

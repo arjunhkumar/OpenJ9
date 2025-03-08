@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "codegen/CodeGenerator.hpp"
@@ -36,6 +36,7 @@
 #include "ilgen/IlGeneratorMethodDetails_inlines.hpp"
 #include "infra/Cfg.hpp"
 #include "infra/Checklist.hpp"
+#include "infra/String.hpp"
 #include "env/VMJ9.h"
 #include "ilgen/J9ByteCodeIlGenerator.hpp"
 #include "optimizer/BoolArrayStoreTransformer.hpp"
@@ -72,7 +73,15 @@ TR_J9ByteCodeIlGenerator::TR_J9ByteCodeIlGenerator(
      _invokeHandleGenericCalls(NULL),
      _invokeDynamicCalls(NULL),
      _ilGenMacroInvokeExactCalls(NULL),
-     _methodHandleInvokeCalls(NULL)
+     _methodHandleInvokeCalls(NULL),
+     _requiredConsts(
+        (
+           comp->currentILGenCallTarget() == NULL
+           || comp->currentILGenCallTarget()->_requiredConsts.empty()
+        )
+        ? NULL
+        : &comp->currentILGenCallTarget()->_requiredConsts),
+     _foldedRequiredConsts(NULL)
    {
    static const char *noLookahead = feGetEnv("TR_noLookahead");
    _noLookahead = (noLookahead || comp->getOption(TR_DisableLookahead)) ? true : false;
@@ -139,9 +148,18 @@ TR_J9ByteCodeIlGenerator::genIL()
 
    TR::StackMemoryRegion stackMemoryRegion(*trMemory());
 
+   if (_requiredConsts != NULL)
+      {
+      _foldedRequiredConsts =
+         new (stackMemoryRegion) TR::set<int32_t>(stackMemoryRegion);
+      }
+
    comp()->setCurrentIlGenerator(this);
 
    bool success = internalGenIL();
+
+   if (success && _requiredConsts != NULL)
+      assertFoldedAllRequiredConsts();
 
    if (success && !comp()->isPeekingMethod())
       {
@@ -188,6 +206,96 @@ TR_J9ByteCodeIlGenerator::genIL()
    comp()->setCurrentIlGenerator(0);
 
    return success;
+   }
+
+void TR_J9ByteCodeIlGenerator::assertFoldedAllRequiredConsts()
+   {
+   // The elements of _foldedRequiredConsts should be identical to the
+   // keys of _requiredConsts corresponding to bytecode indices for which IL
+   // was generated.
+   bool ok = true;
+
+   // Iteration should produce the same sequence (after ignoring ungenerated
+   // bytecode) because both containers are maintained in sorted order.
+   auto itF = _foldedRequiredConsts->begin();
+   auto endF = _foldedRequiredConsts->end();
+   auto itR = _requiredConsts->begin();
+   auto endR = _requiredConsts->end();
+   while (itF != endF && itR != endR)
+      {
+      if (!isGenerated(itR->first))
+         {
+         itR++;
+         continue;
+         }
+
+      if (*itF != itR->first)
+         {
+         ok = false;
+         break;
+         }
+
+      itF++;
+      itR++;
+      }
+
+   while (itR != endR && !isGenerated(itR->first))
+      itR++;
+
+   if (ok && itF == endF && itR == endR)
+      return; // all good
+
+   // mismatch
+   TR::StringBuf msg(comp()->trMemory()->currentStackRegion());
+   msg.appendf("Required constants bytecode index set mismatch:\n");
+
+   msg.appendf("Expected: ");
+   bool first = true;
+   for (itR = _requiredConsts->begin(); itR != endR; itR++)
+      {
+      if (!isGenerated(itR->first))
+         continue;
+
+      msg.appendf("%s%d", first ? "" : ", ", itR->first);
+      }
+
+   msg.appendf("\nFolded  : ");
+   if (_foldedRequiredConsts->empty())
+      {
+      msg.appendf("(none)");
+      }
+   else
+      {
+      first = true;
+      for (itF = _foldedRequiredConsts->begin(); itF != endF; itF++)
+         msg.appendf("%s%d", first ? "" : ", ", *itF);
+      }
+
+   msg.appendf("\ninline call stack:");
+
+   char sigBuf[256];
+
+   int32_t atBcIndex = -1;
+   int32_t siteIndex = comp()->getCurrentInlinedSiteIndex();
+   while (siteIndex >= 0)
+      {
+      TR_InlinedCallSite &ics = comp()->getInlinedCallSite(siteIndex);
+      TR_ByteCodeInfo bci = ics._byteCodeInfo;
+      msg.appendf("\n");
+      if (atBcIndex >= 0)
+         msg.appendf("at %d ", atBcIndex);
+
+      const char *sig = fe()->sampleSignature(
+         ics._methodInfo, sigBuf, sizeof(sigBuf), comp()->trMemory());
+
+      msg.appendf("in %s", sig);
+      atBcIndex = ics._byteCodeInfo.getByteCodeIndex();
+      siteIndex = ics._byteCodeInfo.getCallerIndex();
+      }
+
+   msg.appendf("\nat %d in %s", atBcIndex, comp()->signature());
+
+   TR_ASSERT_FATAL(false, "%s", msg.text());
    }
 
 bool TR_J9ByteCodeIlGenerator::internalGenIL()
@@ -344,9 +452,6 @@ TR_J9ByteCodeIlGenerator::genILFromByteCodes()
          }
       }
 
-   _staticFieldReferenceEncountered = false;
-   _staticMethodInvokeEncountered = false;
-
    // Allocate zero-length bit vectors before walker so that the bit vectors can grow on the right
    // stack memory region
    //
@@ -359,7 +464,10 @@ TR_J9ByteCodeIlGenerator::genILFromByteCodes()
    TR::Block * lastBlock = walker(0);
 
    if (hasExceptionHandlers())
+      {
+      _methodSymbol->setHasExceptionHandlers();
       lastBlock = genExceptionHandlers(lastBlock);
+      }
 
    _bcIndex = 0;
 
@@ -395,7 +503,7 @@ TR_J9ByteCodeIlGenerator::genILFromByteCodes()
          }
       else
          {
-         //TR_VerboseLog::writeLineLocked(TR_Vlog_PERF,"Saved a GCR gen body nmayHaveInlineableCall=%d  mayHaveLoops=%d _maxByteCodeIndex=%d\n", _methodSymbol->mayHaveInlineableCall(), _methodSymbol->mayHaveLoops(), _maxByteCodeIndex);
+         //TR_VerboseLog::writeLineLocked(TR_Vlog_PERF,"Saved a GCR gen body nmayHaveInlineableCall=%d  mayHaveLoops=%d _maxByteCodeIndex=%d", _methodSymbol->mayHaveInlineableCall(), _methodSymbol->mayHaveLoops(), _maxByteCodeIndex);
          // stats
          comp()->getPersistentInfo()->incNumGCRSaves();
          }
@@ -555,11 +663,7 @@ TR_J9ByteCodeIlGenerator::genILFromByteCodes()
 
       if (currNode->getOpCodeValue() == TR::checkcast
           && currNode->getSecondChild()->getOpCodeValue() == TR::loadaddr
-          && currNode->getSecondChild()->getSymbolReference()->isUnresolved()
-          && // check whether the checkcast class is primitive valuetype. Expansion is only needed for checkcast to reference type.
-            (!TR::Compiler->om.areValueTypesEnabled()
-            || !TR::Compiler->cls.isClassRefPrimitiveValueType(comp(), method()->classOfMethod(),
-                                        currNode->getSecondChild()->getSymbolReference()->getCPIndex())))
+          && currNode->getSecondChild()->getSymbolReference()->isUnresolved())
           {
           unresolvedCheckcastTopsNeedingNullGuard.add(currTree);
           }
@@ -790,7 +894,7 @@ TR_J9ByteCodeIlGenerator::genExceptionHandlers(TR::Block * lastBlock)
    for (auto handlerInfoIter = _tryCatchInfo.begin(); handlerInfoIter != _tryCatchInfo.end(); ++handlerInfoIter)
       {
       TryCatchInfo & handlerInfo = *handlerInfoIter;
-      uint16_t firstIndex = handlerInfo._handlerIndex;
+      int32_t firstIndex = handlerInfo._handlerIndex;
 
       // Two exception data entries can have ranges pointing at the same handler.
       // If the types are different then we have to clone the handler.
@@ -1004,15 +1108,18 @@ TR_J9ByteCodeIlGenerator::genExceptionHandlers(TR::Block * lastBlock)
          }
       TR::Block *catchBlock   = handlerInfo._catchBlock;
       TR::Block *restartBlock = _blocksToInline? _blocksToInline->getGeneratedRestartTree()->getEnclosingBlock() : NULL;
-      uint8_t precedingOpcode = _code[handlerInfo._startIndex-1];
-      TR_J9ByteCode precedingBytecode = convertOpCodeToByteCodeEnum(precedingOpcode);
-      uint8_t lastOpcode = _code[handlerInfo._endIndex];
-      TR_J9ByteCode lastBytecode = convertOpCodeToByteCodeEnum(lastOpcode);
-      bool isSynchronizedRegion = (precedingBytecode == J9BCmonitorenter && lastBytecode == J9BCmonitorexit);
-      if (isSynchronizedRegion) // monitorenter preceding try region that ends in monitorexit means synchronized
-         catchBlock->setIsSynchronizedHandler();
+      // Checking for a preceding J9BCmonitorenter only make sense when the try region starts at a bytecode index above 0
+      if (handlerInfo._startIndex > 0)
+         {
+         uint8_t precedingOpcode = _code[handlerInfo._startIndex-1];
+         TR_J9ByteCode precedingBytecode = convertOpCodeToByteCodeEnum(precedingOpcode);
+         uint8_t lastOpcode = _code[handlerInfo._endIndex];
+         TR_J9ByteCode lastBytecode = convertOpCodeToByteCodeEnum(lastOpcode);
+         if (precedingBytecode == J9BCmonitorenter && lastBytecode == J9BCmonitorexit)
+            catchBlock->setIsSynchronizedHandler(); // monitorenter preceding try region that ends in monitorexit means synchronized
+         }
 
-      for (uint16_t j = handlerInfo._startIndex; j <= handlerInfo._endIndex; ++j)
+      for (int32_t j = handlerInfo._startIndex; j <= handlerInfo._endIndex; ++j)
          if (blocks(j) && cfg()->getNodes().find(blocks(j)))
             {
             if (blocks(j) == catchBlock)
@@ -2050,7 +2157,7 @@ TR_J9ByteCodeIlGenerator::inlineJitCheckIfFinalizeObject(TR::Block *firstBlock)
 
             TR::Node *classDepthAndFlagsNode = TR::Node::createWithSymRef(loadOp, 1, 1,
                                               vftLoad,
-                                              comp()->getSymRefTab()->findOrCreateClassAndDepthFlagsSymbolRef());
+                                              comp()->getSymRefTab()->findOrCreateClassDepthAndFlagsSymbolRef());
             TR::Node *andConstNode = TR::Node::create(classDepthAndFlagsNode, is64bit ? TR::lconst : TR::iconst, 0);
             if (is64bit)
                andConstNode->setLongInt(fej9()->getFlagValueForFinalizerCheck());
@@ -2150,14 +2257,14 @@ bool TR_J9ByteCodeIlGenerator::replaceMethods(TR::TreeTop *tt, TR::Node *node)
    return true;
    }
 
-static bool matchFieldOrStaticName(TR::Compilation* comp, TR::Node* node, char* staticOrFieldName) {
+static bool matchFieldOrStaticName(TR::Compilation *comp, TR::Node *node, const char *staticOrFieldName) {
    if ((!node->getOpCode().isLoad() && !node->getOpCode().isStore()) ||
        !node->getOpCode().hasSymbolReference())
       return false;
-   TR::SymbolReference* symRef = node->getSymbolReference();
-   TR::Symbol* sym = symRef->getSymbol();
+   TR::SymbolReference *symRef = node->getSymbolReference();
+   TR::Symbol *sym = symRef->getSymbol();
    if (sym == NULL || symRef->getCPIndex() < 0) return false;
-   TR_ResolvedMethod* method = comp->getOwningMethodSymbol(symRef->getOwningMethodIndex())->getResolvedMethod();
+   TR_ResolvedMethod *method = comp->getOwningMethodSymbol(symRef->getOwningMethodIndex())->getResolvedMethod();
    if (!method) return false;
    switch(sym->getKind()) {
    case TR::Symbol::IsStatic:
@@ -2168,12 +2275,12 @@ static bool matchFieldOrStaticName(TR::Compilation* comp, TR::Node* node, char* 
       int32_t numHelperSymbols = comp->getSymRefTab()->getNumHelperSymbols();
       if ((index < numHelperSymbols) || (index < nonhelperIndex) || !sym->isStaticField()) return false;
 
-      const char * nodeName = method->staticName(symRef->getCPIndex(), comp->trMemory(), stackAlloc);
+      const char *nodeName = method->staticName(symRef->getCPIndex(), comp->trMemory(), stackAlloc);
       return !strcmp(nodeName, staticOrFieldName);
       }
    case TR::Symbol::IsShadow:
       {
-      const char * nodeName = method->fieldName(symRef->getCPIndex(), comp->trMemory(), stackAlloc);
+      const char *nodeName = method->fieldName(symRef->getCPIndex(), comp->trMemory(), stackAlloc);
       return !strcmp(nodeName, staticOrFieldName);
       }
    default:
@@ -2181,8 +2288,8 @@ static bool matchFieldOrStaticName(TR::Compilation* comp, TR::Node* node, char* 
    }
 }
 
-bool TR_J9ByteCodeIlGenerator::replaceField(TR::Node* node, char* destClass,
-                 char* destFieldName, char* destFieldSignature,
+bool TR_J9ByteCodeIlGenerator::replaceField(TR::Node *node, const char *destClass,
+                 const char *destFieldName, const char *destFieldSignature,
                  int parmIndex)
    {
    TR_OpaqueClassBlock *c = fej9()->getClassFromSignature(destClass, strlen(destClass), comp()->getCurrentMethod());
@@ -2240,8 +2347,8 @@ bool TR_J9ByteCodeIlGenerator::replaceField(TR::Node* node, char* destClass,
    return false;
    }
 
-bool TR_J9ByteCodeIlGenerator::replaceStatic(TR::Node* node,
-                                           char* dstClassName, char* staticName, char* type)
+bool TR_J9ByteCodeIlGenerator::replaceStatic(TR::Node *node,
+                                           const char *dstClassName, const char *staticName, const char *type)
    {
    TR_OpaqueClassBlock *c = fej9()->getClassFromSignature(dstClassName, strlen(dstClassName), comp()->getCurrentMethod());
 
@@ -2545,6 +2652,20 @@ void TR_J9ByteCodeIlGenerator::expandUnresolvedClassInstanceof(TR::TreeTop *tree
    TR_ASSERT(origClassNode->getSymbolReference()->isUnresolved(), "unresolved class instanceof n%un: expected symref of class child n%un to be unresolved\n", instanceofNode->getGlobalIndex(), origClassNode->getGlobalIndex());
 
    bool trace = comp()->getOption(TR_TraceILGen);
+
+   // If the receiver of the instanceof is non-null, there is no need of the null case
+   if(instanceofNode->isReferenceNonNull() || objNode->isNonNull())
+      {
+      TR::Node *resolveCheckNode = genResolveCheck(origClassNode);
+      resolveCheckNode->copyByteCodeInfo(instanceofNode);
+      tree->insertBefore(TR::TreeTop::create(comp(), resolveCheckNode));
+
+      if (trace)
+         traceMsg(comp(), "%s: emit ResolveCHK n%dn before the unresolved class instanceof n%un in block_%d\n", __FUNCTION__,
+            resolveCheckNode->getGlobalIndex(), instanceofNode->getGlobalIndex(), tree->getEnclosingBlock()->getNumber());
+      return;
+      }
+
    if (trace)
       traceMsg(comp(), "expanding unresolved class instanceof n%un in block_%d\n", instanceofNode->getGlobalIndex(), tree->getEnclosingBlock()->getNumber());
 

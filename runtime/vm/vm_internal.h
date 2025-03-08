@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef vm_internal_h
@@ -389,7 +389,7 @@ fixBadUtf8(const U_8 * original, U_8 *corrected, size_t length);
  *
  * @returns the array of interfaces, or NULL on failure (in which case an exception will be pending)
  */
-j9object_t   
+j9object_t
 getInterfacesHelper(J9VMThread *currentThread, j9object_t clazz);
 
 /**
@@ -541,7 +541,8 @@ UDATA initializeExclusiveAccess(J9JavaVM *vm);
 void shutDownExclusiveAccess(J9JavaVM *vm);
 
 #if JAVA_SPEC_VERSION >= 16
-/* LayoutFFITypeHelpers.cpp */
+
+/* ------------------- LayoutFFITypeHelpers.cpp ----------------- */
 
 /**
  * Release the memory of struct specific ffi_types if exist in the argument/return types
@@ -551,10 +552,180 @@ void shutDownExclusiveAccess(J9JavaVM *vm);
  */
 void
 freeAllStructFFITypes(J9VMThread *currentThread, void *cifNode);
+
+/* ------------------- LayoutFFITypeTable.cpp ----------------- */
+
+/**
+ * @brief Create the layout string hashtable.
+ *
+ * @param vm a pointer to J9JavaVM
+ * @return the hasthable
+ */
+J9HashTable *
+createLayoutStrFFITypeTable(J9JavaVM *vm);
+
+/**
+ * @brief Release the layout string hashtable.
+ *
+ * @param hashtable a pointer to J9HashTable
+ */
+void
+releaseLayoutStrFFITypeTable(J9HashTable *hashtable);
+
+/**
+ * @brief Search the layout string hashtable for the entry with the specified key.
+ *
+ * @param hashtable a pointer to J9HashTable
+ * @param entry a pointer to J9LayoutStrFFITypeEntry
+ * @return the requested entry if found; NULL otherwise
+ */
+J9LayoutStrFFITypeEntry *
+findLayoutStrFFIType(J9HashTable *hashtable, J9LayoutStrFFITypeEntry *entry);
+
+/**
+ * @brief Add the entry with the populated key & value to the layout string hashtable.
+ *
+ * @param hashtable a pointer to J9HashTable
+ * @param entry a pointer to J9LayoutStrFFITypeEntry
+ * @return the same entry if done successfully; NULL otherwise
+ */
+J9LayoutStrFFITypeEntry *
+addLayoutStrFFIType(J9HashTable *hashtable, J9LayoutStrFFITypeEntry *entry);
+
+/* ------------------- UpcallThunkMem.cpp ----------------- */
+
+/**
+ * @brief Release the thunk heap list if exists.
+ *
+ * @param vm a pointer to J9JavaVM
+ *
+ * Note:
+ * This function empties the thunk heap list by cleaning up all resources
+ * created via allocateUpcallThunkMemory, including the generated thunk
+ * and the corresponding metadata of each entry in the hashtable.
+ */
+void
+releaseThunkHeap(J9JavaVM *vm);
 #endif /* JAVA_SPEC_VERSION >= 16 */
 
+/* ------------------- jnimisc.cpp ----------------- */
+
+#if defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT)
+
+/**
+ * Switch onto the zaap processor if not already running there.
+ *
+ * @param currentThread[in] the current J9VMThread
+ * @param reason[in] the reason code
+ */
+void
+javaOffloadSwitchOnWithReason(J9VMThread *currentThread, UDATA reason);
+
+/**
+ * Switch away from the zaap processor if running there.
+ *
+ * @param currentThread[in] the current J9VMThread
+ * @param reason[in] the reason code
+ */
+void
+javaOffloadSwitchOffWithReason(J9VMThread *currentThread, UDATA reason);
+
+#define JAVA_OFFLOAD_SWITCH_ON_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, reason, length) \
+	do { \
+		if ((length) > J9_JNI_OFFLOAD_SWITCH_THRESHOLD) { \
+			javaOffloadSwitchOnWithReason(currentThread, reason); \
+		} \
+	} while (0)
+
+#define JAVA_OFFLOAD_SWITCH_OFF_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, reason, length) \
+	do { \
+		if ((length) > J9_JNI_OFFLOAD_SWITCH_THRESHOLD) { \
+			javaOffloadSwitchOffWithReason(currentThread, reason); \
+		} \
+	} while (0)
+
+#else /* defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT) */
+
+#define JAVA_OFFLOAD_SWITCH_ON_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, reason, length)
+#define JAVA_OFFLOAD_SWITCH_OFF_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, reason, length)
+
+#endif /* defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT) */
+
+#if defined(J9VM_OPT_JFR)
+
+/* ------------------- jfr.cpp ------------------- */
+
+/**
+ * Begin event iteration in a JFR buffer.
+ *
+ * @param buffer[in] pointer to the buffer
+ * @param walkState[in] pointer to the walk state
+ *
+ * @returns pointer to the first event in the buffer or NULL if the buffer is empty
+ */
+J9JFREvent*
+jfrBufferStartDo(J9JFRBuffer *buffer, J9JFRBufferWalkState *walkState);
+
+/**
+ * Continue event iteration in a JFR buffer.
+ *
+ * @param walkState[in] pointer to the walk state
+ *
+ * @returns pointer to the next event in the buffer or NULL if there are no more
+ */
+J9JFREvent*
+jfrBufferNextDo(J9JFRBufferWalkState *walkState);
+
+#endif /* defined(J9VM_OPT_JFR) */
+
+/* ------------------- ArrayCopyHelpers.cpp ----------------- */
+
+/**
+ * @brief A helper method which creates a copy of a heap array in native memory.
+ *
+ * @param currentThread the thread performing the copy
+ * @param arrayObject the heap array to copy from
+ * @param ensureMem32 a flag specific to 31-bit z/OS
+ * @return the native array with the copied content
+ */
+void *
+memcpyFromHeapArray(J9VMThread *currentThread, j9object_t arrayObject, jboolean ensureMem32);
+
+/**
+ * @brief A helper method which copies to a heap array from native memory,
+ * then possibly releasing that native memory (to be paired with uses of
+ * memcpyFromHeapArray).
+ *
+ * @param currentThread the thread performing the copy
+ * @param arrayObject the heap array to copy into
+ * @param elems the native memory to copy from
+ * @param mode a code denoting whether to copy/release the native memory
+ * @param ensureMem32 a flag specific to 31-bit z/OS
+*/
+void
+memcpyToHeapArray(J9VMThread *currentThread, j9object_t arrayObject, void *elems, jint mode, jboolean ensureMem32);
+
+/* ------------------- EnsureHashedConfig.cpp ----------------- */
+
+/**
+ * @brief This should be called to clean up the utf8String configuration.
+ *
+ * @param jvm pointer to J9JavaVM that can be used by the method
+ */
+void
+cleanupEnsureHashedConfig(J9JavaVM *jvm);
+
+/**
+ * @brief This function parses a string containing utf8String options.
+ *
+ * @param options string containing the options specified on the command line
+ * @returns JNI_OK on success
+ */
+UDATA
+parseEnsureHashedConfig(J9JavaVM *jvm, char *options, BOOLEAN isAdd);
+
 #ifdef __cplusplus
-}
+} /* extern "C" */
 #endif
 
 #endif /* vm_internal_h */

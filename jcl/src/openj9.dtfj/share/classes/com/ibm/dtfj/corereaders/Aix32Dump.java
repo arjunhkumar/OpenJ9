@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1991
  *
  * This program and the accompanying materials are made available under
@@ -18,15 +18,15 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.TreeMap;
 
-//CMVC 166477 : moved this from a static inner class to it's own class 
+//CMVC 166477 : moved this from a static inner class to it's own class
 
 public class Aix32Dump extends NewAixDump {
 	private static final int CONTEXT_OFFSET_IN_THREAD = 200; // offsetof(thrdctx, hctx)
@@ -34,7 +34,7 @@ public class Aix32Dump extends NewAixDump {
 	private static final int GPR_OFFSET_IN_CONTEXT = 208; // offsetof(mstsave, gpr)
 	private static final int GPR_COUNT = 32;
 	//private static final int FPR_COUNT = 32;
-	
+
 	protected Aix32Dump(DumpReader reader) throws IOException
 	{
 		super(reader);
@@ -88,7 +88,7 @@ public class Aix32Dump extends NewAixDump {
 	protected long getLinkRegisterFrom(Map registers) {
 		return ((Integer) registers.get("lr")).intValue() & 0xffffffffL;
 	}
-	
+
 	protected int sizeofTopOfStack() {
 		// see struct top_of_stack in execargs.h
 		return 140 + 4;	//this is sizeof(top_of_stack) aligned to 8 bytes since that seems to be an unspoken requirement of this structure

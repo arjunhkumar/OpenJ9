@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j2sever.h"
@@ -45,28 +45,7 @@
 extern "C" {
 
 #if defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT)
-
-#define JAVA_OFFLOAD_SWITCH_ON_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, reason, length) \
-	do { \
-		if ((length) > J9_JNI_OFFLOAD_SWITCH_THRESHOLD) { \
-			javaOffloadSwitchOnWithReason(currentThread, reason); \
-		} \
-	} while(0)
-
-#define JAVA_OFFLOAD_SWITCH_OFF_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, reason, length) \
-	do { \
-		if ((length) > J9_JNI_OFFLOAD_SWITCH_THRESHOLD) { \
-			javaOffloadSwitchOffWithReason(currentThread, reason); \
-		} \
-	} while(0)
-
-/**
- * Switch onto the zaap processor if not already running there.
- *
- * @param currentThread[in] the current J9VMThread
- * @param reason[in] the reason code
- */
-static void
+void
 javaOffloadSwitchOnWithReason(J9VMThread *currentThread, UDATA reason)
 {
 	J9JavaVM *vm = currentThread->javaVM;
@@ -79,13 +58,7 @@ javaOffloadSwitchOnWithReason(J9VMThread *currentThread, UDATA reason)
 	}
 }
 
-/**
- * Switch away from the zaap processor if running there.
- *
- * @param currentThread[in] the current J9VMThread
- * @param reason[in] the reason code
- */
-static void
+void
 javaOffloadSwitchOffWithReason(J9VMThread *currentThread, UDATA reason)
 {
 	J9JavaVM *vm = currentThread->javaVM;
@@ -96,14 +69,7 @@ javaOffloadSwitchOffWithReason(J9VMThread *currentThread, UDATA reason)
 		}
 	}
 }
-
-#else /* J9VM_OPT_JAVA_OFFLOAD_SUPPORT */
-
-#define JAVA_OFFLOAD_SWITCH_ON_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, reason, length)
-#define JAVA_OFFLOAD_SWITCH_OFF_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, reason, length)
-
-#endif /* J9VM_OPT_JAVA_OFFLOAD_SUPPORT */
-
+#endif /* defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT) */
 
 /**
  * Get the array class for a J9Class.
@@ -150,7 +116,14 @@ getCurrentClassLoader(J9VMThread *currentThread)
 		} else {
 			classLoader = vm->applicationClassLoader;
 			/* If the app loader doesn't exist yet, use the boot loader */
-			if (NULL == classLoader) {
+			if ((NULL == classLoader)
+#if defined(J9VM_OPT_SNAPSHOTS)
+				/* Need to preserve the order. Classloaders should not be considered active until
+				 * the classloader object is set
+				 */
+				|| (NULL == classLoader->classLoaderObject)
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+			) {
 				classLoader = vm->systemClassLoader;
 			}
 		}
@@ -430,7 +403,11 @@ getObjectClass(JNIEnv *env, jobject obj)
 jint JNICALL
 getVersion(JNIEnv *env)
 {
-#if JAVA_SPEC_VERSION >= 20
+#if JAVA_SPEC_VERSION >= 24
+	return JNI_VERSION_24;
+#elif JAVA_SPEC_VERSION >= 21
+	return JNI_VERSION_21;
+#elif JAVA_SPEC_VERSION >= 20
 	return JNI_VERSION_20;
 #elif JAVA_SPEC_VERSION >= 19
 	return JNI_VERSION_19;
@@ -438,7 +415,7 @@ getVersion(JNIEnv *env)
 	return JNI_VERSION_10;
 #else /* JAVA_SPEC_VERSION >= 10 */
 	return JNI_VERSION_1_8;
-#endif /* JAVA_SPEC_VERSION >= 19 */
+#endif /* JAVA_SPEC_VERSION >= 21 */
 }
 
 jsize JNICALL
@@ -658,25 +635,9 @@ getArrayElementsImpl(JNIEnv *env, jarray array, jboolean *isCopy, jboolean ensur
 		elems = vm->memoryManagerFunctions->j9gc_objaccess_jniGetPrimitiveArrayCritical(currentThread, array, isCopy);
 	} else {
 		VM_VMAccess::inlineEnterVMFromJNI(currentThread);
-		j9object_t arrayObject = J9_JNI_UNWRAP_REFERENCE(array);
-		UDATA logElementSize = ((J9ROMArrayClass*)J9OBJECT_CLAZZ(currentThread, arrayObject)->romClass)->arrayShape & 0x0000FFFF;
-		UDATA byteCount = (UDATA)J9INDEXABLEOBJECT_SIZE(currentThread, arrayObject) << logElementSize;
-
-		if (ensureMem32) {
-			elems = jniArrayAllocateMemory32FromThread(currentThread, ROUND_UP_TO_POWEROF2(byteCount, sizeof(UDATA)));
-		} else {
-			elems = jniArrayAllocateMemoryFromThread(currentThread, ROUND_UP_TO_POWEROF2(byteCount, sizeof(UDATA)));
-		}
-		if (NULL == elems) {
-			gpCheckSetNativeOutOfMemoryError(currentThread, 0, 0);
-		} else {
-			JAVA_OFFLOAD_SWITCH_ON_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, J9_JNI_OFFLOAD_SWITCH_GET_ARRAY_ELEMENTS, byteCount);
-			/* No guarantee of native memory alignment, so copy byte-wise */
-			VM_ArrayCopyHelpers::memcpyFromArray(currentThread, arrayObject, (UDATA)0, (UDATA)0, byteCount, elems);
-			if (NULL != isCopy) {
-				*isCopy = JNI_TRUE;
-			}
-			JAVA_OFFLOAD_SWITCH_OFF_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, J9_JNI_OFFLOAD_SWITCH_GET_ARRAY_ELEMENTS, byteCount);
+		elems = memcpyFromHeapArray(currentThread, J9_JNI_UNWRAP_REFERENCE(array), ensureMem32);
+		if ((NULL != elems) && (NULL != isCopy)) {
+			*isCopy = JNI_TRUE;
 		}
 		VM_VMAccess::inlineExitVMToJNI(currentThread);
 	}
@@ -706,24 +667,7 @@ releaseArrayElementsImpl(JNIEnv *env, jarray array, void *elems, jint mode, jboo
 		vm->memoryManagerFunctions->j9gc_objaccess_jniReleasePrimitiveArrayCritical(currentThread, array, elems, mode);
 	} else {
 		VM_VMAccess::inlineEnterVMFromJNI(currentThread);
-		/* Abort means do not copy the buffer, but do free it */
-		if (JNI_ABORT != mode) {
-			j9object_t arrayObject = J9_JNI_UNWRAP_REFERENCE(array);
-			UDATA logElementSize = ((J9ROMArrayClass*)J9OBJECT_CLAZZ(currentThread, arrayObject)->romClass)->arrayShape  & 0x0000FFFF;
-			UDATA byteCount = (UDATA)J9INDEXABLEOBJECT_SIZE(currentThread, arrayObject) << logElementSize;
-			JAVA_OFFLOAD_SWITCH_ON_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, J9_JNI_OFFLOAD_SWITCH_RELEASE_ARRAY_ELEMENTS, byteCount);
-			/* No guarantee of native memory alignment, so copy byte-wise */
-			VM_ArrayCopyHelpers::memcpyToArray(currentThread, arrayObject, (UDATA)0, (UDATA)0, byteCount, elems);
-			JAVA_OFFLOAD_SWITCH_OFF_WITH_REASON_IF_LIMIT_EXCEEDED(currentThread, J9_JNI_OFFLOAD_SWITCH_RELEASE_ARRAY_ELEMENTS, byteCount);
-		}
-		/* Commit means copy the data but do not free the buffer - all other modes free the buffer */
-		if (JNI_COMMIT != mode) {
-			if (ensureMem32) {
-				jniArrayFreeMemory32FromThread(currentThread, elems);
-			} else {
-				jniArrayFreeMemoryFromThread(currentThread, elems);
-			}
-		}
+		memcpyToHeapArray(currentThread, J9_JNI_UNWRAP_REFERENCE(array), elems, mode, ensureMem32);
 		VM_VMAccess::inlineExitVMToJNI(currentThread);
 	}
 }
@@ -892,10 +836,24 @@ getStringUTFLength(JNIEnv *env, jstring string)
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	j9object_t stringObject = J9_JNI_UNWRAP_REFERENCE(string);
 
-	UDATA utfLength = getStringUTF8Length(currentThread, stringObject);
+	U_64 utfLength = getStringUTF8LengthTruncated(currentThread, stringObject, INT32_MAX);
 	VM_VMAccess::inlineExitVMToJNI(currentThread);
 	return (jsize)utfLength;
 }
+
+#if JAVA_SPEC_VERSION >= 24
+jlong JNICALL
+getStringUTFLengthAsLong(JNIEnv *env, jstring string)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
+	j9object_t stringObject = J9_JNI_UNWRAP_REFERENCE(string);
+
+	U_64 utfLength = getStringUTF8LengthTruncated(currentThread, stringObject, I_64_MAX);
+	VM_VMAccess::inlineExitVMToJNI(currentThread);
+	return (jlong)utfLength;
+}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 
 static const char*
 getStringUTFCharsImpl(JNIEnv *env, jstring string, jboolean *isCopy, jboolean ensureMem32)
@@ -903,14 +861,17 @@ getStringUTFCharsImpl(JNIEnv *env, jstring string, jboolean *isCopy, jboolean en
 	J9VMThread *currentThread = (J9VMThread*)env;
 	VM_VMAccess::inlineEnterVMFromJNI(currentThread);
 	j9object_t stringObject = J9_JNI_UNWRAP_REFERENCE(string);
-	/* Add 1 for null terminator */
-	UDATA utfLength = getStringUTF8Length(currentThread, stringObject) + 1;
 
+	UDATA utfLength = getStringUTF8Length(currentThread, stringObject);
 	U_8 *utfChars = NULL;
-	if (ensureMem32) {
-		utfChars = (U_8*)jniArrayAllocateMemory32FromThread(currentThread, utfLength);
-	} else {
-		utfChars = (U_8*)jniArrayAllocateMemoryFromThread(currentThread, utfLength);
+	if (utfLength < UDATA_MAX) {
+		/* Add 1 for a null terminator. */
+		utfLength += 1;
+		if (ensureMem32) {
+			utfChars = (U_8 *)jniArrayAllocateMemory32FromThread(currentThread, utfLength);
+		} else {
+			utfChars = (U_8 *)jniArrayAllocateMemoryFromThread(currentThread, utfLength);
+		}
 	}
 
 	if (NULL == utfChars) {

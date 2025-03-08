@@ -18,7 +18,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <interface>
 	<publicHeader>vmhook.h</publicHeader>
@@ -68,6 +68,17 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		<struct>J9VMShutdownEvent</struct>
 		<data type="struct J9VMThread*" name="vmThread" description="current thread" />
 		<data type="IDATA" name="exitCode" description="zero if triggered by DestroyJavaVM, or exit code if called by System.exit()" />
+	</event>
+
+	<event>
+		<name>J9HOOK_VM_THREAD_STARTING</name>
+		<description>
+			Triggered when Thread.start() succeeds. The current thread is the caller of Thread.start().
+			The current thread has VM access when this hook is fired.
+		</description>
+		<struct>J9VMThreadStartingEvent</struct>
+		<data type="struct J9VMThread*" name="currentThread" description="current thread" />
+		<data type="struct J9VMThread*" name="startedThread" description="started thread" />
 	</event>
 
 	<event>
@@ -218,6 +229,9 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		<struct>J9VMMonitorContendedEnteredEvent</struct>
 		<data type="struct J9VMThread*" name="currentThread" description="current thread" />
 		<data type="omrthread_monitor_t" name="monitor" description="the contended monitor" />
+		<data type="I_64" name="startTicks" description="current ticks when wait began" />
+		<data type="struct J9Class*" name="monitorClass" description="object monitor class" />
+		<data type="struct J9VMThread*" name="previousOwner" description="previous owner thread" />
 	</event>
 
 	<event>
@@ -267,7 +281,7 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		<struct>J9VMAcquireVMAccessEvent</struct>
 		<data type="struct J9VMThread*" name="currentThread" description="current thread" />
 	</event>
-	
+
 	<event>
 		<name>J9HOOK_VM_RELEASEVMACCESS</name>
 		<description>
@@ -276,13 +290,13 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		<struct>J9VMReleaseVMAccessEvent</struct>
 		<data type="struct J9VMThread*" name="currentThread" description="current thread" />
 	</event>
-	
+
 	<event>
 		<name>J9HOOK_VM_ACQUIRING_EXCLUSIVE_IN_NATIVE</name>
 		<description>
 				Triggered during acquire exclusive thread loop, when encountered a thread in native (which we did not count for exclusive).
 				This hook serves similar purpose as J9HOOK_VM_RELEASEVMACCESS, to ensure that required work for thread in native
-				is performed before exclusive access is obtained. 
+				is performed before exclusive access is obtained.
 		</description>
 		<struct>J9VMAcquringExclusiveInNativeEvent</struct>
 		<data type="struct J9VMThread*" name="currentThread" description="calling thread" />
@@ -508,6 +522,9 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		<data type="I_64" name="millis" description="milliseconds to wait for" />
 		<data type="I_32" name="nanos" description="nanoseconds to wait for" />
 		<data type="IDATA" name="reason" description="reason why the wait has finished" />
+		<data type="I_64" name="startTicks" description="current ticks when wait began" />
+		<data type="UDATA" name="monitorAddress" description="object monitor address" />
+		<data type="struct J9Class*" name="monitorClass" description="monitor class" />
 	</event>
 
 	<event>
@@ -590,6 +607,11 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		</description>
 		<struct>J9VMUnparkedEvent</struct>
 		<data type="struct J9VMThread *" name="currentThread" description="current thread" />
+		<data type="I_64" name="millis" description="milliseconds to park for" />
+		<data type="IDATA" name="nanos" description="nanoseconds to park for" />
+		<data type="I_64" name="startTicks" description="current ticks when wait began" />
+		<data type="UDATA" name="parkedAddress" description="object parked address" />
+		<data type="struct J9Class*" name="parkedClass" description="the class which park was called from?" />
 	</event>
 
 	<event>
@@ -597,7 +619,7 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		<description>
 			Triggered just before an instance field is read by the bytecode interpreter
 			or JNI.  If the listener allows a GC to occur, the object field in the hook
-			data must be kept up-to-date. 
+			data must be kept up-to-date.
 		</description>
 		<struct>J9VMGetFieldEvent</struct>
 		<data type="struct J9VMThread*" name="currentThread" description="current thread" />
@@ -1195,7 +1217,7 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		<struct>J9VMSleepEvent</struct>
 		<data type="struct J9VMThread *" name="currentThread" description="current thread" />
 		<data type="I_64" name="millis" description="milliseconds to sleep for" />
-		<data type="IDATA" name="nanos" description="nanoseconds to sleep for" />
+		<data type="I_32" name="nanos" description="nanoseconds to sleep for" />
 	</event>
 
 	<event>
@@ -1205,6 +1227,9 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		</description>
 		<struct>J9VMSleptEvent</struct>
 		<data type="struct J9VMThread *" name="currentThread" description="current thread" />
+		<data type="I_64" name="millis" description="milliseconds to sleep for" />
+		<data type="I_32" name="nanos" description="nanoseconds to sleep for" />
+		<data type="I_64" name="startTicks" description="current ticks when sleep began" />
 	</event>
 
 	<event>
@@ -1370,5 +1395,30 @@ typedef UDATA (* lookupNativeAddressCallback)(struct J9VMThread *currentThread, 
 		</description>
 		<struct>J9VMVirtualThreadUnmountEvent</struct>
 		<data type="struct J9VMThread*" name="currentThread" description="current thread" />
+	</event>
+
+	<event>
+		<name>J9HOOK_VM_VIRTUAL_THREAD_DESTROY</name>
+		<description>
+			Triggered after J9HOOK_VM_VIRTUAL_THREAD_END to free native resources.
+			currentThread->threadObject is the virtual thread at the point of trigger.
+		</description>
+		<struct>J9VMVirtualThreadDestroyEvent</struct>
+		<data type="struct J9VMThread*" name="currentThread" description="current thread" />
+	</event>
+
+	<event>
+		<name>J9HOOK_VM_CRIU_CHECKPOINT</name>
+		<description>Triggered at the end of CRIU checkpoint, just before CRIU dump</description>
+		<once />
+		<struct>J9VMCRIUCheckpointEvent</struct>
+		<data type="struct J9VMThread*" name="vmThread" description="current thread" />
+	</event>
+
+	<event>
+		<name>J9HOOK_VM_CRIU_RESTORE</name>
+		<description>Triggered at the beginning of CRIU restore, just after runInternalJVMRestoreHooks()</description>
+		<struct>J9VMCRIURestoreEvent</struct>
+		<data type="struct J9VMThread*" name="vmThread" description="current thread" />
 	</event>
 </interface>

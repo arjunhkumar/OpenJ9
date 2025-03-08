@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -60,7 +60,7 @@ MM_ContinuationObjectBuffer::reset()
 }
 
 void
-MM_ContinuationObjectBuffer::flush(MM_EnvironmentBase* env)
+MM_ContinuationObjectBuffer::flush(MM_EnvironmentBase *env)
 {
 	if (NULL != _head) {
 		/* call the virtual flush implementation function */
@@ -70,7 +70,7 @@ MM_ContinuationObjectBuffer::flush(MM_EnvironmentBase* env)
 }
 
 void
-MM_ContinuationObjectBuffer::add(MM_EnvironmentBase* env, j9object_t object)
+MM_ContinuationObjectBuffer::add(MM_EnvironmentBase *env, j9object_t object)
 {
 	Assert_MM_true(object != _head);
 	Assert_MM_true(object != _tail);
@@ -109,7 +109,7 @@ MM_ContinuationObjectBuffer::add(MM_EnvironmentBase* env, j9object_t object)
  * temporary place holder implementation - just delegate to the old fragment code.
  */
 void
-MM_ContinuationObjectBuffer::flushImpl(MM_EnvironmentBase* env)
+MM_ContinuationObjectBuffer::flushImpl(MM_EnvironmentBase *env)
 {
 	Assert_MM_unreachable();
 }

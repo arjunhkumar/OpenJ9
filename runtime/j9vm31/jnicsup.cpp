@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9vm31.h"
@@ -316,6 +316,9 @@ struct JNINativeInterface_ EsJNIFunctions = {
 #if JAVA_SPEC_VERSION >= 19
 	IsVirtualThread,
 #endif /* JAVA_SPEC_VERSION >= 19 */
+#if JAVA_SPEC_VERSION >= 24
+	GetStringUTFLengthAsLong,
+#endif /* JAVA_SPEC_VERSION >= 24 */
 };
 
 static void initializeJNIEnv31(JNIEnv31 * jniEnv31, jlong jniEnv64);

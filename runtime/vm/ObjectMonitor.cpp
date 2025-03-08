@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9protos.h"
@@ -140,6 +140,9 @@ objectMonitorEnterBlocking(J9VMThread *currentThread)
 	UDATA result = 0;
 	j9object_t object = J9VMTHREAD_BLOCKINGENTEROBJECT(currentThread, currentThread);
 	J9Class *ramClass = J9OBJECT_CLAZZ(currentThread, object);
+	J9JavaVM *vm = currentThread->javaVM;
+	PORT_ACCESS_FROM_JAVAVM(vm);
+	I_64 startTicks = j9time_nano_time();
 	/* Throughout this function, note that inlineGetLockAddress cannot run into out of memory case because
 	 * an entry in monitor table will have been created by the earlier call in objectMonitorEnterNonBlocking.
 	 */
@@ -159,7 +162,6 @@ objectMonitorEnterBlocking(J9VMThread *currentThread)
 	}
 #endif /* J9VM_THR_LOCK_RESERVATION */
 	{
-		J9JavaVM *vm = currentThread->javaVM;
 		J9ObjectMonitor *objectMonitor = monitorTableAt(currentThread, object);
 		/* Table entry was created by the nonblocking case, so this peek cannot fail */
 		Assert_VM_notNull(objectMonitor);
@@ -289,8 +291,9 @@ done:
 		((J9ThreadMonitor*)monitor)->flags &= ~(UDATA)J9THREAD_MONITOR_SUPPRESS_CONTENDED_EXIT;
 		VM_AtomicSupport::subtract(&monitor->pinCount, 1);
 		if (J9_EVENT_IS_HOOKED(vm->hookInterface, J9HOOK_VM_MONITOR_CONTENDED_ENTERED)) {
+			J9VMThread *ownerThread = getVMThreadFromOMRThread(vm, ((J9ThreadMonitor *)monitor)->owner);
 			bool frameBuilt = saveBlockingEnterObject(currentThread);
-			ALWAYS_TRIGGER_J9HOOK_VM_MONITOR_CONTENDED_ENTERED(vm->hookInterface, currentThread, monitor);
+			ALWAYS_TRIGGER_J9HOOK_VM_MONITOR_CONTENDED_ENTERED(vm->hookInterface, currentThread, monitor, startTicks, ramClass, ownerThread);
 			restoreBlockingEnterObject(currentThread, frameBuilt);
 		}
 	}
@@ -320,9 +323,9 @@ objectMonitorEnterNonBlocking(J9VMThread *currentThread, j9object_t object)
 	UDATA result = (UDATA)object;
 	J9JavaVM *vm = currentThread->javaVM;
 	j9objectmonitor_t volatile *lwEA = VM_ObjectMonitor::inlineGetLockAddress(currentThread, object);
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES) || (JAVA_SPEC_VERSION >= 16)
+#if JAVA_SPEC_VERSION >= 16
 	J9Class * objClass = J9OBJECT_CLAZZ(currentThread, object);
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) || (JAVA_SPEC_VERSION >= 16) */
+#endif /* JAVA_SPEC_VERSION >= 16 */
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 	BOOLEAN retry = FALSE;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
@@ -502,7 +505,7 @@ wouldBlock:
 	/* unable to get thin lock by spinning - follow blocking path */
 	J9VMTHREAD_SET_BLOCKINGENTEROBJECT(currentThread, currentThread, object);
 #if defined(J9VM_OPT_CRIU_SUPPORT)
-	if (J9_IS_SINGLE_THREAD_MODE(vm)) {
+	if (J9_THROW_BLOCKING_EXCEPTION_IN_SINGLE_THREAD_MODE(vm)) {
 		if (OBJECT_HEADER_LOCK_RESERVED == (J9_LOAD_LOCKWORD(currentThread, lwEA) & (OBJECT_HEADER_LOCK_RESERVED + OBJECT_HEADER_LOCK_INFLATED)) && !retry) {
 			cancelLockReservation(currentThread);
 			retry = TRUE;

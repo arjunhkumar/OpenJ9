@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #ifndef JITSERVER_ROMCLASS_CACHE_H
 #define JITSERVER_ROMCLASS_CACHE_H
@@ -44,7 +44,9 @@ public:
    // Releases memory used by the cache. Must be called when the last client session is destroyed.
    void shutdown(bool lastClient = true);
 
-   J9ROMClass *getOrCreate(const J9ROMClass *packedROMClass);
+   // Get an existing cache entry for packedROMClass or create one. The packedROMClassHash may be NULL; if not,
+   // it will be the cached deterministic hash of packedROMClass received from the client.
+   J9ROMClass *getOrCreate(const J9ROMClass *packedROMClass, const JITServerROMClassHash *packedROMClassHash);
    void release(J9ROMClass *romClass);
 
    // Get precomputed hash of a shared ROMClass

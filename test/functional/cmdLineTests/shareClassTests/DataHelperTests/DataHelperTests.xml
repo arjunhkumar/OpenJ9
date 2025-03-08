@@ -19,7 +19,7 @@
   [1] https://www.gnu.org/software/classpath/license.html
   [2] https://openjdk.org/legal/assembly-exception.html
 
-  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 <!DOCTYPE suite SYSTEM "cmdlinetester.dtd">
@@ -54,17 +54,14 @@
 	<if testVariable="SCMODE" testValue="213" resultVariable="currentMode" resultValue="$mode213$"/>
 	<if testVariable="SCMODE" testValue="214" resultVariable="currentMode" resultValue="$mode214$"/>
 
-	<echo value=" "/>
+	<echo value=""/>
 	<echo value="#######################################################"/>
 	<echo value="Running tests with command line options: $currentMode$"/>
-	<echo value=" "/>
+	<echo value=""/>
 	<exec command="$JAVA_EXE$ -version" quiet="false"/>
 	
-	<variable name="BOOTCP" value=" "/>
-	<variable name="SECURITY_ON" value="-Djava.security.policy==java.good.policy -Djava.security.manager"/>
-	<variable name="SECURITY_ON_READONLY_BADPOLICY" value="-Djava.security.policy==java.bad.readonly.policy -Djava.security.manager"/>
-	<variable name="SECURITY_ON_WRITEONLY_BADPOLICY" value="-Djava.security.policy==java.bad.writeonly.policy -Djava.security.manager"/>
-	
+	<variable name="BOOTCP" value=""/>
+
 	<exec command="$JAVA_EXE$ -Xshareclasses:destroyAll" quiet="false"/>
 	
 	<test id="check the datacaching classloader is ok" timeout="600" runPath=".">
@@ -82,37 +79,9 @@
 		<output type="failure" caseSensitive="no" regex="no">exception:</output>
 		<output type="failure" caseSensitive="yes" regex="no">Processing dump event</output>
 	</test>
-
-	<test id="simple caching of a resource, with security on" timeout="600" runPath=".">
-		<command>$JAVA_EXE$ $currentMode$ $SECURITY_ON$ $BOOTCP$ -classpath . apitesting.datahelper.DataCachingTest02</command>
-		<output type="success" caseSensitive="yes" regex="no">test successful</output>
-		<output type="failure" caseSensitive="no" regex="no">failed</output>
-		<output type="failure" caseSensitive="no" regex="no">exception:</output>
-		<output type="failure" caseSensitive="yes" regex="no">Processing dump event</output>
-	</test>
-	
-	<test id="simple caching of a resource, with security on but readonly policy" timeout="600" runPath=".">
-		<command>$JAVA_EXE$ $currentMode$,verboseHelper $BOOTCP$ -classpath . $SECURITY_ON_READONLY_BADPOLICY$ apitesting.datahelper.DataCachingTest02</command>
-		<output type="success" caseSensitive="yes" regex="no">storeSharedData('fileone.txt',...) has failed!</output>
-		<output type="failure" caseSensitive="yes" regex="no">Processing dump event</output>
-	</test>
-	
-	<test id="simple caching of a resource, with security on but writeonly policy" timeout="600" runPath=".">
-		<command>$JAVA_EXE$ $currentMode$,verboseHelper $BOOTCP$ -classpath . $SECURITY_ON_WRITEONLY_BADPOLICY$ apitesting.datahelper.DataCachingTest02</command>
-		<output type="success" caseSensitive="yes" regex="no">should have found the resource but no data retrieved</output>
-		<output type="failure" caseSensitive="yes" regex="no">Processing dump event</output>
-	</test>
 	
 	<test id="caching of multiple resources" timeout="600" runPath=".">
 		<command>$JAVA_EXE$ $currentMode$ $BOOTCP$ -classpath . apitesting.datahelper.DataCachingTest03</command>
-		<output type="success" caseSensitive="yes" regex="no">test successful</output>
-		<output type="failure" caseSensitive="no" regex="no">failed</output>
-		<output type="failure" caseSensitive="no" regex="no">exception:</output>
-		<output type="failure" caseSensitive="yes" regex="no">Processing dump event</output>
-	</test>
-
-	<test id="caching of multiple resources, security on" timeout="600" runPath=".">
-		<command>$JAVA_EXE$ $currentMode$ $SECURITY_ON$ $BOOTCP$ -classpath . apitesting.datahelper.DataCachingTest03</command>
 		<output type="success" caseSensitive="yes" regex="no">test successful</output>
 		<output type="failure" caseSensitive="no" regex="no">failed</output>
 		<output type="failure" caseSensitive="no" regex="no">exception:</output>

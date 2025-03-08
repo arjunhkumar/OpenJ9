@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.title;
 
 import com.ibm.dtfj.javacore.parser.framework.tag.ILineRule;
@@ -28,7 +28,7 @@ import com.ibm.dtfj.javacore.parser.framework.tag.TagParser;
 import com.ibm.dtfj.javacore.parser.j9.section.common.CommonPatternMatchers;
 
 public class TitleTagParser extends TagParser implements ITitleTypes {
-	
+
 	public TitleTagParser() {
 		super(TITLE_SECTION);
 	}
@@ -60,7 +60,7 @@ public class TitleTagParser extends TagParser implements ITitleTypes {
 		};
 		addTag(T_1TIDATETIME, lineRule);
 	}
-	
+
 	/**
 	 * Add rule for the dump nanotime (1TINANOTIME line)
 	 */
@@ -75,7 +75,6 @@ public class TitleTagParser extends TagParser implements ITitleTypes {
 		};
 		addTag(T_1TINANOTIME, lineRule);
 	}
-	
 
 	/**
 	 * Add rule for the dump filename (1TIFILENAME line)

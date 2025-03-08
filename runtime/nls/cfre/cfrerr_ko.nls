@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 #
 
 # Externalised messages for the Class File Reader errors.
@@ -1700,4 +1700,136 @@ J9NLS_CFR_ERR_INVALID_CLASS_FLAGS_ON_VNEW=<vnew> \uba54\uc18c\ub4dc\ub294 \ucd94
 J9NLS_CFR_ERR_INVALID_CLASS_FLAGS_ON_VNEW.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
 J9NLS_CFR_ERR_INVALID_CLASS_FLAGS_ON_VNEW.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
 J9NLS_CFR_ERR_INVALID_CLASS_FLAGS_ON_VNEW.user_response=Contact the provider of the class file for a corrected version.
+# END NON-TRANSLATABLE
+
+# Preload is not translatable
+J9NLS_CFR_ERR_MULTIPLE_PRELOAD_ATTRIBUTES=\ub2e4\uc911 \uc0ac\uc804 \ub85c\ub4dc \uc18d\uc131
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_MULTIPLE_PRELOAD_ATTRIBUTES.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_MULTIPLE_PRELOAD_ATTRIBUTES.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_MULTIPLE_PRELOAD_ATTRIBUTES.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# Preload is not translatable
+J9NLS_CFR_ERR_PRELOAD_NAME_NOT_UTF8=\uc0ac\uc804 \ub85c\ub4dc \uc774\ub984\uc740 \ubb38\uc790\uc5f4\uc774\uc5b4\uc57c \ud569\ub2c8\ub2e4.
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_PRELOAD_NAME_NOT_UTF8.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_PRELOAD_NAME_NOT_UTF8.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_PRELOAD_NAME_NOT_UTF8.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# Preload is not translatable
+J9NLS_CFR_ERR_PRELOAD_CLASS_ENTRY_NOT_CLASS_TYPE=\uc0ac\uc804 \ub85c\ub4dc \ud074\ub798\uc2a4 \ud56d\ubaa9\uc774 \ud074\ub798\uc2a4 \uc720\ud615\uc774 \uc544\ub2d9\ub2c8\ub2e4.
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_PRELOAD_CLASS_ENTRY_NOT_CLASS_TYPE.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_PRELOAD_CLASS_ENTRY_NOT_CLASS_TYPE.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_PRELOAD_CLASS_ENTRY_NOT_CLASS_TYPE.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# ImplicitCreation is not translatable
+J9NLS_CFR_ERR_MULTIPLE_IMPLICITCREATION_ATTRIBUTES=\ub2e4\uc911 ImplicitCreation \uc18d\uc131
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_MULTIPLE_IMPLICITCREATION_ATTRIBUTES.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_MULTIPLE_IMPLICITCREATION_ATTRIBUTES.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_MULTIPLE_IMPLICITCREATION_ATTRIBUTES.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# ImplicitCreation is not translatable
+J9NLS_CFR_ERR_IMPLICITCREATION_NAME_NOT_UTF8=ImplicitCreation \uc774\ub984\uc740 \ubb38\uc790\uc5f4\uc774\uc5b4\uc57c \ud568
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_IMPLICITCREATION_NAME_NOT_UTF8.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_IMPLICITCREATION_NAME_NOT_UTF8.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_IMPLICITCREATION_NAME_NOT_UTF8.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# NullRestricted is not translatable
+J9NLS_CFR_ERR_MULTIPLE_NULLRESTRICTED_ATTRIBUTES=\ub2e4\uc911 NullRestricted \uc18d\uc131 \uc788\uc74c
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_MULTIPLE_NULLRESTRICTED_ATTRIBUTES.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_MULTIPLE_NULLRESTRICTED_ATTRIBUTES.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_MULTIPLE_NULLRESTRICTED_ATTRIBUTES.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# NullRestricted is not translatable
+J9NLS_CFR_ERR_NULLRESTRICTED_ATTRIBUTES_LENGTH_IS_ZERO=NullRestricted attribute_length \ud56d\ubaa9\uc740 0\uc774\uc5b4\uc57c \ud568
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_NULLRESTRICTED_ATTRIBUTES_LENGTH_IS_ZERO.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_NULLRESTRICTED_ATTRIBUTES_LENGTH_IS_ZERO.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_NULLRESTRICTED_ATTRIBUTES_LENGTH_IS_ZERO.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# ImplicitCreation is not translatable
+J9NLS_CFR_ERR_IMPLICITCREATION_ILLEGAL_CLASS_MODIFIERS=ImplicitCreation \uc18d\uc131\uc740 \ube44\ucd94\uc0c1 \uac12 \ud074\ub798\uc2a4\uc5d0\uc11c\ub9cc \ud5c8\uc6a9\ub429\ub2c8\ub2e4.
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_IMPLICITCREATION_ILLEGAL_CLASS_MODIFIERS.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_IMPLICITCREATION_ILLEGAL_CLASS_MODIFIERS.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_IMPLICITCREATION_ILLEGAL_CLASS_MODIFIERS.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# NullRestricted is not translatable
+J9NLS_CFR_NO_NULLRESTRICTED_IN_ARRAYFIELD=\ubc30\uc5f4 \uc720\ud615\uc774 \uc788\ub294 \ud544\ub4dc\ub294 NullRestricted \uc18d\uc131\uc744 \uac00\uc9c8 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.
+# START NON-TRANSLATABLE
+J9NLS_CFR_NO_NULLRESTRICTED_IN_ARRAYFIELD.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_NO_NULLRESTRICTED_IN_ARRAYFIELD.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_NO_NULLRESTRICTED_IN_ARRAYFIELD.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# NullRestricted is not translatable
+J9NLS_CFR_NO_NULLRESTRICTED_IN_PRIMITIVEFIELD=\uae30\ubcf8 \uc720\ud615\uc774 \uc788\ub294 \ud544\ub4dc\ub294 NullRestricted \uc18d\uc131\uc744 \uac00\uc9c8 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4.
+# START NON-TRANSLATABLE
+J9NLS_CFR_NO_NULLRESTRICTED_IN_PRIMITIVEFIELD.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_NO_NULLRESTRICTED_IN_PRIMITIVEFIELD.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_NO_NULLRESTRICTED_IN_PRIMITIVEFIELD.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+J9NLS_CFR_ERR_CLASS_MUST_HAVE_AT_LEAST_ONE_FINAL_IDENTITY_ABSTRACT_FLAG=\ube44\uc778\ud130\ud398\uc774\uc2a4 \ud074\ub798\uc2a4\uc5d0\ub294 ACC_FINAL, ACC_IDENTITY \ub610\ub294 ACC_ABSTRACT \ud50c\ub798\uadf8 \uc911 \ud558\ub098 \uc774\uc0c1\uc774 \uc124\uc815\ub418\uc5b4 \uc788\uc5b4\uc57c \ud569\ub2c8\ub2e4.
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_CLASS_MUST_HAVE_AT_LEAST_ONE_FINAL_IDENTITY_ABSTRACT_FLAG.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_CLASS_MUST_HAVE_AT_LEAST_ONE_FINAL_IDENTITY_ABSTRACT_FLAG.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_CLASS_MUST_HAVE_AT_LEAST_ONE_FINAL_IDENTITY_ABSTRACT_FLAG.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+J9NLS_CFR_ERR_VALUE_CLASS_FIELD_NOT_STATIC_OR_STRICT=\uac12 \ud074\ub798\uc2a4 \ud544\ub4dc\uc5d0\ub294 ACC_STATIC \ub610\ub294 ACC_STRICT\uac00 \uc124\uc815\ub418\uc5b4 \uc788\uc5b4\uc57c \ud569\ub2c8\ub2e4
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_VALUE_CLASS_FIELD_NOT_STATIC_OR_STRICT.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_VALUE_CLASS_FIELD_NOT_STATIC_OR_STRICT.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_VALUE_CLASS_FIELD_NOT_STATIC_OR_STRICT.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+J9NLS_CFR_ERR_FIELD_CANT_BE_STRICT_AND_STATIC=\ud544\ub4dc\uc5d0 ACC_STRICT \ubc0f ACC_STATIC \ud50c\ub798\uadf8\uac00 \ubaa8\ub450 \uc124\uc815\ub418\uc5b4 \uc788\uc9c0 \uc54a\uc544\uc57c \ud569\ub2c8\ub2e4
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_FIELD_CANT_BE_STRICT_AND_STATIC.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_FIELD_CANT_BE_STRICT_AND_STATIC.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_FIELD_CANT_BE_STRICT_AND_STATIC.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+J9NLS_CFR_ERR_STRICT_FIELD_MUST_BE_FINAL=ACC_STRICT\uac00 \uc124\uc815\ub41c \ud544\ub4dc\ub294 ACC_FINAL\ub3c4 \uc124\uc815\ud574\uc57c \ud569\ub2c8\ub2e4
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_STRICT_FIELD_MUST_BE_FINAL.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_STRICT_FIELD_MUST_BE_FINAL.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_STRICT_FIELD_MUST_BE_FINAL.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# LoadableDescriptors is not translatable
+J9NLS_CFR_ERR_MULTIPLE_LOADABLEDESCRIPTORS_ATTRIBUTES=\uc5ec\ub7ec LoadableDescriptors \uc18d\uc131\uc774 \uac10\uc9c0\ub41c \uacbd\uc6b0 \ud074\ub798\uc2a4 \ud30c\uc77c\uc5d0 \ucd5c\ub300 \ud558\ub098\ub9cc \uc788\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_MULTIPLE_LOADABLEDESCRIPTORS_ATTRIBUTES.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_MULTIPLE_LOADABLEDESCRIPTORS_ATTRIBUTES.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_MULTIPLE_LOADABLEDESCRIPTORS_ATTRIBUTES.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# LoadableDescriptors is not translatable
+J9NLS_CFR_ERR_LOADABLEDESCRIPTORS_NAME_NOT_UTF8=LoadableDescriptors \uc774\ub984\uc740 \ubb38\uc790\uc5f4\uc774\uc5b4\uc57c \ud569\ub2c8\ub2e4
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_LOADABLEDESCRIPTORS_NAME_NOT_UTF8.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_LOADABLEDESCRIPTORS_NAME_NOT_UTF8.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_LOADABLEDESCRIPTORS_NAME_NOT_UTF8.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# LoadableDescriptors is not translatable
+J9NLS_CFR_ERR_LOADABLEDESCRIPTORS_ENTRY_NOT_UTF8_TYPE=LoadableDescriptors \uc18d\uc131\uc758 \uc124\uba85\uc790\uac00 UTF8 \uc720\ud615\uc774 \uc544\ub2d9\ub2c8\ub2e4
+# START NON-TRANSLATABLE
+J9NLS_CFR_ERR_LOADABLEDESCRIPTORS_ENTRY_NOT_UTF8_TYPE.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_CFR_ERR_LOADABLEDESCRIPTORS_ENTRY_NOT_UTF8_TYPE.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_CFR_ERR_LOADABLEDESCRIPTORS_ENTRY_NOT_UTF8_TYPE.user_response=Contact the provider of the classfile for a corrected version.
 # END NON-TRANSLATABLE

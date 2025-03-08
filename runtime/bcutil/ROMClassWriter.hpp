@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /*
@@ -154,7 +154,11 @@ private:
 	void writePermittedSubclasses(Cursor *cursor, bool markAndCountOnly);
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 	void writeInjectedInterfaces(Cursor *cursor, bool markAndCountOnly);
+	void writeloadableDescriptors(Cursor *cursor, bool markAndCountOnly);
 #endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	void writeImplicitCreation(Cursor *cursor, bool markAndCountOnly);
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 	BufferManager *_bufferManager;
 	ClassFileOracle *_classFileOracle;
@@ -193,7 +197,11 @@ private:
 	UDATA _permittedSubclassesInfoSRPKey;
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 	UDATA _injectedInterfaceInfoSRPKey;
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+	UDATA _loadableDescriptorsInfoSRPKey;
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	UDATA _implicitCreationSRPKey;
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 };
 
 #endif /* ROMCLASSWRITER_HPP_ */

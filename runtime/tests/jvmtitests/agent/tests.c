@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -58,8 +58,14 @@ static jvmtiTest jvmtiTestList[] =
 	{ "gst001", gst001, "com.ibm.jvmti.tests.getStackTrace.gst001", "GetStackTrace - check a predefined stack trace" },
 	{ "gst002", gst002, "com.ibm.jvmti.tests.getStackTrace.gst002", "GetStackTrace - check return of an empty stack for a dead thread" },
 	{ "gste001", gste001, "com.ibm.jvmti.tests.getStackTraceExtended.gste001", "GetStackTraceExtended" },
+#if JAVA_SPEC_VERSION >= 21
+	{ "gste002", gste002, "com.ibm.jvmti.tests.getStackTraceExtended.gste002", "GetStackTraceExtended" },
+#endif /* JAVA_SPEC_VERSION >= 21 */
 	{ "gaste001", gaste001, "com.ibm.jvmti.tests.getAllStackTracesExtended.gaste001", "GetAllStackTracesExtended" },
 	{ "gtlste001", gtlste001, "com.ibm.jvmti.tests.getThreadListStackTracesExtended.gtlste001", "GetThreadListStackTracesExtended" },
+#if JAVA_SPEC_VERSION >= 21
+	{ "gtlste002", gtlste002, "com.ibm.jvmti.tests.getThreadListStackTracesExtended.gtlste002", "GetThreadListStackTracesExtended" },
+#endif /* JAVA_SPEC_VERSION >= 21 */
 	{ "gomsdi001", gomsdi001, "com.ibm.jvmti.tests.getOwnedMonitorStackDepthInfo.gomsdi001", "GetOwnedMonitorStackDepthInfo" },
 	{ "gomsdi002", gomsdi002, "com.ibm.jvmti.tests.getOwnedMonitorStackDepthInfo.gomsdi002", "GetOwnedMonitorStackDepthInfo" },
 	{ "gomi001", gomi001, "com.ibm.jvmti.tests.getOwnedMonitorInfo.gomi001", "GetOwnedMonitorInfo" },

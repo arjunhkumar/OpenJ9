@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef ASMPROTOS_H
@@ -28,7 +28,7 @@ extern "C" {
 #endif
 
 
-#if (defined(__IBMCPP__) || defined(__IBMC__) && !defined(MVS)) && !defined(J9ZOS390) && !defined(LINUXPPC64)
+#if (defined(__IBMCPP__) || defined(__IBMC__) && !defined(__MVS__) || defined(__open_xl__)) && !defined(J9ZOS390) && !defined(LINUXPPC64)
 #if defined(AIXPPC)
 #define JIT_HELPER(x) extern "C" void * x
 #else
@@ -77,8 +77,9 @@ JIT_HELPER(jitInduceOSRAtCurrentPCAndRecompile);  // asm calling-convention help
 JIT_HELPER(jitInstanceOf);  // asm calling-convention helper
 JIT_HELPER(jitInterpretNewInstanceMethod);  // asm calling-convention helper
 JIT_HELPER(jitLookupInterfaceMethod);  // asm calling-convention helper
-JIT_HELPER(jitLookupDynamicInterfaceMethod);  // asm calling-convention helper
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 JIT_HELPER(jitLookupDynamicPublicInterfaceMethod);  // asm calling-convention helper
+#endif
 JIT_HELPER(jitMethodIsNative);  // asm calling-convention helper
 JIT_HELPER(jitMethodIsSync);  // asm calling-convention helper
 JIT_HELPER(jitMethodMonitorEntry);  // asm calling-convention helper
@@ -142,6 +143,7 @@ JIT_HELPER(jitThrowCurrentException);  // asm calling-convention helper
 JIT_HELPER(jitThrowException);  // asm calling-convention helper
 JIT_HELPER(jitThrowUnreportedException);  // asm calling-convention helper
 JIT_HELPER(jitThrowExceptionInInitializerError);  // asm calling-convention helper
+JIT_HELPER(jitThrowIdentityException);  // asm calling-convention helper
 JIT_HELPER(jitThrowInstantiationException);  // asm calling-convention helper
 JIT_HELPER(jitThrowNullPointerException);  // asm calling-convention helper
 JIT_HELPER(jitThrowWrongMethodTypeException);  // asm calling-convention helper

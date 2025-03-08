@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef REFERENCEOBJECTBUFFERSTANDARD_HPP_
@@ -36,7 +36,7 @@
 class MM_ReferenceObjectBufferStandard : public MM_ReferenceObjectBuffer
 {
 private:
-	UDATA _referenceObjectListIndex; /**< List index to dump buffer to.  This is a cyclic index fro 0->listsize-1 */
+	uintptr_t _referenceObjectListIndex; /**< List index to dump buffer to.  This is a cyclic index fro 0->listsize-1 */
 protected:
 public:
 	
@@ -51,7 +51,7 @@ protected:
 	 * Subclasses must override.
 	 * @param env[in] the current thread
 	 */
-	virtual void flushImpl(MM_EnvironmentBase* env);
+	virtual void flushImpl(MM_EnvironmentBase *env);
 	
 public:
 
@@ -60,7 +60,18 @@ public:
 	 * Construct a new buffer.
 	 * @param maxObjectCount the maximum number of objects permitted before a forced flush 
 	 */
-	MM_ReferenceObjectBufferStandard(UDATA maxObjectCount);
+	MM_ReferenceObjectBufferStandard(uintptr_t maxObjectCount);
+
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+	/**
+	 * Reinitialize the buffer's _maxObjectCount to account for the new restore GC thread count.
+	 * _maxObjectCount was initially set based on the GC thread count at VM startup.
+	 *
+	 * @param[in] env the current environment.
+	 * @return boolean indicating whether the buffer was successfully reinitialized.
+	 */
+	virtual bool reinitializeForRestore(MM_EnvironmentBase *env);
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 };
 
 #endif /* REFERENCEOBJECTBUFFERSTANDARD_HPP_ */

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 //On zOS XLC linker can't handle files with same name at link time
@@ -88,26 +88,49 @@ J9::Z::CodeGenerator::initialize()
       cg->setSupportsInlineStringCaseConversion();
 
    if (cg->getSupportsVectorRegisters() && !comp->getOption(TR_DisableFastStringIndexOf) &&
-       !TR::Compiler->om.canGenerateArraylets())
+       !TR::Compiler->om.canGenerateArraylets() && !TR::Compiler->om.isOffHeapAllocationEnabled())
       {
       cg->setSupportsInlineStringIndexOf();
       }
 
    if (cg->getSupportsVectorRegisters() && !comp->getOption(TR_DisableSIMDStringHashCode) &&
-       !TR::Compiler->om.canGenerateArraylets())
+       !TR::Compiler->om.canGenerateArraylets() && !TR::Compiler->om.isOffHeapAllocationEnabled())
       {
       cg->setSupportsInlineStringHashCode();
+      cg->setSupportsInlineVectorizedHashCode();
       }
 
-   if (cg->getSupportsVectorRegisters() && comp->target().cpu.isAtLeast(OMR_PROCESSOR_S390_Z14))
+   if (cg->getSupportsVectorRegisters() && comp->target().cpu.isAtLeast(OMR_PROCESSOR_S390_Z14) &&
+       !TR::Compiler->om.canGenerateArraylets())
       {
       cg->setSupportsInlineStringLatin1Inflate();
       }
 
-   // See comment in `handleHardwareReadBarrier` implementation as to why we cannot support CTX under CS
-   if (cg->getSupportsTM() && TR::Compiler->om.readBarrierType() == gc_modron_readbar_none)
+   // For IBM Java 8 ConcurrentLinkedQueue.poll and offer has been accelerated
+   // using constrained transactional execution instructions.
+   // If CTX feature is supported on processor, and JIT has not disabled it
+   // using TR_DisableTM option, then inlining of ConcurrentLinkedQueue.poll/offer
+   // is supported.
+   // See comment in `handleHardwareReadBarrier` implementation as to why we
+   // cannot support CTX under CS
+   if ((comp->target().cpu.supportsFeature(OMR_FEATURE_S390_CONSTRAINED_TRANSACTIONAL_EXECUTION_FACILITY)
+         && !comp->getOption(TR_DisableTM))
+      && TR::Compiler->om.readBarrierType() == gc_modron_readbar_none)
       {
       cg->setSupportsInlineConcurrentLinkedQueue();
+      }
+
+   static bool disableInlineStringCodingHasNegatives = feGetEnv("TR_DisableInlineStringCodingHasNegatives") != NULL;
+   if (cg->getSupportsVectorRegisters() && !disableInlineStringCodingHasNegatives &&
+        !TR::Compiler->om.canGenerateArraylets())
+      {
+      cg->setSupportsInlineStringCodingHasNegatives();
+      }
+   static bool disableInlineStringCodingCountPositives = feGetEnv("TR_DisableInlineStringCodingCountPositives") != NULL;
+   if (cg->getSupportsVectorRegisters() && !disableInlineStringCodingCountPositives &&
+         !TR::Compiler->om.canGenerateArraylets())
+      {
+      cg->setSupportsInlineStringCodingCountPositives();
       }
 
    // Similar to AOT, array translate instructions are not supported for remote compiles because instructions such as
@@ -118,9 +141,37 @@ J9::Z::CodeGenerator::initialize()
       }
 
    static char *disableInlineEncodeASCII = feGetEnv("TR_disableInlineEncodeASCII");
-   if (comp->fej9()->isStringCompressionEnabledVM() && cg->getSupportsVectorRegisters() && !TR::Compiler->om.canGenerateArraylets() && !disableInlineEncodeASCII)
+   if (comp->fej9()->isStringCompressionEnabledVM() && cg->getSupportsVectorRegisters() && !TR::Compiler->om.canGenerateArraylets() && !TR::Compiler->om.isOffHeapAllocationEnabled() && !disableInlineEncodeASCII)
       {
       cg->setSupportsInlineEncodeASCII();
+      }
+
+   static bool disableInlineMath_MaxMin_FD = feGetEnv("TR_disableInlineMaxMin") != NULL;
+   if (!disableInlineMath_MaxMin_FD)
+      {
+      cg->setSupportsInlineMath_MaxMin_FD();
+      }
+
+   static bool disableInlineVectorizedMismatch = feGetEnv("TR_disableInlineVectorizedMismatch") != NULL;
+   if (cg->getSupportsArrayCmpLen() &&
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+         !TR::Compiler->om.isOffHeapAllocationEnabled() &&
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
+         !disableInlineVectorizedMismatch)
+      {
+      cg->setSupportsInlineVectorizedMismatch();
+      }
+
+   static bool disableCASInlining = feGetEnv("TR_DisableCASInlining") != NULL;
+   if (!disableCASInlining)
+      {
+      cg->setSupportsInlineUnsafeCompareAndSet();
+      }
+
+   static bool disableCAEInlining = feGetEnv("TR_DisableCAEInlining") != NULL;
+   if (!disableCAEInlining)
+      {
+      cg->setSupportsInlineUnsafeCompareAndExchange();
       }
 
    // Let's turn this on.  There is more work needed in the opt
@@ -213,7 +264,7 @@ J9::Z::CodeGenerator::initialize()
       }
 
    static bool disableIntegerToChars = (feGetEnv("TR_DisableIntegerToChars") != NULL);
-   if (cg->getSupportsVectorRegisters() && !TR::Compiler->om.canGenerateArraylets() && !disableIntegerToChars && comp->target().cpu.isAtLeast(OMR_PROCESSOR_S390_Z16))
+   if (cg->getSupportsVectorRegisters() && !TR::Compiler->om.canGenerateArraylets() && !TR::Compiler->om.isOffHeapAllocationEnabled() && !disableIntegerToChars && comp->target().cpu.isAtLeast(OMR_PROCESSOR_S390_Z16))
       {
       cg->setSupportsIntegerToChars();
       cg->setSupportsIntegerStringSize();
@@ -232,7 +283,7 @@ J9::Z::CodeGenerator::callUsesHelperImplementation(TR::Symbol *sym)
 TR::Linkage *
 J9::Z::CodeGenerator::createLinkage(TR_LinkageConventions lc)
    {
-   TR::Linkage * linkage;
+   TR::Linkage * linkage = NULL;
    switch (lc)
       {
       case TR_CHelper:
@@ -376,17 +427,17 @@ J9::Z::CodeGenerator::lowerTreeIfNeeded(
       // Looking for trees that look like this:
 
       // BNDCHK / BNDCHKwithSpineCHK
-      //   iiload
+      //   iloadi
       //     ==>aRegLoad
-      //   iiload
+      //   iloadi
       //     ==>aRegLoad
 
-      // iaload
+      // aloadi
       //   aiadd    <=====  You are here
       //     ==>aRegLoad
       //     isub
       //       imul   <=== Find this node and anchor it up above the BNDCHK
-      //         ==>iiload
+      //         ==>iloadi
       //         iconst 4
       //       iconst -16
 
@@ -411,7 +462,7 @@ J9::Z::CodeGenerator::lowerTreeIfNeeded(
          {
          // The general tree that we are matching is:
          //  aladd        <=====  You are here
-         //    ==>iaload
+         //    ==>aloadi
          //    lsub
          //      lmul     <=====  Find this node and anchor it up above the ArrayStoreCHK
          //        i2l
@@ -421,7 +472,7 @@ J9::Z::CodeGenerator::lowerTreeIfNeeded(
          //  arrayheader isub/lsub, we will see a tree as such:
          //
          //  aladd (internal ptr)       <=====  You are here
-         //    ==>iaload
+         //    ==>aloadi
          //    lshl     <=====  Find this node and anchor it up above the ArrayStoreCHK
          //      i2l
          //        ==>iRegLoad
@@ -448,7 +499,7 @@ J9::Z::CodeGenerator::lowerTreeIfNeeded(
          {
          // The general tree that we are matching is:
          //  aladd        <=====  You are here
-         //    ==>iaload
+         //    ==>aloadi
          //    lsub
          //      lmul     <=====  Find this node and anchor it up above the BNDCHK
          //        i2l
@@ -458,7 +509,7 @@ J9::Z::CodeGenerator::lowerTreeIfNeeded(
          //  arrayheader isub/lsub, we will see a tree as such:
          //
          //  aladd (internal ptr)       <=====  You are here
-         //    ==>iaload
+         //    ==>aloadi
          //    lshl     <=====  Find this node and anchor it up above the BNDCHK
          //      i2l
          //        ==>iRegLoad
@@ -500,7 +551,7 @@ J9::Z::CodeGenerator::lowerTreeIfNeeded(
 
    // J9, Z
    //
-   // On zseries, convert aconst to iaload of aconst 0 and move it to its own new treetop
+   // On zseries, convert aconst to aloadi of aconst 0 and move it to its own new treetop
    if (comp->target().cpu.isZ() && !self()->profiledPointersRequireRelocation() &&
          node->getOpCodeValue() == TR::aconst && node->isClassUnloadingConst())
       {
@@ -527,9 +578,9 @@ J9::Z::CodeGenerator::lowerTreeIfNeeded(
 
    // J9, Z
    //
-   if (comp->target().cpu.isZ() && node->getOpCodeValue() == TR::aloadi && node->isUnneededIALoad())
+   if (comp->target().cpu.isZ() && node->getOpCodeValue() == TR::aloadi && node->isUnneededAloadi())
       {
-      ListIterator<TR_Pair<TR::Node, int32_t> > listIter(&_ialoadUnneeded);
+      ListIterator<TR_Pair<TR::Node, int32_t> > listIter(&_aloadiUnneeded);
       TR_Pair<TR::Node, int32_t> *ptr;
       uintptr_t temp;
       int32_t updatedTemp;
@@ -539,7 +590,7 @@ J9::Z::CodeGenerator::lowerTreeIfNeeded(
          updatedTemp = (int32_t) temp;
          if (ptr->getKey() == node && temp != node->getReferenceCount())
             {
-            node->setUnneededIALoad(false);
+            node->setUnneededAloadi(false);
             break;
             }
          }
@@ -3251,12 +3302,12 @@ J9::Z::CodeGenerator::checkFieldAlignmentForAtomicLong()
    if (!classBlock)
       return false;
 
-   char* fieldName = "value";
+   const char * fieldName = "value";
    int32_t fieldNameLen = 5;
-   char * fieldSig = "J";
+   const char * fieldSig = "J";
    int32_t fieldSigLen = 1;
-   int32_t intOrBoolOffset = self()->fe()->getObjectHeaderSizeInBytes() + self()->fej9()->getInstanceFieldOffset(classBlock, fieldName, fieldNameLen, fieldSig, fieldSigLen);
-   return (intOrBoolOffset & 0x3) == 0;
+   int32_t longOffset = self()->fe()->getObjectHeaderSizeInBytes() + self()->fej9()->getInstanceFieldOffset(classBlock, fieldName, fieldNameLen, fieldSig, fieldSigLen);
+   return (longOffset & 0x7) == 0;
    }
 
 
@@ -3683,10 +3734,18 @@ J9::Z::CodeGenerator::suppressInliningOfRecognizedMethod(TR::RecognizedMethod me
       }
 
    static bool disableCRC32CAcceleration = (feGetEnv("TR_DisableCRC32CAcceleration") != NULL);
-   if (!disableCRC32CAcceleration && self()->getSupportsVectorRegisters())
+   if (!disableCRC32CAcceleration && self()->getSupportsVectorRegisters() && !TR::Compiler->om.canGenerateArraylets() && !TR::Compiler->om.isOffHeapAllocationEnabled())
       {
       if (method == TR::java_util_zip_CRC32C_updateBytes ||
          method == TR::java_util_zip_CRC32C_updateDirectByteBuffer)
+         {
+         return true;
+         }
+      }
+
+   if (self()->getSupportsInlineVectorizedHashCode())
+      {
+      if (method == TR::jdk_internal_util_ArraysSupport_vectorizedHashCode)
          {
          return true;
          }
@@ -3700,6 +3759,20 @@ J9::Z::CodeGenerator::suppressInliningOfRecognizedMethod(TR::RecognizedMethod me
        method == TR::java_lang_Long_numberOfTrailingZeros)
       {
       return true;
+      }
+
+   static bool disableZNextCompressExpand = feGetEnv("TR_DisableZNextCompressExpand") != NULL;
+   if (!disableZNextCompressExpand &&
+       (self()->comp()->target().cpu.supportsFeature(OMR_FEATURE_S390_MISCELLANEOUS_INSTRUCTION_EXTENSION_4) ||
+        TR::InstOpCode(TR::InstOpCode::BEXTG).canEmulate() && TR::InstOpCode(TR::InstOpCode::BDEPG).canEmulate()))
+      {
+      if (method == TR::java_lang_Integer_compress ||
+          method == TR::java_lang_Integer_expand ||
+          method == TR::java_lang_Long_compress ||
+          method == TR::java_lang_Long_expand)
+         {
+         return true;
+         }
       }
 
    if (method == TR::java_util_concurrent_atomic_AtomicBoolean_getAndSet ||
@@ -3780,8 +3853,18 @@ J9::Z::CodeGenerator::inlineDirectCall(
       ReduceSynchronizedFieldLoad::inlineSynchronizedFieldLoad(node, cg);
       return true;
       }
+   else if (node->getSymbolReference()->getReferenceNumber() == TR_checkAssignable)
+      {
+      resultReg = TR::TreeEvaluator::inlineCheckAssignableFromEvaluator(node, cg);
+      return true;
+      }
 
    static const char * enableTRTRE = feGetEnv("TR_enableTRTRE");
+   static const bool enableOSW = feGetEnv("TR_noPauseOnSpinWait") == NULL;
+
+   bool disableCASInlining = !cg->getSupportsInlineUnsafeCompareAndSet();
+   bool disableCAEInlining = !cg->getSupportsInlineUnsafeCompareAndExchange();
+
    switch (methodSymbol->getRecognizedMethod())
       {
       case TR::sun_misc_Unsafe_compareAndSwapInt_jlObjectJII_Z:
@@ -3793,40 +3876,86 @@ J9::Z::CodeGenerator::inlineDirectCall(
 
          if ((!TR::Compiler->om.canGenerateArraylets() || node->isUnsafeGetPutCASCallOnNonArray()) && node->isSafeForCGToFastPathUnsafeCall())
             {
-            resultReg = TR::TreeEvaluator::VMinlineCompareAndSwap(node, cg, TR::InstOpCode::CS, IS_NOT_OBJ);
-            return true;
+            if (!disableCASInlining)
+               {
+               resultReg = TR::TreeEvaluator::VMinlineCompareAndSwap(node, cg, TR::InstOpCode::CS, IS_NOT_OBJ);
+               return true;
+               }
             }
+         break;
 
       case TR::sun_misc_Unsafe_compareAndSwapLong_jlObjectJJJ_Z:
-         // As above, we only want to inline the JNI methods, so add an explicit test for isNative()
+         // As above, we only want to inline the JNI methods, so add an explicit test for isNative().
          if (!methodSymbol->isNative())
             break;
 
+         // Too risky to do Long-31bit version now.
          if (comp->target().is64Bit() && (!TR::Compiler->om.canGenerateArraylets() || node->isUnsafeGetPutCASCallOnNonArray()) && node->isSafeForCGToFastPathUnsafeCall())
             {
-            resultReg = TR::TreeEvaluator::VMinlineCompareAndSwap(node, cg, TR::InstOpCode::CSG, IS_NOT_OBJ);
-            return true;
+            if (!disableCASInlining)
+               {
+               resultReg = TR::TreeEvaluator::VMinlineCompareAndSwap(node, cg, TR::InstOpCode::CSG, IS_NOT_OBJ);
+               return true;
+               }
             }
-         // Too risky to do Long-31bit version now.
          break;
 
       case TR::sun_misc_Unsafe_compareAndSwapObject_jlObjectJjlObjectjlObject_Z:
-         // As above, we only want to inline the JNI methods, so add an explicit test for isNative()
+         // As above, we only want to inline the JNI methods, so add an explicit test for isNative().
          if (!methodSymbol->isNative())
             break;
 
          if ((!TR::Compiler->om.canGenerateArraylets() || node->isUnsafeGetPutCASCallOnNonArray()) && node->isSafeForCGToFastPathUnsafeCall())
             {
-            resultReg = TR::TreeEvaluator::VMinlineCompareAndSwap(node, cg, (comp->useCompressedPointers() ? TR::InstOpCode::CS : TR::InstOpCode::getCmpAndSwapOpCode()), IS_OBJ);
-            return true;
+            if (!disableCASInlining)
+               {
+               resultReg = TR::TreeEvaluator::VMinlineCompareAndSwap(node, cg, (comp->useCompressedPointers() ? TR::InstOpCode::CS : TR::InstOpCode::getCmpAndSwapOpCode()), IS_OBJ);
+               return true;
+               }
             }
          break;
 
-      case TR::java_util_concurrent_atomic_Fences_reachabilityFence:
-      case TR::java_util_concurrent_atomic_Fences_orderAccesses:
-      case TR::java_util_concurrent_atomic_Fences_orderReads:
-      case TR::java_util_concurrent_atomic_Fences_orderWrites:
-         cg->decReferenceCount(node->getChild(0));
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeInt:
+         if ((!TR::Compiler->om.canGenerateArraylets() || node->isUnsafeGetPutCASCallOnNonArray()) && node->isSafeForCGToFastPathUnsafeCall())
+            {
+            if (!disableCAEInlining)
+               {
+               resultReg = TR::TreeEvaluator::VMinlineCompareAndSwap(node, cg, TR::InstOpCode::CS, IS_NOT_OBJ, true);
+               return true;
+               }
+            }
+         break;
+
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeLong:
+         // Too risky to do Long-31bit version now.
+         if (comp->target().is64Bit() && (!TR::Compiler->om.canGenerateArraylets() || node->isUnsafeGetPutCASCallOnNonArray()) && node->isSafeForCGToFastPathUnsafeCall())
+            {
+            if (!disableCAEInlining)
+               {
+               resultReg = TR::TreeEvaluator::VMinlineCompareAndSwap(node, cg, TR::InstOpCode::CSG, IS_NOT_OBJ, true);
+               return true;
+               }
+            }
+         break;
+
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeObject:
+         /*
+          * Starting from Java 12, compareAndExchangeObject was changed from a native call to a
+          * Java wrapper calling compareAndExchangeReference.
+          * We only want to inline the JNI native method, so add an explicit test for isNative().
+          */
+         if (!methodSymbol->isNative())
+            break;
+         // If native, fall through.
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeReference:
+         if ((!TR::Compiler->om.canGenerateArraylets() || node->isUnsafeGetPutCASCallOnNonArray()) && node->isSafeForCGToFastPathUnsafeCall())
+            {
+            if (!disableCAEInlining)
+               {
+               resultReg = TR::TreeEvaluator::VMinlineCompareAndSwap(node, cg, (comp->useCompressedPointers() ? TR::InstOpCode::CS : TR::InstOpCode::getCmpAndSwapOpCode()), IS_OBJ, true);
+               return true;
+               }
+            }
          break;
 
       case TR::java_util_concurrent_atomic_AtomicBoolean_getAndSet:
@@ -3930,13 +4059,37 @@ J9::Z::CodeGenerator::inlineDirectCall(
             }
         break;
 
-      case TR::java_lang_StringLatin1_inflate:
+      case TR::jdk_internal_util_ArraysSupport_vectorizedHashCode:
+         {
+         if (cg->getSupportsInlineVectorizedHashCode() && node->getArgument(4)->getOpCode().isLoadConst())
+            {
+            resultReg = TR::TreeEvaluator::inlineVectorizedHashCode(node, cg);
+            return resultReg != NULL;
+            }
+         break;
+         }
+
+      case TR::java_lang_StringLatin1_inflate_BICII:
          if (cg->getSupportsInlineStringLatin1Inflate())
             {
             resultReg = TR::TreeEvaluator::inlineStringLatin1Inflate(node, cg);
             return resultReg != NULL;
             }
-      break;
+         break;
+      case TR::java_lang_StringCoding_hasNegatives:
+         if (cg->getSupportsInlineStringCodingHasNegatives())
+            {
+            resultReg = TR::TreeEvaluator::inlineStringCodingHasNegativesOrCountPositives(node, cg, false);
+            return true;
+            }
+         break;
+      case TR::java_lang_StringCoding_countPositives:
+         if (cg->getSupportsInlineStringCodingCountPositives())
+            {
+            resultReg = TR::TreeEvaluator::inlineStringCodingHasNegativesOrCountPositives(node, cg, true);
+            return true;
+            }
+         break;
       case TR::com_ibm_jit_JITHelpers_transformedEncodeUTF16Big:
          return resultReg = comp->getOption(TR_DisableUTF16BEEncoder) ? TR::TreeEvaluator::inlineUTF16BEEncodeSIMD(node, cg)
                                                                       : TR::TreeEvaluator::inlineUTF16BEEncode    (node, cg);
@@ -3967,6 +4120,13 @@ J9::Z::CodeGenerator::inlineDirectCall(
             return resultReg != NULL;
             }
          break;
+      case TR::java_lang_Thread_onSpinWait:
+         if (enableOSW)
+            {
+            resultReg = TR::TreeEvaluator::inlineOnSpinWait(node, cg);
+            return true;
+            }
+         break;
 
       default:
          break;
@@ -3995,6 +4155,30 @@ J9::Z::CodeGenerator::inlineDirectCall(
          return true;
       default:
          break;
+      }
+
+   static bool disableZNextCompressExpand = feGetEnv("TR_DisableZNextCompressExpand") != NULL;
+   if (!disableZNextCompressExpand &&
+       (self()->comp()->target().cpu.supportsFeature(OMR_FEATURE_S390_MISCELLANEOUS_INSTRUCTION_EXTENSION_4) ||
+        TR::InstOpCode(TR::InstOpCode::BEXTG).canEmulate() && TR::InstOpCode(TR::InstOpCode::BDEPG).canEmulate()))
+      {
+      switch (methodSymbol->getRecognizedMethod())
+         {
+         case TR::java_lang_Integer_compress:
+            resultReg = TR::TreeEvaluator::inlineBitCompress(node, cg, false);
+            return true;
+         case TR::java_lang_Integer_expand:
+            resultReg = TR::TreeEvaluator::inlineBitExpand(node, cg, false);
+            return true;
+         case TR::java_lang_Long_compress:
+            resultReg = TR::TreeEvaluator::inlineBitCompress(node, cg, true);
+            return true;
+         case TR::java_lang_Long_expand:
+            resultReg = TR::TreeEvaluator::inlineBitExpand(node, cg, true);
+            return true;
+         default:
+            break;
+         }
       }
 
 #ifdef J9VM_OPT_JAVA_CRYPTO_ACCELERATION
@@ -4029,9 +4213,11 @@ J9::Z::CodeGenerator::inlineDirectCall(
       {
       switch (methodSymbol->getRecognizedMethod())
          {
+         case TR::java_lang_StringLatin1_indexOfChar:
          case TR::com_ibm_jit_JITHelpers_intrinsicIndexOfLatin1:
             resultReg = TR::TreeEvaluator::inlineIntrinsicIndexOf(node, cg, true);
             return true;
+         case TR::java_lang_StringUTF16_indexOfCharUnsafe:
          case TR::com_ibm_jit_JITHelpers_intrinsicIndexOfUTF16:
             resultReg = TR::TreeEvaluator::inlineIntrinsicIndexOf(node, cg, false);
             return true;
@@ -4048,20 +4234,24 @@ J9::Z::CodeGenerator::inlineDirectCall(
          }
       }
 
-   if (!comp->getOption(TR_DisableSIMDDoubleMaxMin) && cg->getSupportsVectorRegisters())
-      {
-      switch (methodSymbol->getRecognizedMethod())
-         {
+   if (!self()->comp()->getOption(TR_DisableMaxMinOptimization) && cg->getSupportsInlineMath_MaxMin_FD()) {
+      switch (methodSymbol->getRecognizedMethod()) {
          case TR::java_lang_Math_max_D:
-            resultReg = TR::TreeEvaluator::inlineDoubleMax(node, cg);
+            resultReg = J9::Z::TreeEvaluator::dmaxEvaluator(node, cg);
             return true;
          case TR::java_lang_Math_min_D:
-            resultReg = TR::TreeEvaluator::inlineDoubleMin(node, cg);
+            resultReg = J9::Z::TreeEvaluator::dminEvaluator(node, cg);
+            return true;
+         case TR::java_lang_Math_max_F:
+            resultReg = J9::Z::TreeEvaluator::fmaxEvaluator(node, cg);
+            return true;
+         case TR::java_lang_Math_min_F:
+            resultReg = J9::Z::TreeEvaluator::fminEvaluator(node, cg);
             return true;
          default:
             break;
-         }
       }
+   }
 
    switch (methodSymbol->getRecognizedMethod())
       {

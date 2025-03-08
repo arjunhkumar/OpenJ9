@@ -17,12 +17,15 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 set(J9VM_JCL_BIN_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 
 add_tracegen(j9jcl.tdf)
+add_tracegen(jcl_java.tdf)
+add_tracegen(jcl_net.tdf)
+add_tracegen(jcl_nio.tdf)
 
 j9vm_add_library(jclse SHARED
 	OUTPUT_NAME jclse${J9VM_VERSION_SUFFIX}
@@ -106,14 +109,13 @@ target_link_libraries(jclse
 
 target_sources(jclse
 	PRIVATE
-		${CMAKE_CURRENT_SOURCE_DIR}/common/acccont.c
 		${CMAKE_CURRENT_SOURCE_DIR}/common/annparser.c
 		${CMAKE_CURRENT_SOURCE_DIR}/common/attach.c
 		${CMAKE_CURRENT_SOURCE_DIR}/common/bootstrp.c
 		${CMAKE_CURRENT_SOURCE_DIR}/common/bpinit.c
 		${CMAKE_CURRENT_SOURCE_DIR}/common/clsldr.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/common/com_ibm_jvm_Stats.c
-		${CMAKE_CURRENT_SOURCE_DIR}/common/com_ibm_oti_vm_VM.c
+		${CMAKE_CURRENT_SOURCE_DIR}/common/com_ibm_oti_vm_VM.cpp
 		${CMAKE_CURRENT_SOURCE_DIR}/common/compiler.c
 		${CMAKE_CURRENT_SOURCE_DIR}/common/dump.c
 		${CMAKE_CURRENT_SOURCE_DIR}/common/exhelp.c
@@ -236,6 +238,43 @@ if(NOT JAVA_SPEC_VERSION LESS 19)
 		PRIVATE
 			${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_internal_vm_Continuation.cpp
 	)
+endif()
+
+if(JAVA_SPEC_VERSION LESS 24)
+	target_sources(jclse PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/common/acccont.c)
+endif()
+
+if(J9VM_OPT_JFR)
+	# JFR sources
+	if(JAVA_SPEC_VERSION EQUAL 11)
+		target_sources(jclse
+			PRIVATE
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_common.cpp
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_jdk11.cpp
+		)
+	elseif(JAVA_SPEC_VERSION EQUAL 17)
+		target_sources(jclse
+			PRIVATE
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_common.cpp
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_jdk17.cpp
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_jdk17andUp.cpp
+		)
+	elseif(JAVA_SPEC_VERSION EQUAL 21)
+		target_sources(jclse
+			PRIVATE
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_common.cpp
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_jdk17andUp.cpp
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_jdk21andUp.cpp
+		)
+	elseif(NOT JAVA_SPEC_VERSION LESS 23)
+		target_sources(jclse
+			PRIVATE
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_common.cpp
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_jdk17andUp.cpp
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_jdk21andUp.cpp
+				${CMAKE_CURRENT_SOURCE_DIR}/common/jdk_jfr_internal_JVM_jdk23.cpp
+		)
+	endif()
 endif()
 
 include(exports.cmake)

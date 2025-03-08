@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /* Note the required ordering of monitors related to VM access:
@@ -128,7 +128,6 @@ acquireExclusiveVMAccess(J9VMThread * vmThread)
 		Assert_VM_true(currentVMThread(vm) == vmThread);
 	}
 	Assert_VM_mustHaveVMAccess(vmThread);
-	Assert_VM_true(0 == vmThread->safePointCount);
 #if defined(J9VM_INTERP_ATOMIC_FREE_JNI)
 	// Current thread must have entered the VM before acquiring exclusive
 	Assert_VM_false(vmThread->inNative);
@@ -138,6 +137,9 @@ acquireExclusiveVMAccess(J9VMThread * vmThread)
 	 * the thread already has exclusive access
 	 */
 	if ( ++(vmThread->omrVMThread->exclusiveCount) == 1 ) {
+		/* If we have safe-point access then exclusiveCount should have already been positive. */
+		Assert_VM_true(0 == vmThread->safePointCount);
+
 		omrthread_monitor_enter(vmThread->publicFlagsMutex);
 		if (J9_ARE_NO_BITS_SET(vmThread->publicFlags, J9_PUBLIC_FLAGS_NOT_AT_SAFE_POINT)) {
 			VM_VMAccess::setPublicFlags(vmThread, J9_PUBLIC_FLAGS_NOT_AT_SAFE_POINT | J9_PUBLIC_FLAGS_EXCLUSIVE_SET_NOT_SAFE);
@@ -327,7 +329,7 @@ acquireExclusiveVMAccess(J9VMThread * vmThread)
 
 		vm->omrVM->exclusiveVMAccessStats.endTime = j9time_hires_clock();
 	}
-	Assert_VM_true(J9_XACCESS_EXCLUSIVE == vm->exclusiveAccessState);
+	Assert_VM_true((J9_XACCESS_EXCLUSIVE == vm->exclusiveAccessState) || (J9_XACCESS_EXCLUSIVE == vm->safePointState));
 	Trc_VM_acquireExclusiveVMAccess_Exit(vmThread);
 }
 
@@ -487,6 +489,21 @@ void  internalReleaseVMAccessSetStatus(J9VMThread * vmThread, UDATA flags)
 	VM_VMAccess::inlineReleaseVMAccessSetStatus(vmThread, flags);
 }
 
+/** @brief Free any cached decompilation record and empty the UTF cache.
+ *
+ * @param[in] currentThread the J9VMThread in which to clear caches
+ */
+static void clearThreadLocalCachesPostExclusive(J9VMThread *currentThread)
+{
+	PORT_ACCESS_FROM_JAVAVM(currentThread->javaVM);
+	j9mem_free_memory(currentThread->lastDecompilation);
+	currentThread->lastDecompilation = NULL;
+	J9HashTable *utfCache = currentThread->utfCache;
+	if (NULL != utfCache) {
+		currentThread->utfCache = NULL;
+		hashTableFree(utfCache);
+	}
+}
 
 void releaseExclusiveVMAccess(J9VMThread * vmThread)
 {
@@ -498,9 +515,12 @@ void releaseExclusiveVMAccess(J9VMThread * vmThread)
 	}
 	Assert_VM_mustHaveVMAccess(vmThread);
 	Assert_VM_false(vmThread->omrVMThread->exclusiveCount == 0);
-	Assert_VM_true(J9_XACCESS_EXCLUSIVE == vm->exclusiveAccessState);
+	Assert_VM_true((J9_XACCESS_EXCLUSIVE == vm->exclusiveAccessState) || (J9_XACCESS_EXCLUSIVE == vm->safePointState));
 
 	if (--(vmThread->omrVMThread->exclusiveCount) == 0) {
+		/* If we have safe-point access then non-recursive release should happen in releaseSafePointVMAccess(). */
+		Assert_VM_true(0 == vmThread->safePointCount);
+
 		/* Acquire these monitors in the same order as in allocateVMThread to prevent deadlock */
 
 		/* Check the exclusive access queue */
@@ -598,25 +618,13 @@ void releaseExclusiveVMAccess(J9VMThread * vmThread)
 			/* Make sure stale thread pointers don't exist in the stats */
 			vm->omrVM->exclusiveVMAccessStats.requester = NULL;
 			vm->omrVM->exclusiveVMAccessStats.lastResponder = NULL;
-			/* Free any cached decompilation records and empty the UTF cache */
-			PORT_ACCESS_FROM_JAVAVM(vm);
-			j9mem_free_memory(currentThread->lastDecompilation);
-			currentThread->lastDecompilation = NULL;
-			J9HashTable *utfCache = currentThread->utfCache;
-			if (NULL != utfCache) {
-				currentThread->utfCache = NULL;
-				hashTableFree(utfCache);
-			}
+
+			clearThreadLocalCachesPostExclusive(currentThread);
 			while ((currentThread = currentThread->linkNext) != vmThread) {
-				j9mem_free_memory(currentThread->lastDecompilation);
-				currentThread->lastDecompilation = NULL;
-				J9HashTable *utfCache = currentThread->utfCache;
-				if (NULL != utfCache) {
-					currentThread->utfCache = NULL;
-					hashTableFree(utfCache);
-				}
+				clearThreadLocalCachesPostExclusive(currentThread);
 				VM_VMAccess::clearPublicFlags(currentThread, J9_PUBLIC_FLAGS_HALT_THREAD_EXCLUSIVE | J9_PUBLIC_FLAGS_NOT_COUNTED_BY_EXCLUSIVE);
 			}
+
 			omrthread_monitor_notify_all(vm->exclusiveAccessMutex);
 			omrthread_monitor_exit(vm->exclusiveAccessMutex);
 			omrthread_monitor_exit(vmThread->publicFlagsMutex);
@@ -747,6 +755,11 @@ acquireExclusiveVMAccessFromExternalThread(J9JavaVM * vm)
 	UDATA vmResponsesExpected = 0;
 	UDATA jniResponsesExpected = 0;
 
+	/* If exclusive has already been acquired, nothing need be done here */
+	if (vm->alreadyHaveExclusive) {
+		return;
+	}
+
 	synchronizeRequestsFromExternalThread(vm, TRUE);
 
 	/* Post the halt request to all threads */
@@ -828,6 +841,12 @@ void
 releaseExclusiveVMAccessFromExternalThread(J9JavaVM * vm)
 {
 	J9VMThread * currentThread;
+
+	/* If exclusive has already been acquired, nothing need be done here */
+	if (vm->alreadyHaveExclusive) {
+		return;
+	}
+
 	Assert_VM_true(J9_XACCESS_EXCLUSIVE == vm->exclusiveAccessState);
 
 	/* Acquire these monitors in the same order as in allocateVMThread to prevent deadlock */
@@ -904,6 +923,11 @@ requestExclusiveVMAccessMetronomeTemp(J9JavaVM *vm, UDATA block, UDATA *vmRespon
 	UDATA vmResponsesExpected = 0;
 	UDATA jniResponsesExpected = 0;
 	*gcPriority = J9THREAD_PRIORITY_MAX;
+
+	/* If exclusive has already been acquired, nothing need be done here */
+	if (vm->alreadyHaveExclusive) {
+		return FALSE;
+	}
 
 	/* Check if another party is requesting X access already. */
 	if (FALSE == synchronizeRequestsFromExternalThread(vm, block)) {
@@ -1002,7 +1026,14 @@ waitForExclusiveVMAccessMetronome(J9VMThread * vmThread, UDATA responsesRequired
 void
 waitForExclusiveVMAccessMetronomeTemp(J9VMThread * vmThread, UDATA vmResponsesRequired, UDATA jniResponsesRequired)
 {
-	waitForResponseFromExternalThread(vmThread->javaVM, vmResponsesRequired, jniResponsesRequired);
+	J9JavaVM *vm = vmThread->javaVM;
+
+	/* If exclusive has already been acquired, nothing need be done here */
+	if (vm->alreadyHaveExclusive) {
+		return;
+	}
+
+	waitForResponseFromExternalThread(vm, vmResponsesRequired, jniResponsesRequired);
 
 	VM_VMAccess::backOffFromSafePoint(vmThread);
 
@@ -1114,7 +1145,15 @@ acquireSafePointVMAccess(J9VMThread * vmThread)
 	 * the thread already has exclusive access
 	 */
 	if ( ++(vmThread->safePointCount) == 1 ) {
+		/* When first acquiring safe-point access, we had better not already have exclusive access.
+		 * If we do, then all threads are stopped, but they're not necessarily all stopped at safe
+		 * points, and getting them all to safe points would require releasing exclusive.
+		 */
 		Assert_VM_true(0 == vmThread->omrVMThread->exclusiveCount);
+
+		/* On the other hand, once we acquire safe-point access, we'll also have exclusive access. */
+		vmThread->omrVMThread->exclusiveCount = 1;
+
 		internalReleaseVMAccess(vmThread);
 		omrthread_monitor_enter(vm->exclusiveAccessMutex);
 		while(J9_XACCESS_NONE != vm->safePointState) {
@@ -1226,13 +1265,18 @@ releaseSafePointVMAccess(J9VMThread * vmThread)
 	}
 	Assert_VM_mustHaveVMAccess(vmThread);
 	Assert_VM_false(vmThread->safePointCount == 0);
+	Assert_VM_true(1 == vmThread->omrVMThread->exclusiveCount);
 	Assert_VM_true(J9_XACCESS_EXCLUSIVE == vm->safePointState);
 
 	if (--(vmThread->safePointCount) == 0) {
 		J9VMThread *currentThread = vmThread;
 		do {
+			clearThreadLocalCachesPostExclusive(currentThread);
 			VM_VMAccess::clearPublicFlags(currentThread, J9_PUBLIC_FLAGS_HALTED_AT_SAFE_POINT | J9_PUBLIC_FLAGS_NOT_COUNTED_BY_SAFE_POINT, true);
 		} while ((currentThread = currentThread->linkNext) != vmThread);
+
+		vmThread->omrVMThread->exclusiveCount = 0;
+
 		omrthread_monitor_enter(vm->exclusiveAccessMutex);
 		vm->safePointState = J9_XACCESS_NONE;
 		omrthread_monitor_notify_all(vm->exclusiveAccessMutex);

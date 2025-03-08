@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.thread;
 
 import java.util.regex.Matcher;
@@ -34,14 +34,14 @@ public class NativeStackTraceLineRule extends LineRule implements IThreadTypes {
 	private final Matcher mb = CommonPatternMatchers.generateMatcher("\\[");
 	private final Matcher sign = CommonPatternMatchers.generateMatcher("[-+]");
 	private final Matcher spaceparen = CommonPatternMatchers.generateMatcher("\\s*\\(");
-	
+
 	protected void processLine(String source, int startingOffset) {
 		//4XENATIVESTACK               _threadstart  (thread.c:196, 0x7C34940F [MSVCR71+0x6c])
 		//4XENATIVESTACK               GetModuleHandleA  (0x77E6482F [kernel32+0xdf])
 		//4XENATIVESTACK               monitor_enter_three_tier  (j9thread.c, 0x7FFA284B [J9THR26+0xbb])
 		//4XENATIVESTACK               (0x0000002A9632E2B9 [libj9prt26.so+0x112b9])
 		//4XENATIVESTACK               0x0000002A9632E2B9
-		//new format with routine  plus offset 
+		//new format with routine  plus offset
 		//4XENATIVESTACK               j9sig_protect+0x41 (j9signal.c:144, 0x7FECBE31 [J9PRT24+0xbe31])
 		//Java 7.0
 		//4XENATIVESTACK               getFinalPath+0xaa (winntfilesystem_md.c:126, 0x00408C4F [java+0x8c4f])
@@ -69,7 +69,7 @@ public class NativeStackTraceLineRule extends LineRule implements IThreadTypes {
 				addAllCharactersAsTokenAndConsumeFirstMatch(STACK_FILE, CommonPatternMatchers.colon);
 				addToken(STACK_LINE, CommonPatternMatchers.dec);
 			} else {
-				addAllCharactersAsTokenAndConsumeFirstMatch(STACK_FILE, CommonPatternMatchers.comma);				
+				addAllCharactersAsTokenAndConsumeFirstMatch(STACK_FILE, CommonPatternMatchers.comma);
 			}
 		}
 		addPrefixedHexToken(STACK_PROC_ADDRESS);

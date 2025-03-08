@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2022
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.openj9.criu;
 
 import java.nio.file.Paths;
@@ -29,12 +29,27 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Date;
+import java.util.Scanner;
 
-import org.eclipse.openj9.criu.CRIUSupport;
-import org.eclipse.openj9.criu.SystemRestoreException;
+import org.eclipse.openj9.criu.*;
 
 public class CRIUTestUtils {
 	public final static Path imagePath = Paths.get("cpData");
+
+	public static void printLogFile(String imagePath) {
+		try {
+			Path path = Paths.get(imagePath, "criu.log");
+			Scanner contents = new Scanner(path);
+			System.out.println("-------------- Start of checkpoint criu.log -------------");
+			while (contents.hasNext()) {
+				System.out.println(contents.nextLine());
+			}
+			System.out.println("-------------- End of checkpoint criu.log -------------");
+
+		} catch (IOException e) {
+			System.out.println("failed to print log file");
+		}
+	}
 
 	public static void deleteCheckpointDirectory(Path path) {
 		try {
@@ -71,25 +86,57 @@ public class CRIUTestUtils {
 			createCheckpointDirectory(path);
 			try {
 				if (criu == null) {
-					criu = new CRIUSupport(path);
+					criu = CRIUSupport.getCRIUSupport().setImageDir(path);
 				}
 				showThreadCurrentTime("Performing CRIUSupport.checkpointJVM()");
-				criu.setLeaveRunning(false).setShellJob(true).setFileLocks(true).checkpointJVM();
+				criu.setLogLevel(4).setLeaveRunning(false).setShellJob(true).setFileLocks(true).checkpointJVM();
 			} catch (SystemRestoreException e) {
 				e.printStackTrace();
+			} catch (SystemCheckpointException e1) {
+				printLogFile(path.toAbsolutePath().toString());
+				throw e1;
 			}
 			if (deleteDir) {
 				deleteCheckpointDirectory(path);
 			}
 		} else {
-			System.err.println("CRIU is not enabled");
+			throw new RuntimeException("CRIU is not enabled");
+		}
+	}
+
+	public static CRIUSupport prepareCheckPointJVM(Path path) {
+		if (CRIUSupport.isCRIUSupportEnabled()) {
+			deleteCheckpointDirectory(path);
+			createCheckpointDirectory(path);
+			return CRIUSupport.getCRIUSupport().setImageDir(path).setLeaveRunning(false).setShellJob(true).setFileLocks(true);
+		} else {
+			throw new RuntimeException("CRIU is not enabled");
+		}
+	}
+
+	public static void checkPointJVMNoSetup(CRIUSupport criu, Path path, boolean deleteDir) {
+		if (criu != null) {
+			try {
+				showThreadCurrentTime("Performing CRIUSupport.checkpointJVM()");
+				criu.setLogLevel(4).checkpointJVM();
+			} catch (SystemRestoreException e) {
+				e.printStackTrace();
+			} catch (SystemCheckpointException e1) {
+				printLogFile(path.toAbsolutePath().toString());
+				throw e1;
+			}
+			if (deleteDir) {
+				deleteCheckpointDirectory(path);
+			}
+		} else {
+			throw new RuntimeException("CRIU is not enabled");
 		}
 	}
 
 	public static void showThreadCurrentTime(String logStr) {
-		System.out.println(logStr + ", current thread name: " + Thread.currentThread().getName() + ", " + new Date()
-				+ ", System.currentTimeMillis(): " + System.currentTimeMillis() + ", System.nanoTime(): "
-				+ System.nanoTime());
+		System.out.println(Thread.currentThread().getName() + ": " + new Date() + ", " + logStr
+				+ ", System.currentTimeMillis(): " + System.currentTimeMillis()
+				+ ", System.nanoTime(): " + System.nanoTime());
 	}
 
 

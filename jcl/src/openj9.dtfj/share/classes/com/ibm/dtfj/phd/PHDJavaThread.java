@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.phd;
 
 import java.util.ArrayList;
@@ -39,7 +39,7 @@ import com.ibm.dtfj.java.JavaObject;
 import com.ibm.dtfj.java.JavaStackFrame;
 import com.ibm.dtfj.java.JavaThread;
 
-/** 
+/**
  * @author ajohnson
  */
 public class PHDJavaThread implements JavaThread {
@@ -57,7 +57,7 @@ public class PHDJavaThread implements JavaThread {
 	private CorruptData object_cd;
 	private ImageThread imageThread;
 	private CorruptData imageThread_cd;
-	
+
 	/**
 	 * Build Java thread information from a JavaThread from another dump type.
 	 * Extract all the information on object construction.
@@ -118,7 +118,7 @@ public class PHDJavaThread implements JavaThread {
 			imageThread_cd = new PHDCorruptData(space, e);
 		}
 	}
-	
+
 	public ImageThread getImageThread() throws CorruptDataException,
 			DataUnavailable {
 		if (imageThread_cd != null) throw new CorruptDataException(imageThread_cd);
@@ -162,7 +162,7 @@ public class PHDJavaThread implements JavaThread {
 	private void checkCD(CorruptData cd) throws CorruptDataException {
 		if (cd != null) throw new CorruptDataException(cd);
 	}
-	
+
 	/* (non-Javadoc)
 	 * @see com.ibm.dtfj.java.JavaThread#getBlockingObject()
 	 */

@@ -1,6 +1,5 @@
-/*[INCLUDE-IF Sidecar17] */
-package com.ibm.oti.vm;
-/*******************************************************************************
+/*[INCLUDE-IF (JAVA_SPEC_VERSION == 8) & !Sidecar18-SE-OpenJ9]*/
+/*
  * Copyright IBM Corp. and others 2010
  *
  * This program and the accompanying materials are made available under
@@ -19,8 +18,9 @@ package com.ibm.oti.vm;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
+package com.ibm.oti.vm;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -28,44 +28,39 @@ import java.util.Map;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-/*[IF Sidecar19-SE]
-import jdk.internal.misc.Unsafe;
-import jdk.internal.reflect.CallerSensitive;
-/*[ELSE]*/
 import sun.reflect.CallerSensitive;
 import sun.misc.Unsafe;
-/*[ENDIF]*/
 
 public class ORBVMHelpers {
 
 	static Unsafe createUnsafe() {
 		return (Unsafe)AccessController.doPrivileged (
-		    new PrivilegedAction() {
-			public Object run() {
-			    try {
-				return Unsafe.getUnsafe();
-			    }catch (Throwable t){
-				return null;
-			    }
-			}
-		   }
-		);
+				new PrivilegedAction() {
+					public Object run() {
+						try {
+							return Unsafe.getUnsafe();
+						}catch (Throwable t){
+							return null;
+						}
+					}
+				}
+				);
 	}
 
 	static Unsafe unsafe = createUnsafe();
-	
+
 	/**
-	 * This native is a re-implementation of the JVM_LatestUserDefinedLoader.  
+	 * This native is a re-implementation of the JVM_LatestUserDefinedLoader.
 	 *
-	 * It walks the stack to find the first user defined class loader from the top of stack.  
-	 * The walk will terminate early and return null if it encounters a frame that has been 
+	 * It walks the stack to find the first user defined class loader from the top of stack.
+	 * The walk will terminate early and return null if it encounters a frame that has been
 	 * "marked" using the LUDCLMarkFrame() native.
 	 *
 	 * Returns the ClassLoader object or null if no user-defined loader is found
 	 */
 	@CallerSensitive
 	public static native ClassLoader LatestUserDefinedLoader();
-	
+
 	private static native boolean is32Bit();
 
 	private static native int getNumBitsInReferenceField();
@@ -77,7 +72,7 @@ public class ORBVMHelpers {
 	private static native int getNumBytesInDescriptionWord();
 
 	private static native int getNumBytesInJ9ObjectHeader();
- 
+
 	private static native int getJ9ClassFromClass32(Class c);
 
 	private static native int getTotalInstanceSizeFromJ9Class32(int j9clazz);
@@ -92,7 +87,7 @@ public class ORBVMHelpers {
 
 	private static native long getInstanceDescriptionFromJ9Class64(long j9clazz);
 
-	private static native long getDescriptionWordFromPtr64(long descriptorPtr); 
+	private static native long getDescriptionWordFromPtr64(long descriptorPtr);
 
 	// TODO: JavaDoc required please
 	public static int getNumSlotsInObject(Class currentClass) {
@@ -149,7 +144,7 @@ public class ORBVMHelpers {
 		if ((null == srcObj) || (null == dest)) {
 			throw new NullPointerException();
 		}
-		
+
 		if (is32Bit()) {
 			j9clazz = getJ9ClassFromClass32(currentClass);
 			// Get the instance size out of the J9Class
@@ -186,11 +181,11 @@ public class ORBVMHelpers {
 		int srcIndex = 0;
 		while (numSlotsInObject > 0) {
 			int destIndex = destOffsets[(int) srcIndex];
-            int nextDestIndex = -1;
-            if ((getNumBytesInReferenceField() == 8) && (srcIndex + 1 < destOffsets.length))
-               nextDestIndex = destOffsets[(int) srcIndex + 1];
+			int nextDestIndex = -1;
+			if ((getNumBytesInReferenceField() == 8) && (srcIndex + 1 < destOffsets.length))
+				nextDestIndex = destOffsets[(int) srcIndex + 1];
 			Class type = declaredType[srcIndex];
-			
+
 			if ((destIndex >= 0) || (nextDestIndex >= 0)) {
 				if (isDescriptorPointerTagged(descriptorWord, descriptorWord64)) {
 					Object fieldValue = unsafe.getObject(srcObj, bytesInHeader + (countSlots
@@ -228,46 +223,45 @@ public class ORBVMHelpers {
 									descriptorWord = descriptorWord >> 1;
 								else
 									descriptorWord64 = descriptorWord64 >> 1;
-								bitIndex++;
+									bitIndex++;
 							}
 
-                            if (getNumBytesInReferenceField() == 8)
-							    srcIndex = srcIndex + 2;
-                            else
-                            	srcIndex++;
+							if (getNumBytesInReferenceField() == 8)
+								srcIndex = srcIndex + 2;
+							else
+								srcIndex++;
 							continue;
 						}
 
 						fieldValue = orbi.deepCopyIfRequired(fieldValue, type,
 								targetCL, map, type);
 
-                        if (destIndex >= 0)
-  						   unsafe.putObject(dest, bytesInHeader + (destIndex
- 								* 4), fieldValue);
+						if (destIndex >= 0)
+							unsafe.putObject(dest, bytesInHeader + (destIndex
+									* 4), fieldValue);
 					}
 				} else {
 					if (getNumBytesInReferenceField() != 8)
 						unsafe.putInt(dest, bytesInHeader + (destIndex * numBytesInReferenceField),
 							unsafe.getInt(srcObj, bytesInHeader + (countSlots
 									* numBytesInReferenceField)));
-                    else
-					   {
-					       /*
-					   if ((destIndex >= 0) && (nextDestIndex >= 0))
-                                           unsafe.putLong(dest, bytesInHeader + (destIndex * numBytesInReferenceField),
-	  						   unsafe.getLong(srcObj, bytesInHeader + (countSlots
-								   	   * numBytesInReferenceField)));
-									   */
-                                        if (destIndex >= 0)
-                                           unsafe.putInt(dest, bytesInHeader + (destIndex * 4),
-						  	   unsafe.getInt(srcObj, bytesInHeader + (countSlots
-									* numBytesInReferenceField)));
-                                       if (nextDestIndex >= 0)
-                                          unsafe.putInt(dest, bytesInHeader + (nextDestIndex * 4),
-						  	   unsafe.getInt(srcObj, bytesInHeader + (countSlots
-									* numBytesInReferenceField) + 4));
-                 
-					   }
+					else
+					{
+						/*
+						if ((destIndex >= 0) && (nextDestIndex >= 0))
+							unsafe.putLong(dest, bytesInHeader + (destIndex * numBytesInReferenceField),
+									unsafe.getLong(srcObj, bytesInHeader + (countSlots
+											* numBytesInReferenceField)));
+						 */
+						if (destIndex >= 0)
+							unsafe.putInt(dest, bytesInHeader + (destIndex * 4),
+									unsafe.getInt(srcObj, bytesInHeader + (countSlots
+											* numBytesInReferenceField)));
+						if (nextDestIndex >= 0)
+							unsafe.putInt(dest, bytesInHeader + (nextDestIndex * 4),
+									unsafe.getInt(srcObj, bytesInHeader + (countSlots
+											* numBytesInReferenceField) + 4));
+					}
 				}
 			}
 
@@ -295,13 +289,13 @@ public class ORBVMHelpers {
 				else
 					descriptorWord64 = descriptorWord64 >> 1;
 
-				bitIndex++;
+					bitIndex++;
 			}
 
-            if (getNumBytesInReferenceField() == 8)
-			    srcIndex = srcIndex + 2;
-            else
-            	srcIndex++;
+			if (getNumBytesInReferenceField() == 8)
+				srcIndex = srcIndex + 2;
+			else
+				srcIndex++;
 		}
 	}
 

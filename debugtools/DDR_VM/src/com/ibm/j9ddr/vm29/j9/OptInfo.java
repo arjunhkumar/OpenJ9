@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.j9;
 
 import static com.ibm.j9ddr.vm29.j9.ROMHelp.J9_BYTECODE_SIZE_FROM_ROM_METHOD;
@@ -26,6 +26,8 @@ import static com.ibm.j9ddr.vm29.j9.ROMHelp.J9_ROM_METHOD_FROM_RAM_METHOD;
 import static com.ibm.j9ddr.vm29.structure.J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_CLASS_ANNOTATION_INFO;
 import static com.ibm.j9ddr.vm29.structure.J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_ENCLOSING_METHOD;
 import static com.ibm.j9ddr.vm29.structure.J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_GENERIC_SIGNATURE;
+import static com.ibm.j9ddr.vm29.structure.J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE;
+import static com.ibm.j9ddr.vm29.structure.J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_LOADABLEDESCRIPTORS_ATTRIBUTE;
 import static com.ibm.j9ddr.vm29.structure.J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_PERMITTEDSUBCLASSES_ATTRIBUTE;
 import static com.ibm.j9ddr.vm29.structure.J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_SIMPLE_NAME;
 import static com.ibm.j9ddr.vm29.structure.J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_SOURCE_DEBUG_EXTENSION;
@@ -59,9 +61,8 @@ import com.ibm.j9ddr.vm29.types.UDATA;
 
 /**
  * Analogue to util/optinfo.c
- * 
+ *
  * @author andhall
- * 
  */
 public class OptInfo {
 	private static IOptInfoImpl impl;
@@ -70,7 +71,7 @@ public class OptInfo {
 
 		@Override
 		protected Iterable<? extends IOptInfoImpl> allAlgorithms() {
-			List<IOptInfoImpl> list = new LinkedList<IOptInfoImpl>();
+			List<IOptInfoImpl> list = new LinkedList<>();
 
 			list.add(new OptInfo_29_V0());
 
@@ -105,13 +106,13 @@ public class OptInfo {
 			 * AOTd and the bytecodes have been stripped. So we can allow a
 			 * relativePC that is >= bytecodeSize in that case
 			 */
-			if ((relativePC.lt(bytecodeSize)) || (bytecodeSize.eq(0))) {
+			if (relativePC.lt(bytecodeSize) || bytecodeSize.eq(0)) {
 				J9MethodDebugInfoPointer methodInfo = getMethodDebugInfoForROMClass(method);
 
 				if (methodInfo.notNull()) {
 					Iterator<LineNumber> lineNumberIterator = LineNumberIterator.lineNumberIteratorFor(methodInfo);
 					LineNumber lineNumber;
-					
+
 					while (lineNumberIterator.hasNext()) {
 						lineNumber = lineNumberIterator.next();
 						if (relativePC.lt(lineNumber.getLocation())) {
@@ -136,9 +137,9 @@ public class OptInfo {
 	public static J9MethodDebugInfoPointer getMethodDebugInfoForROMClass(J9MethodPointer method) throws CorruptDataException {
 		return ROMHelp.getMethodDebugInfoFromROMMethod(ROMHelp.getOriginalROMMethod(method));
 	}
-	
+
 	private static SelfRelativePointer getSRPPtr(U32Pointer ptr, UDATA flags, long option) {
-		if ((!(flags.anyBitsIn(option))) || (ptr.isNull())) {
+		if ((!flags.anyBitsIn(option)) || ptr.isNull()) {
 			return SelfRelativePointer.NULL;
 		}
 
@@ -150,25 +151,26 @@ public class OptInfo {
 	}
 
 	/**
-	 * This method should be used when VM_LOCAL_VARIABLE_TABLE_VERSION >= 1
+	 * This method should be used when VM_LOCAL_VARIABLE_TABLE_VERSION >= 1.
 	 */
-	public static U8Pointer	getV1VariableTableForMethodDebugInfo(J9MethodDebugInfoPointer methodInfo) throws CorruptDataException {
+	public static U8Pointer getV1VariableTableForMethodDebugInfo(J9MethodDebugInfoPointer methodInfo) throws CorruptDataException {
 		LocalVariableTableIterator.checkVariableTableVersion();
 		return U8Pointer.cast(OptInfo._getVariableTableForMethodDebugInfo(methodInfo));
 	}
+
 	private static VoidPointer _getVariableTableForMethodDebugInfo(J9MethodDebugInfoPointer methodInfo) throws CorruptDataException {
 		if (!methodInfo.varInfoCount().eq(0)) {
 			/* check for low tag */
 			U32 taggedSizeOrSRP = U32Pointer.cast(methodInfo).at(0);
-			if ( taggedSizeOrSRP.allBitsIn(1) ) {
-				/* 
-				 * low tag indicates that debug information is in line 
+			if (taggedSizeOrSRP.allBitsIn(1)) {
+				/*
+				 * low tag indicates that debug information is in line
 				 * skip over J9MethodDebugInfo header and the J9LineNumber table
 				 */
 				U32 lineNumberTableSize = J9MethodDebugInfoHelper.getLineNumberCompressedSize(methodInfo);
 				return VoidPointer.cast(((U8Pointer.cast(methodInfo).addOffset(J9MethodDebugInfo.SIZEOF).addOffset(lineNumberTableSize))));
 			} else {
-				/* 
+				/*
 				 * debug information is out of line, this slot is an SRP to the
 				 * J9VariableInfo table
 				 */
@@ -194,7 +196,7 @@ public class OptInfo {
 		VoidPointer structure = getStructure(romClass, J9_ROMCLASS_OPTINFO_CLASS_ANNOTATION_INFO);
 		return U32Pointer.cast(structure);
 	}
-	
+
 	public static U32Pointer getClassTypeAnnotationsDataForROMClass(J9ROMClassPointer romClass) throws CorruptDataException {
 		VoidPointer structure = getStructure(romClass, J9_ROMCLASS_OPTINFO_TYPE_ANNOTATION_INFO);
 		return U32Pointer.cast(structure);
@@ -206,7 +208,7 @@ public class OptInfo {
 
 	public static J9EnclosingObjectPointer getEnclosingMethodForROMClass(J9ROMClassPointer romClass) throws CorruptDataException {
 		VoidPointer structure = getStructure(romClass, J9_ROMCLASS_OPTINFO_ENCLOSING_METHOD);
-		if (!structure.isNull()) {
+		if (structure.notNull()) {
 			return J9EnclosingObjectPointer.cast(structure);
 		} else {
 			return J9EnclosingObjectPointer.NULL;
@@ -215,23 +217,23 @@ public class OptInfo {
 
 	private static String getOption(J9ROMClassPointer romClass, long option) throws CorruptDataException {
 		VoidPointer structure = getStructure(romClass, option);
-		if (structure != VoidPointer.NULL) {
+		if (structure.notNull()) {
 			return J9UTF8Helper.stringValue(J9UTF8Pointer.cast(structure));
-		} 
+		}
 		return null;
 	}
 
 	private static VoidPointer getStructure(J9ROMClassPointer romClass, long option) throws CorruptDataException {
 		SelfRelativePointer ptr = getSRPPtr(J9ROMClassHelper.optionalInfo(romClass), romClass.optionalFlags(), option);
-		if (!ptr.isNull()) {
+		if (ptr.notNull()) {
 			return VoidPointer.cast(ptr.get());
-		} 
+		}
 		return VoidPointer.NULL;
 	}
 
 	public static J9SourceDebugExtensionPointer getSourceDebugExtensionForROMClass(J9ROMClassPointer romClass) throws CorruptDataException {
 		SelfRelativePointer srpPtr = getSRPPtr(J9ROMClassHelper.optionalInfo(romClass), romClass.optionalFlags(), J9_ROMCLASS_OPTINFO_SOURCE_DEBUG_EXTENSION);
-		if (!srpPtr.isNull()) {
+		if (srpPtr.notNull()) {
 			return J9SourceDebugExtensionPointer.cast(srpPtr.get());
 		}
 		return J9SourceDebugExtensionPointer.NULL;
@@ -266,4 +268,40 @@ public class OptInfo {
 		return J9UTF8Pointer.NULL;
 	}
 
+	public static int getLoadableDescriptorsCount(J9ROMClassPointer romClass) throws CorruptDataException {
+		U32Pointer loadableDescriptorsInfoPointer = getLoadableDescriptorsInfoPointer(romClass);
+		if (loadableDescriptorsInfoPointer.notNull()) {
+			return loadableDescriptorsInfoPointer.at(0).intValue();
+		}
+		return 0;
+	}
+
+	private static U32Pointer getLoadableDescriptorsInfoPointer(J9ROMClassPointer romClass) throws CorruptDataException {
+		SelfRelativePointer srpPtr = getSRPPtr(J9ROMClassHelper.optionalInfo(romClass), romClass.optionalFlags(),
+			J9_ROMCLASS_OPTINFO_LOADABLEDESCRIPTORS_ATTRIBUTE);
+		if (srpPtr.notNull()) {
+			return U32Pointer.cast(srpPtr.get());
+		}
+		return U32Pointer.NULL;
+	}
+
+	public static J9UTF8Pointer getLoadableDescriptorAtIndex(J9ROMClassPointer romClass, int index) throws CorruptDataException {
+		U32Pointer loadableDescriptorsInfoPointer = getLoadableDescriptorsInfoPointer(romClass);
+		if (loadableDescriptorsInfoPointer.notNull()) {
+			/* extra 1 is to move past the descriptors count */
+			SelfRelativePointer nameSrp = SelfRelativePointer.cast(loadableDescriptorsInfoPointer.add(index + 1));
+			return J9UTF8Pointer.cast(nameSrp.get());
+		}
+		return J9UTF8Pointer.NULL;
+	}
+
+	public static U32 getImplicitCreationFlags(J9ROMClassPointer romClass) throws CorruptDataException {
+		SelfRelativePointer srpPtr = getSRPPtr(J9ROMClassHelper.optionalInfo(romClass), romClass.optionalFlags(),
+			J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE);
+		if (srpPtr.notNull()) {
+			U32Pointer u32Ptr = U32Pointer.cast(srpPtr.get());
+			return u32Ptr.at(0);
+		}
+		return U32.MIN;
+	}
 }

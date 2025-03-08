@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /*
@@ -65,6 +65,9 @@ public:
 		J9CfrAttributeRuntimeVisibleAnnotations *annotationsAttribute;
 		J9CfrAttributeRuntimeVisibleTypeAnnotations *typeAnnotationsAttribute;
 		bool isFieldContended;
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		bool isNullRestricted;
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	};
 
 	struct StackMapFrameInfo
@@ -342,7 +345,9 @@ class FieldIterator
 		bool hasAnnotation() const { return _fieldsInfo[_index].annotationsAttribute != NULL;}
 		bool hasTypeAnnotation() const { return _fieldsInfo[_index].typeAnnotationsAttribute != NULL;}
 		bool isFieldContended() const { return _fieldsInfo[_index].isFieldContended; }
-
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		bool isNullRestricted() const { return _fieldsInfo[_index].isNullRestricted; }
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 		U_32 getConstantValueSlot1() const { return _classFile->constantPool[getConstantValueConstantPoolIndex()].slot1; }
 		U_32 getConstantValueSlot2() const { return _classFile->constantPool[getConstantValueConstantPoolIndex()].slot2; }
@@ -441,7 +446,6 @@ class MethodIterator
 		}
 
 		bool isEmpty() const { return 0 != (_methodsInfo[_methodIndex].modifiers & J9AccEmptyMethod); }
-		bool isForwarder() const { return 0 != (_methodsInfo[_methodIndex].modifiers & J9AccForwarderMethod); }
 		bool isGetter() const { return 0 != (_methodsInfo[_methodIndex].modifiers & J9AccGetterMethod); }
 		bool isVirtual() const { return 0 != (_methodsInfo[_methodIndex].modifiers & J9AccMethodVTable); }
 		bool isSynthetic() const { return 0 != (_methodsInfo[_methodIndex].modifiers & J9AccSynthetic); }
@@ -1014,10 +1018,21 @@ class RecordComponentIterator
 	U_16 getPermittedSubclassesClassCount() const { return _isSealed ? _permittedSubclassesAttribute->numberOfClasses : 0; }
 	bool isValueBased() const { return _isClassValueBased; }
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	bool needsIdentityFlag() const { return _isIdentityFlagNeeded; }
-	bool hasIdentityFlagSet() const { return _hasIdentityFlagSet; }
-	bool isValueType() const { return _isValueType; }
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+	bool hasLoadableDescriptors() const { return NULL != _loadableDescriptorsAttribute; }
+	U_16 getLoadableDescriptorsCount() const { return  hasLoadableDescriptors() ? _loadableDescriptorsAttribute->numberOfDescriptors : 0; }
+
+	U_16 getLoadableDescriptorAtIndex(U_16 index) const {
+		U_16 result = 0;
+		if (hasLoadableDescriptors()) {
+			result = _loadableDescriptorsAttribute->descriptors[index];
+		}
+		return result;
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	bool hasImplicitCreation() const { return _hasImplicitCreationAttribute; }
+	U_16 getImplicitCreationFlags() const { return _implicitCreationFlags; }
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 	U_16 getPermittedSubclassesClassNameAtIndex(U_16 index) const {
 		U_16 result = 0;
@@ -1069,6 +1084,14 @@ private:
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 		NOT_CHECKPOINT_SAFE_ANNOTATION,
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#if JAVA_SPEC_VERSION >= 20
+		JVMTIMOUNTTRANSITION_ANNOTATION,
+#endif /* JAVA_SPEC_VERSION >= 20 */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		NULLRESTRICTED_ANNOTATION,
+		IMPLICITLYCONSTRUCTIBLE_ANNOTATION,
+		LOOSELYCONSISTENTVALUE_ANNOTATION,
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		KNOWN_ANNOTATION_COUNT
 	};
 
@@ -1122,12 +1145,7 @@ private:
 	bool _isSealed;
 	bool _isClassValueBased;
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	bool _hasIdentityFlagSet;
-	bool _isIdentityFlagNeeded;
-	bool _isValueType;
 	bool _hasNonStaticSynchronizedMethod;
-	bool _hasNonStaticFields;
-	bool _hasNonEmptyConstructor;
 #endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
 
 	FieldInfo *_fieldsInfo;
@@ -1143,6 +1161,13 @@ private:
 	J9CfrAttributeInnerClasses *_innerClasses;
 	J9CfrAttributeBootstrapMethods *_bootstrapMethodsAttribute;
 	J9CfrAttributePermittedSubclasses *_permittedSubclassesAttribute;
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+	J9CfrAttributeLoadableDescriptors *_loadableDescriptorsAttribute;
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	bool _hasImplicitCreationAttribute;
+	U_16 _implicitCreationFlags;
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 #if JAVA_SPEC_VERSION >= 11
 	J9CfrAttributeNestMembers *_nestMembers;
 #endif /* JAVA_SPEC_VERSION >= 11 */
@@ -1152,9 +1177,6 @@ private:
 	void walkAttributes();
 	void checkHiddenClass();
 	void walkInterfaces();
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	void checkAndRecordIsIdentityFlagNeeded();
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	void walkMethods();
 	void walkRecordComponents(J9CfrAttributeRecord *attrib);
 
@@ -1175,16 +1197,14 @@ private:
 
 	U_8 * walkStackMapSlots(U_8 *framePointer, U_16 typeInfoCount);
 
-	bool methodIsFinalize(U_16 methodIndex, bool isForwarder);
+	bool methodIsFinalize(U_16 methodIndex);
 	bool methodIsEmpty(U_16 methodIndex);
-	bool methodIsForwarder(U_16 methodIndex);
 	bool methodIsGetter(U_16 methodIndex);
 	bool methodIsVirtual(U_16 methodIndex);
 	bool methodIsObjectConstructor(U_16 methodIndex);
 	bool methodIsClinit(U_16 methodIndex);
 	bool methodIsNonStaticNonAbstract(U_16 methodIndex);
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	bool methodIsConstructor(U_16 methodIndex);
 	bool methodIsNonStaticSynchronized(U_16 methodIndex);
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 
@@ -1220,11 +1240,6 @@ private:
 	VMINLINE void markClassAsUsedByMultiANewArray(U_16 classCPIndex);
 	VMINLINE void markClassAsUsedByANewArray(U_16 classCPIndex);
 	VMINLINE void markClassAsUsedByNew(U_16 classCPIndex);
-
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	VMINLINE void markClassAsUsedByAconst_init(U_16 classCPIndex);
-	VMINLINE void markFieldRefAsUsedByWithField(U_16 fieldRefCPIndex);
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 
 	VMINLINE void markInvokeDynamicInfoAsUsedByInvokeDynamic(U_16 cpIndex);
 

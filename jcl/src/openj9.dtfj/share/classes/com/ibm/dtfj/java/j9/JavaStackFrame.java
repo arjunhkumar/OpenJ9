@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.j9;
 
 import java.util.Iterator;
@@ -42,7 +42,7 @@ public class JavaStackFrame implements com.ibm.dtfj.java.JavaStackFrame
 	private ImagePointer _pc;
 	private int _lineNumber;
 	private Vector _stackRoots = new Vector();
-	
+
 	private JavaStackFrame(JavaRuntime javaVM, ImagePointer basePointer, ImagePointer pc, int lineNumber)
 	{
 		if (null == basePointer) {
@@ -56,7 +56,7 @@ public class JavaStackFrame implements com.ibm.dtfj.java.JavaStackFrame
 		_pc = pc;
 		_lineNumber = lineNumber;
 	}
-	
+
 	public JavaStackFrame(JavaRuntime javaVM, ImagePointer basePointer, JavaMethod method, ImagePointer pc, int lineNumber)
 	{
 		this(javaVM, basePointer, pc, lineNumber);
@@ -65,7 +65,7 @@ public class JavaStackFrame implements com.ibm.dtfj.java.JavaStackFrame
 		}
 		_method = method;
 	}
-	
+
 	public JavaStackFrame(JavaRuntime javaVM, ImagePointer basePointer, ImagePointer methodID, ImagePointer pc, int lineNumber)
 	{
 		this(javaVM, basePointer, pc, lineNumber);
@@ -101,16 +101,16 @@ public class JavaStackFrame implements com.ibm.dtfj.java.JavaStackFrame
 		jRef = new JavaReference(_javaVM, this, id, "StackFrame Root", JavaReference.REFERENCE_UNKNOWN, JavaReference.HEAP_ROOT_STACK_LOCAL, JavaReference.REACHABILITY_STRONG);
 		_stackRoots.add(jRef);
 	}
-	
+
 	private static boolean equals(Object o1, Object o2)
 	{
 		return o1 == o2 || o1 != null && o1.equals(o2);
 	}
-	
+
 	public boolean equals(Object obj)
 	{
 		boolean isEqual = false;
-		
+
 		if (obj instanceof JavaStackFrame) {
 			JavaStackFrame local = (JavaStackFrame) obj;
 			isEqual = equals(_method, local._method) && equals(_pc, local._pc);
@@ -122,7 +122,7 @@ public class JavaStackFrame implements com.ibm.dtfj.java.JavaStackFrame
 	{
 		return o1 == null ? 0 : o1.hashCode();
 	}
-	
+
 	public int hashCode()
 	{
 		return hashCode(_method) ^ _pc.hashCode() ^ hashCode(_methodID);

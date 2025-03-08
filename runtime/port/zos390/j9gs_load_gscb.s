@@ -19,8 +19,8 @@
 * [2] https://openjdk.org/legal/assembly-exception.html
 *
 * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR
-* GPL-2.0 WITH Classpath-exception-2.0 OR
-* LicenseRef-GPL-2.0 WITH Assembly-exception
+* GPL-2.0-only WITH Classpath-exception-2.0 OR
+* GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 *
          TITLE 'j9gs_load_gcb'
 **********************************************************************
@@ -50,9 +50,6 @@ GSLDCB CELQPRLG BASEREG=6,DSASIZE=0
          LA    R3,1
          B     EXIT           Without this branch fails at runtime
 EXIT     DS    0F
-         DROP  R2
-         DROP  R1
-         DROP  R0
 
          AIF  ('&SYSPARM' EQ 'BIT64').JMP3
          EDCXEPLG

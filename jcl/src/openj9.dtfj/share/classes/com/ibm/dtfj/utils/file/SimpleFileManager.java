@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.utils.file;
 
 import java.io.File;
@@ -33,14 +33,14 @@ import javax.imageio.stream.ImageInputStream;
 
 /**
  * Simple file manager for dealing with files that are intended to be read directly.
- * 
+ *
  * @author adam
  *
  */
 public class SimpleFileManager extends FileManager {
 	protected final File managedFile;			//the file to manage
 	private long filesize = Long.MAX_VALUE;		//file size for the file, default will pass any test and is set by getStream()
-	
+
 	public SimpleFileManager(File file) {
 		managedFile = file;
 	}
@@ -63,7 +63,7 @@ public class SimpleFileManager extends FileManager {
 		iis.close();		//file contents not recognised so close stream and exit
 		throw new IOException("No Image sources were found for " + managedFile.getAbsolutePath());
 	}
-	
+
 	private boolean identifiedCoreFile(ArrayList<ManagedImageSource> candidates, ImageInputStream iis) throws IOException {
 		if(FileSniffer.isCoreFile(iis, filesize)) {
 			ManagedImageSource candidate = new ManagedImageSource(managedFile.getName(), ImageSourceType.CORE);
@@ -92,7 +92,7 @@ public class SimpleFileManager extends FileManager {
 		}
 		return false;
 	}
-	
+
 	private boolean identifiedPHD(ArrayList<ManagedImageSource> candidates, ImageInputStream iis) throws IOException {
 		if(FileSniffer.isPHDFile(iis, filesize)) {
 			ManagedImageSource candidate = new ManagedImageSource(managedFile.getName(), ImageSourceType.PHD);
@@ -115,14 +115,14 @@ public class SimpleFileManager extends FileManager {
 		}
 		return false;
 	}
-	
+
 	public ImageInputStream getStream() throws IOException {
 		if (managedFile.exists()) {
 			// found it in HFS on z/OS or normally on other platforms
 			filesize = managedFile.length();
 			return new FileImageInputStream(managedFile);
 		}
-		/*[IF PLATFORM-mz31 | PLATFORM-mz64 | ! ( Sidecar18-SE-OpenJ9 | Sidecar19-SE )]*/
+		/*[IF PLATFORM-mz31 | PLATFORM-mz64 | !Sidecar18-SE-OpenJ9]*/
 		String os = System.getProperty("os.name"); //$NON-NLS-1$
 		if (os == null) {
 			throw new IOException("Cannot determine the system type from os.name"); //$NON-NLS-1$
@@ -138,7 +138,7 @@ public class SimpleFileManager extends FileManager {
 				// drop through to throw FileNotFoundException below (with absolute path)
 			}
 		}
-		/*[ENDIF] PLATFORM-mz31 | PLATFORM-mz64 | ! ( Sidecar18-SE-OpenJ9 | Sidecar19-SE )*/
+		/*[ENDIF] PLATFORM-mz31 | PLATFORM-mz64 | !Sidecar18-SE-OpenJ9 */
 		throw new FileNotFoundException("The specified file " + managedFile.getAbsolutePath() + " was not found");
 	}
 }

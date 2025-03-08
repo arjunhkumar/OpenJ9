@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /* _GNU_SOURCE forces GLIBC_2.0 sscanf/vsscanf/fscanf for RHEL5 compatibility */
@@ -59,7 +59,6 @@ static const StackTraceFormattingFunction stackTraceFormattingFunctions[] = {
 };
 
 #define NUM_STACK_TRACE_FORMATTING_FUNCTIONS (sizeof(stackTraceFormattingFunctions) / sizeof(stackTraceFormattingFunctions[0]))
-
 
 /**************************************************************************
  * name        - rasSetTriggerTrace
@@ -548,6 +547,41 @@ decimalString2Int(J9PortLibrary* portLibrary, const char *decString, I_32 signed
 }
 
 /**************************************************************************
+ * name        - setMaxStringLength
+ * description - Set max string length for arguments and return values
+ * parameters  - vm, str - trace options, atRuntime flag
+ * returns     - JNI return code
+ *************************************************************************/
+omr_error_t
+setMaxStringLength(J9JavaVM *vm, const char *str, BOOLEAN atRuntime)
+{
+	PORT_ACCESS_FROM_JAVAVM(vm);
+	int value = 0;
+	int length = 0;
+	omr_error_t rc = OMR_ERROR_NONE;
+	const char *param = NULL;
+
+	if (1 != getParmNumber(str)) {
+		goto err;
+	}
+
+	param = getPositionalParm(1, str, &length);
+
+	value = decimalString2Int(PORTLIB, param, FALSE, &rc);
+	if (OMR_ERROR_NONE != rc) {
+		goto err;
+	}
+
+	if ((0 <= value) && (value <= RAS_MAX_STRING_LENGTH_LIMIT)) {
+		RAS_GLOBAL_FROM_JAVAVM(maxStringLength, vm) = (unsigned int)value;
+		return OMR_ERROR_NONE;
+	}
+err:
+	vaReportJ9VMCommandLineError(PORTLIB, "maxstringlength takes an integer value from 0 to %d", RAS_MAX_STRING_LENGTH_LIMIT);
+	return OMR_ERROR_INTERNAL;
+}
+
+/**************************************************************************
  * name        - addTriggeredMethodSpec
  * description - Take a user specified method trigger rule (from the
  *               trigger property and allocate and populate a method rule
@@ -653,13 +687,17 @@ addTriggeredMethodSpec(J9VMThread *thr, const char *ptrMethodSpec, const struct 
 			ptr->next = methodRule;
 		}
 
-		if (methodRule->entryAction != NULL && methodRule->entryAction->name != NULL
-		    && j9_cmdla_stricmp((char *)methodRule->entryAction->name, "jstacktrace") == 0) {
+		if ((NULL != methodRule->entryAction)
+			&& (NULL != methodRule->entryAction->name)
+			&& (0 == j9_cmdla_stricmp((char *)methodRule->entryAction->name, "jstacktrace"))
+		) {
 			/* set up the current method spec to be enabled for trace */
 			setMethod(thr->javaVM, ptrMethodSpec, FALSE);
 		}
-		if (methodRule->exitAction != NULL && methodRule->exitAction->name != NULL
-		    && j9_cmdla_stricmp((char *)methodRule->exitAction->name, "jstacktrace") == 0) {
+		if ((NULL != methodRule->exitAction)
+			&& (NULL != methodRule->exitAction->name)
+			&& (0 == j9_cmdla_stricmp((char *)methodRule->exitAction->name, "jstacktrace"))
+		) {
 			/* set up the current method spec to be enabled for trace */
 			setMethod(thr->javaVM, ptrMethodSpec, FALSE);
 		}
@@ -1027,27 +1065,27 @@ uncompressedStackFrameFormatter(J9VMThread *vmThread, J9Method * method, J9UTF8 
 	char *cursor = buf;
 	char *end = buf + sizeof(buf);
 
-	cursor += j9str_printf(PORTLIB, cursor, end - cursor, "%.*s.%.*s", J9UTF8_LENGTH(className), J9UTF8_DATA(className), J9UTF8_LENGTH(methodName), J9UTF8_DATA(methodName));
+	cursor += j9str_printf(cursor, end - cursor, "%.*s.%.*s", J9UTF8_LENGTH(className), J9UTF8_DATA(className), J9UTF8_LENGTH(methodName), J9UTF8_DATA(methodName));
 
 	slashesToDots(buf,cursor);
 
 	if (NATIVE_METHOD == frameType) {
 		/*increment cursor here by the return value of j9str_printf if it needs to be used further*/
-		j9str_printf(PORTLIB, cursor, end - cursor, " (Native Method)");
+		j9str_printf(cursor, end - cursor, " (Native Method)");
 	} else {
 		if (sourceFile) {
-			cursor += j9str_printf(PORTLIB, cursor, end - cursor, " (%.*s", J9UTF8_LENGTH(sourceFile), J9UTF8_DATA(sourceFile));
+			cursor += j9str_printf(cursor, end - cursor, " (%.*s", J9UTF8_LENGTH(sourceFile), J9UTF8_DATA(sourceFile));
 			if (lineNumber != -1) {
-				cursor += j9str_printf(PORTLIB, cursor, end - cursor, ":%zu", lineNumber);
+				cursor += j9str_printf(cursor, end - cursor, ":%zu", lineNumber);
 			}
-			cursor += j9str_printf(PORTLIB, cursor, end - cursor, ")");
+			cursor += j9str_printf(cursor, end - cursor, ")");
 		} else {
-			cursor += j9str_printf(PORTLIB, cursor, end - cursor, " (Bytecode PC: %zu)", offsetPC);
+			cursor += j9str_printf(cursor, end - cursor, " (Bytecode PC: %zu)", offsetPC);
 		}
 
 		if (COMPILED_METHOD == frameType) {
 			/*increment cursor here by the return value of j9str_printf if it needs to be used further*/
-			j9str_printf(PORTLIB, cursor, end - cursor, " (Compiled Code)", offsetPC);
+			j9str_printf(cursor, end - cursor, " (Compiled Code)", offsetPC);
 		}
 	}
 

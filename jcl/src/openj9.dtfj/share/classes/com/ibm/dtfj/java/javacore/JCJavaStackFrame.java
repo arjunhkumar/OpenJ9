@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.javacore;
 
 import java.util.Collections;
@@ -32,11 +32,11 @@ import com.ibm.dtfj.java.JavaLocation;
 import com.ibm.dtfj.java.JavaStackFrame;
 
 public class JCJavaStackFrame implements JavaStackFrame {
-	
+
 	private ImagePointer fPointer;
 	private final JavaLocation fLocation;
 	private final JCJavaThread fThread;
-	
+
 	public JCJavaStackFrame(JCJavaThread thread, JavaLocation location) throws JCInvalidArgumentsException{
 		if (location == null) {
 			throw new JCInvalidArgumentsException("Must have a valid location.");
@@ -48,19 +48,17 @@ public class JCJavaStackFrame implements JavaStackFrame {
 		fLocation = location;
 		fThread.addStackFrame(this);
 	}
-	
-	
+
 	/**
-	 * 
+	 *
 	 * @param imagePointer
 	 */
 	public void setBasePointer(ImagePointer imagePointer) {
 		fPointer = imagePointer;
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public ImagePointer getBasePointer() throws CorruptDataException {
 		if (fPointer == null) {
@@ -69,14 +67,12 @@ public class JCJavaStackFrame implements JavaStackFrame {
 		return fPointer;
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public JavaLocation getLocation() throws CorruptDataException {
 		return fLocation;
 	}
-
 
 	public Iterator getHeapRoots() {
 		return Collections.EMPTY_LIST.iterator();

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "runtime/HWProfiler.hpp"
@@ -453,7 +453,7 @@ bool TR_HWProfiler::checkAndTurnBufferProcessingOff()
       {
       if (TR::Options::isAnyVerboseOptionSet(TR_VerboseHWProfiler))
          {
-         TR_VerboseLog::writeLineLocked(TR_Vlog_HWPROFILER, "t=%6u RI continue because QSZ is large: %d\n",
+         TR_VerboseLog::writeLineLocked(TR_Vlog_HWPROFILER, "t=%6u RI continue because QSZ is large: %d",
                                         (uint32_t)_compInfo->getPersistentInfo()->getElapsedTime(),
                                         _compInfo->getMethodQueueSize());
          }
@@ -475,7 +475,7 @@ bool TR_HWProfiler::checkAndTurnBufferProcessingOff()
          if (TR::Options::isAnyVerboseOptionSet(TR_VerboseHWProfiler, TR_VerbosePerformance))
             {
             float recompFrequency = (float)newRecompDecisionsYes / (float)newRecompDecisionsTotal;
-            TR_VerboseLog::writeLineLocked(TR_Vlog_HWPROFILER, "t=%6u RI buffer processing disabled because recomp frequency is %.4f newRecompDecisionsTotal=%llu\n",
+            TR_VerboseLog::writeLineLocked(TR_Vlog_HWPROFILER, "t=%6u RI buffer processing disabled because recomp frequency is %.4f newRecompDecisionsTotal=%llu",
                                            (uint32_t)_compInfo->getPersistentInfo()->getElapsedTime(),
                                            recompFrequency, newRecompDecisionsTotal);
             }
@@ -486,7 +486,7 @@ bool TR_HWProfiler::checkAndTurnBufferProcessingOff()
          if (TR::Options::isAnyVerboseOptionSet(TR_VerboseHWProfiler))
             {
             float recompFrequency = (float)newRecompDecisionsYes / (float)newRecompDecisionsTotal;
-            TR_VerboseLog::writeLineLocked(TR_Vlog_HWPROFILER, "t=%6u RI continue. recomp frequency is %.4f newRecompDecisionsTotal=%llu\n",
+            TR_VerboseLog::writeLineLocked(TR_Vlog_HWPROFILER, "t=%6u RI continue. recomp frequency is %.4f newRecompDecisionsTotal=%llu",
                                            (uint32_t)_compInfo->getPersistentInfo()->getElapsedTime(),
                                            recompFrequency, newRecompDecisionsTotal);
             }
@@ -506,7 +506,7 @@ bool TR_HWProfiler::checkAndTurnBufferProcessingOn()
          restoreBufferProcessingFunctionality();
          if (TR::Options::isAnyVerboseOptionSet(TR_VerboseHWProfiler, TR_VerbosePerformance))
             {
-            TR_VerboseLog::writeLineLocked(TR_Vlog_HWPROFILER, "RI buffer processing re-enabled because Q_SZ=%d\n", _compInfo->getMethodQueueSize());
+            TR_VerboseLog::writeLineLocked(TR_Vlog_HWPROFILER, "RI buffer processing re-enabled because Q_SZ=%d", _compInfo->getMethodQueueSize());
             }
          return true;
          }
@@ -519,7 +519,7 @@ bool TR_HWProfiler::checkAndTurnBufferProcessingOn()
          if (TR::Options::isAnyVerboseOptionSet(TR_VerboseHWProfiler, TR_VerbosePerformance))
             {
             TR_VerboseLog::writeLineLocked(TR_Vlog_HWPROFILER,
-                                           "RI buffer processing re-enabled because we downgraded %d methods at cold since RI was turned off\n",
+                                           "RI buffer processing re-enabled because we downgraded %d methods at cold since RI was turned off",
                                            _numDowngradesSinceTurnedOff);
             }
          return true;
@@ -842,14 +842,16 @@ TR_HWProfiler::createRecords(TR::Compilation *comp)
       if (!TR::Options::getCmdLineOptions()->getOption(TR_HWProfilerDisableAOT) &&
           fej9->hardwareProfilingInstructionsNeedRelocation())
          {
-         TR::ExternalRelocation *relocation =
-               new (comp->trHeapMemory()) TR::ExternalRelocation(ia,
-                                                                target,
-                                                                target2,
-                                                                relocationTargetKind,
-                                                                cg);
-
-         cg->addExternalRelocation(relocation, __FILE__, __LINE__, node);
+         cg->addExternalRelocation(
+            TR::ExternalRelocation::create(
+               ia,
+               target,
+               target2,
+               relocationTargetKind,
+               cg),
+            __FILE__,
+            __LINE__,
+            node);
          }
       }
    }

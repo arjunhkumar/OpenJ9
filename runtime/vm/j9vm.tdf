@@ -16,7 +16,7 @@
 // [1] https://www.gnu.org/software/classpath/license.html
 // [2] https://openjdk.org/legal/assembly-exception.html
 //
-// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 Executable=j9vm
 Submodules=j9vmutil,j9util,pool,avl,map,j9bcverify,j9bcu,module
@@ -237,10 +237,10 @@ TraceExit=Trc_VM_monitorTableAt_Exit Overhead=1 Level=3 Template="exit monitorTa
 
 TraceEvent=Trc_VM_JNI_native_translated Overhead=1 Level=1 Template="Looping due to JNI translation while running interpreted target --> method=%p"
 
-TraceEntry=Trc_VM_getForwardedMethod_Entry Overhead=1 Level=3 Template="getForwardedMethod(%p)"
-TraceExit=Trc_VM_getForwardedMethod_Exit Overhead=1 Level=3 Template="exit getForwardedMethod(%p) resultMethod %p"
-TraceExit=Trc_VM_getForwardedMethod_Exit_Debug Overhead=1 Level=3 Template="exit getForwardedMethod(%p) Debug Server in use"
-TraceExit=Trc_VM_getForwardedMethod_Exit_JVMPI Overhead=1 Level=3 Template="exit getForwardedMethod(%p) JVMPI enabled"
+TraceEntry=Trc_VM_getForwardedMethod_Entry Obsolete Overhead=1 Level=3 Template="getForwardedMethod(%p)"
+TraceExit=Trc_VM_getForwardedMethod_Exit Obsolete Overhead=1 Level=3 Template="exit getForwardedMethod(%p) resultMethod %p"
+TraceExit=Trc_VM_getForwardedMethod_Exit_Debug Obsolete Overhead=1 Level=3 Template="exit getForwardedMethod(%p) Debug Server in use"
+TraceExit=Trc_VM_getForwardedMethod_Exit_JVMPI Obsolete Overhead=1 Level=3 Template="exit getForwardedMethod(%p) JVMPI enabled"
 
 TraceEntry=Trc_VM_javaLookupMethod_Entry Overhead=1 Level=3 Template="javaLookupMethod(vmStruct %p, targetClass %p, nameAndSig %p, senderClass %p, lookupOptions %d)"
 TraceEvent=Trc_VM_javaLookupMethod_Name Overhead=1 Level=3 Template="javaLookupMethod - methodName %.*s"
@@ -353,7 +353,7 @@ TraceEvent=Trc_VM_objectMonitorEnterBlocking_gotFlatLockInLoop Overhead=1 Level=
 TraceExit=Trc_VM_objectMonitorEnterBlocking_Exit Overhead=1 Level=4 Template="objectMonitorEnterBlocking -- result = %p"
 
 TraceEntry=Trc_VM_checkVisibility_Entry Overhead=1 Level=3 Template="checkVisibility from %p to %p modifiers=%zx"
-TraceException=Trc_VM_checkVisibility_Failed Overhead=1 Level=1 Template="checkVisibility from %p (%.*s) to %p (%.*s) modifiers=%zx failed"
+TraceException=Trc_VM_checkVisibility_Failed Obsolete Overhead=1 Level=1 Template="checkVisibility from %p (%.*s) to %p (%.*s) modifiers=%zx failed"
 TraceExit=Trc_VM_checkVisibility_Exit Overhead=1 Level=3 Template="checkVisibility result=%x"
 
 TraceEntry=Trc_VM_resolveKnownClass_Entry Overhead=1 Level=1 Template="resolveKnownClass(index=%zu)"
@@ -826,13 +826,13 @@ TraceEvent=Trc_VM_ConvertMethodSignature_Signature_Result Overhead=1 Level=4 Tem
 TraceEvent=Trc_VM_initializeModulesPathEntry_loadJImageFailed NoEnv Overhead=1 Level=1 Template="initializeModulesPathEntry - attempt to load %.*s as jimage file failed with error=%d"
 
 TraceEvent=Trc_VM_GetCompleteNPEMessage_Not_Required Overhead=1 Level=3 Template="GetCompleteNPEMessage - No message generated for new NullPointerException().getMessage()"
-TraceEntry=Trc_VM_ComputeNPEMsgAtPC_Entry Overhead=1 Level=3 Template="ComputeNPEMsgAtPC : romClass (%p) romMethod (%p) temps (%p) bytecodeOffset (%p) bcCurrent (0x%x) npePC (%u) npeFlag (%d) isMethodFlag (%d) npeMsg (%s)"
+TraceEntry=Trc_VM_ComputeNPEMsgAtPC_Entry Obsolete Overhead=1 Level=3 Template="ComputeNPEMsgAtPC : romClass (%p) romMethod (%p) temps (%p) bytecodeOffset (%p) bcCurrent (0x%x) npePC (%u) npeFlag (%d) isMethodFlag (%d) npeMsg (%s)"
 TraceEvent=Trc_VM_ComputeNPEMsgAtPC_Constants Overhead=1 Level=4 Template="ComputeNPEMsgAtPC - constants : bcCurrent (0x%x) constNum (%d) numLen (%u) npeMsgTemp (%s)"
 TraceEvent=Trc_VM_ComputeNPEMsgAtPC_Operators Overhead=1 Level=4 Template="ComputeNPEMsgAtPC - operators : bcCurrent (0x%x) npeMsgTemp (%s) msgLen (%u)"
 TraceEvent=Trc_VM_ComputeNPEMsgAtPC_NotScalarType Overhead=1 Level=1 Template="ComputeNPEMsgAtPC - NOT scalar type : romClass (%p) romMethod (%p) constantPool (%p) aaloadIndex (%zu) info (%p) cpType (0x%x)"
 TraceEvent=Trc_VM_ComputeNPEMsgAtPC_Constants_UnexpectedBC Overhead=1 Level=1 Template="ComputeNPEMsgAtPC - constants unexpected bytecode : bcCurrent (0x%x)"
 TraceEvent=Trc_VM_ComputeNPEMsgAtPC_SkippedBC Overhead=1 Level=1 Template="ComputeNPEMsgAtPC - skipped bytecode : bcCurrent (0x%x) npeFinalFlag (%d)"
-TraceExit=Trc_VM_ComputeNPEMsgAtPC_Exit Overhead=1 Level=3 Template="ComputeNPEMsgAtPC : bcCurrent (0x%x) npePC (%u) npeFlag (%d) isMethodFlag (%d) npeMsg (%s)"
+TraceExit=Trc_VM_ComputeNPEMsgAtPC_Exit Obsolete Overhead=1 Level=3 Template="ComputeNPEMsgAtPC : bcCurrent (0x%x) npePC (%u) npeFlag (%d) isMethodFlag (%d) npeMsg (%s)"
 TraceEvent=Trc_VM_SimulateStack_BranchTarget Overhead=1 Level=3 Template="simulateStack - bytecodeMap[%zu] (0x%x) is BRANCH_TARGET with bcPos (%zu)"
 TraceEvent=Trc_VM_SimulateStack_JustLoadedStack Overhead=1 Level=3 Template="simulateStack - justLoadedStack bytecodeMap[%zu] (0x%x) stackIndex (%zu) bcIndex (%p) currentBytecode (0x%zx) npePC (%zu)"
 TraceEvent=Trc_VM_SimulateStack_AlreadyWalked Overhead=1 Level=3 Template="simulateStack - already walked, try next one in the queue : bytecodeMap[%zu] (0x%x) currentBytecode (0x%zx) npePC (%zu)"
@@ -904,12 +904,12 @@ TraceExit=Trc_VM_JNI_isVirtualThread_Exit Overhead=1 Level=4 Template="JNI IsVir
 
 TraceEvent=Trc_VM_criu_runDelayedLockRelatedOperations_runDelayedInterrupt Overhead=1 Level=3 Template="Checkpoint thread calling delayed Thread.interrupt() op=%zu on instance=%p"
 
-TraceEntry=Trc_VM_sendResolveUpcallInvokeHandle_Entry Overhead=1 Level=3 Template="sendResolveUpcallInvokeHandle"
-TraceEvent=Trc_VM_sendResolveUpcallInvokeHandle_upcallMetaDataHandler Overhead=1 Level=3 Template="sendResolveUpcallInvokeHandle --> UpcallMetaData Handler = %p"
-TraceExit=Trc_VM_sendResolveUpcallInvokeHandle_Exit Overhead=1 Level=3 Template="sendResolveUpcallInvokeHandle"
+TraceEntry=Trc_VM_sendResolveFfiCallInvokeHandle_Entry Overhead=1 Level=3 Template="sendResolveFfiCallInvokeHandle"
+TraceEvent=Trc_VM_sendResolveFfiCallInvokeHandle_ffiCallHandler Overhead=1 Level=3 Template="sendResolveFfiCallInvokeHandle --> Downcall/Upcall Handler = %p"
+TraceExit=Trc_VM_sendResolveFfiCallInvokeHandle_Exit Overhead=1 Level=3 Template="sendResolveFfiCallInvokeHandle"
 
-TraceEntry=Trc_VM_resolveUpcallInvokeHandle_Entry Overhead=1 Level=3 Template="resolveUpcallInvokeHandle"
-TraceExit=Trc_VM_resolveUpcallInvokeHandle_Exit Overhead=1 Level=3 Template="resolveUpcallInvokeHandle --> invokeCache=%p"
+TraceEntry=Trc_VM_resolveFfiCallInvokeHandle_Entry Overhead=1 Level=3 Template="resolveFfiCallInvokeHandle"
+TraceExit=Trc_VM_resolveFfiCallInvokeHandle_Exit Overhead=1 Level=3 Template="resolveFfiCallInvokeHandle --> invokeCache=%p"
 
 TraceEntry=Trc_VM_subAllocateThunkFromHeap_Entry NoEnv Overhead=1 Level=3 Template="Enter subAllocateThunkFromHeap - The requested thunk size(%zu)"
 TraceEvent=Trc_VM_subAllocateThunkFromHeap_suballoc_thunk_add_hashtable_failed NoEnv Overhead=1 Level=3 Template="subAllocateThunkFromHeap - Failed to add an entry of the hashtable for a thunk with the requested size(%zu) from the heap(%p)"
@@ -920,10 +920,100 @@ TraceExit=Trc_VM_subAllocateThunkFromHeap_Exit NoEnv Overhead=1 Level=3 Template
 TraceEntry=Trc_VM_allocateThunkHeap_Entry NoEnv Overhead=1 Level=3 Template="Enter allocateThunkHeap - The requested thunk size(%zu)"
 TraceEvent=Trc_VM_allocateThunkHeap_allocate_thunk_heap_wrapper_failed NoEnv Overhead=1 Level=3 Template="allocateThunkHeap - Failed to allocate memory for the thunk heap wrapper"
 TraceEvent=Trc_VM_allocateThunkHeap_create_metadata_hash_table_failed NoEnv Overhead=1 Level=3 Template="allocateThunkHeap - Failed to create hashtable for the generated thunk and the corresponding metadata in upcall"
-TraceEvent=Trc_VM_allocateThunkHeap_reserve_memory_failed NoEnv Overhead=1 Level=3 Template="allocateThunkHeap - Failed to allocate reserve the memory with the requested page size(%zu)"
-TraceEvent=Trc_VM_allocateThunkHeap_create_heap_failed NoEnv Overhead=1 Level=3 Template="allocateThunkHeap - Failed to create a heap from the reserved memory (%p) with the requested page size(%zu)"
+TraceEvent=Trc_VM_allocateThunkHeap_reserve_memory_failed NoEnv Overhead=1 Level=3 Template="allocateThunkHeap - Failed to allocate reserve the memory with the requested size(%zu)"
+TraceEvent=Trc_VM_allocateThunkHeap_create_heap_failed NoEnv Overhead=1 Level=3 Template="allocateThunkHeap - Failed to create a heap from the reserved memory (%p) with the requested size(%zu)"
 TraceExit=Trc_VM_allocateThunkHeap_Exit NoEnv Overhead=1 Level=3 Template="Exit allocateThunkHeap - The suballocated thunk heap is %p"
 
 TraceEvent=Trc_VM_allocateThunkHeap_allocate_thunk_heap_node_failed NoEnv Overhead=1 Level=3 Template="allocateThunkHeap - Failed to allocate memory for the thunk heap node"
 
 TraceExit=Trc_VM_criu_initHooks_Exit Overhead=1 Level=5 Template="initializeCriuHooks - checkpointState.hookRecords (%p), classIterationRestoreHookRecords (%p), delayedLockingOperationsRecords (%p)"
+TraceException=Trc_VM_criu_setSingleThreadModeJVMCRIUException_triggerOneOffJavaDump Overhead=1 Level=1 Template="setCRIUSingleThreadModeJVMCRIUException triggerOneOffDump() returns %d"
+
+TraceException=Trc_VM_checkVisibility_Failed Overhead=1 Level=1 Template="checkVisibility from %p (%.*s) to %p (%.*s) modifiers=%zx lookupOptions=%zx failed"
+
+TraceEvent=Trc_VM_criu_initializeCriuHooks_checkpointCPUCount Overhead=1 Level=3 Template="initializeCriuHooks() checkpoint CPU count (%zu)"
+TraceEvent=Trc_VM_criu_jlVirtualThreadForkJoinPoolResetParallelism_same_cpucount Overhead=1 Level=5 Template="Reset j.l.VirtualThread.ForkJoinPool.parallelism: same cpu count (%zu) between C/R"
+TraceEvent=Trc_VM_criu_jlVirtualThreadForkJoinPoolResetParallelism_reset_parallelism Overhead=1 Level=5 Template="Reset j.l.VirtualThread.ForkJoinPool.parallelism: fjpObject(0x%p) parallelism(%zu) after restore"
+TraceException=Trc_VM_criu_initializeCriuHooks_Random_CNF Overhead=1 Level=3 Template="initializeCriuHooks() j.u.Random class not found"
+TraceException=Trc_VM_criu_jlVirtualThreadForkJoinPoolResetParallelism_DEFAULT_SCHEDULER_NULL Overhead=1 Level=3 Template="Reset j.l.VirtualThread.ForkJoinPool.parallelism: DEFAULT_SCHEDULER is NULL"
+
+TraceAssert=Assert_VM_criu_notNull noEnv Overhead=1 Level=1 Assert="(P1) != NULL"
+TraceAssert=Assert_VM_criu_true noEnv Overhead=1 Level=1 Assert="(P1)"
+
+TraceEvent=Trc_VM_criu_checkpointJVMImpl_checkpointWithActiveCLinit Overhead=1 Level=2 Template="Taking a checkpoint with active clinit"
+TraceEntry=Trc_VM_criu_checkpointJVMImpl_Entry Overhead=1 Level=2 Template="Java_openj9_internal_criu_CRIUSupport_checkpointJVMImpl"
+
+TraceEvent=Trc_VM_criu_before_checkpoint Overhead=1 Level=2 Template="Before checkpoint criu_dump(), j9time_nano_time() returns %lld, j9time_current_time_nanos() returns %llu"
+TraceEvent=Trc_VM_criu_checkpoint_nano_times Overhead=1 Level=2 Template="Before checkpoint, checkpointNanoTimeMonotonic = %lld, checkpointNanoUTCTime = %llu"
+TraceEvent=Trc_VM_criu_checkpointJVMImpl_checkIfSafeToCheckpointBlockedVer Overhead=1 Level=2 Template="Checkpoint blocked because thread=%p is in method=%p due to delay code %zu"
+TraceEvent=Trc_VM_criu_checkpointJVMImpl_syslogOptions Overhead=1 Level=3 Template="Current syslogOptions: %s"
+TraceEvent=Trc_VM_criu_after_checkpoint Overhead=1 Level=2 Template="After checkpoint criu_dump(), j9time_nano_time() returns %lld, j9time_current_time_nanos() returns %llu"
+TraceEvent=Trc_VM_criu_restore_nano_times Overhead=1 Level=2 Template="After restore, restoreNanoUTCTime = %llu, checkpointNanoUTCTime = %llu, checkpointRestoreTimeDelta = %lld, restoreNanoTimeMonotonic = %lld, checkpointNanoTimeMonotonic = %lld, nanoTimeMonotonicClockDelta = %lld"
+TraceEvent=Trc_VM_criu_restoreArg Overhead=1 Level=5 Test Template="Restore arg: %s"
+
+TraceException=Trc_VM_criu_checkpointJVMImpl_triggerOneOffJavaDump Overhead=1 Level=1 Template="checkpointJVMImpl triggerOneOffDump() returns %d"
+TraceException=Trc_VM_criu_getNativeString_getStringSizeFail Overhead=1 Level=1 Template="Failed to get Java string size: mutf8String=%s mutf8StringSize=%zu"
+TraceException=Trc_VM_criu_getNativeString_convertFail Overhead=1 Level=1 Template="Failed to convert Java string: mutf8String=%s mutf8StringSize=%zu requiredConvertedStringSize=%zd"
+TraceException=Trc_VM_criu_setupJNIFieldIDsAndCRIUAPI_load_criu_failure Overhead=1 Level=1 Template="setupJNIFieldIDsAndCRIUAPI() The JVM attempted to load libcriu.so but was unable to: %zi"
+TraceException=Trc_VM_criu_setupJNIFieldIDsAndCRIUAPI_not_find_criu_methods Overhead=1 Level=1 Template="setupJNIFieldIDsAndCRIUAPI() The JVM could not find critical criu functions in libcriu.so: %zi"
+TraceException=Trc_VM_criu_setupJNIFieldIDsAndCRIUAPI_null_exception_class Overhead=1 Level=1 Template="setupJNIFieldIDsAndCRIUAPI() criuJVMCheckpointExceptionClass(%p) criuSystemCheckpointExceptionClass(%p) criuJVMRestoreExceptionClass(%p) criuSystemRestoreExceptionClass(%p)"
+TraceException=Trc_VM_criu_setupJNIFieldIDsAndCRIUAPI_null_init Overhead=1 Level=1 Template="setupJNIFieldIDsAndCRIUAPI() criuSystemRestoreExceptionInit(%p) criuJVMRestoreExceptionInit(%p) criuSystemCheckpointExceptionInit(%p) criuJVMCheckpointExceptionInit(%p)"
+
+TraceExit=Trc_VM_criu_checkpointJVMImpl_Exit Overhead=1 Level=2 Template="Java_openj9_internal_criu_CRIUSupport_checkpointJVMImpl"
+TraceEvent=Trc_VM_criu_after_dump Obsolete Overhead=1 Level=2 Template="After checkpoint criu_dump(), criuRestoreNanoTimeMonotonic (%lld), criuRestoreNanoUTCTime (%llu), lastRestoreTimeMillis (%lld)"
+TraceEvent=Trc_VM_crac_checkpointTo NoEnv Overhead=1 Level=3 Template="-XX:CRaCCheckpointTo=%s"
+TraceEvent=Trc_VM_criu_after_dump Overhead=1 Level=2 Template="After checkpoint criu_dump(), restoreNanoTimeMonotonic (%lld), lastRestoreTimeInNanoseconds (%lld)"
+TraceEvent=Trc_VM_criu_process_restore_start_after_dump Overhead=1 Level=2 Template="After checkpoint criu_dump(), restorePid (%zu), processRestoreStartTimeInNanoseconds (%lld)"
+
+TraceEvent=Trc_VM_hashClassTablePackageDelete Overhead=1 Level=1 Template="hashClassTablePackageDelete %p (%.*s)"
+
+TraceEntry=Trc_VM_ComputeNPEMsgAtPC_Entry Overhead=1 Level=3 Template="ComputeNPEMsgAtPC : romClass (%p) romMethod (%p) temps (%p) bytecodeOffset (%p) npePC (0x%zx) npeFlag (%d) isMethodFlag (%d) npeMsg (%s)"
+TraceEvent=Trc_VM_ComputeNPEMsgAtPC_start Overhead=1 Level=3 Template="ComputeNPEMsgAtPC with bcCurrent : romClass (%p) romMethod (%p) temps (%p) bytecodeOffset (%p) bcCurrent (0x%x) npePC (0x%zx) npeFlag (%d) isMethodFlag (%d) npeMsg (%s)"
+TraceEvent=Trc_VM_ComputeNPEMsgAtPC_end Overhead=1 Level=3 Template="ComputeNPEMsgAtPC with bcCurrent : bcCurrent (0x%x) npePC (%u) npeFlag (%d) isMethodFlag (%d) npeMsg (%s)"
+TraceExit=Trc_VM_ComputeNPEMsgAtPC_Exit Overhead=1 Level=3 Template="ComputeNPEMsgAtPC : npePC (0x%zx) npeFlag (%d) isMethodFlag (%d) npeMsg (%s)"
+
+TraceEvent=Trc_VM_allocateClassLoader_SetFlag NoEnv Overhead=1 Level=3 Template="allocateClassLoader set flag J9CLASSLOADER_SHARED_CLASSES_ENABLED for class loader (%p)"
+
+TraceEvent=Trc_VM_criu_allocateVMThread_check_delayflag noEnv Overhead=1 Level=5 Template="allocateVMThread() checks newThread (%p) J9_PRIVATE_FLAGS2_DELAY_HALT_FOR_CHECKPOINT"
+TraceEvent=Trc_VM_criu_allocateVMThread_set_delayflag noEnv Overhead=1 Level=5 Template="allocateVMThread() sets J9_PRIVATE_FLAGS2_DELAY_HALT_FOR_CHECKPOINT with i = %zu"
+TraceEvent=Trc_VM_criu_allocateVMThread_set_haltflag noEnv Overhead=1 Level=5 Template="allocateVMThread() sets newThread (%p) J9_PUBLIC_FLAGS_HALT_THREAD_FOR_CHECKPOINT"
+TraceEvent=Trc_VM_criu_toggleSuspendOnJavaThreads_start Test Overhead=1 Level=5 Template="toggleSuspendOnJavaThreads with currentThreadName(%s) suspendResumeFlag(%u)"
+TraceEvent=Trc_VM_criu_toggleSuspendOnJavaThreads_walkStatus Overhead=1 Level=5 Template="toggleSuspendOnJavaThreads (%s) walkThread(%p)"
+TraceEvent=Trc_VM_criu_toggleSuspendOnJavaThreads_walkThread Test Overhead=1 Level=5 Template="toggleSuspendOnJavaThreads with walkThreadName(%s) suspendResumeFlag(%u) walkThread(%p) currentThread(%p)"
+
+TraceException=Trc_VM_jfr_ErrorWritingChunk Overhead=1 Level=1 Template="Error writing JFR chunk; error=%d"
+
+TraceEvent=Trc_VM_VMInitStages_isDebugOnRestoreEnabled NoEnv Overhead=1 Level=3 Template="VMInitStages(ABOUT_TO_BOOTSTRAP) isDebugOnRestoreEnabled returns TRUE"
+TraceEvent=Trc_VM_hookAboutToBootstrapEvent_debugModeRequested Overhead=1 Level=3 Template="hookAboutToBootstrapEvent() debugModeRequested is TRUE"
+TraceEvent=Trc_VM_mustReportEnterStepOrBreakpoint_hookedOrReserved NoEnv Overhead=1 Level=5 Template="mustReportEnterStepOrBreakpoint() hookedOrReserved(%zu)"
+
+TraceEvent=Trc_VM_simulateStack_RTVSEND_bcIndex Overhead=1 Level=5 Template="simulateStack RTV_SEND starts currentBytecode(%zu) bcIndex(%p)"
+TraceEvent=Trc_VM_simulateStack_RTVSEND_bcIndex2 Overhead=1 Level=5 Template="simulateStack RTV_SEND bcIndex2(%p)"
+TraceEvent=Trc_VM_simulateStack_RTVSEND_index Overhead=1 Level=5 Template="simulateStack RTV_SEND index(%zu)"
+TraceEvent=Trc_VM_simulateStack_RTVSEND_JBinvokestaticsplit_index Overhead=1 Level=3 Template="simulateStack RTV_SEND JBinvokestaticsplit index(%zu)"
+TraceEvent=Trc_VM_simulateStack_RTVSEND_JBinvokespecialsplit_index Overhead=1 Level=3 Template="simulateStack RTV_SEND JBinvokespecialsplit index(%zu)"
+TraceEvent=Trc_VM_simulateStack_RTVSEND_JBinvokedynamic_classSig Overhead=1 Level=5 Template="simulateStack RTV_SEND JBinvokedynamic classSig(%.*s)"
+TraceEvent=Trc_VM_simulateStack_RTVSEND_others_classSig Overhead=1 Level=5 Template="simulateStack RTV_SEND others classSig(%.*s)"
+
+TraceEvent=Trc_VM_initializeJFR_isStarted NoEnv Overhead=1 Level=2 Template="The JFR has been initialized already"
+TraceEvent=Trc_VM_jfrStartSamplingThread_jfrSamplerState NoEnv Overhead=1 Level=2 Template="jfrStartSamplingThread vm->jfrSamplerState(%zu)"
+TraceException=Trc_VM_jfrStartSamplingThread_omrthread_create_failed NoEnv Overhead=1 Level=1 Template="omrthread_create(jfrSamplingThreadProc) failed with retVal(%zd)"
+TraceException=Trc_VM_loadJFRMetadataBlob_getSystemProperty_fail NoEnv Overhead=1 Level=1 Template="JFR loadJFRMetadataBlob getSystemProperty failed with rc(%zu)"
+TraceException=Trc_VM_loadJFRMetadataBlob_blobDir_OOM NoEnv Overhead=1 Level=1 Template="JFR loadJFRMetadataBlob j9mem_allocate_memory failed for blobDir"
+TraceException=Trc_VM_loadJFRMetadataBlob_fileLength_too_large NoEnv Overhead=1 Level=1 Template="JFR loadJFRMetadataBlob fileLength(%llx) not less than 2G"
+TraceException=Trc_VM_loadJFRMetadataBlob_metaDataBlobFile_OOM NoEnv Overhead=1 Level=1 Template="JFR loadJFRMetadataBlob j9mem_allocate_memory failed for metaDataBlobFile"
+TraceException=Trc_VM_loadJFRMetadataBlob_bad_fileDescriptor NoEnv Overhead=1 Level=1 Template="JFR loadJFRMetadataBlob j9file_open returns fileDescriptor(-1)"
+
+TraceEntry=Trc_VM_snapshot_readSnapshotFromFile_Entry NoEnv Overhead=1 Level=1 Template="readSnapshotFromFile() Snapshot Heap = %p. File being read = %s"
+TraceExit=Trc_VM_snapshot_readSnapshotFromFile_Exit NoEnv Overhead=1 Level=1 Template="readSnapshotFromFile() Snapshot read successful"
+TraceEntry=Trc_VM_snapshot_writeSnapshotToFile_Entry NoEnv Overhead=1 Level=1 Template="writeSnapshotToFile() Snapshot Heap = %p. File being written to = %s"
+TraceExit=Trc_VM_snapshot_writeSnapshotToFile_Exit NoEnv Overhead=1 Level=1 Template="writeSnapshotTofile() Snapshot write successful"
+TraceEntry=Trc_VM_snapshot_subAllocateSnapshotMemory_Entry NoEnv Overhead=1 Level=3 Template="subAllocateMemory() Snapshot Header = %p. Byte amount = %zu."
+TraceExit=Trc_VM_snapshot_subAllocateSnapshotMemory_Exit NoEnv Overhead=1 Level=3 Template="subAllocateMemory() Memory allocated = %p."
+TraceEvent=Trc_VM_snapshot_loadWarmClassFromSnapshot_ClassLoadHookFailed Overhead=1 Level=3 Template="loadWarmClassFromSnapshot() Warm class load hook failed class=%p, %s"
+TraceEvent=Trc_VM_snapshot_loadWarmClassFromSnapshot_ClassInfo Overhead=1 Level=3 Template="loadWarmClassFromSnapshot() LoadClass clazz=%p, %s"
+
+TraceEntry=Trc_VM_getTypeIdUTF8_Entry Overhead=1 Level=5 Template="getTypeIdUTF8 className %.*s"
+TraceExit=Trc_VM_getTypeIdUTF8_Exit Overhead=1 Level=5 Template="getTypeIdUTF8 className %.*s clazz=%p result=%lli"
+TraceEntry=Trc_VM_getTypeId_Entry Overhead=1 Level=5 Template="getTypeId clazz=%p"
+TraceExit=Trc_VM_getTypeId_Exit Overhead=1 Level=5 Template="getTypeId clazz=%p result=%lli"

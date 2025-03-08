@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar19-SE & !OPENJDK_METHODHANDLES]*/
-/*******************************************************************************
+/*[INCLUDE-IF (JAVA_SPEC_VERSION >= 9) & !OPENJDK_METHODHANDLES]*/
+/*
  * Copyright IBM Corp. and others 2016
  *
  * This program and the accompanying materials are made available under
@@ -18,15 +18,15 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 abstract class ViewVarHandle extends VarHandle {
 	ViewVarHandle(Class<?> fieldType, Class<?>[] coordinateTypes, MethodHandle[] handleTable, int modifiers) {
 		super(fieldType, coordinateTypes, handleTable, modifiers);
 	}
-	
+
 	@Override
 	final boolean isAccessModeSupportedHelper(AccessMode accessMode) {
 		switch (accessMode) {
@@ -107,14 +107,14 @@ abstract class ViewVarHandle extends VarHandle {
 		static final short convertEndian(short value) {
 			return Short.reverseBytes(value);
 		}
-		
+
 		static final void boundsCheck(int capacity, int viewTypeSize, int index) {
 			if ((index < 0) || (index > (capacity - viewTypeSize))) {
 				/*[MSG "K0621", "Index {0} is not within the bounds of the provided array of size {1}."]*/
 				throw new ArrayIndexOutOfBoundsException(com.ibm.oti.util.Msg.getString("K0621", Integer.toString(index), Integer.toString(capacity))); //$NON-NLS-1$
 			}
 		}
-		
+
 		static final void alignmentCheck(long offset, int viewTypeSize, boolean allowUnaligned) {
 			if ((!allowUnaligned) && ((offset % viewTypeSize) != 0)) {
 				/*[MSG "K062A", "The requested access mode does not permit unaligned access."]*/

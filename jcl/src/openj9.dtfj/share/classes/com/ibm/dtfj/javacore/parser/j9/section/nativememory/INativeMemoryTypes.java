@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -18,15 +18,15 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.nativememory;
 
 public interface INativeMemoryTypes
 {
 
 	public static final String NATIVEMEM_SECTION = "NATIVEMEMINFO";
-	
+
 	public static final String T_0MEMUSER = "0MEMUSER";
 	public static final String T_1MEMUSER = "1MEMUSER";
 	public static final String T_2MEMUSER = "2MEMUSER";
@@ -34,13 +34,13 @@ public interface INativeMemoryTypes
 	public static final String T_4MEMUSER = "4MEMUSER";
 	public static final String T_5MEMUSER = "5MEMUSER";
 	public static final String T_6MEMUSER = "6MEMUSER";
-	
-	public static final String[] T_MEMUSERS = {T_0MEMUSER, T_1MEMUSER, T_2MEMUSER, T_3MEMUSER, T_4MEMUSER, T_5MEMUSER, T_6MEMUSER}; 
-	
+
+	public static final String[] T_MEMUSERS = {T_0MEMUSER, T_1MEMUSER, T_2MEMUSER, T_3MEMUSER, T_4MEMUSER, T_5MEMUSER, T_6MEMUSER};
+
 	public static final String OTHER_CATEGORY = "Other";
-	
+
 	/* Attributes */
-	
+
 	public static final String A_DEPTH = "nativemem_depth";
 	public static final String A_NAME = "nativemem_name";
 	public static final String A_DEEP_BYTES = "nativemem_deepbytes";

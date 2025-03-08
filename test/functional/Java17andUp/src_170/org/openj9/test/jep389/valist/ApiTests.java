@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2022
  *
  * This program and the accompanying materials are made available under
@@ -17,20 +17,22 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.openj9.test.jep389.valist;
 
-import org.testng.annotations.Test;
 import org.testng.Assert;
-import org.testng.AssertJUnit;
-import static org.testng.Assert.fail;
+import org.testng.annotations.Test;
 
-import java.nio.ByteOrder;
 import java.lang.invoke.VarHandle;
-import java.util.NoSuchElementException;
+import java.nio.ByteOrder;
 
-import static jdk.incubator.foreign.CLinker.*;
+import static jdk.incubator.foreign.CLinker.C_DOUBLE;
+import static jdk.incubator.foreign.CLinker.C_INT;
+import static jdk.incubator.foreign.CLinker.C_LONG;
+import static jdk.incubator.foreign.CLinker.C_LONG_LONG;
+import static jdk.incubator.foreign.CLinker.C_POINTER;
+import jdk.incubator.foreign.CLinker.VaList;
 import jdk.incubator.foreign.GroupLayout;
 import jdk.incubator.foreign.MemoryAddress;
 import jdk.incubator.foreign.MemoryHandles;

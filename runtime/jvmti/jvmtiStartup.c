@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdlib.h>
@@ -35,25 +35,40 @@
 #include "j2sever.h"
 #include "zip_api.h"
 
+#if defined(AIXPPC)
+#include <errno.h>
+#include <sys/ldr.h>
+#endif /* defined(AIXPPC) */
+
 #define _UTE_STATIC_
 #include "ut_j9jvmti.h"
 
 #include "jvmtiHelpers.h"
 
 #define THIS_DLL_NAME J9_JVMTI_DLL_NAME
-#define OPT_AGENTPATH_COLON "-agentpath:"
-#define OPT_AGENTLIB_COLON "-agentlib:"
 
-static void shutDownJVMTI (J9JavaVM * vm);
-static jint createAgentLibrary (J9JavaVM * vm, const char *libraryAndOptions, UDATA libraryLength, const char* options, UDATA optionsLength, UDATA decorate, J9JVMTIAgentLibrary **result);
-static jint initializeJVMTI (J9JavaVM * vm);
-static void shutDownAgentLibraries (J9JavaVM * vm, UDATA closeLibrary);
-static jint loadAgentLibrary (J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary);
-static jint createXrunLibraries (J9JavaVM * vm);
-static J9JVMTIAgentLibrary * findAgentLibrary(J9JavaVM * vm, const char *libraryAndOptions, UDATA libraryLength);
-static jint issueAgentOnLoadAttach(J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary, const char* options, char *loadFunctionName, BOOLEAN * foundLoadFn);
-I_32 JNICALL loadAgentLibraryOnAttach(struct J9JavaVM * vm, const char * library, const char *options, UDATA decorate) ;
+typedef enum CreateAgentOption {
+	OPTION_AGENTLIB,
+	OPTION_AGENTPATH,
+	OPTION_XRUNJDWP
+} CreateAgentOption;
 
+static void shutDownJVMTI(J9JavaVM *vm);
+static jint createAgentLibrary(J9JavaVM *vm, const char *libraryName, UDATA libraryNameLength, const char *options, UDATA optionsLength, UDATA decorate, J9JVMTIAgentLibrary **result);
+static jint initializeJVMTI(J9JavaVM *vm);
+static void shutDownAgentLibraries(J9JavaVM *vm, UDATA closeLibrary);
+static jint loadAgentLibrary(J9JavaVM *vm, J9JVMTIAgentLibrary *agentLibrary);
+static jint createXrunLibraries(J9JavaVM *vm);
+static J9JVMTIAgentLibrary* findAgentLibrary(J9JavaVM *vm, const char *libraryAndOptions, UDATA libraryLength);
+static jint issueAgentOnLoadAttach(J9JavaVM *vm, J9JVMTIAgentLibrary *agentLibrary, const char *options, char *loadFunctionName, BOOLEAN *foundLoadFn);
+I_32 JNICALL loadAgentLibraryOnAttach(struct J9JavaVM *vm, const char *library, const char *options, UDATA decorate);
+static BOOLEAN isAgentLibraryLoaded(J9JavaVM *vm, const char *library, BOOLEAN decorate);
+static jint createAgentLibraryWithOption(J9JavaVM *vm, J9VMInitArgs *argsList, IDATA agentIndex, J9JVMTIAgentLibrary **agentLibrary, CreateAgentOption createAgentOption, BOOLEAN *isJDWPagent);
+static BOOLEAN processAgentLibraryFromArgsList(J9JavaVM *vm, J9VMInitArgs *argsList, BOOLEAN loadLibrary, CreateAgentOption createAgentOption);
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+static void jvmtiHookVMPreparingForRestore(J9HookInterface **hook, UDATA eventNum, void *eventData, void *userData);
+static void jvmtiHookVMCRIURestore(J9HookInterface **hook, UDATA eventNum, void *eventData, void *userData);
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 #define INSTRUMENT_LIBRARY "instrument"
 
@@ -109,110 +124,296 @@ parseLibraryAndOptions(char *libraryAndOptions, UDATA *libraryLength, char **opt
 
 #define OPTIONSBUFF_LEN 512
 
-IDATA J9VMDllMain(J9JavaVM* vm, IDATA stage, void* reserved)
+/**
+ * Create an agent library from an option index.
+ *
+ * @param[in] vm Java VM
+ * @param[in] argsList a J9VMInitArgs
+ * @param[in] agentIndex the option index for the agent library
+ * @param[in/out] agentLibrary environment for the agent
+ * @param[in] createAgentOption the agent option is one of CreateAgentOption
+ * @param[in/out] isJDWPagent indicate if DebugOnRestore is enabled and the agent is JDWP
+ *
+ * @return JNI_OK if succeeded, otherwise JNI_ERR/JNI_ENOMEM
+ */
+static jint
+createAgentLibraryWithOption(
+	J9JavaVM *vm, J9VMInitArgs *argsList, IDATA agentIndex, J9JVMTIAgentLibrary **agentLibrary,
+	CreateAgentOption createAgentOption, BOOLEAN *isJDWPagent)
+{
+	jint result = JNI_OK;
+	char optionsBuf[OPTIONSBUFF_LEN];
+	char *optionsPtr = (char*)optionsBuf;
+	UDATA buflen = OPTIONSBUFF_LEN;
+	IDATA option_rc = 0;
+	PORT_ACCESS_FROM_JAVAVM(vm);
+
+	do {
+		option_rc = COPY_OPTION_VALUE_ARGS(argsList, agentIndex, ':', &optionsPtr, buflen);
+		if (OPTION_BUFFER_OVERFLOW == option_rc) {
+			if (optionsPtr != (char*)optionsBuf) {
+				j9mem_free_memory(optionsPtr);
+			}
+			buflen *= 2;
+			optionsPtr = (char*)j9mem_allocate_memory(buflen, OMRMEM_CATEGORY_VM);
+			if (NULL == optionsPtr) {
+				Trc_JVMTI_createAgentLibraryWithOption_OOM();
+				result = JNI_ENOMEM;
+				break;
+			}
+		}
+	} while (OPTION_BUFFER_OVERFLOW == option_rc);
+	if (JNI_OK == result) {
+		BOOLEAN decorate = OPTION_AGENTPATH != createAgentOption;
+		UDATA libraryLength = 0;
+#define JDWP_AGENT "jdwp"
+		if (OPTION_XRUNJDWP == createAgentOption) {
+			UDATA optionsLengthTmp = strlen(optionsPtr);
+			result = createAgentLibrary(vm, JDWP_AGENT, LITERAL_STRLEN(JDWP_AGENT), optionsPtr, optionsLengthTmp, TRUE, agentLibrary);
+			Trc_JVMTI_createAgentLibraryWithOption_Xrunjdwp_result(optionsPtr, optionsLengthTmp, *agentLibrary, result);
+		} else {
+			char *options = NULL;
+			UDATA optionsLength = 0;
+
+			parseLibraryAndOptions(optionsPtr, &libraryLength, &options, &optionsLength);
+			result = createAgentLibrary(vm, optionsPtr, libraryLength, options, optionsLength, decorate, agentLibrary);
+			Trc_JVMTI_createAgentLibraryWithOption_agentlib_result(optionsPtr, libraryLength, options, optionsLength, *agentLibrary, result);
+		}
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+		if ((JNI_OK == result) && vm->internalVMFunctions->isDebugOnRestoreEnabled(vm)) {
+			/* 1. If createAgentOption is OPTION_XRUNJDWP, the agent option is MAPOPT_XRUNJDWP which implies a JDWP agent.
+			 * 2. If createAgentOption is OPTION_AGENTLIB, decorate is TRUE, the agent option is VMOPT_AGENTLIB_COLON,
+			 *    just compare the platform independent library name.
+			 * 3. If createAgentOption is OPTION_AGENTPATH, decorate is FALSE, the agent option is VMOPT_AGENTPATH_COLON,
+			 *    compare the actual platform-specific library name with libjdwp.so.
+			 *    CRIU only supports Linux OS flavours.
+			 */
+#if defined(LINUX)
+#define LIB_JDWP "lib" JDWP_AGENT ".so"
+#else /* defined(LINUX) */
+#error "CRIU is only supported on Linux"
+#endif /* defined(LINUX) */
+			if ((OPTION_XRUNJDWP == createAgentOption)
+				|| (decorate && (0 == strncmp(JDWP_AGENT, optionsPtr, libraryLength)))
+				|| (!decorate
+					&& (libraryLength >= LITERAL_STRLEN(LIB_JDWP))
+					&& (0 == strncmp(LIB_JDWP, optionsPtr + libraryLength - LITERAL_STRLEN(LIB_JDWP), LITERAL_STRLEN(LIB_JDWP))))
+			) {
+				*isJDWPagent = TRUE;
+			}
+#undef LIB_JDWP
+		}
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#undef JDWP_AGENT
+
+		if (optionsPtr != (char*)optionsBuf) {
+			j9mem_free_memory(optionsPtr);
+		}
+	}
+
+	return result;
+}
+
+/**
+ * Create an agent library from an option index.
+ * Three agent options are expected: VMOPT_AGENTLIB_COLON, VMOPT_AGENTPATH_COLON or MAPOPT_XRUNJDWP.
+ *
+ * @param[in] vm Java VM
+ * @param[in] argsList a J9VMInitArgs
+ * @param[in] loadLibrary indicate if the agent library created to be loaded or not
+ * @param[in] createAgentOption the agent option is one of CreateAgentOption
+ *
+ * @return TRUE if succeeded, otherwise FALSE
+ */
+static BOOLEAN
+processAgentLibraryFromArgsList(J9JavaVM *vm, J9VMInitArgs *argsList, BOOLEAN loadLibrary, CreateAgentOption createAgentOption)
+{
+	IDATA agentIndex = 0;
+	BOOLEAN result = TRUE;
+	const char *agentColon = NULL;
+
+	if (OPTION_AGENTLIB == createAgentOption) {
+		agentColon = VMOPT_AGENTLIB_COLON;
+	} else if (OPTION_AGENTPATH == createAgentOption) {
+		agentColon = VMOPT_AGENTPATH_COLON;
+	} else {
+		/* only three options are expected */
+		agentColon = MAPOPT_XRUNJDWP;
+	}
+	agentIndex = FIND_AND_CONSUME_ARG_FORWARD(argsList, STARTSWITH_MATCH, agentColon, NULL);
+	while (agentIndex >= 0) {
+		J9JVMTIAgentLibrary *agentLibrary = NULL;
+		BOOLEAN isJDWPagent = FALSE;
+		if (JNI_OK != createAgentLibraryWithOption(vm, argsList, agentIndex, &agentLibrary, createAgentOption, &isJDWPagent)) {
+			result = FALSE;
+			break;
+		}
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+		if (isJDWPagent) {
+			vm->checkpointState.flags |= J9VM_CRIU_IS_JDWP_ENABLED;
+		}
+		if (loadLibrary) {
+			if (JNI_OK != loadAgentLibrary(vm, agentLibrary)) {
+				result = FALSE;
+				break;
+			}
+		}
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+		if (OPTION_XRUNJDWP == createAgentOption) {
+			/* no need to search more -Xrunjdwp: options */
+			break;
+		}
+
+		agentIndex = FIND_NEXT_ARG_IN_ARGS_FORWARD(argsList, STARTSWITH_MATCH, agentColon, NULL, agentIndex);
+	}
+
+	return result;
+}
+
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+/**
+ * A hook method to invoke criuRestoreInitializeLib().
+ *
+ * @param[in] hook the VM hook interface, not used
+ * @param[in] eventNum the event number, not used
+ * @param[in] eventData the event data, not used
+ * @param[in] userData the registered user data
+ */
+static void
+jvmtiHookVMPreparingForRestore(J9HookInterface **hook, UDATA eventNum, void *eventData, void *userData)
+{
+	Trc_JVMTI_jvmtiHookVMPreparingForRestore_Entry();
+	criuRestoreInitializeLib(((J9RestoreEvent *)eventData)->currentThread->javaVM, (J9JVMTIEnv *)userData);
+	Trc_JVMTI_jvmtiHookVMPreparingForRestore_Exit();
+}
+
+/**
+ * A hook method to cleanup post-restore.
+ *
+ * @param[in] hook the VM hook interface, not used
+ * @param[in] eventNum the event number, not used
+ * @param[in] eventData the event data
+ * @param[in] userData the registered user data, not used
+ */
+static void
+jvmtiHookVMCRIURestore(J9HookInterface **hook, UDATA eventNum, void *eventData, void *userData)
+{
+	J9VMThread *currentThread = ((J9RestoreEvent *)eventData)->currentThread;
+	J9JavaVM *vm = currentThread->javaVM;
+	J9InternalVMFunctions const * const vmFuncs = vm->internalVMFunctions;
+
+	Trc_JVMTI_jvmtiHookVMCRIURestore_Entry();
+	vmFuncs->internalExitVMToJNI(currentThread);
+	if (J9_ARE_NO_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_JDWP_ENABLED)) {
+		/* Last part of cleanup if there was no JDWP agent specified.
+		 * This releases VM access hence can't be invoked within criuDisableHooks() from
+		 * J9HOOK_VM_PREPARING_FOR_RESTORE.
+		 */
+		jvmtiEnv *jvmti_env = vm->checkpointState.jvmtienv;
+		(*jvmti_env)->DisposeEnvironment(jvmti_env);
+	}
+	vmFuncs->internalEnterVMFromJNI(currentThread);
+	Trc_JVMTI_jvmtiHookVMCRIURestore_Exit();
+}
+
+/**
+ * Add JVMTI capabilities before checkpoint.
+ * This is required for debugger support when JIT is enabled.
+ * This function can be removed when JIT allows capabilities to be added after restore.
+ *
+ * @param[in] vm Java VM
+ * @param[in] jitEnabled FALSE if -Xint, otherwise TRUE
+ *
+ * @return JNI_OK if succeeded, otherwise JNI_ERR
+ */
+static jint
+criuAddCapabilities(J9JavaVM *vm, BOOLEAN jitEnabled) {
+	jvmtiError jvmtiRet = JVMTI_ERROR_NONE;
+	JavaVM *javaVM = (JavaVM*)vm;
+	jvmtiCapabilities *requiredCapabilities = &vm->checkpointState.requiredCapabilities;
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+	jvmtiEnv *jvmti_env = NULL;
+	jint rc = vmFuncs->GetEnv(javaVM, (void **)&jvmti_env, JVMTI_VERSION_1_1);
+	if (JNI_OK != rc) {
+		if ((JNI_EVERSION != rc) || (JNI_OK != (vmFuncs->GetEnv(javaVM, (void **)&jvmti_env, JVMTI_VERSION_1_0)))) {
+			return JNI_ERR;
+		}
+	}
+
+	memset(requiredCapabilities,0,sizeof(jvmtiCapabilities));
+	requiredCapabilities->can_access_local_variables = 1;
+	if (jitEnabled) {
+		jvmtiCapabilities potentialCapabilities;
+
+		requiredCapabilities->can_tag_objects = 1;
+		requiredCapabilities->can_get_source_file_name = 1;
+		requiredCapabilities->can_get_line_numbers = 1;
+		requiredCapabilities->can_get_source_debug_extension = 1;
+		requiredCapabilities->can_maintain_original_method_order = 1;
+		requiredCapabilities->can_generate_exception_events = 1;
+		requiredCapabilities->can_generate_breakpoint_events = 1;
+		requiredCapabilities->can_generate_method_entry_events = 1;
+		requiredCapabilities->can_generate_method_exit_events = 1;
+		requiredCapabilities->can_generate_monitor_events = 1;
+		requiredCapabilities->can_generate_garbage_collection_events = 1;
+#if JAVA_SPEC_VERSION >= 21
+		requiredCapabilities->can_support_virtual_threads = 1;
+#endif /* JAVA_SPEC_VERSION >= 21 */
+		memset(&potentialCapabilities, 0, sizeof(potentialCapabilities));
+		jvmtiRet = (*jvmti_env)->GetPotentialCapabilities(jvmti_env, &potentialCapabilities);
+		if (JVMTI_ERROR_NONE != jvmtiRet) {
+			return JNI_ERR;
+		}
+		requiredCapabilities->can_pop_frame = potentialCapabilities.can_pop_frame;
+	}
+	jvmtiRet = (*jvmti_env)->AddCapabilities(jvmti_env, requiredCapabilities);
+	if (JVMTI_ERROR_NONE != jvmtiRet) {
+		return JNI_ERR;
+	}
+
+	vm->checkpointState.jvmtienv = jvmti_env;
+	return JNI_OK;
+}
+
+void
+criuRestoreInitializeLib(J9JavaVM *vm, J9JVMTIEnv *j9env)
+{
+	J9VMInitArgs *criuRestoreArgsList = vm->checkpointState.restoreArgsList;
+	processAgentLibraryFromArgsList(vm, criuRestoreArgsList, TRUE, OPTION_AGENTLIB);
+	processAgentLibraryFromArgsList(vm, criuRestoreArgsList, TRUE, OPTION_AGENTPATH);
+	processAgentLibraryFromArgsList(vm, criuRestoreArgsList, TRUE, OPTION_XRUNJDWP);
+
+	if (J9_ARE_NO_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_JDWP_ENABLED)) {
+		J9JVMTIData * jvmtiData = vm->jvmtiData;
+		if (NULL != jvmtiData) {
+			criuDisableHooks(jvmtiData, j9env);
+		}
+	}
+}
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+
+IDATA J9VMDllMain(J9JavaVM *vm, IDATA stage, void *reserved)
 {
 	IDATA returnVal = J9VMDLLMAIN_OK;
-	IDATA agentIndex;
-	pool_state poolState;
-	J9JVMTIAgentLibrary * agentLibrary;
-	J9JVMTIData * jvmtiData;
 
 	switch(stage) {
-
-		case ALL_VM_ARGS_CONSUMED :
+		case ALL_VM_ARGS_CONSUMED:
 		{
-			PORT_ACCESS_FROM_JAVAVM(vm);
-			char optionsBuf[OPTIONSBUFF_LEN];
-			char* optionsPtr = (char*)optionsBuf;
-			UDATA buflen = OPTIONSBUFF_LEN;
-			IDATA option_rc = 0;
-
-			if (initializeJVMTI(vm) != JNI_OK) {
+			if (JNI_OK != initializeJVMTI(vm)) {
 				goto _error;
 			}
-
-			agentIndex = FIND_AND_CONSUME_VMARG_FORWARD( STARTSWITH_MATCH, OPT_AGENTLIB_COLON, NULL);
-			while (agentIndex >= 0) {
-				UDATA libraryLength;
-				char *options;
-				UDATA optionsLength;
-
-				do {
-					option_rc = COPY_OPTION_VALUE(agentIndex, ':', &optionsPtr, buflen);
-					if (OPTION_BUFFER_OVERFLOW == option_rc) {
-						if (optionsPtr != (char*)optionsBuf) {
-							j9mem_free_memory(optionsPtr);
-							optionsPtr = NULL;
-						}
-						buflen *= 2;
-						optionsPtr = (char*)j9mem_allocate_memory(buflen, OMRMEM_CATEGORY_VM);
-						if (NULL == optionsPtr) {
-							goto _error;
-						}
-					}
-				} while (OPTION_BUFFER_OVERFLOW == option_rc);
-
-				parseLibraryAndOptions(optionsPtr, &libraryLength, &options, &optionsLength);
-				if (createAgentLibrary(vm, optionsPtr, libraryLength, options, optionsLength, TRUE, NULL) != JNI_OK) {
-					if (optionsPtr != (char*)optionsBuf) {
-						j9mem_free_memory(optionsPtr);
-						optionsPtr = NULL;
-					}
-					goto _error;
-				}
-				agentIndex = FIND_NEXT_ARG_IN_VMARGS_FORWARD( STARTSWITH_MATCH, OPT_AGENTLIB_COLON, NULL, agentIndex);
+			if (FALSE == processAgentLibraryFromArgsList(vm, vm->vmArgsArray, FALSE, OPTION_AGENTLIB)) {
+				goto _error;
 			}
-			if (optionsPtr != (char*)optionsBuf) {
-				j9mem_free_memory(optionsPtr);
-				optionsPtr = NULL;
+			if (FALSE == processAgentLibraryFromArgsList(vm, vm->vmArgsArray, FALSE, OPTION_AGENTPATH)) {
+				goto _error;
 			}
-
-			agentIndex = FIND_AND_CONSUME_VMARG_FORWARD( STARTSWITH_MATCH, OPT_AGENTPATH_COLON, NULL);
-			optionsPtr = (char*)optionsBuf;
-			buflen = OPTIONSBUFF_LEN;
-			while (agentIndex >= 0) {
-				UDATA libraryLength;
-				char *options;
-				UDATA optionsLength;
-
-				do {
-					option_rc = COPY_OPTION_VALUE(agentIndex, ':', &optionsPtr, buflen);
-					if (OPTION_BUFFER_OVERFLOW == option_rc) {
-						if (optionsPtr != (char*)optionsBuf) {
-							j9mem_free_memory(optionsPtr);
-							optionsPtr = NULL;
-						}
-						buflen *= 2;
-						optionsPtr = (char*)j9mem_allocate_memory(buflen, OMRMEM_CATEGORY_VM);
-						if (NULL == optionsPtr) {
-							goto _error;
-						}
-					}
-				} while (OPTION_BUFFER_OVERFLOW == option_rc);
-
-				parseLibraryAndOptions(optionsPtr, &libraryLength, &options, &optionsLength);
-				if (createAgentLibrary(vm, optionsPtr, libraryLength, options, optionsLength, FALSE, NULL) != JNI_OK) {
-					if (optionsPtr != (char*)optionsBuf) {
-						j9mem_free_memory(optionsPtr);
-						optionsPtr = NULL;
-					}
-					goto _error;
-				}
-				agentIndex = FIND_NEXT_ARG_IN_VMARGS_FORWARD( STARTSWITH_MATCH, OPT_AGENTPATH_COLON, NULL, agentIndex);
-			}
-			if (optionsPtr != (char*)optionsBuf) {
-				j9mem_free_memory(optionsPtr);
-				optionsPtr = NULL;
-			}
-
 			/* -Xrun libraries that have an Agent_OnLoad are treated like -agentlib: */
-
-			if (createXrunLibraries(vm) != JNI_OK) {
+			if (JNI_OK != createXrunLibraries(vm)) {
 				goto _error;
 			}
-
 			vm->loadAgentLibraryOnAttach = &loadAgentLibraryOnAttach;
-
+			vm->isAgentLibraryLoaded = &isAgentLibraryLoaded;
 			break;
 		}
 
@@ -229,28 +430,75 @@ IDATA J9VMDllMain(J9JavaVM* vm, IDATA stage, void* reserved)
 			break;
 
 		case AGENTS_STARTED:
-			jvmtiData = J9JVMTI_DATA_FROM_VM(vm);
+		{
+			pool_state poolState;
+			J9JVMTIAgentLibrary *agentLibrary = NULL;
+			J9JVMTIData *jvmtiData = J9JVMTI_DATA_FROM_VM(vm);
 			if (hookGlobalEvents(jvmtiData)) {
 				PORT_ACCESS_FROM_JAVAVM(vm);
-				j9tty_err_printf(PORTLIB, "Need NLS message here\n");
+				j9tty_err_printf("Need NLS message here\n");
 				goto _error;
 			}
 
 			agentLibrary = pool_startDo(jvmtiData->agentLibraries, &poolState);
-			while (agentLibrary != NULL) {
-				if (loadAgentLibrary(vm, agentLibrary) != JNI_OK) {
+			while (NULL != agentLibrary) {
+				if (JNI_OK != loadAgentLibrary(vm, agentLibrary)) {
 					goto _error;
 				}
 				agentLibrary = pool_nextDo(&poolState);
 			}
 
 			/* Register the hotswap helper trace points */
-            hshelpUTRegister(vm);
+			hshelpUTRegister(vm);
+
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+			{
+				/* The isDebugEventOrFlagEnabled calculation matches a part of J9::Options::isFSDNeeded()
+				 * in compiler/control/J9Options.cpp.
+				 */
+				BOOLEAN isDebugEventOrFlagEnabled = J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_BREAKPOINT)
+						|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_FRAME_POP)
+						|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_FRAME_POPPED)
+						|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_GET_FIELD)
+						|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)
+						|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_GET_STATIC_FIELD)
+						|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_PUT_STATIC_FIELD)
+#if defined (J9VM_INTERP_HOT_CODE_REPLACEMENT)
+						|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_POP_FRAMES_INTERRUPT)
+#endif
+#if defined(J9VM_JIT_FULL_SPEED_DEBUG)
+						|| (vm->requiredDebugAttributes & J9VM_DEBUG_ATTRIBUTE_CAN_ACCESS_LOCALS)
+#endif
+						|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_SINGLE_STEP);
+				J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+				BOOLEAN isDebugOnRestoreEnabled = !isDebugEventOrFlagEnabled
+						&& J9_ARE_ALL_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_SUPPORT_DEBUG_ON_RESTORE)
+						&& vmFuncs->isCRaCorCRIUSupportEnabled(vm);
+
+				if (isDebugOnRestoreEnabled) {
+					J9HookInterface ** vmHook = vmFuncs->getVMHookInterface(vm);
+					if ((*vmHook)->J9HookRegisterWithCallSite(vmHook, J9HOOK_TAG_AGENT_ID | J9HOOK_VM_PREPARING_FOR_RESTORE, jvmtiHookVMPreparingForRestore, OMR_GET_CALLSITE(), jvmtiData, J9HOOK_AGENTID_FIRST)) {
+						goto _error;
+					}
+					if ((*vmHook)->J9HookRegisterWithCallSite(vmHook, J9HOOK_TAG_AGENT_ID | J9HOOK_VM_CRIU_RESTORE, jvmtiHookVMCRIURestore, OMR_GET_CALLSITE(), jvmtiData, J9HOOK_AGENTID_FIRST)) {
+						goto _error;
+					}
+					/* Adding capabilities is required before checkpoint if JIT is enabled.
+					 * Following code can be removed when JIT allows capabilities to be added after restore.
+					 */
+					Trc_JVMTI_criuAddCapabilities_invoked();
+					/* ignore the failure, it won't cause a problem if JDWP is not enabled later */
+					criuAddCapabilities(vm, NULL != vm->jitConfig);
+					vm->checkpointState.isDebugOnRestoreEnabled = isDebugOnRestoreEnabled;
+				}
+			}
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 			jvmtiData->phase = JVMTI_PHASE_PRIMORDIAL;
 			break;
+		}
 
-		case LIBRARIES_ONUNLOAD :
+		case LIBRARIES_ONUNLOAD:
 			shutDownJVMTI(vm);
 			break;
 
@@ -266,14 +514,11 @@ IDATA J9VMDllMain(J9JavaVM* vm, IDATA stage, void* reserved)
 	return returnVal;
 }
 
-
-
 /**
  * \brief	Mangle the agent library name to include full path
  * \ingroup jvmti
  *
  * @param[in] vm			J9JavaVM structure
- * @param[in] agentLibrary	Current agent library
  * @param[in] dllName		Agent library name
  * @return full agent path
  *
@@ -283,7 +528,7 @@ IDATA J9VMDllMain(J9JavaVM* vm, IDATA stage, void* reserved)
  *  NOTE: Caller is responsible for freeing the returned buffer
  */
 static char *
-prependSystemAgentPath(J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary, char * dllName)
+prependSystemAgentPath(J9JavaVM *vm, const char *dllName)
 {
 	PORT_ACCESS_FROM_JAVAVM(vm);
 	char *localBuffer = NULL;
@@ -446,27 +691,32 @@ closeLibrary:
 }
 
 /**
- * Load a JVMTI agent and call the agent's initialization function
- * @param vm Java VM
- * @param agentLibrary environment for the agent
- * @param name of the initialization function
- * @return JNI_ERR, JNI_OK
+ * Load a JVMTI agent and call the agent's initialization function.
+ *
+ * @param[in] vm Java VM
+ * @param[in] agentLibrary environment for the agent
+ * @param[in] loadFunctionName name of the initialization function
+ * @param[in] loadStatically a boolean indicating if the library is to be loaded statically
+ * @param[in/out] found a pointer to a boolean indicating whether the load function was found
+ * @param[in/out] errorMessage a pointer to the error message when opening the shared library
+ *
+ * @return JNI_ERR if failed, otherwise JNI_OK
  */
 static jint
-loadAgentLibraryGeneric(J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary, char *loadFunctionName, BOOLEAN loadStatically, BOOLEAN * found, const char **errorMessage)
+loadAgentLibraryGeneric(J9JavaVM *vm, J9JVMTIAgentLibrary *agentLibrary, char *loadFunctionName, BOOLEAN loadStatically, BOOLEAN *found, const char **errorMessage)
 {
 	PORT_ACCESS_FROM_JAVAVM(vm);
-	jint rc;
-	J9JVMTIData * jvmtiData = J9JVMTI_DATA_FROM_VM(vm);
-	J9NativeLibrary * nativeLib = &(agentLibrary->nativeLib);
+	jint rc = JNI_OK;
+	J9JVMTIData *jvmtiData = J9JVMTI_DATA_FROM_VM(vm);
+	J9NativeLibrary *nativeLib = &(agentLibrary->nativeLib);
 
 	Trc_JVMTI_loadAgentLibraryGeneric_Entry(agentLibrary->nativeLib.name);
 	if (NULL == agentLibrary->xRunLibrary) {
 		jint i = 0;
-		char * fullLibName = NULL;
-		const char * systemAgentName;
+		char *fullLibName = NULL;
+		const char *systemAgentName = NULL;
 		UDATA openFlags = agentLibrary->decorate ? J9PORT_SLOPEN_DECORATE | J9PORT_SLOPEN_LAZY : J9PORT_SLOPEN_LAZY;
-		char * agentPath = NULL; /* Don't free agentPath; may point at persistent, system areas. */
+		char *agentPath = NULL; /* Don't free agentPath; may point at persistent, system areas. */
 
 		if (loadStatically) {
 			/* If flag is set, the agent library ought to be opened statically, that is, the executable itself. */
@@ -474,8 +724,8 @@ loadAgentLibraryGeneric(J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary, char 
 				openFlags |= J9PORT_SLOPEN_OPEN_EXECUTABLE;
 			} else {
 				/* Report failure to obtain executable name; caller will proceed with dynamic linking. */
-				Trc_JVMTI_loadAgentLibraryGeneric_execNameNotFound(j9error_last_error_number());
-				Trc_JVMTI_loadAgentLibraryGeneric_Exit(agentLibrary->nativeLib.name);
+				I_32 errorno = j9error_last_error_number();
+				Trc_JVMTI_loadAgentLibraryGeneric_execNameNotFound_Exit(errorno, agentLibrary->nativeLib.name);
 				return JNI_ERR;
 			}
 		} else {
@@ -483,9 +733,9 @@ loadAgentLibraryGeneric(J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary, char 
 			 * is loaded from our current jre tree. This avoids picking up stray agents that might
 			 * be found on the library path. See CMVC 144382.
 			 */
-			while ((systemAgentName = systemAgentNames[i++]) != NULL) {
-				if (strcmp(nativeLib->name, systemAgentName) == 0) {
-					fullLibName = prependSystemAgentPath(vm, agentLibrary, nativeLib->name);
+			while (NULL != (systemAgentName = systemAgentNames[i++])) {
+				if (0 == strcmp(nativeLib->name, systemAgentName)) {
+					fullLibName = prependSystemAgentPath(vm, nativeLib->name);
 					Trc_JVMTI_loadAgentLibraryGeneric_loadingAgentAs(fullLibName);
 					break;
 				}
@@ -493,9 +743,7 @@ loadAgentLibraryGeneric(J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary, char 
 			agentPath = (NULL != fullLibName) ? fullLibName : nativeLib->name;
 		}
 
-		if (j9sl_open_shared_library(agentPath, &(nativeLib->handle), openFlags) != 0) {
-			Trc_JVMTI_loadAgentLibraryGeneric_failedOpeningAgentLibrary(agentPath);
-
+		if (0 != j9sl_open_shared_library(agentPath, &(nativeLib->handle), openFlags)) {
 			/* We may attempt to open the shared library again so save the error message
 			 * and print it once we know it is the final attempt */
 			*errorMessage = j9error_last_error_message();
@@ -503,7 +751,7 @@ loadAgentLibraryGeneric(J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary, char 
 			if (NULL != fullLibName) {
 				j9mem_free_memory(fullLibName);
 			}
-			Trc_JVMTI_loadAgentLibraryGeneric_Exit(agentPath);
+			Trc_JVMTI_loadAgentLibraryGeneric_failedOpeningAgentLibrary_Exit(agentPath, *errorMessage);
 			return JNI_ERR;
 		}
 		Trc_JVMTI_loadAgentLibraryGeneric_openedAgentLibrary(agentPath,
@@ -519,35 +767,33 @@ loadAgentLibraryGeneric(J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary, char 
 	rc = issueAgentOnLoadAttach(vm, agentLibrary, agentLibrary->options, loadFunctionName, found);
 	if (!(*found)) {
 		/* If the load function wasn't found, issueAgentOnLoadAttach already closed the library. */
-		Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed1(loadFunctionName);
-		Trc_JVMTI_loadAgentLibraryGeneric_Exit(agentLibrary->nativeLib.name);
+		Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed1_Exit(agentLibrary->nativeLib.name, loadFunctionName);
 		return rc;
 	}
 
 	/* For errors other than load function not found ... */
 	if (JNI_OK != rc) {
-		Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed2(rc);
-		Trc_JVMTI_loadAgentLibraryGeneric_Exit(agentLibrary->nativeLib.name);
+		Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed2_Exit(agentLibrary->nativeLib.name, loadFunctionName, rc);
 		return rc;
 	}
 
 	Trc_JVMTI_loadAgentLibraryGeneric_agentAttachedSuccessfully(agentLibrary->nativeLib.name);
 
 #if defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT)
-	validateLibrary(vm, &agentLibrary->nativeLib);
+	agentLibrary->nativeLib.doSwitching = validateLibrary(vm, agentLibrary->nativeLib.name, agentLibrary->nativeLib.handle, JNI_FALSE);
 #endif
 
 	/* Add the library to the linked list */
 	issueWriteBarrier();
 	omrthread_monitor_enter(jvmtiData->mutex);
-	if (jvmtiData->agentLibrariesTail == NULL) {
+	if (NULL == jvmtiData->agentLibrariesTail) {
 		jvmtiData->agentLibrariesHead = jvmtiData->agentLibrariesTail = nativeLib;
 	} else {
 		jvmtiData->agentLibrariesTail->next = nativeLib;
 		jvmtiData->agentLibrariesTail = nativeLib;
 	}
 	omrthread_monitor_exit(jvmtiData->mutex);
-	Trc_JVMTI_loadAgentLibraryGeneric_Exit(agentLibrary->nativeLib.name);
+	Trc_JVMTI_loadAgentLibraryGeneric_succeed_Exit(agentLibrary->nativeLib.name, loadFunctionName);
 
 	return JNI_OK;
 }
@@ -563,9 +809,9 @@ I_32 JNICALL
 loadAgentLibraryOnAttach(struct J9JavaVM * vm, const char * library, const char *options, UDATA decorate)
 {
 	PORT_ACCESS_FROM_JAVAVM(vm);
-	UDATA rc;
+	UDATA rc = JNI_OK;
 	UDATA optionsLength = 0;
-	UDATA libraryLength;
+	UDATA libraryLength = 0;
 	J9JVMTIAgentLibrary *agentLibrary = NULL;
 	J9JVMTIData * jvmtiData = J9JVMTI_DATA_FROM_VM(vm);
 	char loadFunctionName[J9JVMTI_BUFFER_LENGTH + 1] = {0};
@@ -574,6 +820,12 @@ loadAgentLibraryOnAttach(struct J9JavaVM * vm, const char * library, const char 
 	const char *errorMessage = NULL;
 
 	Trc_JVMTI_loadAgentLibraryOnAttach_Entry(library);
+
+	if (J9_ARE_NO_BITS_SET(vm->runtimeFlags, J9_RUNTIME_ALLOW_DYNAMIC_AGENT)) {
+		Trc_JVMTI_loadAgentLibraryOnAttach_agentLoadingDisabled();
+		rc = JNI_ERR;
+		goto exit;
+	}
 
 	Assert_JVMTI_true(NULL != library); /* Library name must be non-null. */
 
@@ -597,12 +849,11 @@ loadAgentLibraryOnAttach(struct J9JavaVM * vm, const char * library, const char 
 		/* Try invoking Agent_OnAttach_L function, if agent was linked statically.  */
 		if (J9NATIVELIB_LINK_MODE_STATIC == agentLibrary->nativeLib.linkMode) {
 			loadFunctionNameLength = j9str_printf(
-											PORTLIB,
-											loadFunctionName,
-											(J9JVMTI_BUFFER_LENGTH + 1),
-											"%s_%s",
-											J9JVMTI_AGENT_ONATTACH,
-											agentLibrary->nativeLib.name);
+					loadFunctionName,
+					(J9JVMTI_BUFFER_LENGTH + 1),
+					"%s_%s",
+					J9JVMTI_AGENT_ONATTACH,
+					agentLibrary->nativeLib.name);
 			if (loadFunctionNameLength >= J9JVMTI_BUFFER_LENGTH) {
 				rc = JNI_ERR;
 				goto exit;
@@ -629,12 +880,11 @@ loadAgentLibraryOnAttach(struct J9JavaVM * vm, const char * library, const char 
 			goto exit;
 		}
 		loadFunctionNameLength = j9str_printf(
-			PORTLIB,
-			loadFunctionName,
-			(J9JVMTI_BUFFER_LENGTH + 1),
-			"%s_%s",
-			J9JVMTI_AGENT_ONATTACH,
-			agentLibrary->nativeLib.name);
+				loadFunctionName,
+				(J9JVMTI_BUFFER_LENGTH + 1),
+				"%s_%s",
+				J9JVMTI_AGENT_ONATTACH,
+				agentLibrary->nativeLib.name);
 		if (loadFunctionNameLength >= J9JVMTI_BUFFER_LENGTH) {
 			rc = JNI_ERR;
 			goto exit;
@@ -701,16 +951,25 @@ loadAgentLibrary(J9JavaVM * vm, J9JVMTIAgentLibrary * agentLibrary)
 
 	Trc_JVMTI_loadAgentLibrary_Entry(agentLibrary->nativeLib.name);
 
+	/* If dynamic agent loading is disabled, the HCR/OSR flags default to off.
+	 * However, adding agents at launch is allowed. In this case we need to
+	 * enable the flags for proper functionality.
+	 */
+	if (J9_ARE_NO_BITS_SET(vm->runtimeFlags, J9_RUNTIME_ALLOW_DYNAMIC_AGENT)) {
+		omrthread_monitor_enter(vm->runtimeFlagsMutex);
+		vm->extendedRuntimeFlags |= J9_EXTENDED_RUNTIME_OSR_SAFE_POINT | J9_EXTENDED_RUNTIME_ENABLE_HCR;
+		omrthread_monitor_exit(vm->runtimeFlagsMutex);
+	}
+
 	/* Attempt linking the agent statically, looking for Agent_OnLoad_L.
 	 * If this is not found, fall back on the regular, dynamic linking way.
 	 */
 	nameBufferLengh = j9str_printf(
-							PORTLIB,
-							nameBuffer,
-							(J9JVMTI_BUFFER_LENGTH + 1),
-							"%s_%s",
-							J9JVMTI_AGENT_ONLOAD,
-							agentLibrary->nativeLib.name);
+			nameBuffer,
+			(J9JVMTI_BUFFER_LENGTH + 1),
+			"%s_%s",
+			J9JVMTI_AGENT_ONLOAD,
+			agentLibrary->nativeLib.name);
 	if (nameBufferLengh >= J9JVMTI_BUFFER_LENGTH) {
 		result = JNI_ERR;
 		goto exit;
@@ -779,12 +1038,12 @@ shutDownAgentLibraries(J9JavaVM * vm, UDATA closeLibrary)
 				 * Agent_OnUnload, or else invoke Agent_OnUnload_L.
 				 */
 				if (J9NATIVELIB_LINK_MODE_STATIC == agentLibrary->nativeLib.linkMode) {
-					j9str_printf(PORTLIB,
-								 nameBuffer,
-								 sizeof(nameBuffer),
-								 "%s_%s",
-								 J9JVMTI_AGENT_ONUNLOAD,
-								 agentLibrary->nativeLib.name);
+					j9str_printf(
+							nameBuffer,
+							sizeof(nameBuffer),
+							"%s_%s",
+							J9JVMTI_AGENT_ONUNLOAD,
+							agentLibrary->nativeLib.name);
 				} else /* J9NATIVELIB_LINK_MODE_DYNAMIC == linkMode */ {
 					strcpy(nameBuffer, J9JVMTI_AGENT_ONUNLOAD);
 				}
@@ -939,45 +1198,44 @@ shutDownJVMTI(J9JavaVM * vm)
 /**
  * Allocate an instance of the J9JVMTIAgentLibrary structure.
  * @param vm Java VM
- * @param libraryAndOptions library name and options concatenated
- * @param libraryLength library name substring length
- * @param options option substring start
- * @param optionsLength option
+ * @param libraryName library name and/or options concatenated
+ * @param libraryNameLength library name length
+ * @param options option string start
+ * @param optionsLength option string length
  * @param decorate change the library path/name
  * @param result pointer to return new J9JVMTIAgentLibrary by reference
- * @return JNI_ERR, JNI_ENOMEM, or JNI_OK
+ * @return JNI_OK on success, otherwis JNI_ERR or JNI_ENOMEM
  */
 static jint
-createAgentLibrary(J9JavaVM * vm, const  char *libraryAndOptions, UDATA libraryLength, const char* options, UDATA optionsLength, UDATA decorate, J9JVMTIAgentLibrary **result)
+createAgentLibrary(J9JavaVM *vm, const char *libraryName, UDATA libraryNameLength, const char *options, UDATA optionsLength, UDATA decorate, J9JVMTIAgentLibrary **result)
 {
 	PORT_ACCESS_FROM_JAVAVM(vm);
-	J9JVMTIData * jvmtiData = J9JVMTI_DATA_FROM_VM(vm);
-	J9JVMTIAgentLibrary * agentLibrary = NULL;
+	J9JVMTIData *jvmtiData = J9JVMTI_DATA_FROM_VM(vm);
+	J9JVMTIAgentLibrary *agentLibrary = NULL;
 
-	/* Create a new agent library */
+	/* Create a new agent library. */
 	omrthread_monitor_enter(jvmtiData->mutex);
 	agentLibrary = pool_newElement(jvmtiData->agentLibraries);
 	if (NULL == agentLibrary) {
-		j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_JVMTI_OUT_OF_MEMORY, libraryAndOptions);
+		j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_JVMTI_OUT_OF_MEMORY, libraryName);
 		omrthread_monitor_exit(jvmtiData->mutex);
 		return JNI_ENOMEM;
 	}
 
-	/* Initialize the structure with default values */
+	/* Initialize the structure with default values. */
 	vm->internalVMFunctions->initializeNativeLibrary(vm, &agentLibrary->nativeLib);
 
-	/* Make a copy of the library name and options */
-
-	agentLibrary->nativeLib.name = j9mem_allocate_memory(libraryLength + 1 + optionsLength + 1, J9MEM_CATEGORY_JVMTI);
+	/* Make a copy of the library name and options. */
+	agentLibrary->nativeLib.name = j9mem_allocate_memory(libraryNameLength + 1 + optionsLength + 1, J9MEM_CATEGORY_JVMTI);
 	if (NULL == agentLibrary->nativeLib.name) {
 		pool_removeElement(jvmtiData->agentLibraries, agentLibrary);
 		/* Print NLS message here? */
 		omrthread_monitor_exit(jvmtiData->mutex);
 		return JNI_ENOMEM;
 	}
-	strncpy(agentLibrary->nativeLib.name, libraryAndOptions, libraryLength);
-	*(agentLibrary->nativeLib.name+libraryLength) = '\0';
-	agentLibrary->options = agentLibrary->nativeLib.name+libraryLength+1;
+	strncpy(agentLibrary->nativeLib.name, libraryName, libraryNameLength);
+	*(agentLibrary->nativeLib.name + libraryNameLength) = '\0';
+	agentLibrary->options = agentLibrary->nativeLib.name+libraryNameLength+1;
 	if (optionsLength > 0) {
 		strncpy(agentLibrary->options, options, optionsLength);
 	}
@@ -991,7 +1249,7 @@ createAgentLibrary(J9JavaVM * vm, const  char *libraryAndOptions, UDATA libraryL
 	agentLibrary->decorate = decorate;
 	agentLibrary->xRunLibrary = NULL;
 	agentLibrary->loadCount = 1;
-	/* Jazz 99339: initialize agentLibrary->invocationJavaVM to NULL when a new library is created */
+	/* Jazz 99339: initialize agentLibrary->invocationJavaVM to NULL when a new library is created. */
 	agentLibrary->invocationJavaVM = NULL;
 
 	if (NULL != result) {
@@ -1001,8 +1259,6 @@ createAgentLibrary(J9JavaVM * vm, const  char *libraryAndOptions, UDATA libraryL
 	omrthread_monitor_exit(jvmtiData->mutex);
 	return JNI_OK;
 }
-
-
 
 static jint
 createXrunLibraries(J9JavaVM * vm)
@@ -1044,6 +1300,307 @@ createXrunLibraries(J9JavaVM * vm)
 	return JNI_OK;
 }
 
+#if defined(AIXPPC)
+/**
+ * Check if the first dirLen bytes of the file name is a library path.
+ *
+ * @param[in] fileName the file name containing a path
+ * @param[in] dirLen the number of bytes to be compared
+ * @param[in] libpath the library path returned from loadquery(L_GETLIBPATH)
+ *
+ * @return TRUE if the first dirLen bytes of the file name is a library path, FALSE otherwise
+ */
+static BOOLEAN
+isFileNameInLibPath(const char *fileName, UDATA dirLen, char *libpath)
+{
+	BOOLEAN result = FALSE;
+	char *path = NULL;
+	char *strTokPtr = NULL;
+
+	for (path = strtok_r(libpath, ":", &strTokPtr);
+			NULL != path;
+			path = strtok_r(NULL, ":", &strTokPtr)
+	) {
+		if ((0 == strncmp(fileName, path, dirLen)) && ('\0' == path[dirLen])) {
+			/* a match found */
+			result = TRUE;
+			Trc_JVMTI_isFileNameInLibPath_path_match(fileName, path, dirLen);
+			break;
+		}
+		/* continue to search the libpath */
+		Trc_JVMTI_isFileNameInLibPath_path_not_match(fileName, path, dirLen);
+	}
+	return result;
+}
+
+/**
+ * Check if an object file loaded is the same as an agent library to be loaded.
+ *
+ * @param[in] fileName the object file name retrieved via loadquery(L_GETINFO)
+ * @param[in] libName the agent library name to be searched
+ * @param[in] decorate a boolean indicating if the prefix/suffix to the library name is to be added
+ * @param[in] isLibraryPath a boolean indicating if the libName contains a path separator
+ * @param[in] libNameSo the platform independent agent library name added prefix(lib) and suffix(.so)
+ * @param[in] libNameAr the platform independent agent library name added prefix(lib) and suffix(.a)
+ * @param[in] libpath the library path returned via loadquery(L_GETLIBPATH)
+ *
+ * @return TRUE if the agent library is the same as the object file, FALSE otherwise
+ */
+static BOOLEAN
+searchObjectFileFromLDInfo(const char *fileName, const char *libName, BOOLEAN decorate, BOOLEAN isLibraryPath,
+		const char *libNameSo, const char *libNameAr, char *libpath)
+{
+	BOOLEAN result = FALSE;
+	/* locate the last occurrence of file path separator in the object file */
+	const char *tmp = strrchr(fileName, '/');
+	if (NULL == tmp) {
+		/* this object file has no path separator */
+		if (decorate) {
+			/* compare with libName added the prefix/suffix */
+			if ((0 == strcmp(fileName, libNameSo))
+				|| (0 == strcmp(fileName, libNameAr))
+			) {
+				result = TRUE;
+			}
+		} else {
+			if (!isLibraryPath) {
+				/* libName has no path separator, compare the whole file names */
+				if (0 == strcmp(fileName, libName)) {
+					result = TRUE;
+				}
+			}
+			/* if libName contains a path separator, it can't be the same library as this fileName */
+		}
+	} else {
+		/* find the library name of this object file */
+		const char *tmpLibName = tmp + 1;
+		if (decorate) {
+			/* compare with libName added the prefix/suffix */
+			if ((0 == strcmp(tmpLibName, libNameSo))
+				|| (0 == strcmp(tmpLibName, libNameAr))
+			) {
+				/* check if this object file path is part of libpath */
+				UDATA dirLen = tmp - fileName;
+				result = isFileNameInLibPath(fileName, dirLen, libpath);
+			}
+		} else {
+			/* check if libName contains a path separator */
+			if (isLibraryPath) {
+				/* compare the library directly with the object file loaded */
+				if (0 == strcmp(fileName, libName)) {
+					Trc_JVMTI_searchObjectFileFromLDInfo_library_object_file_found(fileName);
+					result = TRUE;
+				} else {
+					Trc_JVMTI_searchObjectFileFromLDInfo_library_object_file_not_found(fileName, libName);
+				}
+			} else {
+				/* libName has no path separator, compare the whole file names */
+				if (0 == strcmp(tmpLibName, libName)) {
+					/* check if this object file path is part of libpath */
+					UDATA dirLen = tmp - fileName;
+					result = isFileNameInLibPath(fileName, dirLen, libpath);
+				}
+			}
+		}
+	}
+	return result;
+}
+
+/**
+ * Retrieve a list of all object files loaded for the current process via loadquery(L_GETINFO).
+ * This helper method reallocates the buffer if the initial allocation is insufficient.
+ * The caller is responsible for freeing the buffer allocated.
+ *
+ * @param[in] vm Java VM
+ *
+ * @return a pointer to struct ld_info holding the object files if succeeded, otherwise NULL
+ */
+static struct ld_info *
+loadqueryGetObjectFiles(J9JavaVM *vm)
+{
+	PORT_ACCESS_FROM_JAVAVM(vm);
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+	/* Use the same initial buffer size as omrintrospect_backtrace_symbols_raw()
+	 * in omr/port/aix/omrosbacktrace_impl.c.
+	 */
+	UDATA objectFileSize = 150 * sizeof(struct ld_info);
+	void *tmpBuffer = j9mem_allocate_memory(objectFileSize, J9MEM_CATEGORY_JVMTI);
+	if (NULL == tmpBuffer) {
+		Trc_JVMTI_loadqueryGetObjectFiles_OOM(objectFileSize);
+		vmFuncs->setNativeOutOfMemoryError(vm->mainThread, 0, 0);
+	} else {
+		Trc_JVMTI_loadqueryGetObjectFiles_allocate_memory(tmpBuffer, objectFileSize);
+		for (;;) {
+			int rc = loadquery(L_GETINFO, tmpBuffer, objectFileSize);
+			if (-1 != rc) {
+				/* loadquery() completed successfully */
+				break;
+			}
+			if (ENOMEM == errno) {
+				void *newBuffer = NULL;
+				/* insufficient buffer size, increase it */
+				objectFileSize *= 2;
+				newBuffer = j9mem_reallocate_memory(tmpBuffer, objectFileSize, J9MEM_CATEGORY_JVMTI);
+				if (NULL == newBuffer) {
+					Trc_JVMTI_loadqueryGetObjectFiles_OOM(objectFileSize);
+					vmFuncs->setNativeOutOfMemoryError(vm->mainThread, 0, 0);
+					j9mem_free_memory(tmpBuffer);
+					tmpBuffer = NULL;
+					break;
+				}
+				tmpBuffer = newBuffer;
+				Trc_JVMTI_loadqueryGetObjectFiles_allocate_memory(tmpBuffer, objectFileSize);
+			} else {
+				/* other errors - EINVAL or EFAULT */
+				Trc_JVMTI_loadqueryGetObjectFiles_loadquery_errno(errno);
+				j9mem_free_memory(tmpBuffer);
+				tmpBuffer = NULL;
+				break;
+			}
+		}
+	}
+	return (struct ld_info *)tmpBuffer;
+}
+#endif /* defined(AIXPPC) */
+
+/**
+ * Test if an agent library was already loaded.
+ *
+ * @param vm Java VM
+ * @param library library name
+ * @param decorate a boolean indicating if the prefix/suffix to the library name is to be added
+ *
+ * @return TRUE if the agent library was loaded successfully, FALSE otherwise
+ */
+static BOOLEAN
+isAgentLibraryLoaded(J9JavaVM *vm, const char *library, BOOLEAN decorate)
+{
+	BOOLEAN result = FALSE;
+	UDATA libraryLen = strlen(library);
+
+	Trc_JVMTI_isAgentLibraryLoaded_library_decorate(library, decorate);
+	if (NULL != findAgentLibrary(vm, library, libraryLen)) {
+		result = TRUE;
+	} else {
+		/* J9PORT_SLOPEN_NO_LOAD is only supported on Linux/OSX/Win32 platforms. */
+#if defined(LINUX) || defined(OSX) || defined(WIN32)
+		UDATA i = 0;
+		UDATA handle = 0;
+		/* One of RTLD_LAZY and RTLD_NOW must be included in the flag. */
+		UDATA openFlags = J9PORT_SLOPEN_NO_LOAD | OMRPORT_SLOPEN_LAZY;
+		char *agentPath = (char*)library;
+		PORT_ACCESS_FROM_JAVAVM(vm);
+
+		if (decorate) {
+			openFlags |= J9PORT_SLOPEN_DECORATE;
+		}
+		for (i = 0;; ++i) {
+			const char *systemAgentName = systemAgentNames[i];
+			if (NULL == systemAgentName) {
+				break;
+			}
+			if (0 == strcmp(library, systemAgentName)) {
+				agentPath = prependSystemAgentPath(vm, library);
+				break;
+			}
+		}
+		if (0 == j9sl_open_shared_library(agentPath, &handle, openFlags)) {
+			if (0 != handle) {
+				result = TRUE;
+				j9sl_close_shared_library(handle);
+			}
+		}
+		if (library != (const char*)agentPath) {
+			j9mem_free_memory(agentPath);
+		}
+		Trc_JVMTI_isAgentLibraryLoaded_result(library, agentPath, result);
+#elif defined(AIXPPC) /* defined(LINUX) || defined(OSX) || defined(WIN32) */
+		/* The incoming library & decorate could be in the following cases:
+		 * - JvmtiAgent1 & TRUE
+		 * - libJvmtiAgent1.so & FALSE
+		 * - /path/to/libJvmtiAgent1.so & FALSE
+		 */
+		PORT_ACCESS_FROM_JAVAVM(vm);
+		/* retrieve a list of all object files loaded for the current process */
+		struct ld_info *objectFiles = loadqueryGetObjectFiles(vm);
+		if (NULL != objectFiles) {
+			J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+			char *libNameSo = NULL;
+			char *libNameAr = NULL;
+			char *libpath = NULL;
+			UDATA libpathSize = 0;
+			char *envLibPath = NULL;
+			char *fileName = NULL;
+			BOOLEAN isLibraryPath = FALSE;
+			struct ld_info *cursor = NULL;
+
+			if (decorate) {
+				/* the library is a platform independent name */
+				/* either object suffix is acceptable */
+				UDATA sizeLibNameSo = libraryLen + sizeof("lib.so");
+				UDATA sizeLibNameAr = libraryLen + sizeof("lib.a");
+				libNameSo = (char *)j9mem_allocate_memory(sizeLibNameSo, J9MEM_CATEGORY_JVMTI);
+				libNameAr = (char *)j9mem_allocate_memory(sizeLibNameAr, J9MEM_CATEGORY_JVMTI);
+				if ((NULL != libNameSo) && (NULL != libNameAr)) {
+					j9str_printf(libNameSo, sizeLibNameSo, "lib%s.so", library);
+					j9str_printf(libNameAr, sizeLibNameAr, "lib%s.a", library);
+					Trc_JVMTI_isAgentLibraryLoaded_libNames(libNameSo, libNameAr);
+				} else {
+					Trc_JVMTI_isAgentLibraryLoaded_OOM("libNameSo or libNameAr");
+					vmFuncs->setNativeOutOfMemoryError(vm->mainThread, 0, 0);
+					goto failed;
+				}
+			} else {
+				/* check if library contains a path separator */
+				isLibraryPath = (NULL != strrchr(library, '/'));
+			}
+
+			/* Because redirector adds onto LIBPATH, fetching LIBPATH via getenv is more
+			 * accurate than fetching LIBPATH from loadquery using L_GETLIBATH flag.
+			 */
+			envLibPath = getenv("LIBPATH");
+			if (NULL != envLibPath) {
+				libpathSize = strlen(envLibPath) + 1;
+				libpath = j9mem_allocate_memory(libpathSize, J9MEM_CATEGORY_JVMTI);
+				if (NULL == libpath) {
+					Trc_JVMTI_isAgentLibraryLoaded_OOM("libpath");
+					vmFuncs->setNativeOutOfMemoryError(vm->mainThread, 0, 0);
+					goto failed;
+				}
+				/* copy it to avoid the modification by putenv() */
+				memcpy(libpath, envLibPath, libpathSize);
+			} else {
+				/* assign it an empty string */
+				libpath = (char *)"";
+			}
+			Trc_JVMTI_isAgentLibraryLoaded_loadquery_getlibpath(libpath, libpathSize);
+			for (cursor = objectFiles;;) {
+				/* objectFiles is not NULL */
+				if (0 == cursor->ldinfo_next) {
+					/* last entry, exit */
+					break;
+				}
+				fileName = cursor->ldinfo_filename;
+				Trc_JVMTI_isAgentLibraryLoaded_ldinfo_filename_decorate(fileName, decorate);
+				result = searchObjectFileFromLDInfo(fileName, library, decorate, isLibraryPath, libNameSo, libNameAr, libpath);
+				if (result) {
+					break;
+				}
+				cursor = (struct ld_info *)((char *)cursor + cursor->ldinfo_next);
+			}
+failed:
+			if (libpathSize > 0) {
+				j9mem_free_memory(libpath);
+			}
+			j9mem_free_memory(libNameSo);
+			j9mem_free_memory(libNameAr);
+			j9mem_free_memory(objectFiles);
+		}
+#endif /* defined(LINUX) || defined(OSX) || defined(WIN32) */
+	}
+
+	return result;
+}
 
 static J9JVMTIAgentLibrary *
 findAgentLibrary(J9JavaVM * vm, const char *libraryAndOptions, UDATA libraryLength)
@@ -1052,13 +1609,13 @@ findAgentLibrary(J9JavaVM * vm, const char *libraryAndOptions, UDATA libraryLeng
 	J9JVMTIAgentLibrary * agentLibrary;
 	J9NativeLibrary * nativeLibrary = NULL;
 	UDATA nativeLibraryNameLength;
-    pool_state state;
+	pool_state state;
 
-    Trc_JVMTI_findAgentLibrary_Entry(libraryAndOptions);
+	Trc_JVMTI_findAgentLibrary_Entry(libraryAndOptions);
 	agentLibrary = pool_startDo(jvmtiData->agentLibraries, &state);
 	while (agentLibrary) {
-        nativeLibrary = &(agentLibrary->nativeLib);
- 		nativeLibraryNameLength = strlen(nativeLibrary->name);
+		nativeLibrary = &(agentLibrary->nativeLib);
+		nativeLibraryNameLength = strlen(nativeLibrary->name);
 		if (nativeLibraryNameLength == libraryLength) {
 			if (!strncmp(libraryAndOptions, nativeLibrary->name, libraryLength)) {
 				Trc_JVMTI_findAgentLibrary_successExit(nativeLibrary->name);
@@ -1071,4 +1628,3 @@ findAgentLibrary(J9JavaVM * vm, const char *libraryAndOptions, UDATA libraryLeng
 
 	return NULL;
 }
-

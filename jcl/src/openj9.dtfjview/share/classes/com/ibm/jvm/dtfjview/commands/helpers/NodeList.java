@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands.helpers;
 
 import com.ibm.dtfj.java.JavaThread;
@@ -29,13 +29,12 @@ import com.ibm.dtfj.image.ImageThread;
 import com.ibm.dtfj.image.DataUnavailable;
 import com.ibm.dtfj.image.MemoryAccessException;
 
-
 public class NodeList {
 
 	private MonitorNode head;
 	private MonitorNode tail;
 	private int id;
-	
+
 	public NodeList(MonitorNode node, int _id)
 	{
 		head = node;
@@ -43,12 +42,12 @@ public class NodeList {
 		node.inList = this;
 		id = _id;
 	}
-	
+
 	public int getID()
 	{
 		return id;
 	}
-	
+
 	public boolean equals(Object other)
 	{
 		return ((NodeList)other).getID() == id;
@@ -92,27 +91,27 @@ public class NodeList {
 			return null;
 		}
 	}
-	
+
 	public void add(MonitorNode node)
 	{
 		head = node;
 	}
-	
+
 	public MonitorNode getHead()
 	{
 		return head;
 	}
-	
+
 	public MonitorNode getTail()
 	{
 		return tail;
 	}
-	
+
 	public boolean isLoop()
 	{
 		return tail == head;
 	}
-	
+
 	// Print this list of monitor nodes (ie the owning threads and there object addresses)
 	public String toString()
 	{
@@ -121,13 +120,13 @@ public class NodeList {
 		MonitorNode lastNode = null;
 		boolean firstTime = true;
 		boolean done = false;
-		
+
 		do {
 			String name = "";
 			String objAddr = "";
 			JavaObject object = null;
 			JavaThread owner = null;
-			
+
 			try {
 				owner = currNode.getOwner();
 				name = owner.getName();
@@ -142,18 +141,18 @@ public class NodeList {
 			} catch (MemoryAccessException e) {
 				name = Exceptions.getMemoryAccessExceptionString();
 			}
-			
+
 			object = currNode.getObject();
 			if (null == object) {
 				objAddr = " at : " + Utils.toHex(currNode.getMonitorAddress());
 			} else {
 				objAddr = " object : " + Utils.toHex(object.getID().getAddress());
 			}
-			
+
 			String lockName = currNode.getType();
-						
+
 			retval += "thread: " + name + " (owns " + lockName + objAddr + ") waiting for =>\n\t  ";
-			
+
 			lastNode = currNode;
 			currNode = currNode.waitingOn;
 
@@ -165,9 +164,9 @@ public class NodeList {
 					done = true;
 			}
 			firstTime = false;
-			
+
 		} while (!done);
-		
+
 		retval = retval.substring(0, retval.length() - 18); // removes the tail of the last entry
 		return retval;
 	}

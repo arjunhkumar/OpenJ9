@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 #
 
 # Externalised messages for the verbose module.
@@ -46,7 +46,7 @@ J9NLS.HEADER=verbosenls.h
 
 # Note: %.*s is the thread name
 # Note: %zd/%zd is two numbers, indicating how much stack was used on each stack
-J9NLS_VERB_STACK_USAGE=Podrobn\u00fd v\u00fdpis z\u00e1sobn\u00edku: \"%2$.*1$s\" pou\u017e\u00edv\u00e1 %3$zd/%4$zd bajt\u016f v z\u00e1sobn\u00edc\u00edch Java/C.
+J9NLS_VERB_STACK_USAGE=Podrobn\u00fd v\u00fdpis z\u00e1sobn\u00edku: "%2$.*1$s" pou\u017e\u00edv\u00e1 %3$zd/%4$zd bajt\u016f v z\u00e1sobn\u00edc\u00edch Java/C.
 # START NON-TRANSLATABLE
 J9NLS_VERB_STACK_USAGE.sample_input_1=11
 J9NLS_VERB_STACK_USAGE.sample_input_2=Gc Worker Thread
@@ -250,14 +250,14 @@ J9NLS_VERB_CLASS_BAD_CPENTRY_JXE_CORRUPT_IMAGE_HEADER.user_response=Examine the 
 J9NLS_VERB_CLASS_BAD_CPENTRY_JXE_OE_NOT_SUPPORTED=Neplatn\u00e1 polo\u017eka classpath: %s (opa\u010dn\u00fd endian jxe nen\u00ed podporov\u00e1n)
 # START NON-TRANSLATABLE
 J9NLS_VERB_CLASS_BAD_CPENTRY_JXE_OE_NOT_SUPPORTED.sample_input_1=/path/java/user.jxe
-J9NLS_VERB_CLASS_BAD_CPENTRY_JXE_OE_NOT_SUPPORTED.explanation=The specified JXE file had incorrect endianess for this platform
+J9NLS_VERB_CLASS_BAD_CPENTRY_JXE_OE_NOT_SUPPORTED.explanation=The specified JXE file had incorrect endianness for this platform
 J9NLS_VERB_CLASS_BAD_CPENTRY_JXE_OE_NOT_SUPPORTED.system_action=The JVM will warn the user and may either ignore the issue or throw a java/io/IOException
-J9NLS_VERB_CLASS_BAD_CPENTRY_JXE_OE_NOT_SUPPORTED.user_response=Replace the JXE file with one of the correct endianess
+J9NLS_VERB_CLASS_BAD_CPENTRY_JXE_OE_NOT_SUPPORTED.user_response=Replace the JXE file with one of the correct endianness
 # END NON-TRANSLATABLE
 
 # Note: %.*s is the thread name
 # Note: %zd/%zd is two numbers, indicating how much stack was used on each stack
-J9NLS_VERB_STACK_USAGE_FOR_RUNNING_THREADS=Podrobn\u00fd z\u00e1sobn\u00edk: Spu\u0161t\u011bn\u00fd podproces \"%2$.*1$s\" pou\u017e\u00edv\u00e1 %3$zd/%4$zd bajt\u016f z\u00e1sobn\u00edk\u016f jazyk\u016f Java/C.
+J9NLS_VERB_STACK_USAGE_FOR_RUNNING_THREADS=Podrobn\u00fd z\u00e1sobn\u00edk: Spu\u0161t\u011bn\u00fd podproces "%2$.*1$s" pou\u017e\u00edv\u00e1 %3$zd/%4$zd bajt\u016f z\u00e1sobn\u00edk\u016f jazyk\u016f Java/C.
 # START NON-TRANSLATABLE
 J9NLS_VERB_STACK_USAGE_FOR_RUNNING_THREADS.explanation=Indicates how much stack was used on each stack for a thread when -verbose:stack is specified
 J9NLS_VERB_STACK_USAGE_FOR_RUNNING_THREADS.system_action=None

@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
+/*
  * Copyright IBM Corp. and others 2016
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.gpu;
 
 import java.security.BasicPermission;
@@ -40,7 +40,14 @@ import java.security.Permission;
  *     See {@link CUDAManager#instance()}.</td>
  * </tr>
  * </table>
+ *
+/*[IF JAVA_SPEC_VERSION >= 24]
+ * @deprecated Checking permissions is not supported.
+/*[ENDIF] JAVA_SPEC_VERSION >= 24
  */
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+@Deprecated(since = "24", forRemoval = true)
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 public final class GPUPermission extends BasicPermission {
 
 	static final Permission Access = new GPUPermission("access"); //$NON-NLS-1$

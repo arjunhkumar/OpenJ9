@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #define J9_EXTERNAL_TO_VM
@@ -78,7 +78,7 @@ void TR_AnnotationBase::loadExpectedAnnotationClasses(J9VMThread * vmThread)
   acquireVMAccess(vmThread); // this is not the comp thread so suspension is possible
   for(i=0;i < kLastAnnotationSignature;++i)
      {
-     // Strip off 'L' prefix or 'Q' prefix and ';' suffix
+     // Strip off 'L' prefix and ';' suffix
      const char *name = recognizedAnnotations[i].name;
      int32_t nameLen = recognizedAnnotations[i].nameLen;
      TR_ASSERT(strlen(name) == nameLen,"Table entry for %s is %d but should be %d\n",name,nameLen,strlen(name));
@@ -251,7 +251,7 @@ TR_AnnotationBase::getDefaultAnnotationInfo(const char *annotationName)
          }
       }
    if(NULL == clazz) return NULL;
-   const char * className = annotationName+1; // strip off leading 'L' or 'Q';
+   const char * className = annotationName+1; // strip off leading 'L';
    int32_t classNameLength = strlen (className) -1; // strip off trailing ';'
    J9AnnotationInfoEntry *defaultEntry = intFunc->getAnnotationDefaultsForNamedAnnotation(vmThread, clazz, (char *)className, classNameLength,
                                                                                           J9_FINDCLASS_FLAG_EXISTING_ONLY);

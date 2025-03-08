@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -25,7 +25,8 @@
 #include "j9.h"
 #include "j9protos.h"
 #include "j9consts.h"
-#include "vmhook_internal.h"
+#include "mmhook.h"
+#include "vmhook.h"
 #include "ut_j9vm.h"
 #include "vm_internal.h"
 
@@ -105,49 +106,80 @@ hookRegistrationEvent(J9HookInterface** hook, UDATA eventNum, void* voidEventDat
 	}
 }
 
-
 /*
  * The VM is about to start loading classes.
- * Disable hooks which must have been hooked by now
+ * Disable hooks which must have been hooked by now if isDebugOnRestoreEnabled() returns false,
+ * otherwise, check if the debug related events are hooked or reserved instead.
+ *
+ * @param[in] hook The pointer to the hook interface, not used
+ * @param[in] eventNum not used
+ * @param[in] voidEventData J9VMAboutToBootstrapEvent containing currentThread
+ * @param[in] userData not used
  */
 static void
-hookAboutToBootstrapEvent(J9HookInterface** hook, UDATA eventNum, void* voidEventData, void* userData)
+hookAboutToBootstrapEvent(J9HookInterface **hook, UDATA eventNum, void *voidEventData, void *userData)
 {
-	J9VMAboutToBootstrapEvent* eventData = voidEventData;
-	J9VMThread* vmThread = eventData->currentThread;
-	J9JavaVM* vm = vmThread->javaVM;
-	J9HookInterface** hookInterface = J9_HOOK_INTERFACE(vm->hookInterface);
+	J9VMAboutToBootstrapEvent *eventData = voidEventData;
+	J9VMThread *vmThread = eventData->currentThread;
+	J9JavaVM *vm = vmThread->javaVM;
+	J9HookInterface **vmHook = getVMHookInterface(vm);
+	J9HookInterface **gcHook = vm->memoryManagerFunctions->j9gc_get_hook_interface(vm);
+	BOOLEAN debugModeRequested = FALSE;
 
 	/* these hooks must be reserved by now. Attempt to disable them so that they're in a well-known state after this */
-	(*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_MONITOR_CONTENDED_EXIT);
+	(*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_MONITOR_CONTENDED_EXIT);
 
 	/* The instrumentable object allocate hook disables safepoint OSR */
-	if ((*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_OBJECT_ALLOCATE_INSTRUMENTABLE)) {
+	if ((*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_OBJECT_ALLOCATE_INSTRUMENTABLE)) {
 		omrthread_monitor_enter(vm->runtimeFlagsMutex);
 		vm->extendedRuntimeFlags &= ~(UDATA)(J9_EXTENDED_RUNTIME_OSR_SAFE_POINT| J9_EXTENDED_RUNTIME_OSR_SAFE_POINT_FV);
 		omrthread_monitor_exit(vm->runtimeFlagsMutex);
 	}
 
-	if ((*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_METHOD_ENTER)
-		|| (*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_METHOD_RETURN)
-		|| (*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_FRAME_POP)
-		|| (*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_POP_FRAMES_INTERRUPT)
-		|| (*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_SINGLE_STEP)
-		|| (*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_BREAKPOINT)
-		|| (*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_GET_FIELD)
-		|| (*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_PUT_FIELD)
-		|| (*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_GET_STATIC_FIELD)
-		|| (*hookInterface)->J9HookDisable(hookInterface, J9HOOK_VM_PUT_STATIC_FIELD)
-		|| (vm->extendedRuntimeFlags & J9_EXTENDED_RUNTIME_METHOD_TRACE_ENABLED)
-		|| (vm->requiredDebugAttributes & J9VM_DEBUG_ATTRIBUTE_CAN_ACCESS_LOCALS))
+	/* The sampled object allocate hook disables safepoint OSR */
+	if ((*gcHook)->J9HookDisable(gcHook, J9HOOK_MM_OBJECT_ALLOCATION_SAMPLING)) {
+		omrthread_monitor_enter(vm->runtimeFlagsMutex);
+		vm->extendedRuntimeFlags &= ~(UDATA)(J9_EXTENDED_RUNTIME_OSR_SAFE_POINT| J9_EXTENDED_RUNTIME_OSR_SAFE_POINT_FV);
+		omrthread_monitor_exit(vm->runtimeFlagsMutex);
+	}
+
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+	if (isDebugOnRestoreEnabled(vm)) {
+		debugModeRequested = J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_METHOD_ENTER)
+			|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_METHOD_RETURN)
+			|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_FRAME_POP)
+			|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_POP_FRAMES_INTERRUPT)
+			|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_SINGLE_STEP)
+			|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_BREAKPOINT)
+			|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_GET_FIELD)
+			|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_PUT_FIELD)
+			|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_GET_STATIC_FIELD)
+			|| J9_EVENT_IS_HOOKED_OR_RESERVED(vm->hookInterface, J9HOOK_VM_PUT_STATIC_FIELD);
+	} else
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 	{
+		debugModeRequested = (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_METHOD_ENTER)
+			|| (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_METHOD_RETURN)
+			|| (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_FRAME_POP)
+			|| (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_POP_FRAMES_INTERRUPT)
+			|| (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_SINGLE_STEP)
+			|| (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_BREAKPOINT)
+			|| (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_GET_FIELD)
+			|| (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_PUT_FIELD)
+			|| (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_GET_STATIC_FIELD)
+			|| (*vmHook)->J9HookDisable(vmHook, J9HOOK_VM_PUT_STATIC_FIELD);
+	}
+	debugModeRequested |= J9_ARE_ANY_BITS_SET(vm->extendedRuntimeFlags,
+			J9_EXTENDED_RUNTIME_METHOD_TRACE_ENABLED);
+	debugModeRequested |= J9_ARE_ANY_BITS_SET(vm->requiredDebugAttributes,
+			J9VM_DEBUG_ATTRIBUTE_CAN_ACCESS_LOCALS);
+	if (debugModeRequested) {
+		Trc_VM_hookAboutToBootstrapEvent_debugModeRequested(vmThread);
 		omrthread_monitor_enter(vm->runtimeFlagsMutex);
 		vm->extendedRuntimeFlags |= J9_EXTENDED_RUNTIME_DEBUG_MODE;
 		omrthread_monitor_exit(vm->runtimeFlagsMutex);
 	}
 }
-
-
 
 #if defined(J9VM_INTERP_NATIVE_SUPPORT)
 /*

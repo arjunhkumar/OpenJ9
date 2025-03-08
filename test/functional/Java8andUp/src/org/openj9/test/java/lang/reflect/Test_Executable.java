@@ -10,7 +10,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2014
  *
  * This program and the accompanying materials are made available under
@@ -29,8 +29,8 @@ import java.lang.reflect.Parameter;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 @Test(groups = { "level.sanity" })
 public class Test_Executable {
@@ -85,7 +85,7 @@ public class Test_Executable {
 			Parameter[] parameters = null;
 			int javaVersion = VersionCheck.major();
 
-			/*************** TESTING WITHPARAMS.JAVA ************************************/
+			/* TESTING WITHPARAMS.JAVA */
 			withParamsClass = Class.forName("org.openj9.resources.methodparameters.WithParams", false, loader);
 			methods = withParamsClass.getDeclaredMethods();
 			constructors = withParamsClass.getDeclaredConstructors();
@@ -120,7 +120,7 @@ public class Test_Executable {
 				}
 			}
 
-			/*************** TESTING WITHPARAMS$INNERCLASS.JAVA ************************************/
+			/* TESTING WITHPARAMS$INNERCLASS.JAVA */
 			withParamsClass_InnerClass = Class.forName("org.openj9.resources.methodparameters.WithParams$InnerClass", false, loader);
 			methods = withParamsClass_InnerClass.getDeclaredMethods();
 			constructors = withParamsClass_InnerClass.getDeclaredConstructors();
@@ -148,7 +148,7 @@ public class Test_Executable {
 			checkParameterModifiers(constructors[0], parameters[0], ACC_FINAL + ACC_MANDATED);
 			checkParameterType(constructors[0], parameters[0], withParamsClass);
 
-			/*************** TESTING WITHPARAMS$MOOD.JAVA ************************************/
+			/* TESTING WITHPARAMS$MOOD.JAVA */
 			withParamsClass_EnumClass = Class.forName("org.openj9.resources.methodparameters.WithParams$MOOD", false, loader);
 			methods = withParamsClass_EnumClass.getDeclaredMethods();
 			constructors = withParamsClass_EnumClass.getDeclaredConstructors();
@@ -185,7 +185,6 @@ public class Test_Executable {
 			 * Enum class should have following two synthetic methods
 			 *   - values()
 			 *   - valueOf(synthetic String name)
-			 *
 			 */
 
 			/* Test the first synthetic method: values ()*/
@@ -210,7 +209,7 @@ public class Test_Executable {
 			checkParameterName(methods[1], parameters[0], "name");
 			checkParameterModifiers(methods[1], parameters[0], ACC_MANDATED);
 			checkParameterType(methods[1], parameters[0], String.class);
-			
+
 			if (enumMethods >= 3) {
 				/* For jdk15+, test the third synthetic method: $values() */
 				checkExecutableName(methods[2], "$values");
@@ -222,7 +221,7 @@ public class Test_Executable {
 				}
 			}
 
-			/*************** TESTING WITHOUTPARAMS.JAVA ************************************/
+			/* TESTING WITHOUTPARAMS.JAVA */
 			withoutParamsClass = Class.forName("org.openj9.resources.methodparameters.WithoutParams", false, loader);
 			methods = withoutParamsClass.getDeclaredMethods();
 			constructors = withoutParamsClass.getDeclaredConstructors();
@@ -269,7 +268,7 @@ public class Test_Executable {
 				}
 			}
 
-			/*************** TESTING WITHOUTPARAMS$INNERCLASS.JAVA ************************************/
+			/* TESTING WITHOUTPARAMS$INNERCLASS.JAVA */
 			withoutParamsClass_InnerClass = Class.forName("org.openj9.resources.methodparameters.WithoutParams$InnerClass", false,
 					loader);
 			methods = withoutParamsClass_InnerClass.getDeclaredMethods();
@@ -301,10 +300,11 @@ public class Test_Executable {
 			/*
 			 * If there is no parameter attribute, then getModifiers always returns default.
 			 */
-			checkParameterModifiers(constructors[0], parameters[0], ACC_DEFAULT);
+			int outerThisFlags = (javaVersion >= 21) ? (ACC_FINAL | ACC_MANDATED) : ACC_DEFAULT;
+			checkParameterModifiers(constructors[0], parameters[0], outerThisFlags);
 			checkParameterType(constructors[0], parameters[0], withoutParamsClass);
 
-			/*************** TESTING WITHOUTPARAMS$MOOD.JAVA ************************************/
+			/* TESTING WITHOUTPARAMS$MOOD.JAVA */
 			withoutParamsClass_EnumClass = Class.forName("org.openj9.resources.methodparameters.WithoutParams$MOOD", false, loader);
 			methods = withoutParamsClass_EnumClass.getDeclaredMethods();
 			constructors = withoutParamsClass_EnumClass.getDeclaredConstructors();
@@ -323,14 +323,16 @@ public class Test_Executable {
 				Assert.fail("Wrong number of parameters for enum constructor. Expected 2. Got: " + parameters.length);
 			}
 
+			int enumCtorFlags = (javaVersion >= 21) ? ACC_SYNTHETIC : ACC_DEFAULT;
+
 			checkDeclaringExecutable(parameters[0], constructors[0]);
 			checkParameterName(constructors[0], parameters[0], "arg0");
-			checkParameterModifiers(constructors[0], parameters[0], ACC_DEFAULT);
+			checkParameterModifiers(constructors[0], parameters[0], enumCtorFlags);
 			checkParameterType(constructors[0], parameters[0], String.class);
 
 			checkDeclaringExecutable(parameters[1], constructors[0]);
 			checkParameterName(constructors[0], parameters[1], "arg1");
-			checkParameterModifiers(constructors[0], parameters[1], ACC_DEFAULT);
+			checkParameterModifiers(constructors[0], parameters[1], enumCtorFlags);
 			checkParameterType(constructors[0], parameters[1], int.class);
 
 			/*
@@ -360,7 +362,7 @@ public class Test_Executable {
 
 			checkDeclaringExecutable(parameters[0], methods[1]);
 			checkParameterName(methods[1], parameters[0], "arg0");
-			checkParameterModifiers(methods[1], parameters[0], ACC_DEFAULT);
+			checkParameterModifiers(methods[1], parameters[0], (javaVersion >= 21) ? ACC_MANDATED : ACC_DEFAULT);
 			checkParameterType(methods[1], parameters[0], String.class);
 
 			if (enumMethods >= 3) {
@@ -373,10 +375,9 @@ public class Test_Executable {
 							"Wrong number of parameters for enum method $values(). Expected 0. Got: " + parameters.length);
 				}
 			}
-
+		} catch (RuntimeException e) {
+			throw e;
 		} catch (Exception e) {
-			if (e instanceof RuntimeException)
-				throw (RuntimeException)e;
 			Assert.fail("unexpected exception: " + e);
 		}
 	}
@@ -391,21 +392,21 @@ public class Test_Executable {
 	private void checkExecutableName(Executable executable, String expectedName) {
 		if (!executable.getName().equals(expectedName)) {
 			Assert.fail(
-					"Method/Constructor name is wrong. Expected : " + expectedName + "Got: " + executable.getName());
+					"Method/Constructor name is wrong. Expected : " + expectedName + " Got: " + executable.getName());
 		}
 	}
 
 	private void checkParameterType(Executable executable, Parameter parameter, Class expectedTypeClass) {
 		if (parameter.getType() != expectedTypeClass) {
 			Assert.fail("Executable (method or constructor) " + executable.getName()
-					+ " parameter type is wrong. Expected: " + expectedTypeClass + "Got: " + parameter.getType());
+					+ " parameter type is wrong. Expected: " + expectedTypeClass + " Got: " + parameter.getType());
 		}
 	}
 
 	private void checkParameterModifiers(Executable executable, Parameter parameter, int expectedModifiers) {
 		if (parameter.getModifiers() != expectedModifiers) {
 			Assert.fail("Executable (method or constructor) " + executable.getName()
-					+ " parameter modifier is wrong. Expected: " + expectedModifiers + "Got: "
+					+ " parameter modifier is wrong. Expected: " + expectedModifiers + " Got: "
 					+ parameter.getModifiers());
 		}
 	}
@@ -413,13 +414,13 @@ public class Test_Executable {
 	private void checkParameterName(Executable executable, Parameter parameter, String expectedName) {
 		if (!parameter.getName().equals(expectedName)) {
 			Assert.fail("Executable (method or constructor) " + executable.getName()
-					+ " parameter name is wrong. Expected: " + expectedName + "Got: " + parameter.getName());
+					+ " parameter name is wrong. Expected: " + expectedName + " Got: " + parameter.getName());
 		}
 	}
 
 	private void checkDeclaringExecutable(Parameter parameter, Executable expectedExecutable) {
 		if (parameter.getDeclaringExecutable() != expectedExecutable) {
-			Assert.fail("Parameter's declaring executable is wrong. Expected: " + expectedExecutable.getName() + "Got: "
+			Assert.fail("Parameter's declaring executable is wrong. Expected: " + expectedExecutable.getName() + " Got: "
 					+ parameter.getDeclaringExecutable().getName());
 		}
 	}

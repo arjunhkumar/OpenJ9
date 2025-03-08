@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
  
 /**
@@ -57,26 +57,39 @@ j9gc_initialize_parse_gc_colon(J9JavaVM *javaVM, char **scan_start)
 	PORT_ACCESS_FROM_JAVAVM(javaVM);
 
 #if defined(J9VM_GC_THREAD_LOCAL_HEAP)
-	if(try_scan(scan_start, "tlhInitialSize=")) {
-		if(!scan_udata_helper(javaVM, scan_start, &extensions->tlhInitialSize, "tlhInitialSize=")) {
+	if (try_scan(scan_start, "tlhInitialSize=")) {
+		if (!scan_udata_helper(javaVM, scan_start, &extensions->tlhInitialSize, "tlhInitialSize=")) {
+			goto _error;
+		}
+		if (MINIMUM_TLH_SIZE > extensions->tlhInitialSize) {
+			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_MUST_BE_ABOVE, "tlhInitialSize=", (UDATA)MINIMUM_TLH_SIZE);
 			goto _error;
 		}
 		goto _exit;
 	}
-	if(try_scan(scan_start, "tlhMinimumSize=")) {
-		if(!scan_udata_helper(javaVM, scan_start, &extensions->tlhMinimumSize, "tlhMinimumSize=")) {
+	if (try_scan(scan_start, "tlhMinimumSize=")) {
+		if (!scan_udata_helper(javaVM, scan_start, &extensions->tlhMinimumSize, "tlhMinimumSize=")) {
+			goto _error;
+		}
+		if (MINIMUM_TLH_SIZE > extensions->tlhMinimumSize) {
+			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_MUST_BE_ABOVE, "tlhMinimumSize=", (UDATA)MINIMUM_TLH_SIZE);
 			goto _error;
 		}
 		goto _exit;
 	}
-	if(try_scan(scan_start, "tlhMaximumSize=")) {
-		if(!scan_udata_helper(javaVM, scan_start, &extensions->tlhMaximumSize, "tlhMaximumSize=")) {
+	if (try_scan(scan_start, "tlhMaximumSize=")) {
+		if (!scan_udata_helper(javaVM, scan_start, &extensions->tlhMaximumSize, "tlhMaximumSize=")) {
 			goto _error;
 		}
+		if (MINIMUM_TLH_SIZE > extensions->tlhMaximumSize) {
+			j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_MUST_BE_ABOVE, "tlhMaximumSize=", (UDATA)MINIMUM_TLH_SIZE);
+			goto _error;
+		}
+		extensions->tlhMaximumSizeSpecified = true;
 		goto _exit;
 	}
-	if(try_scan(scan_start, "tlhIncrementSize=")) {
-		if(!scan_udata_helper(javaVM, scan_start, &extensions->tlhIncrementSize, "tlhIncrementSize=")) {
+	if (try_scan(scan_start, "tlhIncrementSize=")) {
+		if (!scan_udata_helper(javaVM, scan_start, &extensions->tlhIncrementSize, "tlhIncrementSize=")) {
 			goto _error;
 		}
 		goto _exit;
@@ -153,6 +166,7 @@ j9gc_initialize_parse_gc_colon(J9JavaVM *javaVM, char **scan_start)
 			goto _error;
 		}
 
+		extensions->gcThreadCountSpecified = true;
 		extensions->gcThreadCountForced = true;
 		goto _exit;
 	}		
@@ -233,6 +247,7 @@ j9gc_initialize_parse_gc_colon(J9JavaVM *javaVM, char **scan_start)
 			goto _error;
 		}
 
+		extensions->gcThreadCountSpecified = true;
 		extensions->gcThreadCountForced = true;
 		goto _exit;
 	}
@@ -287,16 +302,6 @@ j9gc_initialize_parse_gc_colon(J9JavaVM *javaVM, char **scan_start)
 		if(!scan_udata_helper(javaVM, scan_start, &extensions->concurrentScavengerSlack, "concurrentScavengeSlack=")) {
 			goto _error;
 		}
-		goto _exit;
-	}
-
-	if(try_scan(scan_start, "concurrentScavengeAllocDeviationBoost=")) {
-		UDATA value;
-		if(!scan_udata_helper(javaVM, scan_start, &value, "concurrentScavengeAllocDeviationBoost=")) {
-			goto _error;
-		}
-
-		extensions->concurrentScavengerAllocDeviationBoost = value / (float)10.0;
 		goto _exit;
 	}
 
@@ -1445,6 +1450,32 @@ gcParseXgcArguments(J9JavaVM *vm, char *optArg)
 			continue;
 		}
 
+		/* Check if there is a request to set the suballocator reservation increment size. */
+		if (try_scan(&scan_start, "suballocatorIncrementSize=")) {
+			if (!scan_udata_memory_size_helper(vm, &scan_start, &extensions->suballocatorIncrementSize, "suballocatorIncrementSize=")) {
+				returnValue = JNI_EINVAL;
+				break;
+			}
+			if (0 == extensions->suballocatorIncrementSize) {
+				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTIONS_VALUE_MUST_BE_ABOVE, "-Xgc:suballocatorIncrementSize=", (UDATA)0);
+				returnValue = JNI_EINVAL;
+				break;
+			}
+			continue;
+		}
+
+		/* Check if there is a request to enable the mmap-based allocation for the suballocator (Linux only). */
+		if (try_scan(&scan_start, "suballocatorQuickAllocEnable")) {
+			extensions->suballocatorQuickAlloc = true;
+			continue;
+		}
+
+		/* Check if there is a request to disable the mmap-based allocation for the suballocator (Linux only). */
+		if (try_scan(&scan_start, "suballocatorQuickAllocDisable")) {
+			extensions->suballocatorQuickAlloc = false;
+			continue;
+		}
+
 		/* for testing and service reasons, split heaps is currently restricted to Win32 only */
 #if defined(J9VM_GC_GENERATIONAL) && (defined(WIN32) && !defined(WIN64))
 		/* see if we are supposed to enable split heaps */
@@ -1465,16 +1496,23 @@ gcParseXgcArguments(J9JavaVM *vm, char *optArg)
 			continue;
 		}
 
-#if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
+		/*
+		 * This feature is not supported for all platforms.
+		 * Ignore options silently if feature is not supported
+		 * to allow to use the same Java command line across platforms.
+		 */
 		if (try_scan(&scan_start, "enableArrayletDoubleMapping")) {
+#if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
 			extensions->isArrayletDoubleMapRequested = true;
+#endif /* defined(J9VM_GC_ENABLE_DOUBLE_MAP) */
 			continue;
 		}
 		if (try_scan(&scan_start, "disableArrayletDoubleMapping")) {
+#if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
 			extensions->isArrayletDoubleMapRequested = false;
+#endif /* defined(J9VM_GC_ENABLE_DOUBLE_MAP) */
 			continue;
 		}
-#endif /* J9VM_GC_ENABLE_DOUBLE_MAP */
 
 #if defined (J9VM_GC_VLHGC)
 		if (try_scan(&scan_start, "fvtest_tarokForceNUMANode=")) {

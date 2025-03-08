@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef METHODTOBECOMPILED_HPP
@@ -123,7 +123,8 @@ struct TR_MethodToBeCompiled
                                            // need to have vmaccess for accessing this flag
    bool                   _doAotLoad;// used for AOT shared cache
    bool                   _useAotCompilation;// used for AOT shared cache
-   bool                   _doNotUseAotCodeFromSharedCache;
+   bool                   _doNotAOTCompile; // Set when we want to forbid all future compilation attempts
+                                            // from being AOT compilations (loads or stores).
    bool                   _tryCompilingAgain;
 
    bool                   _async;           // flag for async compilation; used to print in vlog
@@ -153,13 +154,21 @@ struct TR_MethodToBeCompiled
    uint8_t                _weight; // Up to 256 levels of weight
    uint8_t                _jitStateWhenQueued;
 
+   bool                   _checkpointInProgress;
+
 #if defined(J9VM_OPT_JITSERVER)
    // Comp request should be sent remotely to JITServer
    bool _remoteCompReq;
    // Flag used to determine whether a cold local compilation should be upgraded by LPQ
    bool _shouldUpgradeOutOfProcessCompilation;
-   // Set at the client after a failed AOT deserialization or load to bypass AOT cache on the next compilation attempt
+   // Set at the client after a failed AOT deserialization or load.
+   // If set, the client will not request an AOT cache store or load on the next compilation attempt.
+   // In particular, _useAOTCacheCompilation will be false if this is true.
    bool _doNotLoadFromJITServerAOTCache;
+   // Set at the client in preCompilationTasks; will cause the client to request that the
+   // method be stored in the JITServer's AOT cache. Only used when getJITServerAOTCacheIgnoreLocalSCC()
+   // is true.
+   bool _useAOTCacheCompilation;
    // Cache original optLevel when transforming a remote sync compilation to a local cheap one
    TR_Hotness _origOptLevel;
    // A non-NULL field denotes an out-of-process compilation request

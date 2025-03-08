@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(OBJECTACCESSBARRIERAPI_HPP_)
@@ -450,13 +450,14 @@ public:
 					offset += sizeof(uintptr_t);
 				}
 			}
-
-			if (initializeLockWord) {
-				/* zero lockword, if present */
-				j9objectmonitor_t *lockwordAddress = getLockwordAddress(vmThread, destObject);
-				if (NULL != lockwordAddress) {
-					j9objectmonitor_t lwValue = VM_ObjectMonitor::getInitialLockword(vmThread->javaVM, objectClass);
-					J9_STORE_LOCKWORD(vmThread, lockwordAddress, lwValue);
+			if (!J9_IS_J9CLASS_VALUETYPE(objectClass)) {
+				if (initializeLockWord) {
+					/* zero lockword, if present */
+					j9objectmonitor_t *lockwordAddress = getLockwordAddress(vmThread, destObject);
+					if (NULL != lockwordAddress) {
+						j9objectmonitor_t lwValue = VM_ObjectMonitor::getInitialLockword(vmThread->javaVM, objectClass);
+						J9_STORE_LOCKWORD(vmThread, lockwordAddress, lwValue);
+					}
 				}
 			}
 			if (hasReferences) {

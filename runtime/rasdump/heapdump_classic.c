@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "dmpsup.h"
@@ -179,11 +179,11 @@ hdClassicMultiSpaceIteratorCallback(J9JavaVM *vm, J9MM_IterateSpaceDescriptor *s
 	char *cursor = ctx->label;
 	char *end = cursor + strlen(ctx->label);
 	PORT_ACCESS_FROM_JAVAVM(ctx->vm);
-	
+
 	memset(&(ctx->filename), 0, sizeof(ctx->filename));
 
-	j9str_printf(PORTLIB, insert, sizeof(insert), "%s%.*zX", spaceDescriptor->name, sizeof(UDATA) * 2, spaceDescriptor->id);
-	
+	j9str_printf(insert, sizeof(insert), "%s%.*zX", spaceDescriptor->name, sizeof(UDATA) * 2, spaceDescriptor->id);
+
 	/* Generate the filename to be written to by substituting "%id" for insert */
 	while (cursor < end) {
 		if (cursor == strstr(cursor, "%id")) {

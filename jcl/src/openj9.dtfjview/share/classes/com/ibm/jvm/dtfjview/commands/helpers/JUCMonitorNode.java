@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands.helpers;
 
 import java.util.Iterator;
@@ -37,12 +37,12 @@ public class JUCMonitorNode extends MonitorNode {
 
 	private JavaObject lock;
 	private JavaRuntime jr;
-	
+
 	public JUCMonitorNode(JavaObject jucLock, JavaRuntime rt) {
 		this.lock = jucLock;
 		this.jr = rt;
 	}
-	
+
 	public Iterator getEnterWaiters() {
 		List waiters = new LinkedList();
 		Iterator itThread = jr.getThreads();
@@ -75,7 +75,7 @@ public class JUCMonitorNode extends MonitorNode {
 	public JavaObject getObject() {
 		return lock;
 	}
-	
+
 	public String getType() {
 		try {
 			return lock.getJavaClass().getName();

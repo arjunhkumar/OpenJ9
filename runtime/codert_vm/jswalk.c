@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -277,11 +277,7 @@ resumeNonInline:
 		 * the transition point, and can be assumed to be valid.
 		 */
 		if (J9_ARE_NO_BITS_SET(walkState->flags, J9_STACKWALK_NO_ERROR_REPORT)) {
-			/* Avoid recursive error situations */
-			if (0 == (walkState->walkThread->privateFlags & J9_PRIVATE_FLAGS_STACK_CORRUPT)) {
-				walkState->walkThread->privateFlags |= J9_PRIVATE_FLAGS_STACK_CORRUPT;
-				walkState->walkThread->javaVM->internalVMFunctions->invalidJITReturnAddress(walkState);
-			}
+			walkState->walkThread->javaVM->internalVMFunctions->invalidJITReturnAddress(walkState);
 		}
 i2jTransition: ;
 	}
@@ -640,7 +636,7 @@ static void walkJITFrameSlots(J9StackWalkState * walkState, U_8 * jitDescription
 		{
 #ifdef J9VM_INTERP_STACKWALK_TRACING
 			PORT_ACCESS_FROM_WALKSTATE(walkState);
-			j9str_printf(PORTLIB, indexedTag, 64, "O-Slot: %s%d", slotDescription, slotsRemaining - 1);
+			j9str_printf(indexedTag, 64, "O-Slot: %s%d", slotDescription, slotsRemaining - 1);
 			WALK_NAMED_O_SLOT((j9object_t*) scanCursor, indexedTag);
 #else
 			WALK_O_SLOT((j9object_t*) scanCursor);
@@ -654,7 +650,7 @@ static void walkJITFrameSlots(J9StackWalkState * walkState, U_8 * jitDescription
 		{
 #ifdef J9VM_INTERP_STACKWALK_TRACING
 			PORT_ACCESS_FROM_WALKSTATE(walkState);
-			j9str_printf(PORTLIB, indexedTag, 64, "I-Slot: %s%d", slotDescription, slotsRemaining - 1);
+			j9str_printf(indexedTag, 64, "I-Slot: %s%d", slotDescription, slotsRemaining - 1);
 			WALK_NAMED_I_SLOT(scanCursor, indexedTag);
 #else
 			WALK_I_SLOT(scanCursor);
@@ -1053,11 +1049,7 @@ static void jitWalkResolveMethodFrame(J9StackWalkState *walkState)
 			 * which will likely lead to further errors or crashes.
 			 */
 			if (J9_ARE_NO_BITS_SET(walkState->flags, J9_STACKWALK_NO_ERROR_REPORT)) {
-				/* Avoid recursive error situations */
-				if (0 == (walkState->walkThread->privateFlags & J9_PRIVATE_FLAGS_STACK_CORRUPT)) {
-					walkState->walkThread->privateFlags |= J9_PRIVATE_FLAGS_STACK_CORRUPT;
-					walkState->walkThread->javaVM->internalVMFunctions->invalidJITReturnAddress(walkState);
-				}
+				walkState->walkThread->javaVM->internalVMFunctions->invalidJITReturnAddress(walkState);
 			}
 			return;
 		}
@@ -1226,9 +1218,6 @@ static void jitWalkResolveMethodFrame(J9StackWalkState *walkState)
 
 			switch (sigChar) {
 				case 'L':
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-				case 'Q':
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 #ifdef J9SW_ARGUMENT_REGISTER_COUNT
 					if (stackSpillCount) {
 
@@ -1336,9 +1325,6 @@ static UDATA jitNextSigChar(U_8 ** utfData)
 			/* Fall through to consume type name, utfChar == 'L' for return value */
 
 		case 'L':
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		case 'Q':
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 			while (jitNextUTFChar(utfData) != ';') ;
 	}
 

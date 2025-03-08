@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stddef.h>
@@ -32,7 +32,7 @@
 #include "thrtypes.h"
 
 
-#if defined(LINUX) || defined(AIXPPC)
+#if defined(LINUX) || defined(AIXPPC) || defined(OSX)
 #include <signal.h>
 #endif
 
@@ -40,7 +40,7 @@ void
 J9::DebugEnv::breakPoint()
    {
 
-#if defined(LINUX) || defined(AIXPPC)
+#if defined(LINUX) || defined(AIXPPC) || defined(OSX)
    raise(SIGTRAP);
 #elif defined(_MSC_VER)
    DebugBreak();

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.j9.dump.indexsupport;
 
 import org.xml.sax.Attributes;
@@ -29,10 +29,10 @@ import com.ibm.dtfj.java.j9.JavaRuntime;
 
 /**
  * @author nhardman
- * 
+ *
  */
 public class NodeRoot extends NodeAbstract {
-	
+
 	long address;
 	int reachability = JavaReference.REACHABILITY_UNKNOWN;
 	int roottype = JavaReference.HEAP_ROOT_OTHER;
@@ -45,7 +45,7 @@ public class NodeRoot extends NodeAbstract {
 
 		address = _longFromString(attributes.getValue("id"));
 		description = typeAttr;
-		
+
 		 // do the mapping of the reachability description to a reachability value.
 		if(reachabilityAttr.equals("strong")) {
 			reachability = JavaReference.REACHABILITY_STRONG;
@@ -56,7 +56,7 @@ public class NodeRoot extends NodeAbstract {
 		} else if(reachabilityAttr.equals("phantom")) {
 			reachability = JavaReference.REACHABILITY_PHANTOM;
 		}
-		
+
 		 // do the mapping of type names to root type.
 		if (typeAttr.equals("None")) {
 			roottype = JavaReference.HEAP_ROOT_OTHER;

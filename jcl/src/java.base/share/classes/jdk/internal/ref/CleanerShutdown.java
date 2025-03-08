@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar19-SE]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 9]*/
+/*
  * Copyright IBM Corp. and others 2016
  *
  * This program and the accompanying materials are made available under
@@ -18,22 +18,22 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package jdk.internal.ref;
-
-import jdk.internal.ref.CleanerFactory;
 
 import java.lang.ref.Cleaner;
 import java.lang.ref.Cleaner.Cleanable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 @SuppressWarnings("javadoc")
 public class CleanerShutdown {
-	
+
 	public static void shutdownCleaner() {
 		Cleaner commonCleaner = CleanerFactory.cleaner();
 		CleanerImpl commonCleanerImpl = CleanerImpl.getCleanerImpl(commonCleaner);
@@ -46,18 +46,26 @@ public class CleanerShutdown {
 				/* do nothing */
 			}
 		}
-		
+
 		try {
-			Method phantomRemove = PhantomCleanable.class.getDeclaredMethod("remove", (Class<?>[]) null); //$NON-NLS-1$
+			/*[IF JAVA_SPEC_VERSION >= 24]*/
+			Method cleanableListReset = CleanerImpl.CleanableList.class.getDeclaredMethod("reset"); //$NON-NLS-1$
+			cleanableListReset.setAccessible(true);
+			cleanableListReset.invoke(commonCleanerImpl.activeList);
+			/*[ELSE] JAVA_SPEC_VERSION >= 24 */
+			Method phantomRemove = PhantomCleanable.class.getDeclaredMethod("remove"); //$NON-NLS-1$
 			AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
 				phantomRemove.setAccessible(true);
 				return null;
 			});
-			while(!commonCleanerImpl.phantomCleanableList.isListEmpty()) {
-				phantomRemove.invoke(commonCleanerImpl.phantomCleanableList, (Object[]) null);
+			while (!commonCleanerImpl.phantomCleanableList.isListEmpty()) {
+				phantomRemove.invoke(commonCleanerImpl.phantomCleanableList);
 			}
+			/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 		} catch (NoSuchMethodException
+				/*[IF JAVA_SPEC_VERSION < 24]*/
 				| SecurityException
+				/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 				| IllegalAccessException
 				| IllegalArgumentException
 				| InvocationTargetException e)

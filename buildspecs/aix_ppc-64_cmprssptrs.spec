@@ -18,7 +18,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <spec xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.ibm.com/j9/builder/spec" xsi:schemaLocation="http://www.ibm.com/j9/builder/spec spec-v1.xsd" id="aix_ppc-64_cmprssptrs">
 	<name>AIX64 Compressed Pointers</name>
@@ -128,8 +128,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="build_java9" value="false"/>
 		<flag id="build_product" value="true"/>
 		<flag id="build_stage_toronto_lab" value="true"/>
-		<flag id="build_openj9" value="true"/>
-		<flag id="build_openj9JDK8" value="true"/>
 		<flag id="env_dlpar" value="true"/>
 		<flag id="env_hasFPU" value="true"/>
 		<flag id="env_sharedLibsUseGlobalTable" value="true"/>
@@ -137,6 +135,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="gc_debugAsserts" value="true"/>
 		<flag id="gc_inlinedAllocFields" value="true"/>
 		<flag id="gc_minimumObjectSize" value="true"/>
+		<flag id="gc_sparseHeapAllocation" value="true"/>
 		<flag id="gc_subpoolsAlias" value="true"/>
 		<flag id="graph_cmdLineTester" value="true"/>
 		<flag id="graph_compile" value="true"/>
@@ -229,7 +228,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="opt_jxeLoadSupport" value="true"/>
 		<flag id="opt_memoryCheckSupport" value="true"/>
 		<flag id="opt_multiVm" value="true"/>
-		<flag id="opt_panama" value="false"/>
 		<flag id="opt_reflect" value="true"/>
 		<flag id="opt_sharedClasses" value="true"/>
 		<flag id="opt_sidecar" value="true"/>
@@ -238,6 +236,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="opt_useFfi" value="true"/>
 		<flag id="opt_useFfiOnly" value="true"/>
 		<flag id="opt_valhallaValueTypes" value="false"/>
+		<flag id="opt_valhallaFlattenableValueTypes" value="false"/>
 		<flag id="opt_zipSupport" value="true"/>
 		<flag id="opt_zlibCompression" value="true"/>
 		<flag id="opt_zlibSupport" value="true"/>

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include "j9protos.h"
 #include "ModronAssertions.h"
@@ -394,3 +394,22 @@ MM_EnvironmentDelegate::getAllocatedSizeInsideTLH()
 
 #endif /* J9VM_GC_THREAD_LOCAL_HEAP */
 
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+bool
+MM_EnvironmentDelegate::reinitializeForRestore(MM_EnvironmentBase *env)
+{
+	bool rc = true;
+
+	Assert_MM_true(_extensions->isStandardGC());
+
+	if (!_gcEnv._referenceObjectBuffer->reinitializeForRestore(env)
+		|| !_gcEnv._unfinalizedObjectBuffer->reinitializeForRestore(env)
+		|| !_gcEnv._ownableSynchronizerObjectBuffer->reinitializeForRestore(env)
+		|| !_gcEnv._continuationObjectBuffer->reinitializeForRestore(env)
+	) {
+		rc = false;
+	}
+
+	return rc;
+}
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */

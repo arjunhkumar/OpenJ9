@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9protos.h"
@@ -207,6 +207,8 @@ jitMethodTranslated(J9VMThread *currentThread, J9Method *method, void *jitStartA
 			}
 			UDATA initialClassDepth = VM_VMHelpers::getClassDepth(currentClass);
 			void *j2jAddress = VM_VMHelpers::jitToJitStartAddress(jitStartAddress);
+
+			omrthread_monitor_enter(vm->classTableMutex);
 			do {
 				J9VTableHeader* vTableHeader = J9VTABLE_HEADER_FROM_RAM_CLASS(currentClass);
 
@@ -228,6 +230,7 @@ jitMethodTranslated(J9VMThread *currentThread, J9Method *method, void *jitStartA
 				}
 				currentClass = currentClass->subclassTraversalLink;
 			} while (VM_VMHelpers::getClassDepth(currentClass) > initialClassDepth);
+			omrthread_monitor_exit(vm->classTableMutex);
 		}
 	}
 }

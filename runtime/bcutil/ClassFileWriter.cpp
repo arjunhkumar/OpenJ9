@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 /*
  * ClassFileWriter.cpp
@@ -64,6 +64,13 @@ DECLARE_UTF8_ATTRIBUTE_NAME(ANNOTATION_DEFAULT, "AnnotationDefault");
 DECLARE_UTF8_ATTRIBUTE_NAME(BOOTSTRAP_METHODS, "BootstrapMethods");
 DECLARE_UTF8_ATTRIBUTE_NAME(RECORD, "Record");
 DECLARE_UTF8_ATTRIBUTE_NAME(PERMITTED_SUBCLASSES, "PermittedSubclasses");
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+DECLARE_UTF8_ATTRIBUTE_NAME(LOADABLEDESCRIPTORS, "LoadableDescriptors");
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+DECLARE_UTF8_ATTRIBUTE_NAME(IMPLICITCREATION, "ImplicitCreation");
+DECLARE_UTF8_ATTRIBUTE_NAME(NULLRESTRICTED, "NullRestricted");
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 #if JAVA_SPEC_VERSION >= 11
 DECLARE_UTF8_ATTRIBUTE_NAME(NEST_MEMBERS, "NestMembers");
 DECLARE_UTF8_ATTRIBUTE_NAME(NEST_HOST, "NestHost");
@@ -110,6 +117,25 @@ ClassFileWriter::analyzeROMClass()
 		}
 	}
 
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+	if (J9_ARE_ALL_BITS_SET(_romClass->optionalFlags, J9_ROMCLASS_OPTINFO_LOADABLEDESCRIPTORS_ATTRIBUTE)) {
+		addEntry((void *) &LOADABLEDESCRIPTORS, 0, CFR_CONSTANT_Utf8);
+
+		U_32 *loadableDescriptorsInfoPtr = getLoadableDescriptorsInfoPtr(_romClass);
+		U_32 numberOfLoadableDescriptors = *loadableDescriptorsInfoPtr;
+		for (U_32 i = 0; i < numberOfLoadableDescriptors; i++) {
+			J9UTF8 *loadableDescriptorUtf8 = loadableDescriptorAtIndex(loadableDescriptorsInfoPtr, i);
+			addEntry(loadableDescriptorUtf8, 0, CFR_CONSTANT_Utf8);
+		}
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	if (J9_ARE_ALL_BITS_SET(_romClass->optionalFlags, J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE)) {
+		U_32 implicitCreationFlags = (U_32)getImplicitCreationFlags(_romClass);
+		addEntry((void*) &IMPLICITCREATION, 0, CFR_CONSTANT_Utf8);
+		addEntry(&implicitCreationFlags, 0, CFR_CONSTANT_Integer);
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	J9EnclosingObject * enclosingObject = getEnclosingMethodForROMClass(_javaVM, NULL, _romClass);
 	J9UTF8 * genericSignature = getGenericSignatureForROMClass(_javaVM, NULL, _romClass);
 	J9UTF8 * sourceFileName = getSourceFileNameForROMClass(_javaVM, NULL, _romClass);
@@ -409,6 +435,12 @@ ClassFileWriter::analyzeFields()
 				addEntry(value, 0, cpType);
 			}
 		}
+
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		if (J9_ARE_ALL_BITS_SET(fieldShape->modifiers, J9FieldFlagIsNullRestricted)) {
+			addEntry((void *) &NULLRESTRICTED, 0, CFR_CONSTANT_Utf8);
+		}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 		fieldShape = romFieldsNextDo(&fieldWalkState);
 	}
@@ -780,6 +812,11 @@ ClassFileWriter::writeField(J9ROMFieldShape * fieldShape)
 	if (NULL != typeAnnotationsData) {
 		attributesCount += 1;
 	}
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	if (J9_ARE_ALL_BITS_SET(fieldShape->modifiers, J9FieldFlagIsNullRestricted)) {
+		attributesCount += 1;
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 	writeU16(U_16(fieldShape->modifiers & CFR_FIELD_ACCESS_MASK));
 	writeU16(indexForUTF8(name));
@@ -819,6 +856,11 @@ ClassFileWriter::writeField(J9ROMFieldShape * fieldShape)
 	if (NULL != typeAnnotationsData) {
 		writeTypeAnnotationsAttribute(typeAnnotationsData);
 	}
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	if (J9_ARE_ALL_BITS_SET(fieldShape->modifiers, J9FieldFlagIsNullRestricted)) {
+		writeAttributeHeader((J9UTF8 *) &NULLRESTRICTED, 0);
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 }
 
 void
@@ -1001,6 +1043,16 @@ ClassFileWriter::writeAttributes()
 		attributesCount += 1;
 	}
 #endif /* JAVA_SPEC_VERSION >= 11 */
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+	if (J9_ARE_ALL_BITS_SET(_romClass->optionalFlags, J9_ROMCLASS_OPTINFO_LOADABLEDESCRIPTORS_ATTRIBUTE)) {
+		attributesCount += 1;
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	if (J9_ARE_ALL_BITS_SET(_romClass->optionalFlags, J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE)) {
+		attributesCount += 1;
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	writeU16(attributesCount);
 
 	if ((0 != _romClass->innerClassCount)
@@ -1168,6 +1220,30 @@ ClassFileWriter::writeAttributes()
 			}
 		}
 	}
+
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+	/* write LoadableDescriptors attribute */
+	if (J9_ARE_ALL_BITS_SET(_romClass->optionalFlags, J9_ROMCLASS_OPTINFO_LOADABLEDESCRIPTORS_ATTRIBUTE)) {
+		U_32 *loadableDescriptorsInfoPtr = getLoadableDescriptorsInfoPtr(_romClass);
+		/* The first 32 bits of loadableDescriptorsInfoPtr contain the number of descriptors */
+		U_32 numberLoadableDescriptors = *loadableDescriptorsInfoPtr;
+		writeAttributeHeader((J9UTF8 *) &LOADABLEDESCRIPTORS, sizeof(U_16) + (numberLoadableDescriptors * sizeof(U_16)));
+		writeU16(numberLoadableDescriptors);
+
+		for (U_32 i = 0; i < numberLoadableDescriptors; i++) {
+			J9UTF8 *loadableDescriptorUtf8 = loadableDescriptorAtIndex(loadableDescriptorsInfoPtr, i);
+			writeU16(indexForUTF8(loadableDescriptorUtf8));
+		}
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	/* write ImplicitCreation attribute */
+	if (J9_ARE_ALL_BITS_SET(_romClass->optionalFlags, J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE)) {
+		writeAttributeHeader((J9UTF8 *) &IMPLICITCREATION, sizeof(U_16));
+		writeU16(getImplicitCreationFlags(_romClass));
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 }
 
 void ClassFileWriter::writeRecordAttribute()
@@ -1250,14 +1326,11 @@ ClassFileWriter::computeArgsCount(U_16 methodRefIndex)
 			while ((index < count) && ('[' == sig[index])) {
 				index += 1;
 			}
-			if (!IS_REF_OR_VAL_SIGNATURE(sig[index])) {
+			if (!IS_CLASS_SIGNATURE(sig[index])) {
 				break;
 			}
 			/* fall through */
 		case 'L':
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		case 'Q':
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 			index += 1;
 			while ((index < count) && (';' != sig[index])) {
 				index += 1;

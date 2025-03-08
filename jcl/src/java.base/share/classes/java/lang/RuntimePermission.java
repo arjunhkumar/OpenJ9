@@ -1,7 +1,7 @@
-/*[INCLUDE-IF Sidecar16]*/
+/*[INCLUDE-IF JAVA_SPEC_VERSION < 24]*/
 package java.lang;
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -20,9 +20,9 @@ package java.lang;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
- 
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
+
 /**
  * RuntimePermission objects represent access to runtime
  * support.
@@ -32,7 +32,7 @@ package java.lang;
  */
 public final class RuntimePermission extends java.security.BasicPermission {
 	private static final long serialVersionUID = 7399184964622342223L;
-	
+
 /**
  * Creates an instance of this class with the given name.
  *

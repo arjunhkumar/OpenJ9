@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include "hashtable_api.h"
 #include "util_api.h"
@@ -67,7 +67,7 @@ getClassLocation(J9VMThread * currentThread, J9Class * clazz, UDATA *length)
 
 	if (NULL != classLoader->classLocationHashTable) {
 		J9ClassLocation *classLocation = vmFuncs->findClassLocationForClass(currentThread, clazz);
-	
+
 		if (NULL != classLocation) {
 			switch(classLocation->locationType) {
 			case LOAD_LOCATION_PATCH_PATH_NON_GENERATED:
@@ -86,7 +86,7 @@ getClassLocation(J9VMThread * currentThread, J9Class * clazz, UDATA *length)
 
 			case LOAD_LOCATION_CLASSPATH_NON_GENERATED:
 			case LOAD_LOCATION_CLASSPATH:
-				rc = getClassPathEntry(currentThread, classLoader, classLocation->entryIndex, &entry); 
+				rc = getClassPathEntry(currentThread, classLoader, classLocation->entryIndex, &entry);
 				if (0 == rc) {
 					*length = entry.pathLength;
 					path = entry.path;
@@ -128,6 +128,9 @@ getModuleJRTURL(J9VMThread *currentThread, J9ClassLoader *classLoader, J9Module 
 	J9UTF8 *jrtURL = NULL;
 	J9ModuleExtraInfo info = {0};
 	PORT_ACCESS_FROM_JAVAVM(javaVM);
+#if defined(J9VM_OPT_SNAPSHOTS)
+	VMSNAPSHOTIMPLPORT_ACCESS_FROM_JAVAVM(javaVM);
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
 
 	if (NULL == classLoader->moduleExtraInfoHashTable) {
 		classLoader->moduleExtraInfoHashTable = vmFuncs->hashModuleExtraInfoTableNew(javaVM, 1);
@@ -148,32 +151,61 @@ getModuleJRTURL(J9VMThread *currentThread, J9ClassLoader *classLoader, J9Module 
 
 	if (NULL == jrtURL) {
 		if (J9_ARE_ALL_BITS_SET(javaVM->runtimeFlags, J9_RUNTIME_JAVA_BASE_MODULE_CREATED)) {
-			/* set jrt URL for the module */
-			jrtURL = vmFuncs->copyStringToJ9UTF8WithMemAlloc(currentThread, module->moduleName, J9_STR_NONE, "jrt:/", 5, NULL, 0);
-
+			if (NULL == module->moduleName) {
+				goto _exit;
+			} else {
+				/* Set jrt URL for the module. */
+				const char *prependStr = "jrt:/";
+				const size_t prependStrLen = strlen(prependStr);
+#if defined(J9VM_OPT_SNAPSHOTS)
+				if (IS_SNAPSHOTTING_ENABLED(javaVM)) {
+					jrtURL = vmFuncs->copyJ9UTF8WithPortLib(
+							currentThread, module->moduleName, J9_STR_NONE, prependStr, prependStrLen, VMSNAPSHOTIMPL_OMRPORT_FROM_JAVAVM(javaVM));
+				} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+				{
+					jrtURL = vmFuncs->copyJ9UTF8WithMemAlloc(
+							currentThread, module->moduleName, J9_STR_NONE, prependStr, prependStrLen, NULL, 0);
+				}
+			}
 			if (NULL == jrtURL) {
 				goto _exit;
 			}
 		} else {
-			/* its java.base module */
+			/* It is the java.base module. */
 			J9_DECLARE_CONSTANT_UTF8(jrtJavaBaseUrl, "jrt:/java.base");
 			const U_16 length = J9UTF8_LENGTH(&jrtJavaBaseUrl);
-			jrtURL = j9mem_allocate_memory(sizeof(J9UTF8) + length, OMRMEM_CATEGORY_VM);
+			const UDATA jrtURLSize = length + sizeof(J9UTF8);
+#if defined(J9VM_OPT_SNAPSHOTS)
+			if (IS_SNAPSHOTTING_ENABLED(javaVM)) {
+				jrtURL = (J9UTF8 *)vmsnapshot_allocate_memory(jrtURLSize, OMRMEM_CATEGORY_VM);
+			} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+			{
+				jrtURL = (J9UTF8 *)j9mem_allocate_memory(jrtURLSize, OMRMEM_CATEGORY_VM);
+			}
 			if (NULL == jrtURL) {
 				goto _exit;
 			}
-			memcpy(J9UTF8_DATA(jrtURL), J9UTF8_DATA(&jrtJavaBaseUrl), length); 
+			memcpy(J9UTF8_DATA(jrtURL), J9UTF8_DATA(&jrtJavaBaseUrl), length);
 			J9UTF8_SET_LENGTH(jrtURL, length);
 		}
 		moduleInfo->jrtURL = jrtURL;
 	}
 
 	if (TRUE == newModuleInfo) {
-		/* Add moduleInfo to the hashtable */
+		/* Add moduleInfo to the hashtable. */
 		void *node = hashTableAdd(classLoader->moduleExtraInfoHashTable, (void *)moduleInfo);
 		if (NULL == node) {
 			/* If we fail to add new moduleInfo to the hashtable, then free up jrtURL */
-			j9mem_free_memory(moduleInfo->jrtURL);
+#if defined(J9VM_OPT_SNAPSHOTS)
+			if (IS_SNAPSHOTTING_ENABLED(javaVM)) {
+				vmsnapshot_free_memory(moduleInfo->jrtURL);
+			} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+			{
+				j9mem_free_memory(moduleInfo->jrtURL);
+			}
 			goto _exit;
 		}
 	}
@@ -196,14 +228,21 @@ addJarToSystemClassLoaderClassPathEntries(J9JavaVM *vm, const char *filename)
 {
 	J9ClassLoader *classLoader = vm->systemClassLoader;
 	UDATA newCount = 0;
-	J9ClassPathEntry *newEntry = NULL;
 	UDATA jarPathSize = strlen(filename);
 	UDATA classPathLength = jarPathSize + 1; /* add space for a terminating null character */
 	UDATA newMemSize = sizeof(J9ClassPathEntry) + classPathLength;
 	J9ClassPathEntry *cpEntry = NULL;
 
 	PORT_ACCESS_FROM_JAVAVM(vm);
-	cpEntry = (J9ClassPathEntry*) j9mem_allocate_memory(newMemSize, OMRMEM_CATEGORY_VM);
+#if defined(J9VM_OPT_SNAPSHOTS)
+	VMSNAPSHOTIMPLPORT_ACCESS_FROM_JAVAVM(vm);
+	if (IS_SNAPSHOTTING_ENABLED(vm)) {
+		cpEntry = (J9ClassPathEntry *)vmsnapshot_allocate_memory(newMemSize, OMRMEM_CATEGORY_VM);
+	} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+	{
+		cpEntry = (J9ClassPathEntry *)j9mem_allocate_memory(newMemSize, OMRMEM_CATEGORY_VM);
+	}
 	if (NULL != cpEntry) {
 		J9ClassPathEntry **cpePtrArray = NULL;
 		UDATA entryCount = 0;
@@ -218,17 +257,15 @@ addJarToSystemClassLoaderClassPathEntries(J9JavaVM *vm, const char *filename)
 		cpEntry->type = CPE_TYPE_UNKNOWN;
 		cpEntry->flags = CPE_FLAG_BOOTSTRAP;
 
-#if defined(J9VM_OPT_SHARED_CLASSES)
-		if (J9_ARE_ALL_BITS_SET(classLoader->flags, J9CLASSLOADER_SHARED_CLASSES_ENABLED)) {
-			/* 
+		if (J9_ARE_ALL_BITS_SET(classLoader->flags, J9CLASSLOADER_SHARED_CLASSES_ENABLED) || IS_RESTORE_RUN(vm)) {
+			/*
 			 * Warm up the classpath entry so that the Classpath stored in the cache has the correct info.
-			 * This is required because when we are finding classes in the cache, initializeClassPathEntry is not called 
+			 * This is required because when we are finding classes in the cache, initializeClassPathEntry is not called
 			 * */
 			if (vm->internalVMFunctions->initializeClassPathEntry(vm, cpEntry) != CPE_TYPE_JAR) {
 				goto done;
 			}
 		}
-#endif
 		omrthread_rwmutex_enter_write(classLoader->cpEntriesMutex);
 		entryCount = classLoader->classPathEntryCount;
 		cpePtrArray = classLoader->classPathEntries;
@@ -238,7 +275,14 @@ addJarToSystemClassLoaderClassPathEntries(J9JavaVM *vm, const char *filename)
 			/* class path entry pointer array needs to be incremented */
 			UDATA count = ROUND_UP_TO(CPE_COUNT_INCREMENT, entryCount + 1);
 			newMemSize = sizeof(J9ClassPathEntry*) * count;
-			cpePtrArray = (J9ClassPathEntry **)j9mem_reallocate_memory(cpePtrArray, newMemSize, OMRMEM_CATEGORY_VM);
+#if defined(J9VM_OPT_SNAPSHOTS)
+			if (IS_SNAPSHOTTING_ENABLED(vm)) {
+				cpePtrArray = (J9ClassPathEntry **)vmsnapshot_reallocate_memory(cpePtrArray, newMemSize, OMRMEM_CATEGORY_VM);
+			} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+			{
+				cpePtrArray = (J9ClassPathEntry **)j9mem_reallocate_memory(cpePtrArray, newMemSize, OMRMEM_CATEGORY_VM);
+			}
 			if (NULL == cpePtrArray) {
 				goto done;
 			} else {
@@ -256,7 +300,14 @@ addJarToSystemClassLoaderClassPathEntries(J9JavaVM *vm, const char *filename)
 done:
 	/* If any error occurred, discard any allocated memory and throw OutOfMemoryError */
 	if (0 == newCount) {
-		j9mem_free_memory(cpEntry);
+#if defined(J9VM_OPT_SNAPSHOTS)
+		if (IS_SNAPSHOTTING_ENABLED(vm)) {
+			vmsnapshot_free_memory(cpEntry);
+		} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+		{
+			j9mem_free_memory(cpEntry);
+		}
 	} else {
 		TRIGGER_J9HOOK_VM_CLASS_LOADER_CLASSPATH_ENTRY_ADDED(vm->hookInterface, vm, classLoader, cpEntry);
 	}

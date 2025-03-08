@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 changequote(`[',`]')dnl
 
@@ -1098,7 +1098,8 @@ ifelse(eval(JAVA_SPEC_VERSION >= 9), 1, [	jvmtiError (JNICALL *GetNamedModule)(j
 	jvmtiError (JNICALL *GetMethodName)(jvmtiEnv *env, jmethodID method, char **name_ptr, char **signature_ptr, char **generic_ptr);
 	jvmtiError (JNICALL *GetMethodDeclaringClass)(jvmtiEnv *env, jmethodID method, jclass *declaring_class_ptr);
 	jvmtiError (JNICALL *GetMethodModifiers)(jvmtiEnv *env, jmethodID method, jint *modifiers_ptr);
-	void *reserved67;
+ifelse(eval(JAVA_SPEC_VERSION >= 25), 1, [	jvmtiError (JNICALL *ClearAllFramePops)(jvmtiEnv *env, jthread thread);],
+[	void *reserved67;])
 	jvmtiError (JNICALL *GetMaxLocals)(jvmtiEnv *env, jmethodID method, jint *max_ptr);
 	jvmtiError (JNICALL *GetArgumentsSize)(jvmtiEnv *env, jmethodID method, jint *size_ptr);
 	jvmtiError (JNICALL *GetLineNumberTable)(jvmtiEnv *env, jmethodID method, jint *entry_count_ptr, jvmtiLineNumberEntry **table_ptr);
@@ -1267,6 +1268,7 @@ ifelse(eval(JAVA_SPEC_VERSION >= 9), 1, [	jvmtiError GetNamedModule(jvmtiEnv *en
 	jvmtiError GetMethodName (jmethodID method, char **name_ptr, char **signature_ptr, char **generic_ptr) { return functions->GetMethodName(this, method, name_ptr, signature_ptr, generic_ptr); }
 	jvmtiError GetMethodDeclaringClass (jmethodID method, jclass *declaring_class_ptr) { return functions->GetMethodDeclaringClass(this, method, declaring_class_ptr); }
 	jvmtiError GetMethodModifiers (jmethodID method, jint *modifiers_ptr) { return functions->GetMethodModifiers(this, method, modifiers_ptr); }
+ifelse(eval(JAVA_SPEC_VERSION >= 25), 1, [	jvmtiError ClearAllFramePops (jthread thread) { return functions->ClearAllFramePops(this, thread); }], [dnl])
 	jvmtiError GetMaxLocals (jmethodID method, jint *max_ptr) { return functions->GetMaxLocals(this, method, max_ptr); }
 	jvmtiError GetArgumentsSize (jmethodID method, jint *size_ptr) { return functions->GetArgumentsSize(this, method, size_ptr); }
 	jvmtiError GetLineNumberTable (jmethodID method, jint *entry_count_ptr, jvmtiLineNumberEntry **table_ptr) { return functions->GetLineNumberTable(this, method, entry_count_ptr, table_ptr); }

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.classloader;
 
 import java.util.regex.Matcher;
@@ -28,7 +28,7 @@ import java.util.regex.Pattern;
 import com.ibm.dtfj.javacore.parser.j9.section.common.CommonPatternMatchers;
 
 public class ClassLoaderPatternMatchers {
-	
+
 	public static final Matcher loader = CommonPatternMatchers.generateMatcher("Loader[ \t]+", Pattern.CASE_INSENSITIVE);
 	public static final Matcher system = CommonPatternMatchers.generateMatcher("\\*System\\*", Pattern.CASE_INSENSITIVE);
 	public static final Matcher shadow = CommonPatternMatchers.generateMatcher("Shadow", Pattern.CASE_INSENSITIVE);
@@ -36,5 +36,4 @@ public class ClassLoaderPatternMatchers {
 	public static final Matcher none = CommonPatternMatchers.generateMatcher("\\*none\\*", Pattern.CASE_INSENSITIVE);
 	public static final Matcher locked = CommonPatternMatchers.generateMatcher("\\[locked\\]", Pattern.CASE_INSENSITIVE);
 
-	
 }

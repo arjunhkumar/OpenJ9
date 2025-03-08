@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -571,7 +571,7 @@ internalSetCurrentExceptionWithCause(J9VMThread *currentThread, UDATA exceptionN
 		if (J9_ARE_NO_BITS_SET(vm->extendedRuntimeFlags, J9_EXTENDED_RUNTIME_CLASS_OBJECT_ASSIGNED)) {
 			/* This is JVM startup stage, exit with message now. */
 			PORT_ACCESS_FROM_JAVAVM(vm);
-			j9tty_err_printf(PORTLIB, "%s\n", utfMessage);
+			j9tty_err_printf("%s\n", utfMessage);
 			goto done;
 		}
 	}
@@ -838,11 +838,6 @@ walkStackForExceptionThrow(J9VMThread * currentThread, j9object_t exception, UDA
 	if (!walkOnly) {
 		walkState->flags |= (J9_STACKWALK_INCLUDE_CALL_IN_FRAMES | J9_STACKWALK_INCLUDE_NATIVES | J9_STACKWALK_MAINTAIN_REGISTER_MAP);
 	}
-	/* PR 81484: Clear jitStackFrameFlags before the walk.
-	 * 1) It is not used by the stack walker.
-	 * 2) It could affect code that runs to load exception classes during the walk.
-	 */
-	currentThread->jitStackFrameFlags = 0;
 
 	currentThread->javaVM->walkStackFrames(currentThread, walkState);
 
@@ -864,7 +859,7 @@ setNegativeArraySizeException(J9VMThread *currentThread, I_32 size)
 {
 	PORT_ACCESS_FROM_VMC(currentThread);
 	char buffer[15];
-	j9str_printf(PORTLIB, buffer, sizeof(buffer), "%d", size);
+	j9str_printf(buffer, sizeof(buffer), "%d", size);
 	setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNEGATIVEARRAYSIZEEXCEPTION, buffer);
 }
 
@@ -891,13 +886,13 @@ setClassLoadingConstraintError(J9VMThread * currentThread, J9ClassLoader * initi
 		J9UTF8 * existingClassNameUTF = J9ROMCLASS_CLASSNAME(existingClass->romClass);
 		U_16 existingClassNameLength = J9UTF8_LENGTH(existingClassNameUTF);
 		U_8 * existingClassName = J9UTF8_DATA(existingClassNameUTF);
-		UDATA msgLen = j9str_printf(PORTLIB, NULL, 0, nlsMessage,
+		UDATA msgLen = j9str_printf(NULL, 0, nlsMessage,
 			initiatingLoaderClassNameLength, initiatingLoaderClassName, initiatingLoaderHash,
 			existingClassNameLength, existingClassName,
 			definingLoaderClassNameLength, definingLoaderClassName, definingLoaderHash);
 		msg = j9mem_allocate_memory(msgLen, OMRMEM_CATEGORY_VM);
 		/* msg NULL check omitted since str_printf accepts NULL (as above) */
-		j9str_printf(PORTLIB, msg, msgLen, nlsMessage,
+		j9str_printf(msg, msgLen, nlsMessage,
 			initiatingLoaderClassNameLength, initiatingLoaderClassName, initiatingLoaderHash,
 			existingClassNameLength, existingClassName,
 			definingLoaderClassNameLength, definingLoaderClassName, definingLoaderHash);
@@ -945,27 +940,24 @@ setClassLoadingConstraintSignatureError(J9VMThread *currentThread, J9ClassLoader
 		U_16 exceptionClassNameLength = J9UTF8_LENGTH(exceptionClassNameUTF);
 		U_8 * exceptionClassName = J9UTF8_DATA(exceptionClassNameUTF);
 
-		UDATA msgLen = j9str_printf(PORTLIB, NULL, 0, nlsMessage,
+		UDATA msgLen = j9str_printf(NULL, 0, nlsMessage,
 				exceptionClassNameLength, exceptionClassName,
 				methodNameLength, methodName,
 				signatureLength, signature,
 				loader1ClassNameLength, loader1ClassName, loader1Hash,
 				class1ClassNameLength, class1ClassName,
 				loader2ClassNameLength, loader2ClassName, loader2Hash,
-				class2ClassNameLength, class2ClassName
-
-		);
+				class2ClassNameLength, class2ClassName);
 		msg = j9mem_allocate_memory(msgLen, OMRMEM_CATEGORY_VM);
 		/* msg NULL check omitted since str_printf accepts NULL (as above) */
-		j9str_printf(PORTLIB, msg, msgLen, nlsMessage,
+		j9str_printf(msg, msgLen, nlsMessage,
 				exceptionClassNameLength, exceptionClassName,
 				methodNameLength, methodName,
 				signatureLength, signature,
-				 loader1ClassNameLength, loader1ClassName, loader1Hash,
-				 class1ClassNameLength, class1ClassName,
-				 loader2ClassNameLength, loader2ClassName, loader2Hash,
-				 class2ClassNameLength, class2ClassName
-			);
+				loader1ClassNameLength, loader1ClassName, loader1Hash,
+				class1ClassNameLength, class1ClassName,
+				loader2ClassNameLength, loader2ClassName, loader2Hash,
+				class2ClassNameLength, class2ClassName);
 	}
 
 	setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGLINKAGEERROR, msg);
@@ -1012,7 +1004,7 @@ setClassLoadingConstraintOverrideError(J9VMThread *currentThread, J9UTF8 *newCla
 		U_16 newClassNameLength = J9UTF8_LENGTH(newClassNameUTF);
 		U_8 * newClassName = J9UTF8_DATA(newClassNameUTF);
 
-		UDATA msgLen = j9str_printf(PORTLIB, NULL, 0, nlsMessage,
+		UDATA msgLen = j9str_printf(NULL, 0, nlsMessage,
 				exceptionClassNameLength, exceptionClassName,
 				methodNameLength, methodName,
 				signatureLength, signature,
@@ -1020,21 +1012,18 @@ setClassLoadingConstraintOverrideError(J9VMThread *currentThread, J9UTF8 *newCla
 				class1ClassNameLength, class1ClassName,
 				loader2ClassNameLength, loader2ClassName, loader2Hash,
 				class2ClassNameLength, class2ClassName,
-				newClassNameLength, newClassName
-
-		);
+				newClassNameLength, newClassName);
 		msg = j9mem_allocate_memory(msgLen, OMRMEM_CATEGORY_VM);
 		/* msg NULL check omitted since str_printf accepts NULL (as above) */
-		j9str_printf(PORTLIB, msg, msgLen, nlsMessage,
+		j9str_printf(msg, msgLen, nlsMessage,
 				exceptionClassNameLength, exceptionClassName,
 				methodNameLength, methodName,
 				signatureLength, signature,
-				 loader1ClassNameLength, loader1ClassName, loader1Hash,
-				 class1ClassNameLength, class1ClassName,
-				 loader2ClassNameLength, loader2ClassName, loader2Hash,
-				 class2ClassNameLength, class2ClassName,
-				 newClassNameLength, newClassName
-			);
+				loader1ClassNameLength, loader1ClassName, loader1Hash,
+				class1ClassNameLength, class1ClassName,
+				loader2ClassNameLength, loader2ClassName, loader2Hash,
+				class2ClassNameLength, class2ClassName,
+				newClassNameLength, newClassName);
 	}
 
 	setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGLINKAGEERROR, msg);
@@ -1061,23 +1050,23 @@ nlsMessageForMethod(J9VMThread * currentThread, J9Method * method, U_32 module_n
 		U_8 * methodName = J9UTF8_DATA(methodNameUTF);
 		U_16 methodSignatureLength = J9UTF8_LENGTH(methodSignatureUTF);
 		U_8 * methodSignature = J9UTF8_DATA(methodSignatureUTF);
-		UDATA msgLen = j9str_printf(PORTLIB, NULL, 0, nlsMessage,
-					classNameLength, className,
-					methodNameLength, methodName,
-					methodSignatureLength, methodSignature);
+		UDATA msgLen = j9str_printf(NULL, 0, nlsMessage,
+				classNameLength, className,
+				methodNameLength, methodName,
+				methodSignatureLength, methodSignature);
 		msg = j9mem_allocate_memory(msgLen, OMRMEM_CATEGORY_VM);
 		/* msg NULL check omitted since str_printf accepts NULL (as above) */
-		j9str_printf(PORTLIB, msg, msgLen, nlsMessage,
-					classNameLength, className,
-					methodNameLength, methodName,
-					methodSignatureLength, methodSignature);
+		j9str_printf(msg, msgLen, nlsMessage,
+				classNameLength, className,
+				methodNameLength, methodName,
+				methodSignatureLength, methodSignature);
 	}
 
 	return msg;
 }
 
 
-void  
+void
 setNativeBindOutOfMemoryError(J9VMThread * currentThread, J9Method * method)
 {
 	char * msg = nlsMessageForMethod(currentThread, method, J9NLS_VM_BIND_OUT_OF_MEMORY);
@@ -1166,16 +1155,16 @@ setIncompatibleClassChangeErrorForDefaultConflict(J9VMThread * vmThread, J9Metho
 		U_8 * methodName = J9UTF8_DATA(methodNameUTF);
 		U_16 methodSignatureLength = J9UTF8_LENGTH(methodSignatureUTF);
 		U_8 * methodSignature = J9UTF8_DATA(methodSignatureUTF);
-		UDATA msgLen = j9str_printf(PORTLIB, NULL, 0, nlsMessage,
-					classNameLength, className,
-					methodNameLength, methodName,
-					methodSignatureLength, methodSignature);
+		UDATA msgLen = j9str_printf(NULL, 0, nlsMessage,
+				classNameLength, className,
+				methodNameLength, methodName,
+				methodSignatureLength, methodSignature);
 		msg = j9mem_allocate_memory(msgLen, OMRMEM_CATEGORY_VM);
 		/* msg NULL check omitted since str_printf accepts NULL (as above) */
-		j9str_printf(PORTLIB, msg, msgLen, nlsMessage,
-					classNameLength, className,
-					methodNameLength, methodName,
-					methodSignatureLength, methodSignature);
+		j9str_printf(msg, msgLen, nlsMessage,
+				classNameLength, className,
+				methodNameLength, methodName,
+				methodSignatureLength, methodSignature);
 	}
 
 	setCurrentExceptionUTF(vmThread, J9VMCONSTANTPOOL_JAVALANGINCOMPATIBLECLASSCHANGEERROR, msg);
@@ -1203,13 +1192,13 @@ setIllegalAccessErrorNonPublicInvokeInterface(J9VMThread *vmThread, J9Method *me
 		U_8 * methodName = J9UTF8_DATA(methodNameUTF);
 		U_16 methodSignatureLength = J9UTF8_LENGTH(methodSigUTF);
 		U_8 * methodSignature = J9UTF8_DATA(methodSigUTF);
-		UDATA msgLen = j9str_printf(PORTLIB, NULL, 0, nlsMessage,
+		UDATA msgLen = j9str_printf(NULL, 0, nlsMessage,
 				classNameLength, className,
 				methodNameLength, methodName,
 				methodSignatureLength, methodSignature);
 		msg = j9mem_allocate_memory(msgLen, OMRMEM_CATEGORY_VM);
 		/* msg NULL check omitted since str_printf accepts NULL (as above) */
-		j9str_printf(PORTLIB, msg, msgLen,nlsMessage,
+		j9str_printf(msg, msgLen,nlsMessage,
 				classNameLength, className,
 				methodNameLength, methodName,
 				methodSignatureLength, methodSignature);
@@ -1276,13 +1265,13 @@ setIllegalAccessErrorFinalFieldSet(J9VMThread *currentThread, UDATA isStatic, J9
 		U_8 * fieldName = J9UTF8_DATA(fieldNameUTF);
 		U_16 methodNameLength = J9UTF8_LENGTH(methodNameUTF);
 		U_8 * methodName = J9UTF8_DATA(methodNameUTF);
-		UDATA msgLen = j9str_printf(PORTLIB, NULL, 0, nlsMessage,
+		UDATA msgLen = j9str_printf(NULL, 0, nlsMessage,
 				classNameLength, className,
 				fieldNameLength, fieldName,
 				methodNameLength, methodName);
 		msg = j9mem_allocate_memory(msgLen, OMRMEM_CATEGORY_VM);
 		/* msg NULL check omitted since str_printf accepts NULL (as above) */
-		j9str_printf(PORTLIB, msg, msgLen,nlsMessage,
+		j9str_printf(msg, msgLen,nlsMessage,
 				classNameLength, className,
 				fieldNameLength, fieldName,
 				methodNameLength, methodName);
@@ -1297,7 +1286,9 @@ void
 setCRIUSingleThreadModeJVMCRIUException(J9VMThread *vmThread, U_32 moduleName, U_32 messageNumber)
 {
 	PORT_ACCESS_FROM_VMC(vmThread);
+	J9JavaVM *vm = vmThread->javaVM;
 	const char *msg = NULL;
+	omr_error_t rc = 0;
 
 	/* If no custom NLS message was specified, use the generic one */
 	if ((0 == moduleName) && (0 == messageNumber)) {
@@ -1306,13 +1297,15 @@ setCRIUSingleThreadModeJVMCRIUException(J9VMThread *vmThread, U_32 moduleName, U
 	}
 	msg = OMRPORT_FROM_J9PORT(PORTLIB)->nls_lookup_message(OMRPORT_FROM_J9PORT(PORTLIB), J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, moduleName, messageNumber, NULL);
 
-	/* set org.eclipse.openj9.criu.JVMCheckpointException or JVMRestoreException */
-	if (0 == vmThread->javaVM->checkpointState.checkpointRestoreTimeDelta) {
+	/* set openj9.internal.criu.JVMCheckpointException or JVMRestoreException */
+	if (0 == vm->checkpointState.checkpointRestoreTimeDelta) {
 		/* throw JVMCheckpointException at checkpoint */
-		setCurrentExceptionUTF(vmThread, J9VMCONSTANTPOOL_ORGECLIPSEOPENJ9CRIUJVMCHECKPOINTEXCEPTION, msg);
+		setCurrentExceptionUTF(vmThread, J9VMCONSTANTPOOL_OPENJ9INTERNALCRIUJVMCHECKPOINTEXCEPTION, msg);
 	} else {
 		/* throw JVMRestoreException at restore */
-		setCurrentExceptionUTF(vmThread, J9VMCONSTANTPOOL_ORGECLIPSEOPENJ9CRIUJVMRESTOREEXCEPTION, msg);
+		setCurrentExceptionUTF(vmThread, J9VMCONSTANTPOOL_OPENJ9INTERNALCRIUJVMRESTOREEXCEPTION, msg);
 	}
+	rc = vm->j9rasDumpFunctions->triggerOneOffDump(vm, "java", "CRIUSingleThreadModeJVMCRIUException", NULL, 0);
+	Trc_VM_criu_setSingleThreadModeJVMCRIUException_triggerOneOffJavaDump(vmThread, rc);
 }
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.framework.tag;
 
 import com.ibm.dtfj.javacore.parser.j9.IAttributeValueMap;
@@ -27,7 +27,7 @@ import com.ibm.dtfj.javacore.parser.j9.IAttributeValueMap;
 /**
  * Parses a string source pertaining to a tag line from a javacore, and returns
  * a map of tokens, where the token type (java.lang.String) is the key and token value (java.lang.String)is the value.
- * 
+ *
  * The Line Rule is generally referenced internally by the framework, so the subtype implementers don't
  * need to worry about where a line rule is being used. All that needs to be done is implementing
  * the logic of how to parse a string, and how to generate the tokens.
@@ -35,7 +35,7 @@ import com.ibm.dtfj.javacore.parser.j9.IAttributeValueMap;
  */
 public interface ILineRule {
 	/**
-	 * 
+	 *
 	 * @param source to parse
 	 * @param lineNumber on disk of the source line
 	 * @param startingOffset of the line on disk.

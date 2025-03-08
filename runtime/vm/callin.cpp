@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9accessbarrier.h"
@@ -581,7 +581,6 @@ oom:
 				*--currentThread->sp = (UDATA)threadName;
 #else /* J9VM_IVE_RAW_BUILD */
 				/* J9 constructor takes thread name, thread group, priority and isDaemon */
-				J9VMJAVALANGTHREAD_SET_STARTED(currentThread, threadObject, JNI_TRUE);
 				*--currentThread->sp = (UDATA)threadName;
 				*--currentThread->sp = (UDATA)threadGroup;
 				*(I_32*)--currentThread->sp = priority;
@@ -590,6 +589,7 @@ oom:
 				currentThread->returnValue = J9_BCLOOP_RUN_METHOD;
 				currentThread->returnValue2 = (UDATA)J9VMJAVALANGTHREAD_INIT_METHOD(vm);
 				c_cInterpreter(currentThread);
+				J9VMJAVALANGTHREAD_SET_STARTED(currentThread, initializee->threadObject, JNI_TRUE);
 			}
 		}
 done:
@@ -747,6 +747,7 @@ internalRunStaticMethod(J9VMThread *currentThread, J9Method *method, BOOLEAN ret
 	Trc_VM_internalRunStaticMethod_Exit(currentThread);
 }
 
+#if JAVA_SPEC_VERSION < 24
 void JNICALL
 sendCheckPackageAccess(J9VMThread *currentThread, J9Class *clazz, j9object_t protectionDomain)
 {
@@ -763,6 +764,7 @@ sendCheckPackageAccess(J9VMThread *currentThread, J9Class *clazz, j9object_t pro
 	}
 	Trc_VM_sendCheckPackageAccess_Exit(currentThread);
 }
+#endif /* JAVA_SPEC_VERSION < 24 */
 
 void JNICALL
 sendCompleteInitialization(J9VMThread *currentThread)
@@ -1407,31 +1409,27 @@ restoreCallInFrameHelper(J9VMThread *currentThread)
 }
 
 void JNICALL
-sendResolveUpcallInvokeHandle(J9VMThread *currentThread, J9UpcallMetaData *data)
+sendResolveFfiCallInvokeHandle(J9VMThread *currentThread, j9object_t handle)
 {
 	J9VMEntryLocalStorage newELS;
-	Trc_VM_sendResolveUpcallInvokeHandle_Entry(currentThread);
+	Trc_VM_sendResolveFfiCallInvokeHandle_Entry(currentThread);
 
 	if (buildCallInStackFrame(currentThread, &newELS, true, false)) {
-		J9JavaVM *vm = data->vm;
-		j9object_t mhMetaData = J9_JNI_UNWRAP_REFERENCE(data->mhMetaData);
+		J9JavaVM *vm = currentThread->javaVM;
 
-		/* Set all required arguments for MethodHandleResolver.upcallLinkCallerMethod() on the stack
-		 * to fetch the MemberName object plus appendix intended for the upcall method handle.
+		/* Set all required arguments for MethodHandleResolver.ffiCallLinkCallerMethod() on the stack
+		 * to fetch the MemberName object plus appendix intended for the downcall/upcall method handle.
 		 */
-		if (NULL != mhMetaData) {
-			Trc_VM_sendResolveUpcallInvokeHandle_upcallMetaDataHandler(currentThread,
-					J9VMOPENJ9INTERNALFOREIGNABIUPCALLMHMETADATA_CALLEEMH(currentThread, mhMetaData));
-			*(j9object_t*)--currentThread->sp = J9VM_J9CLASS_TO_HEAPCLASS(J9VMOPENJ9INTERNALFOREIGNABIINTERNALDOWNCALLHANDLER(vm));
-			*(j9object_t*)--currentThread->sp = J9VMOPENJ9INTERNALFOREIGNABIUPCALLMHMETADATA_CALLEETYPE(currentThread, mhMetaData);
-			currentThread->returnValue = J9_BCLOOP_RUN_METHOD;
-			currentThread->returnValue2 = (UDATA)J9VMJAVALANGINVOKEMETHODHANDLERESOLVER_UPCALLLINKCALLERMETHOD_METHOD(vm);
-			c_cInterpreter(currentThread);
-		}
+		Trc_VM_sendResolveFfiCallInvokeHandle_ffiCallHandler(currentThread, handle);
+		*(j9object_t *)--currentThread->sp = J9VM_J9CLASS_TO_HEAPCLASS(J9VMOPENJ9INTERNALFOREIGNABIINTERNALDOWNCALLHANDLER(vm));
+		*(j9object_t *)--currentThread->sp = J9VMJAVALANGINVOKEMETHODHANDLE_TYPE(currentThread, handle);
+		currentThread->returnValue = J9_BCLOOP_RUN_METHOD;
+		currentThread->returnValue2 = (UDATA)J9VMJAVALANGINVOKEMETHODHANDLERESOLVER_FFICALLLINKCALLERMETHOD_METHOD(vm);
+		c_cInterpreter(currentThread);
 		restoreCallInFrame(currentThread);
 	}
 
-	Trc_VM_sendResolveUpcallInvokeHandle_Exit(currentThread);
+	Trc_VM_sendResolveFfiCallInvokeHandle_Exit(currentThread);
 }
 #endif /* JAVA_SPEC_VERSION >= 16 */
 } /* extern "C" */

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "optimizer/Inliner.hpp"
@@ -29,6 +29,7 @@
 #include "compile/ResolvedMethod.hpp"
 #include "env/CompilerEnv.hpp"
 #include "env/CHTable.hpp"
+#include "env/HeuristicRegion.hpp"
 #include "env/PersistentCHTable.hpp"
 #include "env/VMJ9.h"
 #include "env/jittypes.h"
@@ -59,7 +60,7 @@ extern int32_t          *InlinedSizes;       // Defined in Inliner.cpp
 
 
 //duplicated as long as there are two versions of findInlineTargets
-static uintptr_t *failMCS(char *reason, TR_CallSite *callSite, TR_InlinerBase* inliner)
+static uintptr_t *failMCS(const char *reason, TR_CallSite *callSite, TR_InlinerBase* inliner)
    {
    debugTrace(inliner->tracer(),"  Fail isMutableCallSiteTargetInvokeExact(%p): %s", callSite, reason);
    return NULL;
@@ -439,7 +440,7 @@ bool TR_InlinerBase::inlineCallTarget(TR_CallStack *callStack, TR_CallTarget *ca
 
    TR_InlinerDelimiter delimiter(tracer(),"TR_InlinerBase::inlineCallTarget");
 
-   char *sig = "multiLeafArrayCopy";
+   const char *sig = "multiLeafArrayCopy";
    if (strncmp(calltarget->_calleeMethod->nameChars(), sig, strlen(sig)) == 0)
       {
       _nodeCountThreshold = 8192;
@@ -862,8 +863,11 @@ bool TR_J9InterfaceCallSite::findCallSiteTargetImpl(
          // heuristic because in that case we can be certain that the class
          // won't be extended later.
          bool useVftTestHeuristics = true;
-         TR::PersistentInfo *persistInfo = comp()->getPersistentInfo();
-         if (TR::Compiler->vm.isVMInStartupPhase(comp()->fej9()->getJ9JITConfig()))
+         if (comp()->compileRelocatableCode() && !comp()->getOption(TR_UseSymbolValidationManager))
+            {
+            useVftTestHeuristics = false;
+            }
+         else if (TR::Compiler->vm.isVMInStartupPhase(comp()->fej9()->getJ9JITConfig()))
             {
             const static bool useVftTestHeuristicsDuringStartup =
                feGetEnv("TR_useInterfaceVftTestHeuristicsDuringStartup") != NULL;
@@ -924,27 +928,36 @@ bool TR_J9InterfaceCallSite::findCallSiteTargetImpl(
                 && valueInfo != NULL
                 && !comp()->getOption(TR_DisableProfiledInlining))
                {
+               TR_ASSERT_FATAL(!comp()->compileRelocatableCode() || comp()->getOption(TR_UseSymbolValidationManager),
+                               "Cannot use VFT Test Heuristics in non-SVM AOT!\n");
+
                TR_ScratchList<TR_ExtraAddressInfo> byFreqDesc(comp()->trMemory());
                valueInfo->getSortedList(comp(), &byFreqDesc);
                ListIterator<TR_ExtraAddressInfo> it(&byFreqDesc);
                uint32_t remainingTotalFreq = valueInfo->getTotalFrequency();
                TR_OpaqueClassBlock *topProfiledClass = NULL;
                uint32_t topProfiledFreq = 0;
-               TR_ExtraAddressInfo *cur = it.getFirst();
-               for (; cur != NULL; cur = it.getNext())
-                  {
-                  auto *curClass =
-                     reinterpret_cast<TR_OpaqueClassBlock*>(cur->_value);
 
-                  if (persistInfo->isObsoleteClass(curClass, comp()->fe())
-                      || fe()->isInstanceOf(curClass, iface, true, true, true) != TR_yes)
+                  {
+                  TR::HeuristicRegion heuristicRegion(comp());
+
+                  TR::PersistentInfo *persistInfo = comp()->getPersistentInfo();
+                  TR_ExtraAddressInfo *cur = it.getFirst();
+                  for (; cur != NULL; cur = it.getNext())
                      {
-                     remainingTotalFreq -= cur->_frequency;
-                     }
-                  else if (topProfiledClass == NULL)
-                     {
-                     topProfiledClass = curClass;
-                     topProfiledFreq = cur->_frequency;
+                     auto *curClass =
+                        reinterpret_cast<TR_OpaqueClassBlock*>(cur->_value);
+
+                     if (persistInfo->isObsoleteClass(curClass, comp()->fe())
+                        || fe()->isInstanceOf(curClass, iface, true, true, true) != TR_yes)
+                        {
+                        remainingTotalFreq -= cur->_frequency;
+                        }
+                     else if (topProfiledClass == NULL)
+                        {
+                        topProfiledClass = curClass;
+                        topProfiledFreq = cur->_frequency;
+                        }
                      }
                   }
 
@@ -952,8 +965,20 @@ bool TR_J9InterfaceCallSite::findCallSiteTargetImpl(
                    && remainingTotalFreq >= 32
                    && topProfiledFreq == remainingTotalFreq)
                   {
-                  testType = TR_VftTest;
-                  thisClass = topProfiledClass;
+                  bool valid = true;
+
+                  if (comp()->compileRelocatableCode())
+                     {
+                     TR::SymbolValidationManager *svm = comp()->getSymbolValidationManager();
+                     valid = svm->addProfiledClassRecord(topProfiledClass)
+                             && svm->addClassInstanceOfClassRecord(topProfiledClass, iface, true, true, true);
+                     }
+
+                  if (valid)
+                     {
+                     testType = TR_VftTest;
+                     thisClass = topProfiledClass;
+                     }
                   }
                }
             }
@@ -1046,10 +1071,10 @@ bool TR_J9MutableCallSite::findCallSiteTarget (TR_CallStack *callStack, TR_Inlin
          {
          vgs->_mutableCallSiteEpoch = TR::KnownObjectTable::UNKNOWN;
          bool knotEnabled = (knot != NULL);
-         auto stream = TR::CompilationInfo::getStream();
+         auto stream = comp()->getStream();
          stream->write(JITServer::MessageType::KnownObjectTable_mutableCallSiteEpoch, _mcsReferenceLocation, knotEnabled);
 
-         auto recv = stream->read<uintptr_t, TR::KnownObjectTable::Index, uintptr_t*>();
+         auto recv = stream->read<uintptr_t, TR::KnownObjectTable::Index, uintptr_t *>();
          uintptr_t mcsObject = std::get<0>(recv);
          TR::KnownObjectTable::Index knotIndex = std::get<1>(recv);
          uintptr_t *objectPointerReference = std::get<2>(recv);

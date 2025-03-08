@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,14 +18,14 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.spi;
 
 /**
  * An output channel provides a mechanism by which text will be displayed
  * to the user.
- * 
+ *
  * @author adam
  *
  */
@@ -33,7 +33,7 @@ public interface IOutputChannel {
 
 	/**
 	 * Sends text to channel
-	 * 
+	 *
 	 * @param outputString text to send
 	 */
 	public void print(String outputString);
@@ -42,18 +42,18 @@ public interface IOutputChannel {
 	 * Sets the prompt which should be displayed when an interactive session
 	 * is running. Typically this will display the context number in a
 	 * multi-context environment.
-	 * 
+	 *
 	 * @param prompt prompt to display.
 	 */
 	public void printPrompt(String prompt);
 
 	/**
 	 * Sends text to the channel with an appended \n
-	 * 
+	 *
 	 * @param outputString text to send
 	 */
 	public void println(String outputString);
-	
+
 	/**
 	 * Instructs this channel to close and free any resources. Once closed a channel
 	 * cannot be re-opened.
@@ -61,7 +61,7 @@ public interface IOutputChannel {
 	public void close();
 
 	/**
-	 * Causes the channel to flush any buffered text. Depending upon the channel 
+	 * Causes the channel to flush any buffered text. Depending upon the channel
 	 * implementation this may not have any effect.
 	 */
 	public void flush();

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "ClientStream.hpp"
@@ -54,6 +54,8 @@ int ClientStream::static_init(TR::CompilationInfo *compInfo)
    {
    if (!CommunicationStream::useSSL())
       return 0;
+
+   TR_ASSERT_FATAL(_sslCtx == NULL, "SSL context already initialized");
 
    CommunicationStream::initSSL();
 
@@ -120,8 +122,17 @@ int ClientStream::static_init(TR::CompilationInfo *compInfo)
    _sslCtx = ctx;
 
    if (TR::Options::getVerboseOption(TR_VerboseJITServer))
-      TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "Successfully initialized SSL context (%s) \n", (*OOpenSSL_version)(0));
+      TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "Successfully initialized SSL context (%s)", (*OOpenSSL_version)(0));
    return 0;
+   }
+
+void ClientStream::freeSSLContext()
+   {
+   if (_sslCtx)
+      {
+      (*OSSL_CTX_free)(_sslCtx);
+      _sslCtx = NULL;
+      }
    }
 
 SSL_CTX *ClientStream::_sslCtx = NULL;
@@ -149,7 +160,7 @@ openConnection(const std::string &address, uint32_t port, uint32_t timeoutMs)
 
    struct addrinfo *pAddr;
    int sockfd = -1;
-   for (pAddr = addrList; pAddr; pAddr = pAddr->ai_next) 
+   for (pAddr = addrList; pAddr; pAddr = pAddr->ai_next)
       {
       sockfd = socket(pAddr->ai_family, pAddr->ai_socktype, pAddr->ai_protocol);
       if (sockfd >= 0)
@@ -269,7 +280,7 @@ openSSLConnection(SSL_CTX *ctx, int connfd)
       }
 
    if (TR::Options::getVerboseOption(TR_VerboseJITServer))
-      TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "SSL connection on socket 0x%x, Version: %s, Cipher: %s\n",
+      TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "SSL connection on socket 0x%x, Version: %s, Cipher: %s",
                                      connfd, (*OSSL_get_version)(ssl), (*OSSL_get_cipher)(ssl));
    return bio;
    }

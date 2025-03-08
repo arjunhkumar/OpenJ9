@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "codegen/ARM64ConditionCode.hpp"
@@ -271,24 +271,6 @@ void J9::Recompilation::methodCannotBeRecompiled(void *oldStartPC, TR_FrontEnd *
    omrthread_jit_write_protect_disable();
    linkageInfo->setHasFailedRecompilation();
    omrthread_jit_write_protect_enable();
-   }
-
-void J9::Recompilation::invalidateMethodBody(void *startPC, TR_FrontEnd *fe)
-   {
-   // Pre-existence assumptions for this method have been violated. Make the
-   // method no-longer runnable and schedule it for sync recompilation
-   //
-   J9::PrivateLinkage::LinkageInfo *linkageInfo = J9::PrivateLinkage::LinkageInfo::get(startPC);
-   TR_PersistentJittedBodyInfo* bodyInfo = getJittedBodyInfoFromPC(startPC);
-   bodyInfo->setIsInvalidated(); // bodyInfo must exist
-
-   // If the compilation has been attempted before then we are fine (in case of success,
-   // each caller is being re-directed to the new method -- in case if failure, all callers
-   // are being sent to the interpreter)
-   //
-   if (linkageInfo->recompilationAttempted())
-      return;
-   fixUpMethodCode(startPC);
    }
 
 // in Trampoline.cpp

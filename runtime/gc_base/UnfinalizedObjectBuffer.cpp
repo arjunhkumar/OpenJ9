@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -36,7 +36,7 @@
 /* temp includes */
 #include "SublistFragment.hpp"
 
-MM_UnfinalizedObjectBuffer::MM_UnfinalizedObjectBuffer(MM_GCExtensions *extensions, UDATA maxObjectCount)
+MM_UnfinalizedObjectBuffer::MM_UnfinalizedObjectBuffer(MM_GCExtensions *extensions, uintptr_t maxObjectCount)
 	: MM_BaseVirtual()
 	, _maxObjectCount(maxObjectCount)
 	, _extensions(extensions)
@@ -63,7 +63,7 @@ MM_UnfinalizedObjectBuffer::reset()
 }
 
 void 
-MM_UnfinalizedObjectBuffer::flush(MM_EnvironmentBase* env)
+MM_UnfinalizedObjectBuffer::flush(MM_EnvironmentBase *env)
 {
 	if (NULL != _head) {
 		/* call the virtual flush implementation function */
@@ -73,7 +73,7 @@ MM_UnfinalizedObjectBuffer::flush(MM_EnvironmentBase* env)
 }
 
 void
-MM_UnfinalizedObjectBuffer::add(MM_EnvironmentBase* env, j9object_t object)
+MM_UnfinalizedObjectBuffer::add(MM_EnvironmentBase *env, j9object_t object)
 {
 	if ( (_objectCount < _maxObjectCount) && _region->isAddressInRegion(object) ) {
 		/* object is permitted in this buffer */
@@ -107,7 +107,7 @@ MM_UnfinalizedObjectBuffer::add(MM_EnvironmentBase* env, j9object_t object)
  * temporary place holder implementation - just delegate to the old fragment code.
  */
 void 
-MM_UnfinalizedObjectBuffer::flushImpl(MM_EnvironmentBase* env)
+MM_UnfinalizedObjectBuffer::flushImpl(MM_EnvironmentBase *env)
 {
 	Assert_MM_unreachable();
 }

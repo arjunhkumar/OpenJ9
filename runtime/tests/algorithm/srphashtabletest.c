@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdlib.h>
@@ -443,10 +443,10 @@ runTests(J9PortLibrary *portLib, char * id, J9SRPHashTable **srptable, UDATA *da
 
 	/* remove all elements verifying the integrity */
 	if (removeOffset == REVERSE) {
-		j9str_printf(PORTLIB, buf, sizeof(buf), "%s reverse remove", id);
+		j9str_printf(buf, sizeof(buf), "%s reverse remove", id);
 		operation = buf;
 	} else if (removeOffset > 0) {
-		j9str_printf(PORTLIB, buf, sizeof(buf), "%s offset %d remove", id, removeOffset);
+		j9str_printf(buf, sizeof(buf), "%s offset %d remove", id, removeOffset);
 		operation = buf;
 	}
 	for (i = 0; i < dataLength; i++) {
@@ -995,7 +995,7 @@ verifySRPHashtable(J9PortLibrary *portLib, UDATA *passCount, UDATA *failCount)
 		UDATA offset = i;
 		char name[32];
 
-		j9str_printf(PORTLIB, name, sizeof(name), "randomData%d", i);
+		j9str_printf(name, sizeof(name), "randomData%d", i);
 		if (RandomValues[i] == 0) {
 			continue;
 		}

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "optimizer/IdiomRecognition.hpp"
@@ -35,7 +35,6 @@
 #include "control/Options_inlines.hpp"
 #include "control/Recompilation.hpp"
 #include "control/RecompilationInfo.hpp"
-#include "cs2/bitvectr.h"
 #include "env/CompilerEnv.hpp"
 #include "env/StackMemoryRegion.hpp"
 #include "env/TRMemory.hpp"
@@ -240,11 +239,11 @@ TR_CISCNode::dump(TR::FILE *pOutFile, TR::Compilation * comp)
    const char *name = getName((TR_CISCOps)_opcode, comp);
    if (isValidOtherInfo())
       {
-      sprintf(buf, "%s %d", name, _otherInfo);
+      snprintf(buf, sizeof(buf), "%s %d", name, _otherInfo);
       }
    else
       {
-      sprintf(buf, "%s", name);
+      snprintf(buf, sizeof(buf), "%s", name);
       }
    traceMsg(comp, "[%p] %3d %2d%c %-11s", this, _id, _dagId, isOutsideOfLoop() ? ' ' : 'L', buf);
    traceMsg(comp, " [");
@@ -345,11 +344,11 @@ TR_CISCNode::printStdout()
    char buf[256];
    if (isValidOtherInfo())
       {
-      sprintf(buf, "%d %d", _opcode, _otherInfo);
+      snprintf(buf, sizeof(buf), "%d %d", _opcode, _otherInfo);
       }
    else
       {
-      sprintf(buf, "%d", _opcode);
+      snprintf(buf, sizeof(buf), "%d", _opcode);
       }
    printf("[%p] %3d %2d%c %-11s", this, _id, _dagId, isOutsideOfLoop() ? ' ' : 'L', buf);
    printf(" [");
@@ -1064,8 +1063,9 @@ TR_CISCGraph::initializeGraphs(TR::Compilation *c)
    bool genMemcpy = c->cg()->getSupportsReferenceArrayCopy() || c->cg()->getSupportsPrimitiveArrayCopy();
    bool genMemset = c->cg()->getSupportsArraySet();
    bool genMemcmp = c->cg()->getSupportsArrayCmp();
-   bool genIDiv2Mul = c->cg()->getSupportsLoweringConstIDiv();
-   bool genLDiv2Mul = c->cg()->getSupportsLoweringConstLDiv();
+   bool genMemcmpidx = c->cg()->getSupportsArrayCmpLen();
+   bool genIDiv2Mul = c->cg()->getSupportsIMulHigh();
+   bool genLDiv2Mul = c->cg()->getSupportsLMulHigh();
    // FIXME: We need getSupportsCountDecimalDigit() like interface
    // this idiom is only enabled on 390 for the moment
 
@@ -1087,10 +1087,13 @@ TR_CISCGraph::initializeGraphs(TR::Compilation *c)
       {
       preparedCISCGraphs[num] =  makeMemCmpGraph(c, ctrl);
       setEssentialNodes(preparedCISCGraphs[num++]);
-      preparedCISCGraphs[num] =  makeMemCmpIndexOfGraph(c, ctrl);
-      setEssentialNodes(preparedCISCGraphs[num++]);
-      preparedCISCGraphs[num] =  makeMemCmpSpecialGraph(c, ctrl);
-      setEssentialNodes(preparedCISCGraphs[num++]);
+      if (genMemcmpidx)
+         {
+         preparedCISCGraphs[num] =  makeMemCmpIndexOfGraph(c, ctrl);
+         setEssentialNodes(preparedCISCGraphs[num++]);
+         preparedCISCGraphs[num] =  makeMemCmpSpecialGraph(c, ctrl);
+         setEssentialNodes(preparedCISCGraphs[num++]);
+         }
       }
    if (genTRT)
       {
@@ -1945,7 +1948,8 @@ TR_CISCTransformer::TR_CISCTransformer(TR::OptimizationManager *manager)
      _bblistSucc(manager->trMemory()),
      _candidatesForRegister(manager->trMemory()),
      _useTreeTopMap(manager->comp(), manager->optimizer()),
-     _BitsKeepAliveList(manager->trMemory())
+     _BitsKeepAliveList(manager->trMemory()),
+     _countFailBuf(manager->trMemory()->currentStackRegion())
    {
    _afterInsertionsIdiom = (ListHeadAndTail<TR::Node> *) trMemory()->allocateHeapMemory(sizeof(ListHeadAndTail<TR::Node>)*2);
    memset(_afterInsertionsIdiom, 0, sizeof(ListHeadAndTail<TR::Node>)*2);
@@ -2784,7 +2788,7 @@ TR_CISCTransformer::renumberDagId(TR_CISCGraph *graph, int32_t tempMaxDagId, int
    //  2L isub        [] [40 41]
    //  2L aiadd       [] [39 42]
    //  0L bconst 1    [] []
-   //  2L ibstore     [] [43 44]
+   //  2L bstorei     [] [43 44]
    //  2L iadd        [] [40 22]
    //  2L istore      [] [46 4]
    //  2L ificmpge    [] [4 6]
@@ -3358,13 +3362,13 @@ TR_CISCTransformer::isBlockInLoopBody(TR::Block *block)
 
 
 void
-TR_CISCTransformer::showEmbeddedData(char *title, uint8_t *data)
+TR_CISCTransformer::showEmbeddedData(const char *title, uint8_t *data)
    {
    int32_t i, j;
-   traceMsg(comp(), "%s\n    ",title);
+   traceMsg(comp(), "%s\n    ", title);
    for (j = 0; j < _numPNodes; j++)
       {
-      traceMsg(comp(), "%3d",j);
+      traceMsg(comp(), "%3d", j);
       }
    traceMsg(comp(), "\n  --");
    for (j = 0; j < _numPNodes; j++)
@@ -3381,7 +3385,7 @@ TR_CISCTransformer::showEmbeddedData(char *title, uint8_t *data)
          if (this_result == _Unknown || this_result == _NotEmbed)
             traceMsg(comp(), "|  ");
          else
-            traceMsg(comp(), "| %X",data[idx(j, i)]);
+            traceMsg(comp(), "| %X", data[idx(j, i)]);
          }
       traceMsg(comp(), "\n");
       }
@@ -5139,7 +5143,7 @@ TR_CISCTransformer::moveCISCNodesInList(List<TR_CISCNode> *l, TR_CISCNode *from,
 // * _T->_orderByData
 //*****************************************************************************
 void
-TR_CISCTransformer::moveCISCNodes(TR_CISCNode *from, TR_CISCNode *to, TR_CISCNode *moveTo, char *debugStr)
+TR_CISCTransformer::moveCISCNodes(TR_CISCNode *from, TR_CISCNode *to, TR_CISCNode *moveTo, const char *debugStr)
    {
    if (showMesssagesStdout())
       {
@@ -6689,8 +6693,8 @@ TR_CISCTransformer::analyzeBoolTable(TR_BitVector **bv, TR::TreeTop **retSameExi
                      ntakenBV -= tmpBV;
                      break;
                   default:
-                     TR_ASSERT(false, "not implemented yet");
                      // not implemented yet
+                     countUnhandledOpcode(__FUNCTION__, n->getOpcode());
                      return false;
                   }
 
@@ -6814,7 +6818,8 @@ TR_CISCTransformer::analyzeByteBoolTable(TR_CISCNode *boolTable, uint8_t *table2
    bv = (TR_BitVector **)trMemory()->allocateMemory(size, stackAlloc);
    memset(bv, 0, size);
 
-   switch((defTargetNode ? defTargetNode : defNode)->getOpcode())
+   uint32_t opcode = (defTargetNode ? defTargetNode : defNode)->getOpcode();
+   switch (opcode)
       {
       case TR::b2i:
          if (defNode->isOptionalNode()) defNode = defNode->getChild(0);
@@ -6826,8 +6831,8 @@ TR_CISCTransformer::analyzeByteBoolTable(TR_CISCNode *boolTable, uint8_t *table2
          defBV.setAll(   0+BYTEBVOFFSET, 255+BYTEBVOFFSET);
          break;
       default:
-         TR_ASSERT(false, "not implemented yet");
          // not implemented yet
+         countUnhandledOpcode(__FUNCTION__, opcode);
          return -1;     // error
       }
 
@@ -6903,7 +6908,8 @@ TR_CISCTransformer::analyzeCharBoolTable(TR_CISCNode *boolTable, uint8_t *table6
    bv = (TR_BitVector **)trMemory()->allocateMemory(size, stackAlloc);
    memset(bv, 0, size);
 
-   switch((defTargetNode ? defTargetNode : defNode)->getOpcode())
+   uint32_t opcode = (defTargetNode ? defTargetNode : defNode)->getOpcode();
+   switch (opcode)
       {
       case TR::su2i:
          if (defNode->isOptionalNode()) defNode = defNode->getChild(0);
@@ -6912,8 +6918,8 @@ TR_CISCTransformer::analyzeCharBoolTable(TR_CISCNode *boolTable, uint8_t *table6
          defBV.setAll(0, 65535);
          break;
       default:
-         TR_ASSERT(false, "not implemented yet");
          // not implemented yet
+         countUnhandledOpcode(__FUNCTION__, opcode);
          return -1;     // error
       }
 
@@ -7650,7 +7656,7 @@ TR_CISCTransformer::computeTopologicalEmbedding(TR_CISCGraph *P, TR_CISCGraph *T
    if (performTransformation(comp(), "%sReducing loop %d to %s\n", OPT_DETAILS, _bblistBody.getListHead()->getData()->getNumber(),
                                          P->getTitle()) && !transformer(this))
       {
-      if (trace()) traceMsg(comp(), "computeTopologicalEmbedding: IL Transformer failed. (step 4)\n\n");
+      dumpOptDetails(comp(), "computeTopologicalEmbedding: IL Transformer failed. (step 4)\n\n");
       registerCandidates();
       _T->restoreListsDuplicator();
       return false;             // The transformation fails
@@ -7658,7 +7664,7 @@ TR_CISCTransformer::computeTopologicalEmbedding(TR_CISCGraph *P, TR_CISCGraph *T
 
    if (trace() || showMesssagesStdout())
       {
-      char *bcinfo = "";
+      char *bcinfo = (char *)"";
 #if SHOW_BCINDICES
       char tmpbuf[256];
       int32_t minIndex, maxIndex;
@@ -7670,7 +7676,7 @@ TR_CISCTransformer::computeTopologicalEmbedding(TR_CISCGraph *P, TR_CISCGraph *T
       bool inlined = getBCIndexMinMax(_candidateRegion, &minIndex, &maxIndex, &minLN, &maxLN, true);
       if (minIndex <= maxIndex)
          {
-         sprintf(tmpbuf, ", bcindex %" OMR_PRIu32 " - %" OMR_PRIu32 " linenumber %" OMR_PRIu32 " - %" OMR_PRIu32 "%s.", minIndex, maxIndex, minLN, maxLN, inlined ? " (inlined)" : "");
+         snprintf(tmpbuf, sizeof(tmpbuf), ", bcindex %" OMR_PRIu32 " - %" OMR_PRIu32 " linenumber %" OMR_PRIu32 " - %" OMR_PRIu32 "%s.", minIndex, maxIndex, minLN, maxLN, inlined ? " (inlined)" : "");
          bcinfo = tmpbuf;
          }
 #endif
@@ -7913,5 +7919,47 @@ TR_CISCTransformer::restoreBitsKeepAliveCalls()
       if (trace())
          traceMsg(comp(), "\t\tInserting KeepAlive call found in block %d [%p] @ Node: %p\n",block->getNumber(), block, tt->getNode());
       prev->insertAfter(tt);
+      }
+   }
+
+void
+TR_CISCTransformer::countFail(const char *fmt, ...)
+   {
+   _countFailBuf.clear();
+
+   va_list args;
+   va_start(args, fmt);
+   _countFailBuf.vappendf(fmt, args);
+   va_end(args);
+
+   // This isn't the best trace message, but it signals that something happened
+   // in the log even when the debug counters aren't enabled, and it avoids
+   // making call sites too cumbersome.
+   if (trace())
+      traceMsg(comp(), "failed: %s\n", _countFailBuf.text());
+
+   TR::DebugCounter::incStaticDebugCounter(
+      comp(),
+      TR::DebugCounter::debugCounterName(
+         comp(),
+         "idiomRecognition.failed/%s/%s/(%s)/%s/loop=%d",
+         _countFailBuf.text(),
+         _P->getTitle(),
+         comp()->signature(),
+         comp()->getHotnessName(comp()->getMethodHotness()),
+         _bblistBody.getListHead()->getData()->getNumber()));
+   }
+
+void
+TR_CISCTransformer::countUnhandledOpcode(const char *where, uint32_t opcode)
+   {
+   if (opcode < TR::NumAllIlOps)
+      {
+      const char *name = TR::ILOpCode((TR::ILOpCodes)opcode).getName();
+      countFail("%s/unhandledOpcode/%s", where, name);
+      }
+   else
+      {
+      countFail("%s/unhandledOpcode/%u", where, opcode);
       }
    }

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE-OpenJ9 & !OPENJDK_METHODHANDLES]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2017
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 /*
@@ -31,11 +31,11 @@ abstract class BoundMethodHandle extends MethodHandle {
 		super(mt, lf);
 		OpenJDKCompileStub.OpenJDKCompileStubThrowError();
 	}
-	
+
 	LambdaFormEditor editor() {
 		throw OpenJDKCompileStub.OpenJDKCompileStubThrowError();
 	}
-	
+
 	static SpeciesData speciesData(LambdaForm lf) {
 		throw OpenJDKCompileStub.OpenJDKCompileStubThrowError();
 	}
@@ -54,7 +54,7 @@ abstract class BoundMethodHandle extends MethodHandle {
 	static SpeciesData speciesData_LLLLL() {
 		throw OpenJDKCompileStub.OpenJDKCompileStubThrowError();
 	}
-	
+
 	LambdaForm.NamedFunction getterFunction(int num) {
 		throw OpenJDKCompileStub.OpenJDKCompileStubThrowError();
 	}
@@ -73,7 +73,7 @@ abstract class BoundMethodHandle extends MethodHandle {
 		MethodHandle constructor() {
 			throw OpenJDKCompileStub.OpenJDKCompileStubThrowError();
 		}
-		
+
 		LambdaForm.NamedFunction getterFunction(int num) {
 			throw OpenJDKCompileStub.OpenJDKCompileStubThrowError();
 		}
@@ -84,8 +84,8 @@ abstract class BoundMethodHandle extends MethodHandle {
 		}
 		/*[ENDIF] JAVA_SPEC_VERSION >= 10 */
 	}
-	
+
 	abstract BoundMethodHandle copyWithExtendL(MethodType mt, LambdaForm lf, Object obj);
-	
+
 	abstract BoundMethodHandle copyWith(MethodType mt, LambdaForm lf);
 }

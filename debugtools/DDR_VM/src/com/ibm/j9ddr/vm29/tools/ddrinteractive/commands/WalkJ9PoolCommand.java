@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.tools.ddrinteractive.commands;
 
 import java.io.PrintStream;
@@ -77,18 +77,18 @@ public class WalkJ9PoolCommand extends Command
 				(1 < args.length)) {
 			printUsage(out);
 		}
-		
-		long address = CommandUtils.parsePointer(args[0], J9BuildFlags.env_data64);
+
+		long address = CommandUtils.parsePointer(args[0], J9BuildFlags.J9VM_ENV_DATA64);
 		out.append("J9Pool at 0x" 
 				+ CommandUtils.longToBigInteger(address).toString(CommandUtils.RADIX_HEXADECIMAL) 
-				+ "\n{\n");		
-		
+				+ "\n{\n");
+
 		walkJ9Pool(address, out);
-		
+
 		out.append("}\n");
 
 	}
-	
+
 	/**
 	 * This method walks through each element in the pool and prints each elements' address.
 	 * Elements can be in the same puddle or different, and this method do not print puddle information.
@@ -101,14 +101,13 @@ public class WalkJ9PoolCommand extends Command
 		try {
 			J9PoolPointer j9pool = J9PoolPointer.cast(address);
 			Pool pool = Pool.fromJ9Pool(j9pool, VoidPointer.class);
-			
+
 			SlotIterator<VoidPointer> poolIterator = pool.iterator();
 			VoidPointer currentElement;
 			int i = 0;
 			while (poolIterator.hasNext()) {
 				currentElement = poolIterator.next();
 				out.println(String.format("\t[%d]\t=\t%s", i++, currentElement.getHexAddress()));
-				
 			}
 		} catch (CorruptDataException e) {
 			throw new DDRInteractiveCommandException("Either address is not a valid pool address or pool itself is corrupted.");

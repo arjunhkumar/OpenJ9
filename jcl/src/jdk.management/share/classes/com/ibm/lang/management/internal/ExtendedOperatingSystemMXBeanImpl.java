@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,11 +18,13 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management.internal;
 
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import java.util.Objects;
 
 import javax.management.MBeanNotificationInfo;
@@ -90,7 +92,7 @@ public class ExtendedOperatingSystemMXBeanImpl extends OperatingSystemMXBeanImpl
 		}
 
 		/* add configurable model numbers if any */
-		String emuHwProperty = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty("com.ibm.lang.management.OperatingSystemMXBean.zos.emulatedHardwareModels"); //$NON-NLS-1$
+		String emuHwProperty = VM.internalGetProperties().getProperty("com.ibm.lang.management.OperatingSystemMXBean.zos.emulatedHardwareModels"); //$NON-NLS-1$
 
 		if (null != emuHwProperty) {
 			for (String emuHw : emuHwProperty.split("[;,]")) { //$NON-NLS-1$
@@ -112,6 +114,11 @@ public class ExtendedOperatingSystemMXBeanImpl extends OperatingSystemMXBeanImpl
 		super();
 		// only launch the notification thread if the environment could change
 		if (isDLPAREnabled()) {
+			/*[IF JAVA_SPEC_VERSION >= 24]*/
+			Thread thread = VM.getVMLangAccess().createThread(new OperatingSystemNotificationThread(this),
+					"OperatingSystemMXBean notification dispatcher", true, false, true, ClassLoader.getSystemClassLoader()); //$NON-NLS-1$
+			thread.setPriority(Thread.NORM_PRIORITY + 1);
+			/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 			PrivilegedAction<Thread> createThread = () -> {
 				Thread thread = VM.getVMLangAccess().createThread(new OperatingSystemNotificationThread(this),
 					"OperatingSystemMXBean notification dispatcher", true, false, true, ClassLoader.getSystemClassLoader()); //$NON-NLS-1$
@@ -123,6 +130,7 @@ public class ExtendedOperatingSystemMXBeanImpl extends OperatingSystemMXBeanImpl
 			@SuppressWarnings("removal")
 			/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
 			Thread thread = java.security.AccessController.doPrivileged(createThread);
+			/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 			thread.start();
 		}
 	}
@@ -246,6 +254,12 @@ public class ExtendedOperatingSystemMXBeanImpl extends OperatingSystemMXBeanImpl
 	private native int getOnlineProcessorsImpl();
 
 	/**
+	 * Check if the CpuLoadCompatibility flag is set.
+	 * @return if the CpuLoadCompatibility flag is set
+	 */
+	private static native boolean hasCpuLoadCompatibilityFlag();
+
+	/**
 	 * {@inheritDoc}
 	 */
 	@Override
@@ -263,8 +277,8 @@ public class ExtendedOperatingSystemMXBeanImpl extends OperatingSystemMXBeanImpl
 		}
 		latestCpuTime = cpuTime;
 
-		/* First call to this method should -1, since we don't have any previous
-		 * CPU times (or timestamp) to compute CPU load against.
+		/* If no previous timestamps is set, the default behaviour is to return -1.
+		 * If the compatibility flag is set, return 0 to match the behaviour of RI.
 		 */
 		if (-1 == oldTime) {
 			/* Save current counters; next invocation onwards, we use these to
@@ -272,7 +286,11 @@ public class ExtendedOperatingSystemMXBeanImpl extends OperatingSystemMXBeanImpl
 			 */
 			oldTime = interimTime = latestTime;
 			oldCpuTime = interimCpuTime = latestCpuTime;
-			return CpuLoadCalculationConstants.ERROR_VALUE;
+			if (hasCpuLoadCompatibilityFlag()) {
+				return 0;
+			} else {
+				return CpuLoadCalculationConstants.ERROR_VALUE;
+			}
 		}
 
 		/* If a sufficiently long interval has elapsed since last sampling, calculate using
@@ -508,7 +526,7 @@ public class ExtendedOperatingSystemMXBeanImpl extends OperatingSystemMXBeanImpl
 	@Override
 	public final boolean isHardwareEmulated() throws UnsupportedOperationException {
 		if (HwEmulResult.UNKNOWN == isHwEmulated) {
-			String osName = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties().getProperty("os.name"); //$NON-NLS-1$
+			String osName = VM.internalGetProperties().getProperty("os.name"); //$NON-NLS-1$
 			String hwModel = getHardwareModel();
 
 			if ((null != osName) && (null != hwModel)) {
@@ -662,7 +680,9 @@ public class ExtendedOperatingSystemMXBeanImpl extends OperatingSystemMXBeanImpl
 
 	@Override
 	public boolean isProcessRunning(long pid) {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		com.ibm.java.lang.management.internal.RuntimeMXBeanImpl.checkMonitorPermission();
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		return openj9.internal.tools.attach.target.IPC.processExists(pid);
 	}
 

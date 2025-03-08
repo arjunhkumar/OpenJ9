@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2013
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.cuda;
 
 import java.io.IOException;
@@ -141,9 +141,11 @@ public final class CudaModule {
 	 *          the module image
 	 * @throws CudaException
 	 *          if a CUDA exception occurs
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException
 	 *          if a security manager exists and the calling thread
 	 *          does not have permission to load GPU modules
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
 	public CudaModule(CudaDevice device, byte[] image) throws CudaException {
 		this(device, image, null);
@@ -161,20 +163,24 @@ public final class CudaModule {
 	 *          the desired options
 	 * @throws CudaException
 	 *          if a CUDA exception occurs
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException
 	 *          if a security manager exists and the calling thread
 	 *          does not have permission to load GPU modules
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
 	public CudaModule(CudaDevice device, byte[] image, CudaJitOptions options)
 			throws CudaException {
 		super();
 
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		@SuppressWarnings("removal")
 		SecurityManager security = System.getSecurityManager();
 
 		if (security != null) {
 			security.checkPermission(CudaPermission.LoadModule);
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 		if (image == null) {
 			throw new NullPointerException();
@@ -210,9 +216,11 @@ public final class CudaModule {
 	 *          if a CUDA exception occurs
 	 * @throws IOException
 	 *          if an I/O error occurs reading {@code input}
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException
 	 *          if a security manager exists and the calling thread
 	 *          does not have permission to load GPU modules
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
 	public CudaModule(CudaDevice device, InputStream input)
 			throws CudaException, IOException {
@@ -233,9 +241,11 @@ public final class CudaModule {
 	 *          if a CUDA exception occurs
 	 * @throws IOException
 	 *          if an I/O error occurs reading {@code input}
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException
 	 *          if a security manager exists and the calling thread
 	 *          does not have permission to load GPU modules
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
 	public CudaModule(CudaDevice device, InputStream input,
 			CudaJitOptions options) throws CudaException, IOException {

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.j9;
 
 import com.ibm.dtfj.image.CorruptDataException;
@@ -29,9 +29,9 @@ import com.ibm.dtfj.image.j9.CorruptData;
 
 /**
  * @author nhardman
- * 
+ *
  * JavaReference is intended to represent either a standard reference within a java heap,
- * for example a reference from one object to another, or a root. A root is a reference 
+ * for example a reference from one object to another, or a root. A root is a reference
  * that is held outside of the heap, in the Java stack or within the JVM itself.
  *
  */
@@ -51,17 +51,17 @@ public class JavaReference implements com.ibm.dtfj.java.JavaReference
 	private Object _target = null;
 	private long   _address = 0;
 	private int _resolution = ResolutionType_UNRESOLVED;
-	
+
 	/**
 	 * Constructor
-	 * 
+	 *
 	 * @param javaVM JavaRuntime
 	 * @param source Object The source of this reference/root, for example the JVM or an object on the heap
 	 * @param address long Address of the target object of this reference/root.
-	 * @param description String  
-	 * @param referencetype int Mutually exclusive with respect to roottype. 
+	 * @param description String
+	 * @param referencetype int Mutually exclusive with respect to roottype.
 	 * @param roottype int Mutually exclusive with respect to referencetype.
-	 * @param reachability int the strength of the reference (this helps the GC in selection of objects for collection).  
+	 * @param reachability int the strength of the reference (this helps the GC in selection of objects for collection).
 	 */
 	public JavaReference(JavaRuntime javaVM, Object source, long address, String description, int referencetype, int roottype, int reachability) {
 		_javaVM = javaVM;
@@ -75,14 +75,14 @@ public class JavaReference implements com.ibm.dtfj.java.JavaReference
 
 	/**
 	 * Constructor
-	 * 
+	 *
 	 * @param javaVM JavaRuntime
 	 * @param source Object The source of this reference/root, for example the JVM or an object on the heap
 	 * @param target Object The target object of this reference/root.
-	 * @param description String  
-	 * @param referencetype int Mutually exclusive with respect to roottype. 
+	 * @param description String
+	 * @param referencetype int Mutually exclusive with respect to roottype.
 	 * @param roottype int Mutually exclusive with respect to referencetype.
-	 * @param reachability int The strength of the reference (this helps the GC in selection of objects for collection).  
+	 * @param reachability int The strength of the reference (this helps the GC in selection of objects for collection).
 	 */
 	public JavaReference(JavaRuntime javaVM, Object source, Object target, String description, int referencetype, int roottype, int reachability) {
 		_javaVM = javaVM;
@@ -94,32 +94,32 @@ public class JavaReference implements com.ibm.dtfj.java.JavaReference
 		_reachability = reachability;
 
 		if (null != _target) {
-			if (JavaReference.HEAP_ROOT_SYSTEM_CLASS == _roottype || 
-				JavaReference.REFERENCE_CLASS == _referencetype || 
-				JavaReference.REFERENCE_SUPERCLASS == _referencetype || 
+			if (JavaReference.HEAP_ROOT_SYSTEM_CLASS == _roottype ||
+				JavaReference.REFERENCE_CLASS == _referencetype ||
+				JavaReference.REFERENCE_SUPERCLASS == _referencetype ||
 				JavaReference.REFERENCE_LOADED_CLASS == _referencetype ||
 				JavaReference.REFERENCE_ASSOCIATED_CLASS == _referencetype) {
 				/* target is a class. */
 				_resolution = ResolutionType_CLASS;
 			} else if ((JavaReference.HEAP_ROOT_JNI_GLOBAL == _roottype) ||
-			           (JavaReference.HEAP_ROOT_JNI_LOCAL == _roottype) ||
-			           (JavaReference.HEAP_ROOT_MONITOR == _roottype) ||
-			           (JavaReference.HEAP_ROOT_OTHER == _roottype) ||
-			           (JavaReference.HEAP_ROOT_STACK_LOCAL == _roottype) ||
-			           (JavaReference.HEAP_ROOT_THREAD == _roottype) ||
-			           (JavaReference.HEAP_ROOT_FINALIZABLE_OBJ == _roottype) ||
-			           (JavaReference.HEAP_ROOT_UNFINALIZED_OBJ == _roottype) ||
-			           (JavaReference.HEAP_ROOT_CLASSLOADER == _roottype) ||
-			           (JavaReference.HEAP_ROOT_STRINGTABLE == _roottype) ||
-			           (JavaReference.REFERENCE_ARRAY_ELEMENT == _referencetype) ||
-			           (JavaReference.REFERENCE_CLASS_LOADER == _referencetype) ||
-			           (JavaReference.REFERENCE_CONSTANT_POOL == _referencetype) ||
-			           (JavaReference.REFERENCE_FIELD == _referencetype) ||
-			           (JavaReference.REFERENCE_INTERFACE == _referencetype) ||
-			           (JavaReference.REFERENCE_PROTECTION_DOMAIN == _referencetype) ||
-			           (JavaReference.REFERENCE_SIGNERS == _referencetype) ||
-			           (JavaReference.REFERENCE_STATIC_FIELD == _referencetype) ||
-			           (JavaReference.REFERENCE_CLASS_OBJECT == _referencetype)) {
+					   (JavaReference.HEAP_ROOT_JNI_LOCAL == _roottype) ||
+					   (JavaReference.HEAP_ROOT_MONITOR == _roottype) ||
+					   (JavaReference.HEAP_ROOT_OTHER == _roottype) ||
+					   (JavaReference.HEAP_ROOT_STACK_LOCAL == _roottype) ||
+					   (JavaReference.HEAP_ROOT_THREAD == _roottype) ||
+					   (JavaReference.HEAP_ROOT_FINALIZABLE_OBJ == _roottype) ||
+					   (JavaReference.HEAP_ROOT_UNFINALIZED_OBJ == _roottype) ||
+					   (JavaReference.HEAP_ROOT_CLASSLOADER == _roottype) ||
+					   (JavaReference.HEAP_ROOT_STRINGTABLE == _roottype) ||
+					   (JavaReference.REFERENCE_ARRAY_ELEMENT == _referencetype) ||
+					   (JavaReference.REFERENCE_CLASS_LOADER == _referencetype) ||
+					   (JavaReference.REFERENCE_CONSTANT_POOL == _referencetype) ||
+					   (JavaReference.REFERENCE_FIELD == _referencetype) ||
+					   (JavaReference.REFERENCE_INTERFACE == _referencetype) ||
+					   (JavaReference.REFERENCE_PROTECTION_DOMAIN == _referencetype) ||
+					   (JavaReference.REFERENCE_SIGNERS == _referencetype) ||
+					   (JavaReference.REFERENCE_STATIC_FIELD == _referencetype) ||
+					   (JavaReference.REFERENCE_CLASS_OBJECT == _referencetype)) {
 				/* target is an object. */
 				_resolution = ResolutionType_OBJECT;
 			} else {
@@ -181,12 +181,12 @@ public class JavaReference implements com.ibm.dtfj.java.JavaReference
 				return null;
 			}
 
-			if (JavaReference.HEAP_ROOT_SYSTEM_CLASS == _roottype || 
-				JavaReference.REFERENCE_CLASS == _referencetype || 
-				JavaReference.REFERENCE_SUPERCLASS == _referencetype || 
+			if (JavaReference.HEAP_ROOT_SYSTEM_CLASS == _roottype ||
+				JavaReference.REFERENCE_CLASS == _referencetype ||
+				JavaReference.REFERENCE_SUPERCLASS == _referencetype ||
 				JavaReference.REFERENCE_LOADED_CLASS == _referencetype ||
 				JavaReference.REFERENCE_ASSOCIATED_CLASS == _referencetype) {
-				
+
 				// this is a class reference, so create a class to represent the target.
 				_target = _javaVM.getClassForID(_address);
 				if (null == _target) {
@@ -196,24 +196,24 @@ public class JavaReference implements com.ibm.dtfj.java.JavaReference
 				}
 				_resolution = ResolutionType_CLASS;
 			} else if ((JavaReference.HEAP_ROOT_JNI_GLOBAL == _roottype) ||
-			           (JavaReference.HEAP_ROOT_JNI_LOCAL == _roottype) ||
-			           (JavaReference.HEAP_ROOT_MONITOR == _roottype) ||
-			           (JavaReference.HEAP_ROOT_OTHER == _roottype) ||
-			           (JavaReference.HEAP_ROOT_STACK_LOCAL == _roottype) ||
-			           (JavaReference.HEAP_ROOT_THREAD == _roottype) ||
-			           (JavaReference.HEAP_ROOT_FINALIZABLE_OBJ == _roottype) ||
-			           (JavaReference.HEAP_ROOT_UNFINALIZED_OBJ == _roottype) ||
-			           (JavaReference.HEAP_ROOT_CLASSLOADER == _roottype) ||
-			           (JavaReference.HEAP_ROOT_STRINGTABLE == _roottype) ||
-			           (JavaReference.REFERENCE_ARRAY_ELEMENT == _referencetype) ||
-			           (JavaReference.REFERENCE_CLASS_LOADER == _referencetype) ||
-			           (JavaReference.REFERENCE_CONSTANT_POOL == _referencetype) ||
-			           (JavaReference.REFERENCE_FIELD == _referencetype) ||
-			           (JavaReference.REFERENCE_INTERFACE == _referencetype) ||
-			           (JavaReference.REFERENCE_PROTECTION_DOMAIN == _referencetype) ||
-			           (JavaReference.REFERENCE_SIGNERS == _referencetype) ||
-			           (JavaReference.REFERENCE_STATIC_FIELD == _referencetype) ||
-			           (JavaReference.REFERENCE_CLASS_OBJECT == _referencetype)) {
+					   (JavaReference.HEAP_ROOT_JNI_LOCAL == _roottype) ||
+					   (JavaReference.HEAP_ROOT_MONITOR == _roottype) ||
+					   (JavaReference.HEAP_ROOT_OTHER == _roottype) ||
+					   (JavaReference.HEAP_ROOT_STACK_LOCAL == _roottype) ||
+					   (JavaReference.HEAP_ROOT_THREAD == _roottype) ||
+					   (JavaReference.HEAP_ROOT_FINALIZABLE_OBJ == _roottype) ||
+					   (JavaReference.HEAP_ROOT_UNFINALIZED_OBJ == _roottype) ||
+					   (JavaReference.HEAP_ROOT_CLASSLOADER == _roottype) ||
+					   (JavaReference.HEAP_ROOT_STRINGTABLE == _roottype) ||
+					   (JavaReference.REFERENCE_ARRAY_ELEMENT == _referencetype) ||
+					   (JavaReference.REFERENCE_CLASS_LOADER == _referencetype) ||
+					   (JavaReference.REFERENCE_CONSTANT_POOL == _referencetype) ||
+					   (JavaReference.REFERENCE_FIELD == _referencetype) ||
+					   (JavaReference.REFERENCE_INTERFACE == _referencetype) ||
+					   (JavaReference.REFERENCE_PROTECTION_DOMAIN == _referencetype) ||
+					   (JavaReference.REFERENCE_SIGNERS == _referencetype) ||
+					   (JavaReference.REFERENCE_STATIC_FIELD == _referencetype) ||
+					   (JavaReference.REFERENCE_CLASS_OBJECT == _referencetype)) {
 				// this is an object reference, so create a object to represent the target.
 				ImagePointer pointer = _javaVM.pointerInAddressSpace(_address);
 				try {
@@ -234,7 +234,7 @@ public class JavaReference implements com.ibm.dtfj.java.JavaReference
 				return null;
 			}
 		}
-		
+
 		return _target;
 	}
 
@@ -246,7 +246,7 @@ public class JavaReference implements com.ibm.dtfj.java.JavaReference
 			// the target is unresolved, so we need to get it.
 			_target = getTarget();
 		}
-		
+
 		if (ResolutionType_BROKEN == _resolution) {
 			throw new DataUnavailable();
 		}
@@ -262,7 +262,7 @@ public class JavaReference implements com.ibm.dtfj.java.JavaReference
 			// the target is unresolved, so we need to get it.
 			_target = getTarget();
 		}
-		
+
 		if (ResolutionType_BROKEN == _resolution) {
 			throw new DataUnavailable();
 		}

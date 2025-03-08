@@ -17,14 +17,14 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 # Mechanics of the Exception Directed Optimization (EDO) Optimization
 
 [Exception-Directed Optimization (EDO)](ControlFlowOptimizationsSummary.md#exception-directed-optimization-edo)
 enables more aggressive inlining of methods that throw and catch exceptions to facilitate
 the transformation of a throw operation into a goto by
-[Value Propagation (VP)](https://github.com/eclipse/omr/blob/master/doc/compiler/optimizer/ValuePropagation.md).
+[Value Propagation (VP)](https://github.com/eclipse-omr/omr/blob/master/doc/compiler/optimizer/ValuePropagation.md).
 Typically, profiling is used to determine which throw-catch pairs happen often enough to warrant extra inlining.
 
 In OpenJ9, the EDO mechanism starts by adding a snippet that decrements the

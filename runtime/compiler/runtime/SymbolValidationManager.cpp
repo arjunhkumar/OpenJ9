@@ -17,19 +17,21 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
 #include "env/VMJ9.h"
+#include "env/alloca_openxl.h"
 #include "env/ClassLoaderTable.hpp"
+#include "env/DependencyTable.hpp"
+#include "env/JSR292Methods.h"
 #include "env/PersistentCHTable.hpp"
 #include "env/VMAccessCriticalSection.hpp"
 #include "exceptions/AOTFailure.hpp"
 #include "compile/J9Compilation.hpp"
 #include "control/CompilationRuntime.hpp"
 #include "control/CompilationThread.hpp"
-#include "infra/String.hpp"
 #include "runtime/RelocationRuntime.hpp"
 #include "runtime/SymbolValidationManager.hpp"
 
@@ -57,11 +59,11 @@ TR::SymbolValidationManager::_systemClassesNotWorthRemembering[] = {
    { "java/lang/StringBuffer", NULL, false }
 };
 
-TR::SymbolValidationManager::SymbolValidationManager(TR::Region &region, TR_ResolvedMethod *compilee)
+TR::SymbolValidationManager::SymbolValidationManager(TR::Region &region, TR_ResolvedMethod *compilee, TR::Compilation *comp)
    : _symbolID(FIRST_ID),
      _heuristicRegion(0),
      _region(region),
-     _comp(TR::comp()),
+     _comp(comp),
      _vmThread(_comp->j9VMThread()),
      _fej9((TR_J9VM *)TR_J9VMBase::get(
         _vmThread->javaVM->jitConfig,
@@ -91,10 +93,13 @@ TR::SymbolValidationManager::SymbolValidationManager(TR::Region &region, TR_Reso
 #if defined(J9VM_OPT_JITSERVER)
    auto stream = TR::CompilationInfo::getStream();
    if (stream && _fej9->sharedCache())
+      {
       // because a different VM is used here, a new Shared Cache object was created, so
-      // need to update stream
-      // JITServer TODO: we update stream in multiple places, better to change it to only one
+      // need to update stream and compInfoPT
+      // JITServer TODO: we update stream and compInfoPT in multiple places, better to change it to only one
       ((TR_J9JITServerSharedCache *) _fej9->sharedCache())->setStream(stream);
+      ((TR_J9JITServerSharedCache *) _fej9->sharedCache())->setCompInfoPT(_fej9->_compInfoPT);
+      }
 #endif
 
    defineGuaranteedID(NULL, TR::SymbolType::typeOpaque);
@@ -196,12 +201,6 @@ TR::SymbolValidationManager::getSystemClassNotWorthRemembering(int idx)
    }
 
 void
-TR::SymbolValidationManager::getWellKnownClassesSCCKey(char *buffer, size_t size, unsigned int includedClasses)
-   {
-   TR::snprintfNoTrunc(buffer, size, "AOTWellKnownClasses:%x", includedClasses);
-   }
-
-void
 TR::SymbolValidationManager::populateWellKnownClasses()
    {
 #define REQUIRED_WELL_KNOWN_CLASS_COUNT 0
@@ -251,7 +250,7 @@ TR::SymbolValidationManager::populateWellKnownClasses()
       int32_t len = (int32_t)strlen(name);
       TR_OpaqueClassBlock *wkClass = _fej9->getSystemClassFromClassName(name, len);
 
-      void *chain = NULL;
+      uintptr_t chainOffset = TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET;
       if (wkClass == NULL)
          {
          traceMsg(_comp, "well-known class %s not found\n", name);
@@ -264,15 +263,15 @@ TR::SymbolValidationManager::populateWellKnownClasses()
          {
 #if defined(J9VM_OPT_JITSERVER)
          auto recordPtr = &classChainRecords[_wellKnownClasses.size()];
-         chain = _fej9->sharedCache()->rememberClass(wkClass, recordPtr);
+         chainOffset = _fej9->sharedCache()->rememberClass(wkClass, recordPtr);
          if (aotCacheStore && !*recordPtr)
             missingClassChainRecords = true;
 #else /* defined(J9VM_OPT_JITSERVER) */
-         chain = _fej9->sharedCache()->rememberClass(wkClass);
+         chainOffset = _fej9->sharedCache()->rememberClass(wkClass);
 #endif /* defined(J9VM_OPT_JITSERVER) */
          }
 
-      if (chain == NULL)
+      if (TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET == chainOffset)
          {
          traceMsg(_comp, "no class chain for well-known class %s\n", name);
          SVM_ASSERT_NONFATAL(
@@ -287,8 +286,7 @@ TR::SymbolValidationManager::populateWellKnownClasses()
 
       includedClasses |= 1 << i;
       _wellKnownClasses.push_back(wkClass);
-      if (!_fej9->sharedCache()->isPointerInSharedCache(chain, nextClassChainOffset++))
-         SVM_ASSERT_NONFATAL(false, "Failed to get SCC offset for well-known class %s chain %p", name, chain);
+      *nextClassChainOffset++ = chainOffset;
       }
 
    *classCount = _wellKnownClasses.size();
@@ -296,7 +294,18 @@ TR::SymbolValidationManager::populateWellKnownClasses()
 #if defined(J9VM_OPT_JITSERVER)
    if (clientData)
       {
-      // This is an out-of-process compilation; check the cache in the client session first
+      // This is an out-of-process compilation.
+
+      // If we're ignoring the client's SCC, we can skip client consultation here
+      if (aotCacheStore && clientData->useServerOffsets(_comp->getStream()))
+         {
+         // getWellKnownClassesRecord expects the number of well-known classes, not the number of elements in the object
+         _aotCacheWellKnownClassesRecord = clientData->getWellKnownClassesRecord(classChainRecords, _wellKnownClasses.size(), includedClasses);
+         // TODO: I think _wellKnownClassChainOffsets can remain NULL
+         return;
+         }
+
+      // Otherwise check the cache in the client session first
       _wellKnownClassChainOffsets = clientData->getCachedWellKnownClassChainOffsets(
          includedClasses, _wellKnownClasses.size(), classChainOffsets + 1, _aotCacheWellKnownClassesRecord
       );
@@ -305,20 +314,7 @@ TR::SymbolValidationManager::populateWellKnownClasses()
       }
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
-   char key[128];
-   getWellKnownClassesSCCKey(key, sizeof(key), includedClasses);
-
-   J9SharedDataDescriptor dataDescriptor;
-   dataDescriptor.address = (U_8*)classChainOffsets;
-   dataDescriptor.length = (1 + _wellKnownClasses.size()) * sizeof (classChainOffsets[0]);
-   dataDescriptor.type = J9SHR_DATA_TYPE_JITHINT;
-   dataDescriptor.flags = 0;
-
-   _wellKnownClassChainOffsets =
-      _fej9->sharedCache()->storeSharedData(
-         _vmThread,
-         key,
-         &dataDescriptor);
+   _wellKnownClassChainOffsets = _fej9->sharedCache()->storeWellKnownClasses(_vmThread, classChainOffsets, 1 + _wellKnownClasses.size(), includedClasses);
 
 #if defined(J9VM_OPT_JITSERVER)
    if (_wellKnownClassChainOffsets && clientData)
@@ -606,9 +602,8 @@ TR::SymbolValidationManager::getClassChainInfo(
       // info._baseComponent is a non-array reference type. It can't be a
       // primitive because primitives always satisfy isAlreadyValidated().
       const AOTCacheClassChainRecord *classChainRecord = NULL;
-      info._baseComponentClassChain =
-         _fej9->sharedCache()->rememberClass(info._baseComponent, &classChainRecord);
-      if (info._baseComponentClassChain == NULL)
+      info._baseComponentClassChainOffset = _fej9->sharedCache()->rememberClass(info._baseComponent, &classChainRecord);
+      if (TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET == info._baseComponentClassChainOffset)
          {
          _region.deallocate(record);
          return false;
@@ -639,13 +634,13 @@ TR::SymbolValidationManager::appendClassChainInfoRecords(
       }
 
    // If necessary, remember to validate the class chain of the base component type
-   if (info._baseComponentClassChain != NULL)
+   if (TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET != info._baseComponentClassChainOffset)
       {
       appendNewRecord(
          info._baseComponent,
          new (_region) ClassChainRecord(
             info._baseComponent,
-            info._baseComponentClassChain
+            info._baseComponentClassChainOffset
 #if defined(J9VM_OPT_JITSERVER)
             , info._baseComponentAOTCacheClassChainRecord
 #endif /* defined(J9VM_OPT_JITSERVER) */
@@ -696,8 +691,8 @@ TR::SymbolValidationManager::addClassRecordWithChain(TR::ClassValidationRecordWi
    if (!_fej9->isPrimitiveClass(record->_class))
       {
       const AOTCacheClassChainRecord *classChainRecord = NULL;
-      record->_classChain = _fej9->sharedCache()->rememberClass(record->_class, &classChainRecord);
-      if (record->_classChain == NULL)
+      record->_classChainOffset = _fej9->sharedCache()->rememberClass(record->_class, &classChainRecord);
+      if (TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET == record->_classChainOffset)
          {
          _region.deallocate(record);
          return false;
@@ -769,7 +764,10 @@ TR::SymbolValidationManager::skipFieldRefClassRecord(
 
       if (classRefLen == definingClassLen
           && !memcmp(classRefName, definingClassName, classRefLen))
+         {
+         comp()->addAOTMethodDependency(definingClass);
          return true;
+         }
       }
 
    return false;
@@ -780,13 +778,22 @@ TR::SymbolValidationManager::addClassByNameRecord(TR_OpaqueClassBlock *clazz, TR
    {
    SVM_ASSERT_ALREADY_VALIDATED(this, beholder);
    if (isWellKnownClass(clazz))
+      {
+      comp()->addAOTMethodDependency(clazz);
       return true;
+      }
    else if (clazz == beholder)
+      {
       return true;
+      }
    else if (anyClassFromCPRecordExists(clazz, beholder))
+      {
       return true; // already have an equivalent ClassFromCP
+      }
    else
+      {
       return addClassRecordWithChain(new (_region) ClassByNameRecord(clazz, beholder));
+      }
    }
 
 bool
@@ -800,12 +807,12 @@ TR::SymbolValidationManager::addProfiledClassRecord(TR_OpaqueClassBlock *clazz)
    clazz = getBaseComponentClass(clazz, arrayDims);
 
    const AOTCacheClassChainRecord *classChainRecord = NULL;
-   void *classChain = _fej9->sharedCache()->rememberClass(clazz, &classChainRecord);
-   if (classChain == NULL)
+   uintptr_t classChainOffset = _fej9->sharedCache()->rememberClass(clazz, &classChainRecord);
+   if (TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET == classChainOffset)
       return false;
 
    if (!isAlreadyValidated(clazz))
-      appendNewRecord(clazz, new (_region) ProfiledClassRecord(clazz, classChain, classChainRecord));
+      appendNewRecord(clazz, new (_region) ProfiledClassRecord(clazz, classChainOffset, classChainRecord));
 
    addMultipleArrayRecords(clazz, arrayDims);
    return true;
@@ -820,9 +827,14 @@ TR::SymbolValidationManager::addClassFromCPRecord(TR_OpaqueClassBlock *clazz, J9
    TR_OpaqueClassBlock *beholder = _fej9->getClassFromCP(constantPoolOfBeholder);
    SVM_ASSERT_ALREADY_VALIDATED(this, beholder);
    if (isWellKnownClass(clazz))
+      {
+      comp()->addAOTMethodDependency(clazz);
       return true;
+      }
    else if (clazz == beholder)
+      {
       return true;
+      }
 
    ClassByNameRecord byName(clazz, beholder);
    if (recordExists(&byName))
@@ -901,9 +913,14 @@ bool
 TR::SymbolValidationManager::addSystemClassByNameRecord(TR_OpaqueClassBlock *systemClass)
    {
    if (isWellKnownClass(systemClass))
+      {
+      comp()->addAOTMethodDependency(systemClass);
       return true;
+      }
    else
+      {
       return addClassRecordWithChain(new (_region) SystemClassByNameRecord(systemClass));
+      }
    }
 
 bool
@@ -1063,6 +1080,26 @@ TR::SymbolValidationManager::addMethodFromSingleAbstractImplementerRecord(TR_Opa
    }
 
 bool
+TR::SymbolValidationManager::addDynamicMethodFromCallsiteIndex(TR_OpaqueMethodBlock *method,
+                                                               TR_OpaqueMethodBlock *caller,
+                                                               int32_t callsiteIndex,
+                                                               bool appendixObjectNull)
+   {
+   SVM_ASSERT_ALREADY_VALIDATED(this, caller);
+   return addMethodRecord(new (_region) DynamicMethodFromCallsiteIndexRecord(method, caller, callsiteIndex, appendixObjectNull));
+   }
+
+bool
+TR::SymbolValidationManager::addHandleMethodFromCPIndex(TR_OpaqueMethodBlock *method,
+                                                        TR_OpaqueMethodBlock *caller,
+                                                        int32_t cpIndex,
+                                                        bool appendixObjectNull)
+   {
+   SVM_ASSERT_ALREADY_VALIDATED(this, caller);
+   return addMethodRecord(new (_region) HandleMethodFromCPIndex(method, caller, cpIndex, appendixObjectNull));
+   }
+
+bool
 TR::SymbolValidationManager::addStackWalkerMaySkipFramesRecord(TR_OpaqueMethodBlock *method, TR_OpaqueClassBlock *methodClass, bool skipFrames)
    {
    if (!method || !methodClass)
@@ -1217,13 +1254,22 @@ TR::SymbolValidationManager::validateClassByNameRecord(uint16_t classID, uint16_
    }
 
 bool
-TR::SymbolValidationManager::validateProfiledClassRecord(uint16_t classID, void *classChainIdentifyingLoader, void *classChainForClassBeingValidated)
+TR::SymbolValidationManager::validateProfiledClassRecord(uint16_t classID, void *classChainIdentifyingLoader,
+                                                         void *classChainForClassBeingValidated)
    {
-   J9ClassLoader *classLoader = (J9ClassLoader *) _fej9->sharedCache()->persistentClassLoaderTable()->lookupClassLoaderAssociatedWithClassChain(classChainIdentifyingLoader);
-   if (classLoader == NULL)
-      return false;
+   TR_OpaqueClassBlock *clazz = NULL;
+   J9ClassLoader *classLoader = (J9ClassLoader *)_fej9->sharedCache()->lookupClassLoaderAssociatedWithClassChain(classChainIdentifyingLoader);
+   if (classLoader)
+      {
+      clazz = _fej9->sharedCache()->lookupClassFromChainAndLoader(static_cast<uintptr_t *>(classChainForClassBeingValidated), classLoader, _comp);
+      }
 
-   TR_OpaqueClassBlock *clazz = _fej9->sharedCache()->lookupClassFromChainAndLoader(static_cast<uintptr_t *>(classChainForClassBeingValidated), classLoader);
+   if (!clazz)
+      {
+      if (auto dependencyTable = _comp->getPersistentInfo()->getAOTDependencyTable())
+         clazz = (TR_OpaqueClassBlock *)dependencyTable->findCandidateWithChainAndLoader(_comp, (uintptr_t *)classChainForClassBeingValidated, classChainIdentifyingLoader);
+      }
+
    return validateSymbol(classID, clazz);
    }
 
@@ -1248,7 +1294,25 @@ TR::SymbolValidationManager::validateStaticClassFromCPRecord(uint16_t classID, u
    {
    J9Class *beholder = getJ9ClassFromID(beholderID);
    J9ConstantPool *beholderCP = J9_CP_FROM_CLASS(beholder);
-   return validateSymbol(classID, TR_ResolvedJ9Method::getClassOfStaticFromCP(_fej9, beholderCP, cpIndex));
+   TR_OpaqueClassBlock *clazz = NULL;
+
+   if (cpIndex != -1)
+      {
+      // VM access is acquired explicitly here to avoid acquiring and releasing
+      // it several times if the initial getClassOfStaticFromCP() fails.
+      TR::VMAccessCriticalSection getClassFromConstantPool(_fej9);
+      clazz = TR_ResolvedJ9Method::getClassOfStaticFromCP(_fej9, beholderCP, cpIndex);
+      if (!clazz)
+         {
+         // This relocation may be early enough that the referenced class is
+         // loaded but not yet resolved at this index. Try to resolve the field
+         // and get the class again.
+         _vmThread->javaVM->internalVMFunctions->resolveStaticFieldRef(_fej9->vmThread(), NULL, beholderCP, cpIndex, J9_RESOLVE_FLAG_JIT_COMPILE_TIME, NULL);
+         clazz = TR_ResolvedJ9Method::getClassOfStaticFromCP(_fej9, beholderCP, cpIndex);
+         }
+      }
+
+   return validateSymbol(classID, clazz);
    }
 
 bool
@@ -1257,7 +1321,11 @@ TR::SymbolValidationManager::validateArrayClassFromComponentClassRecord(uint16_t
    if (isDefinedID(componentClassID))
       {
       TR_OpaqueClassBlock *componentClass = getClassFromID(componentClassID);
-      return validateSymbol(arrayClassID, _fej9->getArrayClassFromComponentClass(componentClass));
+      if (validateSymbol(arrayClassID, _fej9->getArrayClassFromComponentClass(componentClass)))
+         return true;
+
+      TR_OpaqueClassBlock *nullRestrictedArray = _fej9->getNullRestrictedArrayClassFromComponentClass(componentClass);
+      return nullRestrictedArray ? validateSymbol(arrayClassID, nullRestrictedArray) : false;
       }
    else
       {
@@ -1326,10 +1394,10 @@ TR::SymbolValidationManager::validateDeclaringClassFromFieldOrStaticRecord(uint1
       {
       TR::VMAccessCriticalSection getDeclaringClassFromFieldOrStatic(_fej9);
 
-      int32_t fieldLen;
+      int32_t fieldLen = 0;
       char *field = cpIndex >= 0 ? utf8Data(J9ROMNAMEANDSIGNATURE_NAME(J9ROMFIELDREF_NAMEANDSIGNATURE(&romCPBase[cpIndex])), fieldLen) : 0;
 
-      int32_t sigLen;
+      int32_t sigLen = 0;
       char *sig = cpIndex >= 0 ? utf8Data(J9ROMNAMEANDSIGNATURE_SIGNATURE(J9ROMFIELDREF_NAMEANDSIGNATURE(&romCPBase[cpIndex])), sigLen) : 0;
 
       _vmThread->javaVM->internalVMFunctions->instanceFieldOffset(
@@ -1551,6 +1619,103 @@ TR::SymbolValidationManager::validateMethodFromSingleAbstractImplementerRecord(u
    }
 
 bool
+TR::SymbolValidationManager::validateDynamicMethodFromCallsiteIndex(uint16_t methodID,
+                                                                    uint16_t callerID,
+                                                                    int32_t callsiteIndex,
+                                                                    bool appendixObjectNull,
+                                                                    uint16_t definingClassID,
+                                                                    uint32_t methodIndex)
+   {
+   bool valid = false;
+
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   TR_OpaqueMethodBlock *caller = getMethodFromID(callerID);
+   TR_ResolvedMethod *resolvedCaller = _fej9->createResolvedMethod(_trMemory, caller, NULL);
+
+   // If dispatch was resolved at compile time, it must also be resolved
+   // at load time.
+   if (!resolvedCaller->isUnresolvedCallSiteTableEntry(callsiteIndex))
+      {
+      uintptr_t * invokeCacheArray = (uintptr_t *)resolvedCaller->callSiteTableEntryAddress(callsiteIndex);
+      if (_fej9->isInvokeCacheEntryAnArray(invokeCacheArray))
+         {
+         bool invokeCacheAppendixNull = false;
+
+         TR_OpaqueMethodBlock *targetMethod =
+            static_cast<TR_ResolvedJ9Method *>(resolvedCaller)->getTargetMethodFromMemberName(
+               invokeCacheArray, &invokeCacheAppendixNull);
+
+         TR_OpaqueClassBlock *targetMethodClass =
+            reinterpret_cast<TR_OpaqueClassBlock *>(
+               J9_CLASS_FROM_METHOD(reinterpret_cast<J9Method *>(targetMethod)));
+
+         valid =
+            validateSymbol(methodID, definingClassID, targetMethod)
+
+            // The generated code is different depending on whether the
+            // appendix object was null or not.
+            && (appendixObjectNull == invokeCacheAppendixNull)
+
+            // Because the target method is not named, this (indirectly) ensures
+            // that the target method has the same name as in the compile run;
+            // the class chain validation of the defining class will ensure the
+            // bytecodes are the same.
+            && (methodIndex == _fej9->getMethodIndexInClass(targetMethodClass, targetMethod));
+         }
+      }
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+
+   return valid;
+   }
+
+bool
+TR::SymbolValidationManager::validateHandleMethodFromCPIndex(uint16_t methodID,
+                                                             uint16_t callerID,
+                                                             int32_t cpIndex,
+                                                             bool appendixObjectNull,
+                                                             uint16_t definingClassID,
+                                                             uint32_t methodIndex)
+   {
+   bool valid = false;
+
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   TR_OpaqueMethodBlock *caller = getMethodFromID(callerID);
+   TR_ResolvedMethod *resolvedCaller = _fej9->createResolvedMethod(_trMemory, caller, NULL);
+
+   // If dispatch was resolved at compile time, it must also be resolved
+   // at load time.
+   if (!resolvedCaller->isUnresolvedMethodTypeTableEntry(cpIndex))
+      {
+      uintptr_t * invokeCacheArray = (uintptr_t *)resolvedCaller->methodTypeTableEntryAddress(cpIndex);
+      bool invokeCacheAppendixNull = false;
+
+      TR_OpaqueMethodBlock *targetMethod =
+         static_cast<TR_ResolvedJ9Method *>(resolvedCaller)->getTargetMethodFromMemberName(
+            invokeCacheArray, &invokeCacheAppendixNull);
+
+      TR_OpaqueClassBlock *targetMethodClass =
+         reinterpret_cast<TR_OpaqueClassBlock *>(
+            J9_CLASS_FROM_METHOD(reinterpret_cast<J9Method *>(targetMethod)));
+
+      valid =
+         validateSymbol(methodID, definingClassID, targetMethod)
+
+         // The generated code is different depending on whether the
+         // appendix object was null or not.
+         && (appendixObjectNull == invokeCacheAppendixNull)
+
+         // Because the target method is not named, this (indirectly) ensures
+         // that the target method has the same name as in the compile run;
+         // the class chain validation of the defining class will ensure the
+         // bytecodes are the same.
+         && (methodIndex == _fej9->getMethodIndexInClass(targetMethodClass, targetMethod));
+      }
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+
+   return valid;
+   }
+
+bool
 TR::SymbolValidationManager::validateStackWalkerMaySkipFramesRecord(uint16_t methodID, uint16_t methodClassID, bool couldSkipFrames)
    {
    TR_OpaqueMethodBlock *method = getMethodFromID(methodID);
@@ -1601,11 +1766,16 @@ TR::SymbolValidationManager::assertionsAreFatal()
    // Look for the env var even in debug builds so that it's always acknowledged.
    static const bool fatal = feGetEnv("TR_svmAssertionsAreFatal") != NULL;
 
+   if (fatal)
+      return true;
+
 #if defined(DEBUG) || defined(PROD_WITH_ASSUMES) || defined(SVM_ASSERTIONS_ARE_FATAL)
-   return true;
+   TR::Compilation *comp = TR::comp();
+   // TR_IgnoreAssert: ignore nonfatal assertion failures.
+   return !comp || !comp->getOption(TR_IgnoreAssert);
 #else
-   return fatal;
-#endif
+   return false;
+#endif /* defined(DEBUG) || defined(PROD_WITH_ASSUMES) || defined(SVM_ASSERTIONS_ARE_FATAL) */
    }
 
 static void printClass(TR_OpaqueClassBlock *clazz)
@@ -1616,41 +1786,6 @@ static void printClass(TR_OpaqueClassBlock *clazz)
       traceMsg(TR::comp(), "\tclassName=%.*s\n", J9UTF8_LENGTH(className), J9UTF8_DATA(className));
       }
    }
-
-#if defined(J9VM_OPT_JITSERVER)
-std::string
-TR::SymbolValidationManager::serializeValueToSymbolMap()
-   {
-   int32_t entrySize = sizeof(ValueToSymbolMap::key_type) + sizeof(ValueToSymbolMap::mapped_type);
-   std::string valueToSymbolStr(entrySize * _valueToSymbolMap.size(), '\0');
-   uint16_t idx = 0;
-   for (auto it : _valueToSymbolMap)
-      {
-      ValueToSymbolMap::key_type symbol = it.first;
-      ValueToSymbolMap::mapped_type id = it.second;
-      memcpy(&valueToSymbolStr[idx * entrySize], &symbol, sizeof(symbol));
-      memcpy(&valueToSymbolStr[idx * entrySize + sizeof(symbol)], &id, sizeof(id));
-      ++idx;
-      }
-   return valueToSymbolStr;
-   }
-
-void
-TR::SymbolValidationManager::deserializeValueToSymbolMap(const std::string &valueToSymbolStr)
-   {
-   _valueToSymbolMap.clear();
-
-   int32_t entrySize = sizeof(ValueToSymbolMap::key_type) + sizeof(ValueToSymbolMap::mapped_type);
-   int32_t numEntries = valueToSymbolStr.length() / entrySize;
-   for (int32_t idx = 0; idx < numEntries; idx++)
-      {
-      ValueToSymbolMap::key_type symbol;
-      memcpy(&symbol, &valueToSymbolStr[idx * entrySize], sizeof(symbol));
-      ValueToSymbolMap::mapped_type id = (uint16_t) valueToSymbolStr[idx * entrySize + sizeof(symbol)];
-      _valueToSymbolMap.insert(std::make_pair(symbol, id));
-      }
-   }
-#endif /* defined(J9VM_OPT_JITSERVER) */
 
 namespace // file-local
    {
@@ -1695,7 +1830,7 @@ void TR::ClassValidationRecordWithChain::printFields()
    {
    traceMsg(TR::comp(), "\t_class=0x%p\n", _class);
    printClass(_class);
-   traceMsg(TR::comp(), "\t_classChain=0x%p\n", _classChain);
+   traceMsg(TR::comp(), "\t_classChainOffset=%" OMR_PRIuPTR "\n", _classChainOffset);
    }
 
 bool TR::ClassByNameRecord::isLessThanWithinKind(SymbolValidationRecord *other)
@@ -1726,7 +1861,7 @@ void TR::ProfiledClassRecord::printFields()
    traceMsg(TR::comp(), "ProfiledClassRecord\n");
    traceMsg(TR::comp(), "\t_class=0x%p\n", _class);
    printClass(_class);
-   traceMsg(TR::comp(), "\t_classChain=0x%p\n", _classChain);
+   traceMsg(TR::comp(), "\t_classChainOffset=%" OMR_PRIuPTR "\n", _classChainOffset);
    }
 
 bool TR::ClassFromCPRecord::isLessThanWithinKind(SymbolValidationRecord *other)
@@ -1922,7 +2057,7 @@ void TR::ClassChainRecord::printFields()
    traceMsg(TR::comp(), "ClassChainRecord\n");
    traceMsg(TR::comp(), "\t_class=0x%p\n", _class);
    printClass(_class);
-   traceMsg(TR::comp(), "\t_classChain=0x%p\n", _classChain);
+   traceMsg(TR::comp(), "\t_classChainOffset=%" OMR_PRIuPTR "\n", _classChainOffset);
    }
 
 bool TR::MethodFromClassRecord::isLessThanWithinKind(
@@ -2204,4 +2339,42 @@ void TR::IsClassVisibleRecord::printFields()
    traceMsg(TR::comp(), "\t_destClass=0x%p\n", _destClass);
    printClass(_destClass);
    traceMsg(TR::comp(), "\t_isVisible=%s\n", _isVisible ? "true" : "false");
+   }
+
+bool TR::DynamicMethodFromCallsiteIndexRecord::isLessThanWithinKind(
+   SymbolValidationRecord *other)
+   {
+   TR::DynamicMethodFromCallsiteIndexRecord *rhs = downcast(this, other);
+   return LexicalOrder::by(_method, rhs->_method)
+      .thenBy(_caller, rhs->_caller)
+      .thenBy(_callsiteIndex, rhs->_callsiteIndex)
+      .thenBy(_appendixObjectNull, rhs->_appendixObjectNull).less();
+   }
+
+void TR::DynamicMethodFromCallsiteIndexRecord::printFields()
+   {
+   traceMsg(TR::comp(), "DynamicMethodFromCallsiteIndexRecord\n");
+   traceMsg(TR::comp(), "\t_method=0x%p\n", _method);
+   traceMsg(TR::comp(), "\t_caller=0x%p\n", _caller);
+   traceMsg(TR::comp(), "\t_callsiteIndex=%d\n", _callsiteIndex);
+   traceMsg(TR::comp(), "\t_appendixObjectNull=%s\n", _appendixObjectNull ? "true" : "false");
+   }
+
+bool TR::HandleMethodFromCPIndex::isLessThanWithinKind(
+   SymbolValidationRecord *other)
+   {
+   TR::HandleMethodFromCPIndex *rhs = downcast(this, other);
+   return LexicalOrder::by(_method, rhs->_method)
+      .thenBy(_caller, rhs->_caller)
+      .thenBy(_cpIndex, rhs->_cpIndex)
+      .thenBy(_appendixObjectNull, rhs->_appendixObjectNull).less();
+   }
+
+void TR::HandleMethodFromCPIndex::printFields()
+   {
+   traceMsg(TR::comp(), "HandleMethodFromCPIndex\n");
+   traceMsg(TR::comp(), "\t_method=0x%p\n", _method);
+   traceMsg(TR::comp(), "\t_caller=0x%p\n", _caller);
+   traceMsg(TR::comp(), "\t_cpIndex=%d\n", _cpIndex);
+   traceMsg(TR::comp(), "\t_appendixObjectNull=%s\n", _appendixObjectNull ? "true" : "false");
    }

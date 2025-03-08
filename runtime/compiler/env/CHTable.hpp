@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef CHTABLE_INCL
@@ -516,7 +516,7 @@ class TR_PersistentFieldInfo : public TR_Link<TR_PersistentFieldInfo>
                           int32_t sigLength = -1,
                           TR_PersistentFieldInfo *next = NULL,
                           uint8_t b = VALID_BUT_NOT_ALWAYS_INITIALIZED,
-                          char *c = 0,
+                          const char *c = 0,
                           int32_t numChars = -1)
 
       : TR_Link<TR_PersistentFieldInfo>(next),
@@ -705,7 +705,7 @@ class TR_PersistentArrayFieldInfo : public TR_PersistentFieldInfo
                                int32_t *dimensionInfo = NULL,
                                uint8_t b1 = VALID_BUT_NOT_ALWAYS_INITIALIZED,
                                uint8_t b2 = VALID_BUT_NOT_ALWAYS_INITIALIZED,
-                               char *c = "",
+                               const char *c = "",
                                int32_t numChars = -1)
       : TR_PersistentFieldInfo(sig, sigLength, next, b2, c, numChars),
         _numDimensions(numDimensions),

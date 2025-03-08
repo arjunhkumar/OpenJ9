@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 omr_add_exports(jclse
@@ -111,6 +111,7 @@ omr_add_exports(jclse
 	Java_com_ibm_java_lang_management_internal_ThreadMXBeanImpl_resetPeakThreadCountImpl
 	Java_com_ibm_java_lang_management_internal_ThreadMXBeanImpl_setThreadContentionMonitoringEnabledImpl
 	Java_com_ibm_java_lang_management_internal_ThreadMXBeanImpl_setThreadCpuTimeEnabledImpl
+	Java_com_ibm_lang_management_internal_ExtendedThreadMXBeanImpl_getThreadAllocatedBytesImpl
 	Java_com_ibm_jit_JITHelpers_arrayShapeElementCountMask
 	Java_com_ibm_jit_JITHelpers_getNumBitsInDescriptionWord
 	Java_com_ibm_jit_JITHelpers_getNumBitsInReferenceField
@@ -227,6 +228,7 @@ omr_add_exports(jclse
 	Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_getSystemCpuLoadImpl
 	Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_getTotalPhysicalMemoryImpl
 	Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_getTotalProcessorUsageImpl
+	Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_hasCpuLoadCompatibilityFlag
 	Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_isDLPAREnabled
 	Java_com_ibm_lang_management_internal_ExtendedRuntimeMXBeanImpl_getVMIdleStateImpl
 	Java_com_ibm_lang_management_internal_JvmCpuMonitor_getThreadCategoryImpl
@@ -241,6 +243,7 @@ omr_add_exports(jclse
 	Java_openj9_internal_tools_attach_target_DiagnosticUtils_getHeapClassStatisticsImpl
 	Java_openj9_internal_tools_attach_target_DiagnosticUtils_dumpAllThreadsImpl
 	Java_openj9_internal_tools_attach_target_DiagnosticUtils_triggerDumpsImpl
+	Java_openj9_management_internal_IDCacheInitializer_initIDCache
 	Java_com_ibm_oti_reflect_AnnotationParser_getAnnotationsDataImpl__Ljava_lang_Class_2
 	Java_com_ibm_oti_reflect_AnnotationParser_getAnnotationsData__Ljava_lang_reflect_Constructor_2
 	Java_com_ibm_oti_reflect_AnnotationParser_getAnnotationsData__Ljava_lang_reflect_Field_2
@@ -371,9 +374,6 @@ omr_add_exports(jclse
 	Java_java_lang_reflect_Proxy_defineClass0__Ljava_lang_ClassLoader_2Ljava_lang_String_2_3BII
 	Java_java_lang_reflect_Proxy_defineClass0__Ljava_lang_ClassLoader_2Ljava_lang_String_2_3BIILjava_lang_Object_2_3Ljava_lang_Object_2Ljava_lang_Object_2
 	Java_java_lang_reflect_Proxy_defineClassImpl
-	Java_java_security_AccessController_getAccSnapshot
-	Java_java_security_AccessController_getCallerPD
-	Java_java_security_AccessController_initializeInternal
 	Java_java_util_stream_IntPipeline_promoteGPUCompile
 	Java_jdk_internal_misc_Unsafe_allocateDBBMemory
 	Java_jdk_internal_misc_Unsafe_copySwapMemory0
@@ -449,6 +449,14 @@ omr_add_exports(jclse
 	Java_java_lang_Thread_resumeImpl
 	Java_java_lang_Thread_stopImpl
 	Java_java_lang_Thread_suspendImpl
+)
+endif()
+
+if(JAVA_SPEC_VERSION LESS 24)
+omr_add_exports(jclse
+	Java_java_security_AccessController_getAccSnapshot
+	Java_java_security_AccessController_getCallerPD
+	Java_java_security_AccessController_initializeInternal
 )
 endif()
 
@@ -546,9 +554,6 @@ if(NOT JAVA_SPEC_VERSION LESS 9)
 			Java_java_lang_invoke_FieldVarHandle_lookupField
 			Java_java_lang_invoke_FieldVarHandle_unreflectField
 		)
-		if(J9VM_OPT_PANAMA)
-			omr_add_exports(jclse Java_java_lang_invoke_MethodHandles_findNativeAddress)
-		endif()
 	endif()
 
 	omr_add_exports(jclse
@@ -590,6 +595,7 @@ if(NOT JAVA_SPEC_VERSION LESS 9)
 		Java_jdk_internal_reflect_ConstantPool_getNameAndTypeRefIndexAt0
 		Java_jdk_internal_reflect_ConstantPool_getNameAndTypeRefInfoAt0
 		Java_jdk_internal_reflect_ConstantPool_getTagAt0
+		Java_jdk_internal_reflect_ConstantPool_registerNatives
 	)
 endif()
 
@@ -645,6 +651,7 @@ if(J9VM_OPT_OPENJDK_METHODHANDLE)
 		Java_java_lang_invoke_MethodHandleNatives_setCallSiteTargetVolatile
 		Java_java_lang_invoke_MethodHandleNatives_getNamedCon
 		Java_java_lang_invoke_MethodHandleNatives_registerNatives
+		Java_java_lang_invoke_MethodHandleNatives_markClassForMemberNamePruning
 	)
 	if(JAVA_SPEC_VERSION EQUAL 8)
 		omr_add_exports(jclse Java_java_lang_invoke_MethodHandleNatives_getConstant)
@@ -667,10 +674,288 @@ endif()
 # J9VM_OPT_CRIU_SUPPORT
 if(J9VM_OPT_CRIU_SUPPORT)
 	omr_add_exports(jclse
+		Java_openj9_internal_criu_InternalCRIUSupport_checkpointJVMImpl
+		Java_openj9_internal_criu_InternalCRIUSupport_enableCRIUSecProviderImpl
 		Java_openj9_internal_criu_InternalCRIUSupport_getCheckpointRestoreNanoTimeDeltaImpl
+		Java_openj9_internal_criu_InternalCRIUSupport_getLastRestoreTimeImpl
+		Java_openj9_internal_criu_InternalCRIUSupport_getProcessRestoreStartTimeImpl
+		Java_openj9_internal_criu_InternalCRIUSupport_getRestoreSystemProperites
 		Java_openj9_internal_criu_InternalCRIUSupport_isCheckpointAllowedImpl
 		Java_openj9_internal_criu_InternalCRIUSupport_isCRIUSupportEnabledImpl
+		Java_openj9_internal_criu_InternalCRIUSupport_setupJNIFieldIDsAndCRIUAPI
 	)
+	if(J9VM_OPT_CRAC_SUPPORT)
+		omr_add_exports(jclse
+			Java_openj9_internal_criu_InternalCRIUSupport_getCRaCCheckpointToDirImpl
+			Java_openj9_internal_criu_InternalCRIUSupport_isCRaCSupportEnabledImpl
+		)
+	endif()
+endif()
+
+if(J9VM_OPT_JFR)
+	omr_add_exports(jclse
+		Java_com_ibm_oti_vm_VM_isJFREnabled
+		Java_com_ibm_oti_vm_VM_isJFRRecordingStarted
+		Java_com_ibm_oti_vm_VM_jfrDump
+		Java_com_ibm_oti_vm_VM_setJFRRecordingFileName
+		Java_com_ibm_oti_vm_VM_startJFR
+		Java_com_ibm_oti_vm_VM_stopJFR
+		Java_com_ibm_oti_vm_VM_triggerExecutionSample
+	)
+	if(JAVA_SPEC_VERSION EQUAL 11)
+		omr_add_exports(jclse
+			Java_jdk_jfr_internal_JVM_abort
+			Java_jdk_jfr_internal_JVM_addStringConstant
+			Java_jdk_jfr_internal_JVM_beginRecording
+			Java_jdk_jfr_internal_JVM_counterTime
+			Java_jdk_jfr_internal_JVM_createJFR
+			Java_jdk_jfr_internal_JVM_destroyJFR
+			Java_jdk_jfr_internal_JVM_emitEvent
+			Java_jdk_jfr_internal_JVM_emitOldObjectSamples
+			Java_jdk_jfr_internal_JVM_endRecording
+			Java_jdk_jfr_internal_JVM_flush
+			Java_jdk_jfr_internal_JVM_getAllEventClasses
+			Java_jdk_jfr_internal_JVM_getAllowedToDoEventRetransforms
+			Java_jdk_jfr_internal_JVM_getClassId
+			Java_jdk_jfr_internal_JVM_getClassIdNonIntrinsic
+			Java_jdk_jfr_internal_JVM_getEventWriter
+			Java_jdk_jfr_internal_JVM_getPid
+			Java_jdk_jfr_internal_JVM_getStackTraceId
+			Java_jdk_jfr_internal_JVM_getThreadId
+			Java_jdk_jfr_internal_JVM_getTicksFrequency
+			Java_jdk_jfr_internal_JVM_getTimeConversionFactor
+			Java_jdk_jfr_internal_JVM_getTypeId
+			Java_jdk_jfr_internal_JVM_getUnloadedEventClassCount
+			Java_jdk_jfr_internal_JVM_isAvailable
+			Java_jdk_jfr_internal_JVM_log
+			Java_jdk_jfr_internal_JVM_newEventWriter
+			Java_jdk_jfr_internal_JVM_registerNatives
+			Java_jdk_jfr_internal_JVM_retransformClasses
+			Java_jdk_jfr_internal_JVM_setCompressedIntegers
+			Java_jdk_jfr_internal_JVM_setCutoff
+			Java_jdk_jfr_internal_JVM_setEnabled
+			Java_jdk_jfr_internal_JVM_setFileNotification
+			Java_jdk_jfr_internal_JVM_setForceInstrumentation
+			Java_jdk_jfr_internal_JVM_setGlobalBufferCount
+			Java_jdk_jfr_internal_JVM_setGlobalBufferSize
+			Java_jdk_jfr_internal_JVM_setMemorySize
+			Java_jdk_jfr_internal_JVM_setMethodSamplingInterval
+			Java_jdk_jfr_internal_JVM_setOutput
+			Java_jdk_jfr_internal_JVM_setRepositoryLocation
+			Java_jdk_jfr_internal_JVM_setSampleThreads
+			Java_jdk_jfr_internal_JVM_setStackDepth
+			Java_jdk_jfr_internal_JVM_setStackTraceEnabled
+			Java_jdk_jfr_internal_JVM_setThreadBufferSize
+			Java_jdk_jfr_internal_JVM_setThreshold
+			Java_jdk_jfr_internal_JVM_shouldRotateDisk
+			Java_jdk_jfr_internal_JVM_storeMetadataDescriptor
+			Java_jdk_jfr_internal_JVM_subscribeLogLevel
+			Java_jdk_jfr_internal_JVM_uncaughtException
+		)
+	elseif(JAVA_SPEC_VERSION EQUAL 17)
+		omr_add_exports(jclse
+			Java_jdk_jfr_internal_JVM_abort
+			Java_jdk_jfr_internal_JVM_addStringConstant
+			Java_jdk_jfr_internal_JVM_beginRecording
+			Java_jdk_jfr_internal_JVM_counterTime
+			Java_jdk_jfr_internal_JVM_createJFR
+			Java_jdk_jfr_internal_JVM_destroyJFR
+			Java_jdk_jfr_internal_JVM_emitDataLoss
+			Java_jdk_jfr_internal_JVM_emitEvent
+			Java_jdk_jfr_internal_JVM_emitOldObjectSamples
+			Java_jdk_jfr_internal_JVM_endRecording
+			Java_jdk_jfr_internal_JVM_exclude
+			Java_jdk_jfr_internal_JVM_flush__
+			Java_jdk_jfr_internal_JVM_flush__Ljdk_jfr_internal_EventWriter_2II
+			Java_jdk_jfr_internal_JVM_getAllEventClasses
+			Java_jdk_jfr_internal_JVM_getAllowedToDoEventRetransforms
+			Java_jdk_jfr_internal_JVM_getChunkStartNanos
+			Java_jdk_jfr_internal_JVM_getClassId
+			Java_jdk_jfr_internal_JVM_getEventWriter
+			Java_jdk_jfr_internal_JVM_getHandler
+			Java_jdk_jfr_internal_JVM_getPid
+			Java_jdk_jfr_internal_JVM_getStackTraceId
+			Java_jdk_jfr_internal_JVM_getThreadId
+			Java_jdk_jfr_internal_JVM_getTicksFrequency
+			Java_jdk_jfr_internal_JVM_getTimeConversionFactor
+			Java_jdk_jfr_internal_JVM_getTypeId__Ljava_lang_Class_2
+			Java_jdk_jfr_internal_JVM_getTypeId__Ljava_lang_String_2
+			Java_jdk_jfr_internal_JVM_getUnloadedEventClassCount
+			Java_jdk_jfr_internal_JVM_include
+			Java_jdk_jfr_internal_JVM_isAvailable
+			Java_jdk_jfr_internal_JVM_isExcluded
+			Java_jdk_jfr_internal_JVM_isRecording
+			Java_jdk_jfr_internal_JVM_log
+			Java_jdk_jfr_internal_JVM_logEvent
+			Java_jdk_jfr_internal_JVM_markChunkFinal
+			Java_jdk_jfr_internal_JVM_newEventWriter
+			Java_jdk_jfr_internal_JVM_registerNatives
+			Java_jdk_jfr_internal_JVM_retransformClasses
+			Java_jdk_jfr_internal_JVM_setCompressedIntegers
+			Java_jdk_jfr_internal_JVM_setCutoff
+			Java_jdk_jfr_internal_JVM_setEnabled
+			Java_jdk_jfr_internal_JVM_setFileNotification
+			Java_jdk_jfr_internal_JVM_setForceInstrumentation
+			Java_jdk_jfr_internal_JVM_setGlobalBufferCount
+			Java_jdk_jfr_internal_JVM_setGlobalBufferSize
+			Java_jdk_jfr_internal_JVM_setHandler
+			Java_jdk_jfr_internal_JVM_setMemorySize
+			Java_jdk_jfr_internal_JVM_setMethodSamplingPeriod
+			Java_jdk_jfr_internal_JVM_setOutput
+			Java_jdk_jfr_internal_JVM_setRepositoryLocation
+			Java_jdk_jfr_internal_JVM_setSampleThreads
+			Java_jdk_jfr_internal_JVM_setStackDepth
+			Java_jdk_jfr_internal_JVM_setStackTraceEnabled
+			Java_jdk_jfr_internal_JVM_setThreadBufferSize
+			Java_jdk_jfr_internal_JVM_setThreshold
+			Java_jdk_jfr_internal_JVM_setThrottle
+			Java_jdk_jfr_internal_JVM_shouldRotateDisk
+			Java_jdk_jfr_internal_JVM_storeMetadataDescriptor
+			Java_jdk_jfr_internal_JVM_subscribeLogLevel
+			Java_jdk_jfr_internal_JVM_uncaughtException
+		)
+	elseif(JAVA_SPEC_VERSION EQUAL 21)
+		omr_add_exports(jclse
+			Java_jdk_jfr_internal_JVM_abort
+			Java_jdk_jfr_internal_JVM_addStringConstant
+			Java_jdk_jfr_internal_JVM_beginRecording
+			Java_jdk_jfr_internal_JVM_commit
+			Java_jdk_jfr_internal_JVM_counterTime
+			Java_jdk_jfr_internal_JVM_createJFR
+			Java_jdk_jfr_internal_JVM_destroyJFR
+			Java_jdk_jfr_internal_JVM_emitDataLoss
+			Java_jdk_jfr_internal_JVM_emitEvent
+			Java_jdk_jfr_internal_JVM_emitOldObjectSamples
+			Java_jdk_jfr_internal_JVM_endRecording
+			Java_jdk_jfr_internal_JVM_exclude
+			Java_jdk_jfr_internal_JVM_flush__
+			Java_jdk_jfr_internal_JVM_flush__Ljdk_jfr_internal_event_EventWriter_2II
+			Java_jdk_jfr_internal_JVM_getAllEventClasses
+			Java_jdk_jfr_internal_JVM_getAllowedToDoEventRetransforms
+			Java_jdk_jfr_internal_JVM_getChunkStartNanos
+			Java_jdk_jfr_internal_JVM_getClassId
+			Java_jdk_jfr_internal_JVM_getConfiguration
+			Java_jdk_jfr_internal_JVM_getDumpPath
+			Java_jdk_jfr_internal_JVM_getEventWriter
+			Java_jdk_jfr_internal_JVM_getPid
+			Java_jdk_jfr_internal_JVM_getStackTraceId
+			Java_jdk_jfr_internal_JVM_getThreadId
+			Java_jdk_jfr_internal_JVM_getTicksFrequency
+			Java_jdk_jfr_internal_JVM_getTimeConversionFactor
+			Java_jdk_jfr_internal_JVM_getTypeId__Ljava_lang_Class_2
+			Java_jdk_jfr_internal_JVM_getTypeId__Ljava_lang_String_2
+			Java_jdk_jfr_internal_JVM_getUnloadedEventClassCount
+			Java_jdk_jfr_internal_JVM_hostTotalMemory
+			Java_jdk_jfr_internal_JVM_include
+			Java_jdk_jfr_internal_JVM_isAvailable
+			Java_jdk_jfr_internal_JVM_isContainerized
+			Java_jdk_jfr_internal_JVM_isExcluded__Ljava_lang_Class_2
+			Java_jdk_jfr_internal_JVM_isExcluded__Ljava_lang_Thread_2
+			Java_jdk_jfr_internal_JVM_isInstrumented
+			Java_jdk_jfr_internal_JVM_isRecording
+			Java_jdk_jfr_internal_JVM_log
+			Java_jdk_jfr_internal_JVM_logEvent
+			Java_jdk_jfr_internal_JVM_markChunkFinal
+			Java_jdk_jfr_internal_JVM_newEventWriter
+			Java_jdk_jfr_internal_JVM_registerNatives
+			Java_jdk_jfr_internal_JVM_retransformClasses
+			Java_jdk_jfr_internal_JVM_setCompressedIntegers
+			Java_jdk_jfr_internal_JVM_setConfiguration
+			Java_jdk_jfr_internal_JVM_setCutoff
+			Java_jdk_jfr_internal_JVM_setDumpPath
+			Java_jdk_jfr_internal_JVM_setEnabled
+			Java_jdk_jfr_internal_JVM_setFileNotification
+			Java_jdk_jfr_internal_JVM_setForceInstrumentation
+			Java_jdk_jfr_internal_JVM_setGlobalBufferCount
+			Java_jdk_jfr_internal_JVM_setGlobalBufferSize
+			Java_jdk_jfr_internal_JVM_setMemorySize
+			Java_jdk_jfr_internal_JVM_setMethodSamplingPeriod
+			Java_jdk_jfr_internal_JVM_setOutput
+			Java_jdk_jfr_internal_JVM_setRepositoryLocation
+			Java_jdk_jfr_internal_JVM_setStackDepth
+			Java_jdk_jfr_internal_JVM_setStackTraceEnabled
+			Java_jdk_jfr_internal_JVM_setThreadBufferSize
+			Java_jdk_jfr_internal_JVM_setThreshold
+			Java_jdk_jfr_internal_JVM_setThrottle
+			Java_jdk_jfr_internal_JVM_shouldRotateDisk
+			Java_jdk_jfr_internal_JVM_storeMetadataDescriptor
+			Java_jdk_jfr_internal_JVM_subscribeLogLevel
+			Java_jdk_jfr_internal_JVM_uncaughtException
+		)
+	else()
+		omr_add_exports(jclse
+			Java_jdk_jfr_internal_JVM_abort
+			Java_jdk_jfr_internal_JVM_addStringConstant
+			Java_jdk_jfr_internal_JVM_beginRecording
+			Java_jdk_jfr_internal_JVM_commit
+			Java_jdk_jfr_internal_JVM_counterTime
+			Java_jdk_jfr_internal_JVM_createJFR
+			Java_jdk_jfr_internal_JVM_destroyJFR
+			Java_jdk_jfr_internal_JVM_emitDataLoss
+			Java_jdk_jfr_internal_JVM_emitEvent
+			Java_jdk_jfr_internal_JVM_emitOldObjectSamples
+			Java_jdk_jfr_internal_JVM_endRecording
+			Java_jdk_jfr_internal_JVM_exclude
+			Java_jdk_jfr_internal_JVM_flush__
+			Java_jdk_jfr_internal_JVM_flush__Ljdk_jfr_internal_event_EventWriter_2II
+			Java_jdk_jfr_internal_JVM_getAllEventClasses
+			Java_jdk_jfr_internal_JVM_getAllowedToDoEventRetransforms
+			Java_jdk_jfr_internal_JVM_getChunkStartNanos
+			Java_jdk_jfr_internal_JVM_getClassId
+			Java_jdk_jfr_internal_JVM_getConfiguration
+			Java_jdk_jfr_internal_JVM_getDumpPath
+			Java_jdk_jfr_internal_JVM_getEventWriter
+			Java_jdk_jfr_internal_JVM_getPid
+			Java_jdk_jfr_internal_JVM_getStackTraceId
+			Java_jdk_jfr_internal_JVM_getThreadId
+			Java_jdk_jfr_internal_JVM_getTicksFrequency
+			Java_jdk_jfr_internal_JVM_getTimeConversionFactor
+			Java_jdk_jfr_internal_JVM_getTypeId__Ljava_lang_Class_2
+			Java_jdk_jfr_internal_JVM_getTypeId__Ljava_lang_String_2
+			Java_jdk_jfr_internal_JVM_getUnloadedEventClassCount
+			Java_jdk_jfr_internal_JVM_hostTotalMemory
+			Java_jdk_jfr_internal_JVM_hostTotalSwapMemory
+			Java_jdk_jfr_internal_JVM_include
+			Java_jdk_jfr_internal_JVM_isAvailable
+			Java_jdk_jfr_internal_JVM_isContainerized
+			Java_jdk_jfr_internal_JVM_isExcluded__Ljava_lang_Class_2
+			Java_jdk_jfr_internal_JVM_isExcluded__Ljava_lang_Thread_2
+			Java_jdk_jfr_internal_JVM_isInstrumented
+			Java_jdk_jfr_internal_JVM_isRecording
+			Java_jdk_jfr_internal_JVM_log
+			Java_jdk_jfr_internal_JVM_logEvent
+			Java_jdk_jfr_internal_JVM_markChunkFinal
+			Java_jdk_jfr_internal_JVM_nanosNow
+			Java_jdk_jfr_internal_JVM_newEventWriter
+			Java_jdk_jfr_internal_JVM_registerNatives
+			Java_jdk_jfr_internal_JVM_registerStackFilter
+			Java_jdk_jfr_internal_JVM_retransformClasses
+			Java_jdk_jfr_internal_JVM_setCompressedIntegers
+			Java_jdk_jfr_internal_JVM_setConfiguration
+			Java_jdk_jfr_internal_JVM_setCutoff
+			Java_jdk_jfr_internal_JVM_setDumpPath
+			Java_jdk_jfr_internal_JVM_setEnabled
+			Java_jdk_jfr_internal_JVM_setFileNotification
+			Java_jdk_jfr_internal_JVM_setForceInstrumentation
+			Java_jdk_jfr_internal_JVM_setGlobalBufferCount
+			Java_jdk_jfr_internal_JVM_setGlobalBufferSize
+			Java_jdk_jfr_internal_JVM_setMemorySize
+			Java_jdk_jfr_internal_JVM_setMethodSamplingPeriod
+			Java_jdk_jfr_internal_JVM_setMiscellaneous
+			Java_jdk_jfr_internal_JVM_setOutput
+			Java_jdk_jfr_internal_JVM_setRepositoryLocation
+			Java_jdk_jfr_internal_JVM_setStackDepth
+			Java_jdk_jfr_internal_JVM_setStackTraceEnabled
+			Java_jdk_jfr_internal_JVM_setThreadBufferSize
+			Java_jdk_jfr_internal_JVM_setThreshold
+			Java_jdk_jfr_internal_JVM_setThrottle
+			Java_jdk_jfr_internal_JVM_shouldRotateDisk
+			Java_jdk_jfr_internal_JVM_storeMetadataDescriptor
+			Java_jdk_jfr_internal_JVM_subscribeLogLevel
+			Java_jdk_jfr_internal_JVM_uncaughtException
+			Java_jdk_jfr_internal_JVM_unregisterStackFilter
+		)
+	endif()
 endif()
 
 # Java 19 only

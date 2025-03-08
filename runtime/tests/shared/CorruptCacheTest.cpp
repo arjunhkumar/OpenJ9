@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 extern "C"
@@ -789,7 +789,7 @@ zeroOutCache(J9JavaVM *vm, I_32 cacheType)
 	setCurrentCacheVersion(vm, J2SE_VERSION(vm), &versionData);
 	versionData.cacheType = cacheType;
 	SH_OSCache::getCacheVersionAndGen(PORTLIB, vm, cacheName, J9SH_MAXPATH, BROKEN_TEST_CACHE, &versionData, OSCACHE_CURRENT_CACHE_GEN, true, 0);
-	j9str_printf(PORTLIB, fullPath, J9SH_MAXPATH, "%s%s", baseDir, cacheName);
+	j9str_printf(fullPath, J9SH_MAXPATH, "%s%s", baseDir, cacheName);
 
 	fd = j9file_open(fullPath, EsOpenRead | EsOpenWrite, 0644);
 	if (-1 == fd) {
@@ -855,7 +855,7 @@ truncateCache(J9JavaVM *vm, I_32 cacheType)
 	setCurrentCacheVersion(vm, J2SE_VERSION(vm), &versionData);
 	versionData.cacheType = cacheType;
 	SH_OSCache::getCacheVersionAndGen(PORTLIB, vm, cacheName, J9SH_MAXPATH, BROKEN_TEST_CACHE, &versionData, OSCACHE_CURRENT_CACHE_GEN, true, 0);
-	j9str_printf(PORTLIB, fullPath, J9SH_MAXPATH, "%s%s", baseDir, cacheName);
+	j9str_printf(fullPath, J9SH_MAXPATH, "%s%s", baseDir, cacheName);
 
 	fd = j9file_open(fullPath, EsOpenRead | EsOpenWrite, 0644);
 	if (-1 == fd) {

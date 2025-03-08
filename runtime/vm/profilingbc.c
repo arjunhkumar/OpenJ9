@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -122,9 +122,7 @@ profilingBytecodeBufferFullHookRegistered(J9JavaVM* vm)
 
 #ifdef J9VM_GC_DYNAMIC_CLASS_UNLOADING
 	/* make sure that we flush any profiling data when a class is unloaded */
-	if ((*vmHooks)->J9HookRegisterWithCallSite(vmHooks, J9HOOK_VM_CLASSES_UNLOAD, flushForClassesUnload, OMR_GET_CALLSITE(), iprofilerBufferSize)
-	|| (*vmHooks)->J9HookRegisterWithCallSite(vmHooks, J9HOOK_VM_ANON_CLASSES_UNLOAD, flushForClassesUnload, OMR_GET_CALLSITE(), iprofilerBufferSize)
-	) {
+	if ((*vmHooks)->J9HookRegisterWithCallSite(vmHooks, J9HOOK_VM_CLASSES_UNLOAD, flushForClassesUnload, OMR_GET_CALLSITE(), iprofilerBufferSize)) {
 		Trc_VM_profilingBytecodeBufferFullHookRegistered_ClassUnloadHookFailed();
 		Assert_VM_unreachable();
 	}

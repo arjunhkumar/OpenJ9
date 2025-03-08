@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef jvmti_internal_h
@@ -570,7 +570,7 @@ jvmtiIsFieldSynthetic(jvmtiEnv* env,
 	jboolean* is_synthetic_ptr);
 
 
-/* ---------------- jvmtiForceEarlyReturn.c ---------------- */
+/* ---------------- jvmtiForceEarlyReturn.cpp ---------------- */
 
 /**
 * @brief
@@ -898,7 +898,7 @@ jvmtiIterateOverReachableObjects(jvmtiEnv* env,
 	const void * user_data);
 
 
-/* ---------------- jvmtiHelpers.c ---------------- */
+/* ---------------- jvmtiHelpers.cpp ---------------- */
 
 /**
  * @brief Allocate a thread local storage key (which represents a jvmtiEnv) to index into a thread
@@ -1352,6 +1352,17 @@ suspendAgentBreakpoint(J9VMThread * currentThread, J9JVMTIAgentBreakpoint * agen
 UDATA
 findDecompileInfo(J9VMThread *currentThread, J9VMThread *targetThread, UDATA depth, J9StackWalkState *walkState);
 
+#if JAVA_SPEC_VERSION >= 20
+/**
+ * A helper to iterate through the frames of a thread.
+ * @param[in] currentThread current thread
+ * @param[in] walkState a stack walk state
+ * @return 0 on success and non-zero on failure
+ */
+UDATA
+genericFrameIterator(J9VMThread *currentThread, J9StackWalkState *walkState);
+#endif /* JAVA_SPEC_VERSION >= 20 */
+
 /**
  * A helper to walk a platform thread or virtual thread
  * @param[in] currentThread current thread
@@ -1489,6 +1500,16 @@ unhookEvent(J9JVMTIEnv * j9env, jint event);
 void
 unhookGlobalEvents(J9JVMTIData * jvmtiData);
 
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+/**
+* @brief Disable the debug related hooks & events if no jdwp agent is specified.
+* @param[in] jvmtiData - point to the JVMTI data
+* @param[in] j9env - pointer to the current JVMTI environment
+* @return void
+*/
+void
+criuDisableHooks(J9JVMTIData *jvmtiData, J9JVMTIEnv *j9env);
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 /* ---------------- jvmtiJNIFunctionInterception.c ---------------- */
 
@@ -1514,7 +1535,7 @@ jvmtiSetJNIFunctionTable(jvmtiEnv* env,
 	const jniNativeInterface* function_table);
 
 
-/* ---------------- jvmtiLocalVariable.c ---------------- */
+/* ---------------- jvmtiLocalVariable.cpp ---------------- */
 
 /**
 * @brief
@@ -2057,7 +2078,7 @@ jvmtiRawMonitorWait(jvmtiEnv* env,
 	jlong millis);
 
 
-/* ---------------- jvmtiStackFrame.c ---------------- */
+/* ---------------- jvmtiStackFrame.cpp ---------------- */
 
 /**
 * @brief
@@ -2152,6 +2173,18 @@ jvmtiNotifyFramePop(jvmtiEnv* env,
 	jthread thread,
 	jint depth);
 
+#if JAVA_SPEC_VERSION >= 25
+/**
+ * @brief Clear all frame pop request to prevent generation of
+ * FramePop events for any frames.
+ *
+ * @param env The JVMTI environment pointer
+ * @param thread The thread whose FramePop events will be cleared
+ * @return jvmtiError Error code returned by JVMTI function
+ */
+jvmtiError JNICALL
+jvmtiClearAllFramePops(jvmtiEnv *env, jthread thread);
+#endif /* JAVA_SPEC_VERSION >= 25 */
 
 /**
 * @brief
@@ -2185,6 +2218,19 @@ IDATA J9VMDllMain(J9JavaVM* vm, IDATA stage, void* reserved);
 */
 jint JNICALL JVM_OnLoad(JavaVM *jvm, char* options, void *reserved);
 
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+/**
+* Check if any agent library is specified in the CRIU restore option file,
+* if so, the checkpointState flag J9VM_CRIU_IS_JDWP_ENABLED is set, and
+* load/start the library loading.
+*
+* @param[in] vm the pointer to the J9JavaVM struct
+* @param[in] j9env - pointer to the current JVMTI environment
+* @return void
+*/
+void
+criuRestoreInitializeLib(J9JavaVM *vm, J9JVMTIEnv *j9env);
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 /* ---------------- jvmtiSystemProperties.c ---------------- */
 
@@ -2227,7 +2273,7 @@ jvmtiSetSystemProperty(jvmtiEnv* env,
 	const char* value);
 
 
-/* ---------------- jvmtiThread.c ---------------- */
+/* ---------------- jvmtiThread.cpp ---------------- */
 
 /**
 * @brief

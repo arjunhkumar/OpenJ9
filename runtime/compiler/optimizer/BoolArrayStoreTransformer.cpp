@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifdef J9ZTPF
@@ -728,6 +728,10 @@ void TR_BoolArrayStoreTransformer::transformUnknownTypeArrayStore()
       TR::Node *bstoreiNode = *it;
       dumpOptDetails(comp(), "%s transform value child of bstorei node of unknown type n%dn\n", OPT_DETAILS, bstoreiNode->getGlobalIndex());
       TR::Node *arrayBaseNode = bstoreiNode->getFirstChild()->getFirstChild();
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+      if (arrayBaseNode->isDataAddrPointer())
+         arrayBaseNode = arrayBaseNode->getFirstChild();
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
       TR::Node *vft = TR::Node::createWithSymRef(TR::aloadi, 1, 1, arrayBaseNode, comp()->getSymRefTab()->findOrCreateVftSymbolRef());
       TR::Node *aconstNode = TR::Node::aconst(bstoreiNode, j9class);
       aconstNode->setIsClassPointerConstant(true);

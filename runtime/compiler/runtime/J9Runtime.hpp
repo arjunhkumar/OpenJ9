@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9RUNTIME_INCL
@@ -62,29 +62,35 @@ void replaceFirstTwoBytesWithData(void *startPC, int32_t startPCToData);
 
 #if defined(TR_HOST_POWER)
 #define  OFFSET_REVERT_INTP_PRESERVED_FSD                (-4)
-#define  OFFSET_REVERT_INTP_FIXED_PORTION                (-12-2*sizeof(intptr_t))
+#define  OFFSET_REVERT_INTP_FIXED_PORTION                (-(12 + 2 * (int32_t)sizeof(intptr_t)))
 
-#define  OFFSET_SAMPLING_PREPROLOGUE_FROM_STARTPC        (-(16+sizeof(intptr_t)))
-#define  OFFSET_SAMPLING_BRANCH_FROM_STARTPC             (-(12+sizeof(intptr_t)))
-#define  OFFSET_SAMPLING_METHODINFO_FROM_STARTPC         (-(8+sizeof(intptr_t)))
+#define  OFFSET_SAMPLING_PREPROLOGUE_FROM_STARTPC        (-(16 + (int32_t)sizeof(intptr_t)))
+#define  OFFSET_SAMPLING_BRANCH_FROM_STARTPC             (-(12 + (int32_t)sizeof(intptr_t)))
+#define  OFFSET_SAMPLING_METHODINFO_FROM_STARTPC         (-(8 + (int32_t)sizeof(intptr_t)))
 #define  OFFSET_SAMPLING_PRESERVED_FROM_STARTPC          (-8)
 #endif
 
 #if defined(TR_HOST_ARM)
-#define  OFFSET_REVERT_INTP_FIXED_PORTION                (-12-2*sizeof(intptr_t))
-#define  OFFSET_SAMPLING_PREPROLOGUE_FROM_STARTPC        (-(16+sizeof(intptr_t)))
-#define  OFFSET_SAMPLING_BRANCH_FROM_STARTPC             (-(12+sizeof(intptr_t)))
-#define  OFFSET_METHODINFO_FROM_STARTPC                  (-(8+sizeof(intptr_t)))
+#define  OFFSET_REVERT_INTP_FIXED_PORTION                (-(12 + 2 * (int32_t)sizeof(intptr_t)))
+#define  OFFSET_SAMPLING_PREPROLOGUE_FROM_STARTPC        (-(16 + (int32_t)sizeof(intptr_t)))
+#define  OFFSET_SAMPLING_BRANCH_FROM_STARTPC             (-(12 + (int32_t)sizeof(intptr_t)))
+#define  OFFSET_METHODINFO_FROM_STARTPC                  (-(8 + (int32_t)sizeof(intptr_t)))
 #define  OFFSET_SAMPLING_PRESERVED_FROM_STARTPC          (-8)
 #define  START_PC_TO_METHOD_INFO_ADDRESS                  -8 // offset from startpc to jitted body info
 #define  OFFSET_COUNTING_BRANCH_FROM_JITENTRY             36
 #endif
 
 #if defined(TR_HOST_ARM64)
-#define  OFFSET_REVERT_INTP_FIXED_PORTION                (-12-2*sizeof(intptr_t)) // See generateSwitchToInterpreterPrePrologue()
-#define  OFFSET_SAMPLING_PREPROLOGUE_FROM_STARTPC        (-(16+sizeof(intptr_t)))
-#define  OFFSET_SAMPLING_BRANCH_FROM_STARTPC             (-(12+sizeof(intptr_t)))
-#define  OFFSET_SAMPLING_METHODINFO_FROM_STARTPC         (-(8+sizeof(intptr_t)))
+/**
+ * Prior to refactoring, the type of these expressions was an intptr_t, and
+ * some of the contexts in which these macros are currently used rely on them
+ * being that type.  Until those contexts are changed to handle int32_t
+ * types, explicitly cast these expressions to intptr_t for type correctness.
+ */
+#define  OFFSET_REVERT_INTP_FIXED_PORTION                ( (intptr_t)(-(12 + 2 * (int32_t)sizeof(intptr_t))) ) // See generateSwitchToInterpreterPrePrologue()
+#define  OFFSET_SAMPLING_PREPROLOGUE_FROM_STARTPC        ( (intptr_t)(-(16 + (int32_t)sizeof(intptr_t))) )
+#define  OFFSET_SAMPLING_BRANCH_FROM_STARTPC             ( (intptr_t)(-(12 + (int32_t)sizeof(intptr_t))) )
+#define  OFFSET_SAMPLING_METHODINFO_FROM_STARTPC         ( (intptr_t)(-(8 + (int32_t)sizeof(intptr_t))) )
 #define  OFFSET_SAMPLING_PRESERVED_FROM_STARTPC          (-8)
 #define  OFFSET_COUNTING_BRANCH_FROM_JITENTRY            (9*ARM64_INSTRUCTION_LENGTH)
 #endif
@@ -115,26 +121,11 @@ typedef struct TR_InlinedSiteLinkedListEntry
    } TR_InlinedSiteLinkedListEntry;
 
 
-typedef struct TR_InlinedSiteHastTableEntry
+typedef struct TR_InlinedSiteHashTableEntry
    {
    TR_InlinedSiteLinkedListEntry *first;
    TR_InlinedSiteLinkedListEntry *last;
-   } TR_InlinedSiteHastTableEntry;
-
-
-typedef enum
-   {
-   inlinedMethodIsStatic = 1,
-   inlinedMethodIsSpecial = 2,
-   inlinedMethodIsVirtual = 3
-   } TR_InlinedMethodKind;
-
-
-typedef enum
-   {
-   needsFullSizeRuntimeAssumption = 1
-   } TR_HCRAssumptionFlags;
-
+   } TR_InlinedSiteHashTableEntry;
 
 typedef enum
    {
@@ -144,7 +135,23 @@ typedef enum
    tooManyFailedInlinedAllocRelos = 3
    } TR_FailedPerfAssumptionCode;
 
+typedef enum
+   {
+   inlinedMethodIsStatic            = 0x01,
+   inlinedMethodIsSpecial           = 0x02,
+   inlinedMethodIsVirtual           = 0x04,
+   staticSpecialMethodFromCpIsSplit = 0x08,
+   needsFullSizeRuntimeAssumption   = 0x10,
+   methodTracingEnabled             = 0x20,
 
+   // Relo Flags cannot be more than 12 bits
+   // unless the _flags field of the
+   // TR_RelocationRecordBinaryTemplate
+   // is appropriately updated. This is because
+   // the lowest 4 bits are used for the (poorly
+   // named) Cross Platform Flags.
+   highestBit                       = 0x800,
+   } TR_RelocationFlags;
 
 /* TR_AOTMethodHeader Versions:
 *     1.0    Java6 GA
@@ -181,8 +188,8 @@ typedef struct TR_AOTMethodHeader {
 
 /* AOT Method flags */
 #define TR_AOTMethodHeader_NeedsRecursiveMethodTrampolineReservation 0x00000001
-#define TR_AOTMethodHeader_IsNotCapableOfMethodEnterTracing          0x00000002
-#define TR_AOTMethodHeader_IsNotCapableOfMethodExitTracing           0x00000004
+#define TR_AOTMethodHeader_MethodEnterEventCanBeHooked               0x00000002
+#define TR_AOTMethodHeader_MethodExitEventCanBeHooked                0x00000004
 #define TR_AOTMethodHeader_UsesEnableStringCompressionFolding        0x00000008
 #define TR_AOTMethodHeader_StringCompressionEnabled                  0x00000010
 #define TR_AOTMethodHeader_UsesSymbolValidationManager               0x00000020
@@ -190,8 +197,9 @@ typedef struct TR_AOTMethodHeader {
 #define TR_AOTMethodHeader_CompressedMethodInCache                   0x00000080
 #define TR_AOTMethodHeader_IsNotCapableOfExceptionHook               0x00000100
 #define TR_AOTMethodHeader_UsesOSR                                   0x00000200
-
-
+#define TR_AOTMethodHeader_MethodTracingEnabled                      0x00000400
+#define TR_AOTMethodHeader_UsesFSD                                   0x00000800
+#define TR_AOTMethodHeader_TracksDependencies                        0x00001000
 
 
 typedef struct TR_AOTInliningStats

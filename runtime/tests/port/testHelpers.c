@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdlib.h>
@@ -403,24 +403,24 @@ deleteControlDirectory(struct J9PortLibrary *portLibrary, char* baseDir) {
 		char mybaseFilePath[J9SH_MAXPATH];
 		char resultBuffer[J9SH_MAXPATH];
 		UDATA rc, handle;
-		
-        j9str_printf(PORTLIB, mybaseFilePath, J9SH_MAXPATH, "%s", baseDir);
-        rc = handle = j9file_findfirst(mybaseFilePath, resultBuffer);
-        while (-1 != rc) {
-        	char nextEntry[J9SH_MAXPATH];
-        	/* skip current and parent dir */
-        	if (resultBuffer[0] == '.') {
-        		rc = j9file_findnext(handle, resultBuffer);
-        		continue;
-        	}
-        	j9str_printf(PORTLIB, nextEntry, J9SH_MAXPATH, "%s/%s", mybaseFilePath, resultBuffer);
-        	deleteControlDirectory(portLibrary, nextEntry);
-        	rc = j9file_findnext(handle, resultBuffer);
-        }
-        if (handle != -1) {
-        	j9file_findclose(handle);
-        }
-        j9file_unlinkdir(mybaseFilePath);
+
+		j9str_printf(mybaseFilePath, J9SH_MAXPATH, "%s", baseDir);
+		rc = handle = j9file_findfirst(mybaseFilePath, resultBuffer);
+		while (-1 != rc) {
+			char nextEntry[J9SH_MAXPATH];
+			/* skip current and parent dir */
+			if (resultBuffer[0] == '.') {
+				rc = j9file_findnext(handle, resultBuffer);
+				continue;
+			}
+			j9str_printf(nextEntry, J9SH_MAXPATH, "%s/%s", mybaseFilePath, resultBuffer);
+			deleteControlDirectory(portLibrary, nextEntry);
+			rc = j9file_findnext(handle, resultBuffer);
+		}
+		if (handle != -1) {
+			j9file_findclose(handle);
+		}
+		j9file_unlinkdir(mybaseFilePath);
 	}
 }
 
@@ -505,4 +505,3 @@ raiseSEGV(J9PortLibrary* portLibrary, void* arg)
 
 	return 8096;
 }
-

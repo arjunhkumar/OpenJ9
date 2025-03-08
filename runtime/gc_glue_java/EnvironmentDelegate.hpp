@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef ENVIRONMENTDELEGATE_HPP_
@@ -28,6 +28,7 @@
 
 #include "MarkJavaStats.hpp"
 #include "ScavengerJavaStats.hpp"
+#include "ContinuationStats.hpp"
 #include "GCExtensionsBase.hpp"
 #include "ObjectModel.hpp"
 
@@ -57,12 +58,16 @@ public:
 #if defined(OMR_GC_MODRON_SCAVENGER)
 	MM_ScavengerJavaStats _scavengerJavaStats;
 #endif /* OMR_GC_MODRON_SCAVENGER */
+	MM_ContinuationStats _continuationStats;
 	MM_ReferenceObjectBuffer *_referenceObjectBuffer; /**< The thread-specific buffer of recently discovered reference objects */
 	MM_UnfinalizedObjectBuffer *_unfinalizedObjectBuffer; /**< The thread-specific buffer of recently allocated unfinalized objects */
 	MM_OwnableSynchronizerObjectBuffer *_ownableSynchronizerObjectBuffer; /**< The thread-specific buffer of recently allocated ownable synchronizer objects */
 	MM_ContinuationObjectBuffer *_continuationObjectBuffer; /**< The thread-specific buffer of recently allocated continuation objects */
 
 	struct GCmovedObjectHashCode movedObjectHashCodeCache; /**< Structure to aid on object movement and hashing */
+#if defined(J9VM_ENV_DATA64)
+	bool _shouldFixupDataAddrForContiguous; /**< Boolean to check if dataAddr fixup is needed on contiguous indexable object movement */
+#endif /* defined(J9VM_ENV_DATA64) */
 
 	/* Function members */
 private:
@@ -73,6 +78,9 @@ public:
 		,_unfinalizedObjectBuffer(NULL)
 		,_ownableSynchronizerObjectBuffer(NULL)
 		,_continuationObjectBuffer(NULL)
+#if defined(J9VM_ENV_DATA64)
+		,_shouldFixupDataAddrForContiguous(false)
+#endif /* defined(J9VM_ENV_DATA64) */
 	{}
 };
 
@@ -195,6 +203,17 @@ public:
 			/* calculate this BEFORE we (potentially) destroy the object */
 			_gcEnv.movedObjectHashCodeCache.originalHashCode = computeObjectAddressToHash((J9JavaVM *)_extensions->getOmrVM()->_language_vm, objectPtr);
 		}
+
+#if defined(J9VM_ENV_DATA64)
+		if (objectModel->isIndexable(objectPtr)) {
+			GC_ArrayObjectModel *indexableObjectModel = &_extensions->indexableObjectModel;
+			if (indexableObjectModel->isVirtualLargeObjectHeapEnabled() && indexableObjectModel->isInlineContiguousArraylet((J9IndexableObject *)objectPtr)) {
+				_gcEnv._shouldFixupDataAddrForContiguous = indexableObjectModel->shouldFixupDataAddrForContiguous((J9IndexableObject *)objectPtr);
+			} else {
+				_gcEnv._shouldFixupDataAddrForContiguous = false;
+			}
+		}
+#endif /* defined(J9VM_ENV_DATA64) */
 	}
 
 	/**
@@ -210,26 +229,27 @@ public:
 	postObjectMoveForCompact(omrobjectptr_t destinationObjectPtr, omrobjectptr_t sourceObjectPtr)
 	{
 		GC_ObjectModel *objectModel = &_extensions->objectModel;
+		GC_ArrayObjectModel *indexableObjectModel = &_extensions->indexableObjectModel;
 		if (_gcEnv.movedObjectHashCodeCache.hasBeenHashed && !_gcEnv.movedObjectHashCodeCache.hasBeenMoved) {
-			*(uint32_t*)((uintptr_t)destinationObjectPtr + objectModel->getHashcodeOffset(destinationObjectPtr)) = _gcEnv.movedObjectHashCodeCache.originalHashCode;
+			*(uint32_t *)((uintptr_t)destinationObjectPtr + objectModel->getHashcodeOffset(destinationObjectPtr)) = _gcEnv.movedObjectHashCodeCache.originalHashCode;
 			objectModel->setObjectHasBeenMoved(destinationObjectPtr);
 		}
 
-		if (_extensions->objectModel.isIndexable(destinationObjectPtr)) {
+		if (objectModel->isIndexable(destinationObjectPtr)) {
 #if defined(J9VM_ENV_DATA64)
-			if (_vmThread->isIndexableDataAddrPresent) {
+			if (_gcEnv._shouldFixupDataAddrForContiguous) {
 				/**
 				 * Update the dataAddr internal field of the indexable object. The field being updated
 				 * points to the array data. In the case of contiguous data, it will point to the data
-				 * itself, and in case of discontiguous arraylets, it will point to the first arrayoid. How to
+				 * itself, and in case of discontiguous data, it will be NULL. How to
 				 * update dataAddr is up to the target language that must override fixupDataAddr.
 				 */
-				_extensions->indexableObjectModel.fixupDataAddr(destinationObjectPtr);
+				indexableObjectModel->setDataAddrForContiguous((J9IndexableObject *)destinationObjectPtr);
 			}
 #endif /* defined(J9VM_ENV_DATA64) */
 
 			if (UDATA_MAX != _extensions->getOmrVM()->_arrayletLeafSize) {
-				_extensions->indexableObjectModel.fixupInternalLeafPointersAfterCopy((J9IndexableObject *)destinationObjectPtr, (J9IndexableObject *)sourceObjectPtr);
+				indexableObjectModel->fixupInternalLeafPointersAfterCopy((J9IndexableObject *)destinationObjectPtr, (J9IndexableObject *)sourceObjectPtr);
 			}
 		}
 	}
@@ -276,6 +296,16 @@ public:
 	uintptr_t getAllocatedSizeInsideTLH();
 
 #endif /* OMR_GC_THREAD_LOCAL_HEAP */
+
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+	/**
+	 * Reinitialize the Env Delegate by updating the thread local obj buffers.
+	 *
+	 * @param[in] env the current environment.
+	 * @return boolean indicating whether the Env Delegate was successfully updated.
+	 */
+	virtual bool reinitializeForRestore(MM_EnvironmentBase* env);
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 	MM_EnvironmentDelegate()
 		

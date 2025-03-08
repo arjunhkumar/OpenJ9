@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 
@@ -365,21 +365,18 @@ GetMonitorName(J9VMThread *vmThread, J9ThreadAbstractMonitor *monitor, char *nam
 			}
 		}
 
-
-		 j9str_printf(PORTLIB, nameBuf, OBJ_MON_NAME_BUF_SIZE,
+		j9str_printf(nameBuf, OBJ_MON_NAME_BUF_SIZE,
 				OBJ_MON_NAME_FORMAT,
 				monitor,
 				(length < OBJ_MON_NAME_CLASS_NAME_SIZE) ? length : OBJ_MON_NAME_CLASS_NAME_SIZE, 
 				name, 
 				object, objType);
 
-
-
 		if (free){
 			j9mem_free_memory(name);
 		}
 	} else {
-		j9str_printf(PORTLIB, nameBuf, OBJ_MON_NAME_BUF_SIZE, "[%p] %s", monitor, omrthread_monitor_get_name((omrthread_monitor_t) monitor));
+		j9str_printf(nameBuf, OBJ_MON_NAME_BUF_SIZE, "[%p] %s", monitor, omrthread_monitor_get_name((omrthread_monitor_t) monitor));
 	}
 }
 

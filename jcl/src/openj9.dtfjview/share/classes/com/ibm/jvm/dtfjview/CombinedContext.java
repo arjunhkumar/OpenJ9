@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview;
 
 import static com.ibm.jvm.dtfjview.SessionProperties.VERBOSE_MODE_PROPERTY;
@@ -60,7 +60,7 @@ import com.ibm.jvm.dtfjview.spi.IOutputManager;
 /**
  * Wrapper class that takes an existing DTFJ context and augments
  * it with a DDR interactive context if one exists.
- * 
+ *
  * @author adam
  */
 public class CombinedContext extends DTFJContext implements ICombinedContext {
@@ -193,7 +193,7 @@ public class CombinedContext extends DTFJContext implements ICombinedContext {
 	/**
 	 * Starts a DDR interactive session using the loaded image. If the core file is not DDR enabled
 	 * this is recorded and future pling commands will not be available. In order to get access to the
-	 * DDR classes it uses the Image classloader which, if the core file is DDR enabled, can see the 
+	 * DDR classes it uses the Image classloader which, if the core file is DDR enabled, can see the
 	 * required classes.
 	 * @param image Image created from the core file
 	 */

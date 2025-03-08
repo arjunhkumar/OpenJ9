@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "ReferenceChainWalker.hpp"
@@ -36,6 +36,7 @@
 #include "Forge.hpp"
 #include "GCExtensions.hpp"
 #include "Heap.hpp"
+#include "HeapIteratorAPI.h"
 #include "HeapRegionIterator.hpp"
 #include "MixedObjectDeclarationOrderIterator.hpp"
 #include "ModronAssertions.h"
@@ -44,6 +45,9 @@
 #include "PointerArrayIterator.hpp"
 #include "SlotObject.hpp"
 #include "VMThreadIterator.hpp"
+#if JAVA_SPEC_VERSION >= 19
+#include "ContinuationHelpers.hpp"
+#endif /* JAVA_SPEC_VERSION >= 19 */
 
 class GC_HashTableIterator;
 class GC_JVMTIObjectTagTableIterator;
@@ -76,6 +80,7 @@ j9gc_ext_reachable_objects_do(
 	uintptr_t walkFlags)
 {
 	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(vmThread->omrVMThread);
+	Assert_MM_mustHaveExclusiveVMAccess(env->getOmrVMThread());
 
 	/* Make sure the heap is walkable (flush TLH's, secure heap integrity) */
 	vmThread->javaVM->memoryManagerFunctions->j9gc_flush_caches_for_walk(vmThread->javaVM);
@@ -87,6 +92,9 @@ j9gc_ext_reachable_objects_do(
 #endif /* J9VM_OPT_JVMTI */
 		referenceChainWalker.setTrackVisibleStackFrameDepth(0 != (walkFlags & J9_MU_WALK_TRACK_VISIBLE_FRAME_DEPTH));
 		referenceChainWalker.setPreindexInterfaceFields(0 != (walkFlags & J9_MU_WALK_PREINDEX_INTERFACE_FIELDS));
+#if JAVA_SPEC_VERSION >= 19
+		referenceChainWalker.includeVThreadObject();
+#endif /* JAVA_SPEC_VERSION >= 19 */
 		/* walker configuration complete.  Scan objects... */
 		referenceChainWalker.scanReachableObjects(env);
 		referenceChainWalker.tearDown(env);
@@ -112,6 +120,7 @@ j9gc_ext_reachable_from_object_do(
 	uintptr_t walkFlags)
 {
 	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(vmThread->omrVMThread);
+	Assert_MM_mustHaveExclusiveVMAccess(env->getOmrVMThread());
 
 	/* Make sure the heap is walkable (flush TLH's, secure heap integrity) */
 	vmThread->javaVM->memoryManagerFunctions->j9gc_flush_caches_for_walk(vmThread->javaVM);
@@ -119,6 +128,9 @@ j9gc_ext_reachable_from_object_do(
 	MM_ReferenceChainWalker referenceChainWalker(env, TEMP_RCW_STACK_SIZE, userCallback, userData);
 	if (referenceChainWalker.initialize(env)) {
 		referenceChainWalker.setPreindexInterfaceFields(0 != (walkFlags & J9_MU_WALK_PREINDEX_INTERFACE_FIELDS));
+#if JAVA_SPEC_VERSION >= 19
+		referenceChainWalker.includeVThreadObject();
+#endif /* JAVA_SPEC_VERSION >= 19 */
 		/* walker configuration complete.  Scan objects... */
 		referenceChainWalker.scanReachableFromObject(env, objectPtr);
 		referenceChainWalker.tearDown(env);
@@ -352,10 +364,12 @@ MM_ReferenceChainWalker::scanObject(J9Object *objectPtr)
 	case GC_ObjectModel::SCAN_ATOMIC_MARKABLE_REFERENCE_OBJECT:
 	case GC_ObjectModel::SCAN_MIXED_OBJECT:
 	case GC_ObjectModel::SCAN_OWNABLESYNCHRONIZER_OBJECT:
-	case GC_ObjectModel::SCAN_CONTINUATION_OBJECT:
 	case GC_ObjectModel::SCAN_CLASS_OBJECT:
 	case GC_ObjectModel::SCAN_CLASSLOADER_OBJECT:
 		scanMixedObject(objectPtr);
+		break;
+	case GC_ObjectModel::SCAN_CONTINUATION_OBJECT:
+		scanContinuationObject(objectPtr);
 		break;
 	case GC_ObjectModel::SCAN_POINTER_ARRAY_OBJECT:
 		scanPointerArrayObject((J9IndexableObject *)objectPtr);
@@ -379,9 +393,51 @@ MM_ReferenceChainWalker::scanObject(J9Object *objectPtr)
  * @todo Provide function documentation
  */
 void
+stackSlotIteratorForReferenceChainWalker(J9JavaVM *javaVM, J9Object **slot, void *localData, J9StackWalkState *walkState, const void *stackLocation)
+{
+	StackIteratorData *data = (StackIteratorData *)localData;
+	data->rootScanner->doStackSlot(slot, walkState, stackLocation);
+}
+
+/**
+ * @todo Provide function documentation
+ */
+MMINLINE void
+MM_ReferenceChainWalker::scanContinuationNativeSlots(J9Object *objectPtr)
+{
+	J9VMThread *currentThread = (J9VMThread *)_env->getLanguageVMThread();
+	const bool isConcurrentGC = false;
+	const bool isGlobalGC = false;
+	const bool beingMounted = false;
+	if (MM_GCExtensions::needScanStacksForContinuationObject(currentThread, objectPtr, isConcurrentGC, isGlobalGC, beingMounted)) {
+		StackIteratorData localData;
+		localData.rootScanner = this;
+#if JAVA_SPEC_VERSION >= 19
+		if (_includeVThreadObject) {
+			_vThreadObject = VM_ContinuationHelpers::getThreadObjectForContinuation(currentThread, NULL, objectPtr);
+		}
+#endif /* JAVA_SPEC_VERSION >= 19 */
+		GC_VMThreadStackSlotIterator::scanContinuationSlots(currentThread, objectPtr, (void *)&localData, stackSlotIteratorForReferenceChainWalker, false, _trackVisibleStackFrameDepth);
+	}
+}
+
+/**
+ * @todo Provide function documentation
+ */
+void
+MM_ReferenceChainWalker::scanContinuationObject(J9Object *objectPtr)
+{
+	scanContinuationNativeSlots(objectPtr);
+	scanMixedObject(objectPtr);
+}
+
+/**
+ * @todo Provide function documentation
+ */
+void
 MM_ReferenceChainWalker::scanMixedObject(J9Object *objectPtr)
 {
-	GC_MixedObjectDeclarationOrderIterator objectIterator(static_cast<J9JavaVM*>(_omrVM->_language_vm), objectPtr, _shouldPreindexInterfaceFields);
+	GC_MixedObjectDeclarationOrderIterator objectIterator(_javaVM, objectPtr, _shouldPreindexInterfaceFields);
 
 	while (GC_SlotObject *slotObject = objectIterator.nextSlot()) {
 		doFieldSlot(slotObject, J9GC_REFERENCE_TYPE_FIELD, objectIterator.getIndex(), objectPtr);
@@ -394,7 +450,7 @@ MM_ReferenceChainWalker::scanMixedObject(J9Object *objectPtr)
 void
 MM_ReferenceChainWalker::scanPointerArrayObject(J9IndexableObject *objectPtr)
 {
-	GC_PointerArrayIterator pointerArrayIterator(static_cast<J9JavaVM*>(_omrVM->_language_vm), (J9Object *)objectPtr);
+	GC_PointerArrayIterator pointerArrayIterator(_javaVM, (J9Object *)objectPtr);
 
 	while (GC_SlotObject *slotObject = pointerArrayIterator.nextSlot()) {
 		doFieldSlot(slotObject, J9GC_REFERENCE_TYPE_ARRAY, pointerArrayIterator.getIndex(), (J9Object *)objectPtr);
@@ -407,7 +463,7 @@ MM_ReferenceChainWalker::scanPointerArrayObject(J9IndexableObject *objectPtr)
 void
 MM_ReferenceChainWalker::scanReferenceMixedObject(J9Object *objectPtr)
 {
-	GC_MixedObjectDeclarationOrderIterator objectIterator(static_cast<J9JavaVM*>(_omrVM->_language_vm), objectPtr, _shouldPreindexInterfaceFields);
+	GC_MixedObjectDeclarationOrderIterator objectIterator(_javaVM, objectPtr, _shouldPreindexInterfaceFields);
 
 	while (GC_SlotObject *slotObject = objectIterator.nextSlot()) {
 		doFieldSlot(slotObject, J9GC_REFERENCE_TYPE_WEAK_REFERENCE, objectIterator.getIndex(), objectPtr);
@@ -422,7 +478,7 @@ MM_ReferenceChainWalker::scanClass(J9Class *clazz)
 {
 	J9Object* referrer = J9VM_J9CLASS_TO_HEAPCLASS(clazz);
 
-	GC_ClassIteratorDeclarationOrder classIterator(static_cast<J9JavaVM*>(_omrVM->_language_vm), clazz, _shouldPreindexInterfaceFields);
+	GC_ClassIteratorDeclarationOrder classIterator(_javaVM, clazz, _shouldPreindexInterfaceFields);
 	while (volatile j9object_t *slot = classIterator.nextSlot()) {
 		IDATA refType = classIterator.getSlotReferenceType();
 		IDATA index = classIterator.getIndex();
@@ -431,7 +487,7 @@ MM_ReferenceChainWalker::scanClass(J9Class *clazz)
 		doSlot((j9object_t*)slot, refType, index, referrer);
 	}
 
-	GC_ClassIteratorClassSlots classIteratorClassSlots(static_cast<J9JavaVM*>(_omrVM->_language_vm), clazz);
+	GC_ClassIteratorClassSlots classIteratorClassSlots(_javaVM, clazz);
 	while (J9Class *classPtr = classIteratorClassSlots.nextSlot()) {
 		switch (classIteratorClassSlots.getState()) {
 		case classiteratorclassslots_state_constant_pool:
@@ -604,9 +660,19 @@ MM_ReferenceChainWalker::doStackSlot(J9Object **slotPtr, void *walkState, const 
 	J9Object *slotValue = *slotPtr;
 
 	/* Only report heap objects */
-
 	if (isHeapObject(slotValue) && !_heap->objectIsInGap(slotValue)) {
-		doSlot(slotPtr, J9GC_ROOT_TYPE_STACK_SLOT, -1, (J9Object *)walkState);
+#if JAVA_SPEC_VERSION >= 19
+		if (_includeVThreadObject && (NULL == ((J9StackWalkState *)walkState)->walkThread->threadObject)) {
+			/* Fill in the virtual thread object for jvmtiFollowReferences calls. */
+			((J9StackWalkState *)walkState)->walkThread->threadObject = _vThreadObject;
+		}
+#endif /* JAVA_SPEC_VERSION >= 19 */
+		J9MM_StackSlotDescriptor stackSlotDescriptor = {((J9StackWalkState *)walkState)->walkThread, (J9StackWalkState *)walkState};
+		if (J9_STACKWALK_SLOT_TYPE_JNI_LOCAL == ((J9StackWalkState *)walkState)->slotType) {
+			doSlot(slotPtr, J9GC_ROOT_TYPE_JNI_LOCAL, -1, (J9Object *)&stackSlotDescriptor);
+		} else {
+			doSlot(slotPtr, J9GC_ROOT_TYPE_STACK_SLOT, -1, (J9Object *)&stackSlotDescriptor);
+		}
 	}
 }
 
@@ -633,9 +699,11 @@ MM_ReferenceChainWalker::doVMThreadSlot(J9Object **slotPtr, GC_VMThreadIterator 
 	case vmthreaditerator_state_slots:
 		doSlot(slotPtr, J9GC_ROOT_TYPE_THREAD_SLOT, -1, NULL);
 		break;
-	case vmthreaditerator_state_jni_slots:
-		doSlot(slotPtr, J9GC_ROOT_TYPE_JNI_LOCAL, -1, NULL);
+	case vmthreaditerator_state_jni_slots: {
+		J9MM_StackSlotDescriptor stackSlotDescriptor = {vmThreadIterator->getVMThread(), NULL};
+		doSlot(slotPtr, J9GC_ROOT_TYPE_JNI_LOCAL, -1, (J9Object *)&stackSlotDescriptor);
 		break;
+	}
 #if defined(J9VM_INTERP_HOT_CODE_REPLACEMENT)
 	case vmthreaditerator_state_monitor_records:
 		if (isHeapObject(slotValue) && !_heap->objectIsInGap(slotValue)) {

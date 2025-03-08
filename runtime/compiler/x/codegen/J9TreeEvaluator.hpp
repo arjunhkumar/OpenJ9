@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_X86_TREE_EVALUATOR_INCL
@@ -72,12 +72,10 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
    static TR::Register *integerLowestOneBit(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *integerNumberOfLeadingZeros(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *integerNumberOfTrailingZeros(TR::Node *node, TR::CodeGenerator *cg);
-   static TR::Register *integerBitCount(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *longHighestOneBit(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *longLowestOneBit(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *longNumberOfLeadingZeros(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *longNumberOfTrailingZeros(TR::Node *node, TR::CodeGenerator *cg);
-   static TR::Register *longBitCount(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *tstartEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *tfinishEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *tabortEvaluator(TR::Node *node, TR::CodeGenerator *cg);
@@ -133,9 +131,6 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
    static void generateFillInDataBlockSequenceForUnresolvedField (TR::CodeGenerator *cg, TR::Node *node, TR::Snippet *dataSnippet, bool isWrite, TR::Register *sideEffectRegister, TR::Register *dataSnippetRegister);
    static TR::Register *directCallEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *encodeUTF16Evaluator(TR::Node *node, TR::CodeGenerator *cg);
-   static TR::Register *compressStringEvaluator(TR::Node *node, TR::CodeGenerator *cg, bool japaneseMethod);
-   static TR::Register *compressStringNoCheckEvaluator(TR::Node *node, TR::CodeGenerator *cg, bool japaneseMethod);
-   static TR::Register *andORStringEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *toUpperIntrinsicUTF16Evaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *toLowerIntrinsicUTF16Evaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *toUpperIntrinsicLatin1Evaluator(TR::Node *node, TR::CodeGenerator *cg);
@@ -151,6 +146,30 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
    static TR::Register *awrtbarEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *awrtbariEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *inlineStringLatin1Inflate(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *inlineMathFma(TR::Node* node, TR::CodeGenerator* cg);
+   static TR::Register *inlineVectorizedHashCode(TR::Node* node, TR::CodeGenerator* cg);
+   static TR::Register *vectorizedHashCodeReductionHelper(TR::Node* node,
+                                                          TR::Register **vectorRegisters,
+                                                          int32_t numVectors,
+                                                          TR::Register *tmpVectorRegVRF,
+                                                          TR::Register *resultReg,
+                                                          TR::VectorLength vl,
+                                                          TR::DataType dt,
+                                                          TR::CodeGenerator* cg);
+   static TR::Register *vectorizedHashCodeHelper(TR::Node* node, TR::DataType dt, TR::Node *nodeHash, bool isSigned, TR::CodeGenerator* cg);
+
+   static TR::Register *vectorizedHashCodeLoopHelper(TR::Node *node,
+                                                     TR::DataType dt,
+                                                     TR::VectorLength vl,
+                                                     bool isSigned,
+                                                     TR::Register *result,
+                                                     TR::Register *initialHash,
+                                                     TR::Register *index,
+                                                     TR::Register *length,
+                                                     TR::Register *arrayAddress,
+                                                     int32_t unrollCount,
+                                                     TR::CodeGenerator *cg);
+
    static TR::Register *generateConcurrentScavengeSequence(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *fpConvertToLong(TR::Node *node, TR::SymbolReference *helperSymRef, TR::CodeGenerator *cg);
    static TR::Register *f2iEvaluator(TR::Node *node, TR::CodeGenerator *cg);

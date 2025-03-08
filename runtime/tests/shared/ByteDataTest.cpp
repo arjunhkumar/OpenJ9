@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include "CacheMap.hpp"
 #include "CompositeCache.hpp"
@@ -104,6 +104,7 @@ IDATA testByteDataManager(J9JavaVM* vm)
 	UnitTest::unitTest = UnitTest::BYTE_DATA_TEST;
 
 	cachePointers.testCache1 = createTestCache(vm, SMALL_CACHE_SIZE, NULL, &existingCachePtr);
+	cachePointers.testCache2 = NULL;
 	if (cachePointers.testCache1 && existingCachePtr) {
 		cachePointers.config1 = vm->sharedClassConfig;
 		cachePointers.preConfig1 = vm->sharedClassPreinitConfig;

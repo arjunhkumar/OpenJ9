@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.monitor;
 
 import java.util.HashMap;
@@ -43,7 +43,7 @@ public class MonitorSovSectionParserPart extends SovereignSectionParserPart impl
 	public MonitorSovSectionParserPart() {
 		super(MONITOR_SECTION);
 	}
-	
+
 	public void computeSovRule(String sovRuleID, ILookAheadBuffer lookAheadBuffer) throws ParserException {
 		setLookAheadBuffer(lookAheadBuffer);
 		setTagManager(J9TagManager.getCurrent());
@@ -71,10 +71,10 @@ public class MonitorSovSectionParserPart extends SovereignSectionParserPart impl
 
 				results = processTagLineRequired(LK_OBJ_MON_DUMP);
 				do {
-					if ((results = processTagLineOptional(LK_INFLATED_MON)) != null) {				
+					if ((results = processTagLineOptional(LK_INFLATED_MON)) != null) {
 						processTagLineRequired(LK_INFL_DETAILS);
 					} else {
-						if ((results = processTagLineOptional(LK_FLAT_LOCKED)) != null) {						
+						if ((results = processTagLineOptional(LK_FLAT_LOCKED)) != null) {
 							String className = results.getTokenValue(MONITOR_OBJECT_FULL_JAVA_NAME);
 							className = MonitorSectionParser.fixMonitorClassName(className);
 							long objectID = results.getLongValue(MONITOR_OBJECT_ADDRESS);
@@ -82,7 +82,7 @@ public class MonitorSovSectionParserPart extends SovereignSectionParserPart impl
 							results = processTagLineRequired(LK_FLAT_DETAILS);
 							int flatid = results.getIntValue(MONITOR_FLAT_ID);
 							Object p = threads.get(Integer.valueOf(flatid));
-							long threadID = p instanceof Long ? ((Long)p).longValue() : IBuilderData.NOT_AVAILABLE; 
+							long threadID = p instanceof Long ? ((Long)p).longValue() : IBuilderData.NOT_AVAILABLE;
 							try {
 								if (monitorID != IBuilderData.NOT_AVAILABLE) {
 									// A valid monitor ID is required to build a monitor
@@ -95,18 +95,18 @@ public class MonitorSovSectionParserPart extends SovereignSectionParserPart impl
 					}
 				} while (results != null);
 			}
-		}		
+		}
 	}
 
 	public Object readIntoDTFJ(ILookAheadBuffer lookAhead) throws ParserException {
-		
+
 		return null;
 	}
 
 	public void readIntoDTFJ(ILookAheadBuffer lookAhead, IImageBuilder imageBuilder) throws ParserException {
 		fImageProcessBuilder = imageBuilder.getCurrentAddressSpaceBuilder().getCurrentImageProcessBuilder();
 		fRuntimeBuilder = fImageProcessBuilder.getCurrentJavaRuntimeBuilder();
-		
+
 	}
 
 }

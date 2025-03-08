@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2014
  *
  * This program and the accompanying materials are made available under
@@ -18,12 +18,12 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 /**
- * DefaultMethodConflictException is thrown when method resolution 
+ * DefaultMethodConflictException is thrown when method resolution
  * found conflicting definitions of interface default methods.
  */
 @VMCONSTANTPOOL_CLASS
@@ -32,7 +32,7 @@ final class DefaultMethodConflictException extends RuntimeException {
 	 * Serialized version ID
 	 */
 	private static final long serialVersionUID = 292L;
-	
+
 	/**
 	 * Construct a DefaultMethodConflictException with the supplied message.
 	 * @param message Describes the method conflicts
@@ -41,4 +41,3 @@ final class DefaultMethodConflictException extends RuntimeException {
 		super(message);
 	}
 }
-

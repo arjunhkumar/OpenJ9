@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jni.h"
@@ -54,6 +54,10 @@
 #else /* defined(OSX) */
 #define ENV_LD_LIB_PATH "LD_LIBRARY_PATH"
 #endif /* defined(OSX) */
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Walks the j9vm_args to find the entry for a given argument. optionValue can be
@@ -286,5 +290,9 @@ createJvmInitArgs(J9PortLibrary * portLib, JavaVMInitArgs *launcherArgs, J9JavaV
  */
 void
 destroyJvmInitArgs(J9PortLibrary * portLib, J9VMInitArgs *vmArgumentsList);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* vmargs_api_h */

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jvmtiHelpers.h"
@@ -118,7 +118,7 @@ static jvmtiError getArrayPrimitiveElements(J9JVMTIHeapData * iteratorData, jvmt
 static jvmtiIterationControl followReferencesCallback(j9object_t * slotPtr, j9object_t referrer, void *userData, IDATA type, IDATA referrerIndex, IDATA wasReportedBefore);
 static void mapEventType(J9JVMTIHeapData * data, IDATA type, jint index, j9object_t referrer, j9object_t object);
 static void jvmtiFollowRefs_getTags(J9JVMTIHeapData * iteratorData, j9object_t  referrer, j9object_t  object); 
-static UDATA jvmtiHeapFollowRefs_getStackData(J9JVMTIHeapData * iteratorData, J9StackWalkState *walkState);
+static UDATA jvmtiHeapFollowRefs_getStackData(J9JVMTIHeapData * iteratorData, J9MM_StackSlotDescriptor *stackSlotDescriptor);
 static IDATA heapReferenceFilter(J9JVMTIHeapData * iteratorData);
 
 
@@ -756,7 +756,7 @@ wrap_heapReferenceCallback(J9JavaVM * vm, J9JVMTIHeapData * iteratorData)
         case JVMTI_HEAP_REFERENCE_JNI_LOCAL:
             if (iteratorData->referrer) {
                 /* fill in the stack local and jni local data */
-                if (jvmtiHeapFollowRefs_getStackData(iteratorData, (J9StackWalkState *) iteratorData->referrer) == 0)
+                if (jvmtiHeapFollowRefs_getStackData(iteratorData, (J9MM_StackSlotDescriptor *) iteratorData->referrer) == 0)
                     return JVMTI_ITERATION_IGNORE;
             } else {
 				/* No reference info available for heap roots, slime some bogus values 
@@ -840,20 +840,26 @@ wrap_heapReferenceCallback(J9JavaVM * vm, J9JVMTIHeapData * iteratorData)
  *
  */
 static UDATA
-jvmtiHeapFollowRefs_getStackData(J9JVMTIHeapData * iteratorData, J9StackWalkState *walkState)
+jvmtiHeapFollowRefs_getStackData(J9JVMTIHeapData *iteratorData, J9MM_StackSlotDescriptor *stackSlotDescriptor)
 {
 	J9JVMTIHeapEvent * e = &iteratorData->event;
-	jint slot = (jint) walkState->slotIndex;
-	jint depth = (jint) walkState->framesWalked;
-	J9Method * ramMethod = walkState->method;
-	jmethodID method;
-	J9JVMTIObjectTag search;
-	J9JVMTIObjectTag * result;
-	jlong threadID;
+	jint slot = -1;
+	jint depth = -1;
+	J9Method *ramMethod = NULL;
+	jmethodID method = (jmethodID) -1;
+	J9JVMTIObjectTag search = {NULL, 0};
+	J9JVMTIObjectTag *result = NULL;
+	jlong threadID = 0;
+	J9StackWalkState *walkState = stackSlotDescriptor->walkState;
 
+	if (NULL != walkState) {
+		slot = (jint) walkState->slotIndex;
+		depth = (jint) walkState->framesWalked;
+		ramMethod = walkState->method;
 
-	/* Convert internal slot type to JVMTI type */
-	switch (walkState->slotType) {
+		/* Convert internal slot type to JVMTI type. */
+
+		switch (walkState->slotType) {
 		case J9_STACKWALK_SLOT_TYPE_JNI_LOCAL:
 			e->refKind = JVMTI_HEAP_REFERENCE_JNI_LOCAL;
 			break;
@@ -861,35 +867,35 @@ jvmtiHeapFollowRefs_getStackData(J9JVMTIHeapData * iteratorData, J9StackWalkStat
 			e->refKind = JVMTI_HEAP_REFERENCE_STACK_LOCAL;
 			break;
 		default:
-			/* Do not callback with stack slot types other then JNI or STACK Local */
+			/* Do not callback with stack slot types other then JNI or STACK Local. */
 			return 0;
-	}
+		}
 
-	/* If there's no method, set slot, method and depth to -1 */
+		/* If there's no method, slot, method and depth are set to -1 by default. */
 
-	if (ramMethod == NULL) {
-		slot = -1;
-		depth = -1;
-		method = (jmethodID) -1;
-	} else {
-		/* Cheating here - should be current thread, but the walk thread will do */
-		method = getCurrentMethodID(walkState->walkThread, ramMethod);
-		if (method == NULL) {
-			slot = -1;
-			depth = -1;
-			method = (jmethodID) -1;
+		if (NULL != ramMethod) {
+			/* Cheating here - should be current thread, but the walk thread will do. */
+			method = getCurrentMethodID(walkState->walkThread, ramMethod);
+			if (NULL == method) {
+				method = (jmethodID) -1;
+			}
 		}
 	}
 
 	/* Find thread tag */
 	
-	search.ref = (j9object_t ) walkState->walkThread->threadObject;
-	result = hashTableFind(iteratorData->env->objectTagTable, &search);
+	search.ref = (j9object_t)stackSlotDescriptor->vmThread->threadObject;
 
-	/* Figure out the Thread ID */
+	if (NULL != search.ref) {
+		result = hashTableFind(iteratorData->env->objectTagTable, &search);
 
-	threadID = J9VMJAVALANGTHREAD_TID(iteratorData->currentThread, walkState->walkThread->threadObject);
-	
+		/* Retrieve the Thread ID. */
+		threadID = J9VMJAVALANGTHREAD_TID(iteratorData->currentThread, stackSlotDescriptor->vmThread->threadObject);
+	} else {
+		/* Set 0 for tag/ID since ref to threadObject can be lost while walking a continuation. */
+		result = NULL;
+		threadID = 0;
+	}
 
 	switch (e->refKind) {
 		case JVMTI_HEAP_REFERENCE_STACK_LOCAL:
@@ -897,7 +903,7 @@ jvmtiHeapFollowRefs_getStackData(J9JVMTIHeapData * iteratorData, J9StackWalkStat
 			e->refInfo.stack_local.thread_id = threadID;
 			e->refInfo.stack_local.depth = depth;
 			e->refInfo.stack_local.method = method;
-			e->refInfo.stack_local.location = (jlocation) walkState->bytecodePCOffset;
+			e->refInfo.stack_local.location = (jlocation) ((walkState) ? walkState->bytecodePCOffset : 0);
 			e->refInfo.stack_local.slot = slot;
 			break;
 
@@ -1096,7 +1102,7 @@ mapEventType(J9JVMTIHeapData * data, IDATA type, jint index, j9object_t referrer
 			break;
 
 		case J9GC_ROOT_TYPE_JNI_LOCAL:
-			event->type = J9JVMTI_HEAP_EVENT_ROOT;
+			event->type = J9JVMTI_HEAP_EVENT_STACK;
 			event->refKind = JVMTI_HEAP_REFERENCE_JNI_LOCAL;
 			event->hasRefInfo = TRUE;
 			break;
@@ -1580,7 +1586,6 @@ wrap_primitiveFieldCallback(J9JavaVM * vm, J9JVMTIHeapData * iteratorData, IDATA
 	J9ROMFieldShape * field;
 	jvmtiError rc;
 	jvmtiIterationControl visitRc = JVMTI_ITERATION_ABORT;
-	jint fieldIndex = 0;
 	UDATA const objectHeaderSize = J9JAVAVM_OBJECT_HEADER_SIZE(vm);
 
 	/* Check if the referee was already visited and had its primitive fields callback issued. Duplicate SUN behavior
@@ -1727,8 +1732,6 @@ wrap_primitiveFieldCallback(J9JavaVM * vm, J9JVMTIHeapData * iteratorData, IDATA
 
 
 nextField:
-		fieldIndex++;
-
 		/* Go look at the next field */
 		field = vm->internalVMFunctions->fullTraversalFieldOffsetsNextDo(&state);
 	}
@@ -1753,9 +1756,10 @@ static jvmtiIterationControl
 wrap_stringPrimitiveCallback(J9JavaVM * vm, J9JVMTIHeapData * iteratorData)
 {
 	jvmtiIterationControl rc = JVMTI_ITERATION_ABORT;
-	jlong tag;
-	jint stringLength, i;
-	jchar * stringValue;
+	jlong tag = 0;
+	jint stringLength = 0;
+	jint i = 0;
+	jchar * stringValue = NULL;
 	PORT_ACCESS_FROM_JAVAVM(vm);
 	j9object_t bytes = J9VMJAVALANGSTRING_VALUE(iteratorData->currentThread, iteratorData->object);
 	UDATA offset = 0;
@@ -1777,7 +1781,7 @@ wrap_stringPrimitiveCallback(J9JavaVM * vm, J9JVMTIHeapData * iteratorData)
 		/* Decompress the string byte at a time, this probably can't be
 		 */
 		for (i = 0; i < stringLength; i++) {
-			stringValue[i] = J9JAVAARRAYOFBYTE_LOAD(iteratorData->currentThread, bytes, offset);
+			stringValue[i] = (U_8)J9JAVAARRAYOFBYTE_LOAD(iteratorData->currentThread, bytes, offset);
 			offset++;
 		}
 	} else {

@@ -17,7 +17,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 # About
 Artifactory is a binary repository manager.
@@ -266,10 +266,10 @@ do
   if [[ $var = https* ]]
   then
     echo "Original parameter: $var"
-    echo "Modified to UNB mirror: `echo $var | sed 's#140-211-168-230-openstack.osuosl.org#192.168.10.216#'`"
+    echo "Modified to UNB mirror: `echo $var | sed 's#openj9-artifactory.osuosl.org#192.168.10.216#'`"
   fi
 done
-echo $@ | sed 's#--user .*:.* ##' | xargs /usr/bin/curl --resolve 140-211-168-230-openstack.osuosl.org:443:192.168.10.216
+echo $@ | sed 's#--user .*:.* ##' | xargs /usr/bin/curl --resolve openj9-artifactory.osuosl.org:443:192.168.10.216
 ```
 
 # Configure UNB nodes to accept self-signed certificate (upload only)

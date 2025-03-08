@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.phd;
 
 import com.ibm.dtfj.image.CorruptData;
@@ -30,11 +30,11 @@ import com.ibm.dtfj.image.ImagePointer;
 import com.ibm.dtfj.java.JavaLocation;
 import com.ibm.dtfj.java.JavaMethod;
 
-/** 
+/**
  * @author ajohnson
  */
 public class PHDJavaLocation implements JavaLocation {
-	
+
 	private ImagePointer address;
 	private CorruptData address_cd;
 	private int compilationLevel;
@@ -68,7 +68,7 @@ public class PHDJavaLocation implements JavaLocation {
 			filename = shadow.getFilename();
 		} catch (CorruptDataException e) {
 			filename_cd = new PHDCorruptData(space, e);
-		} catch (DataUnavailable e) {			
+		} catch (DataUnavailable e) {
 		}
 		try {
 			lineNumber = shadow.getLineNumber();
@@ -114,28 +114,28 @@ public class PHDJavaLocation implements JavaLocation {
 	private void checkCD(CorruptData cd) throws CorruptDataException {
 		if (cd != null) throw new CorruptDataException(cd);
 	}
-	
+
 	public boolean equals(Object o) {
 		if (o == null) return false;
 		if (getClass() != o.getClass()) return false;
 		PHDJavaLocation l = (PHDJavaLocation)o;
 		return equals(method, l.method) && equals(lineNumber, l.lineNumber);
 	}
-	
+
 	public int hashCode() {
 		return hashCode(method) ^ hashCode(lineNumber);
 	}
-	
+
 	private boolean equals(Object o1, Object o2) {
 		return (o1 == null ? o2 == null : o1.equals(o2));
 	}
-	
+
 	private int hashCode(Object o) {
 		return o == null ? 0 : o.hashCode();
 	}
-	
+
 	/*
-	 * Get a description of the frame in the same format as a stack trace 
+	 * Get a description of the frame in the same format as a stack trace
 	 */
 	public String toString() {
 		StringBuilder sb = new StringBuilder();

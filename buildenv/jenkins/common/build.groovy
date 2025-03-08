@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 import groovy.json.JsonSlurper;
 import groovy.json.JsonOutput;
@@ -55,6 +55,21 @@ def get_source() {
 def get_sources_with_authentication() {
     sshagent(credentials:["${USER_CREDENTIALS_ID}"]) {
         get_sources()
+    }
+}
+
+def get_source_call(gskit_cred="") {
+    sh "bash get_source.sh ${EXTRA_GETSOURCE_OPTIONS} ${gskit_cred} ${OPENJ9_REPO_OPTION} ${OPENJ9_BRANCH_OPTION} ${OPENJ9_SHA_OPTION} ${OPENJ9_REFERENCE} ${OMR_REPO_OPTION} ${OMR_BRANCH_OPTION} ${OMR_SHA_OPTION} ${OMR_REFERENCE}"
+}
+
+def get_source_call_optional_gskit() {
+    if (EXTRA_GETSOURCE_OPTIONS.contains("-gskit-bin") || (EXTRA_CONFIGURE_OPTIONS.contains("-gskit-sdk-bin"))) {
+        gskitCredentialID = variableFile.get_user_credentials_id('gskit')
+        withCredentials([usernamePassword(credentialsId: "${gskitCredentialID}", passwordVariable: 'GSKIT_PASSWORD', usernameVariable: 'GSKIT_USERNAME')]) {
+            get_source_call("-gskit-credential=\$GSKIT_USERNAME:\$GSKIT_PASSWORD")
+        }
+    } else {
+        get_source_call()
     }
 }
 
@@ -107,7 +122,7 @@ def get_sources() {
         // Look for dependent changes and checkout PR(s)
         checkout_pullrequest()
     } else {
-        sh "bash get_source.sh ${EXTRA_GETSOURCE_OPTIONS} ${OPENJ9_REPO_OPTION} ${OPENJ9_BRANCH_OPTION} ${OPENJ9_SHA_OPTION} ${OPENJ9_REFERENCE} ${OMR_REPO_OPTION} ${OMR_BRANCH_OPTION} ${OMR_SHA_OPTION} ${OMR_REFERENCE}"
+        get_source_call_optional_gskit()
     }
 }
 
@@ -227,7 +242,7 @@ def checkout_pullrequest() {
         checkout_pullrequest(OPENJDK_PR, "ibmruntimes/openj9-openjdk-jdk${JDK_REPO_SUFFIX}")
     }
 
-    sh "bash get_source.sh ${EXTRA_GETSOURCE_OPTIONS} ${OPENJ9_REPO_OPTION} ${OPENJ9_BRANCH_OPTION} ${OPENJ9_SHA_OPTION} ${OPENJ9_REFERENCE} ${OMR_REPO_OPTION} ${OMR_BRANCH_OPTION} ${OMR_SHA_OPTION} ${OMR_REFERENCE}"
+    get_source_call_optional_gskit()
 
     // Checkout dependent PRs, if any were specified
     if (openj9_bool) {
@@ -239,9 +254,9 @@ def checkout_pullrequest() {
     if (omr_bool) {
         dir ('omr') {
             if (omr_upstream) {
-                sh "git config remote.origin.url https://github.com/eclipse/omr.git"
+                sh "git config remote.origin.url https://github.com/eclipse-omr/omr.git"
             }
-            checkout_pullrequest(OMR_PR, 'eclipse/omr')
+            checkout_pullrequest(OMR_PR, 'eclipse-omr/omr')
         }
     }
 }
@@ -322,7 +337,7 @@ def build() {
 }
 
 def get_compile_command() {
-	return "make ${EXTRA_MAKE_OPTIONS} all"
+    return "make ${EXTRA_MAKE_OPTIONS} all"
 }
 
 def archive_sdk() {
@@ -528,7 +543,13 @@ def archive_diagnostics(javaVersionJdkImageDir = null) {
     findCrashDataCmd += " -o -name 'jitdump.*.dmp'"
     findCrashDataCmd += " -o -name 'Snap.*.trc'"
 
-    if (SPEC.contains('zos')) {
+    if (SPEC.contains('linux')) {
+        // collect *.debuginfo files to help diagnose omr_ddrgen failures
+        findCrashDataCmd += " -o -name '*.debuginfo'"
+    } else if (SPEC.contains('win')) {
+        // collect *.pdb files to help diagnose omr_ddrgen failures
+        findCrashDataCmd += " -o -name '*.pdb'"
+    } else if (SPEC.contains('zos')) {
         def logContent = currentBuild.rawBuild.getLog()
         // search for each occurrence of IEATDUMP success for DSN=
         def matches = logContent =~ /IEATDUMP success for DSN=.*/
@@ -667,11 +688,16 @@ def upload_artifactory_core(geo, uploadSpec) {
     // Add BUILD_IDENTIFIER to the buildInfo. The UploadSpec adds it to the Artifact info
     buildInfo.env.filter.addInclude("BUILD_IDENTIFIER")
     buildInfo.env.capture = true
+    if (ARTIFACTORY_CONFIG[geo]['buildNamePrefix'] != '') {
+        buildInfo.name = ARTIFACTORY_CONFIG[geo]['buildNamePrefix'] + '/' + JOB_NAME
+    }
+    println "buildInfo.name:$buildInfo.name"
 
     //Retry uploading to Artifactory if errors occur
+    // Do not upload buildInfo if Server is behind a VPN as the Controller will not be able to talk to it.
     pipelineFunctions.retry_and_delay({
         server.upload spec: uploadSpec, buildInfo: buildInfo;
-        if (!ARTIFACTORY_CONFIG[geo]['vpn']) { server.publishBuildInfo buildInfo } },
+        server.publishBuildInfo buildInfo},
         3, 300)
 
     ARTIFACTORY_CONFIG[geo]['url'] = server.getUrl()
@@ -726,6 +752,16 @@ def cleanWorkspace (KEEP_WORKSPACE) {
     }
 }
 
+def getDockerRegistry(String name) {
+    def i = name.indexOf('/')
+    def defaultDomain = ''
+
+    if (i == -1 || (!name[0..<i].contains('.') && !name[0..<i].contains(':') && name[0..<i] != 'localhost')){
+        return  defaultDomain
+    }
+    return 'https://' + name[0..<i]
+}
+
 def clean_docker_containers() {
     println("Listing docker containers to attempt removal")
     sh "docker ps -a"
@@ -745,8 +781,9 @@ def prepare_docker_environment() {
     // if there is no id found then attempt to pull it
     if (!DOCKER_IMAGE_ID) {
         echo "${DOCKER_IMAGE} not found locally, attempting to pull from dockerhub"
-        dockerCredentialID = variableFile.get_user_credentials_id('dockerhub')
-        docker.withRegistry("", "${dockerCredentialID}") {
+        dockerRegistry = getDockerRegistry(DOCKER_IMAGE)
+        dockerCredentialID = variableFile.get_user_credentials_id(dockerRegistry.replaceAll('https://','') ?: 'dockerhub')
+        docker.withRegistry(dockerRegistry, "${dockerCredentialID}") {
             sh "docker pull ${DOCKER_IMAGE}"
         }
         DOCKER_IMAGE_ID = get_docker_image_id(DOCKER_IMAGE)
@@ -777,14 +814,48 @@ def _build_all() {
     }
 }
 
+// TODO: remove this workaround when https://github.com/adoptium/infrastructure/issues/3597 resolved. related: infra 9292
+def create_docker_image_locally()
+{
+    new_image_name = DOCKER_IMAGE.split(':')[0] + '_cuda'
+    // check and return if image is already exists on node
+    CUDA_DOCKER_IMAGE_ID = get_docker_image_id(new_image_name)
+    if (CUDA_DOCKER_IMAGE_ID) {
+        DOCKER_IMAGE = new_image_name
+        return
+    }
+    sh '''
+        echo 'ARG image
+            ARG cuda_ver=12.2.0
+            ARG cuda_distro=ubi8
+            FROM nvcr.io/nvidia/cuda:${cuda_ver}-devel-${cuda_distro} as cuda
+            FROM $image
+            RUN mkdir -p /usr/local/cuda/nvvm
+            COPY --from=cuda /usr/local/cuda/include         /usr/local/cuda/include
+            COPY --from=cuda /usr/local/cuda/nvvm/include    /usr/local/cuda/nvvm/include
+            ENV CUDA_HOME="/usr/local/cuda"' > dockerFile
+    '''
+    println "Preparing Docker image ${new_image_name} locally ..."
+    dockerRegistry = getDockerRegistry(DOCKER_IMAGE)
+    dockerCredentialID = variableFile.get_user_credentials_id(dockerRegistry.replaceAll('https://','') ?: 'dockerhub')
+    docker.withRegistry(dockerRegistry, "${dockerCredentialID}") {
+            docker.build(new_image_name, "--build-arg image=${DOCKER_IMAGE} -f dockerFile .")
+    }
+    DOCKER_IMAGE = new_image_name
+}
+
 def build_all() {
     stage ('Queue') {
         timeout(time: 10, unit: 'HOURS') {
             node("${NODE}") {
                 timeout(time: 5, unit: 'HOURS') {
                     if ("${DOCKER_IMAGE}") {
+                        // TODO: Remove this workaround when https://github.com/adoptium/infrastructure/issues/3597 is resolved. Related: infra 9292.
+                        if ((PLATFORM ==~ /ppc64le_linux.*/) || (PLATFORM ==~ /x86-64_linux.*/)) {
+                            create_docker_image_locally()
+                        }
                         prepare_docker_environment()
-                        docker.image(DOCKER_IMAGE_ID).inside("-v /home/jenkins/openjdk_cache:/home/jenkins/openjdk_cache:rw,z") {
+                        docker.image(DOCKER_IMAGE_ID).inside("-v /home/jenkins/openjdk_cache:/home/jenkins/openjdk_cache:rw,z -v /home/jenkins/.ssh:/home/jenkins/.ssh:rw,z") {
                             _build_all()
                         }
                     } else {
@@ -803,11 +874,15 @@ def match_fail_pattern(outputLines) {
     }
 
     println("Build failure, searching fail pattern in the last ${outputLines.size()} output lines")
-    Pattern pattern = Pattern.compile(FAIL_PATTERN)
-    for (line in outputLines) {
-        Matcher matcher = pattern.matcher(line)
-        if (matcher.find()) {
-            return true
+
+    for (failPattern in FAIL_PATTERN.tokenize('|')) {
+        Pattern pattern = Pattern.compile(failPattern)
+        for (line in outputLines) {
+            Matcher matcher = pattern.matcher(line)
+            if (matcher.find()) {
+                println("Found ${failPattern} fail pattern!")
+                return true
+            }
         }
     }
 
@@ -834,8 +909,11 @@ def recompile() {
             LOG_LINES.addAll(newLines)
 
             if (!match_fail_pattern(newLines)) {
-                //different error
+                // different error
                 archive_diagnostics()
+                throw f
+            }
+            if (retryCounter >= maxRetry) {
                 throw f
             }
         }

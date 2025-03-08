@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jvmtiHelpers.h"
@@ -240,7 +240,7 @@ getThreadGroupChildrenImpl(J9JavaVM *vm, J9VMThread *currentThread, jobject grou
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 		if (J9_OBJECT_MONITOR_CRIU_SINGLE_THREAD_MODE_THROW == (UDATA)childrenGroupsLock) {
 			vmFuncs->setCRIUSingleThreadModeJVMCRIUException(currentThread, 0, 0);
-			rc = JVMTI_ERROR_THREAD_SUSPENDED;
+			rc = JVMTI_ERROR_INTERNAL;
 		} else
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 		if (J9_OBJECT_MONITOR_OOM == (UDATA)childrenGroupsLock) {
@@ -276,7 +276,7 @@ getThreadGroupChildrenImpl(J9JavaVM *vm, J9VMThread *currentThread, jobject grou
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 		if (J9_OBJECT_MONITOR_CRIU_SINGLE_THREAD_MODE_THROW == (UDATA)childrenThreadsLock) {
 			vmFuncs->setCRIUSingleThreadModeJVMCRIUException(currentThread, 0, 0);
-			rc = JVMTI_ERROR_THREAD_SUSPENDED;
+			rc = JVMTI_ERROR_INTERNAL;
 		} else
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 		if (J9_OBJECT_MONITOR_OOM == (UDATA)childrenThreadsLock) {
@@ -347,7 +347,7 @@ getThreadGroupChildrenImpl(J9JavaVM *vm, J9VMThread *currentThread, jobject grou
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 		if (J9_OBJECT_MONITOR_CRIU_SINGLE_THREAD_MODE_THROW == (UDATA)threadGroupObject) {
 			vmFuncs->setCRIUSingleThreadModeJVMCRIUException(currentThread, 0, 0);
-			rc = JVMTI_ERROR_THREAD_SUSPENDED;
+			rc = JVMTI_ERROR_INTERNAL;
 		} else
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 		if (J9_OBJECT_MONITOR_OOM == (UDATA)threadGroupObject) {
@@ -391,6 +391,11 @@ getThreadGroupChildrenImpl(J9JavaVM *vm, J9VMThread *currentThread, jobject grou
 
 	vmFuncs->acquireExclusiveVMAccess(currentThread);
 
+	/* While acquiring exclusive VM access, VM access can be released.
+	 * GC might relocate threadGroupObject when VM access is released.
+	 * threadGroupObject is refetched to avoid a stale object.
+	 */
+	threadGroupObject = J9_JNI_UNWRAP_REFERENCE(group);
 	threads = j9mem_allocate_memory(sizeof(jthread) * vm->totalThreadCount, J9MEM_CATEGORY_JVMTI_ALLOCATE);
 	if (NULL == threads) {
 		j9mem_free_memory(groups);

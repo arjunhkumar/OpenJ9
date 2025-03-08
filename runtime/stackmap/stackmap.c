@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdlib.h>
@@ -413,7 +413,7 @@ mapStack(UDATA *scratch, UDATA totalStack, U_8 * map, J9ROMClass * romClass, J9R
 					J9ROMNAMEANDSIGNATURE_SIGNATURE(J9ROMFIELDREF_NAMEANDSIGNATURE
 													((J9ROMFieldRef *) (&(pool[index]))));
 				signature = (U_8) J9UTF8_DATA(utf8Signature)[0];
-				if ((signature == 'L') || (signature == 'Q') || (signature == '[')) {
+				if ((signature == 'L') || (signature == '[')) {
 					PUSH(OBJ);
 				} else {
 					PUSH(INT);
@@ -424,7 +424,6 @@ mapStack(UDATA *scratch, UDATA totalStack, U_8 * map, J9ROMClass * romClass, J9R
 				
 				break;
 
-			case JBwithfield:
 			case JBputfield:
 				POP();			/* fall through case !!! */
 
@@ -435,9 +434,6 @@ mapStack(UDATA *scratch, UDATA totalStack, U_8 * map, J9ROMClass * romClass, J9R
 													((J9ROMFieldRef *) (&(pool[index]))));
 				signature = (U_8) J9UTF8_DATA(utf8Signature)[0];
 				stackTop -= (UDATA) argCountCharConversion[signature - 'A'];
-				if (JBwithfield == bc) {
-					PUSH(OBJ);
-				}
 
 				break;
 

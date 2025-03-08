@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef TR_J9_COMPILATIONBASE_INCL
@@ -42,9 +42,7 @@ namespace J9 { typedef J9::Compilation CompilationConnector; }
 #include "env/OMRMemory.hpp"
 #include "compile/AOTClassInfo.hpp"
 #include "runtime/SymbolValidationManager.hpp"
-#if defined(J9VM_OPT_JITSERVER)
 #include "env/PersistentCollections.hpp"
-#endif /* defined(J9VM_OPT_JITSERVER) */
 
 
 class TR_AOTGuardSite;
@@ -134,7 +132,7 @@ class OMR_EXTENSIBLE Compilation : public OMR::CompilationConnector
 
    bool isShortRunningMethod(int32_t callerIndex);
 
-   int32_t getDltBcIndex() { return (uint32_t)_dltBcIndex;}
+   int32_t getDltBcIndex() { return _dltBcIndex;}
    void setDltBcIndex(int32_t ix) { _dltBcIndex=ix;}
 
    int32_t *getDltSlotDescription() { return _dltSlotDescription;}
@@ -161,8 +159,22 @@ class OMR_EXTENSIBLE Compilation : public OMR::CompilationConnector
    void *getCurMethodMetadata() {return _curMethodMetadata;}
    void setCurMethodMetadata(void *m) {_curMethodMetadata = m;}
 
-   void setGetImplInlineable(bool b) { _getImplInlineable = b; }
-   bool getGetImplInlineable() { return _getImplInlineable; }
+   void setGetImplInlineable(bool b) { setGetImplAndRefersToInlineable(b); }
+   /**
+    * \brief Sets whether the native \c java.lang.ref.Reference
+    * methods, \c getImpl and \c refersTo, can be inlined.
+    * \param[in] b A \c bool argument indicating whether \c getImpl
+    *              and \c refersTo can be inlined.
+    */
+   void setGetImplAndRefersToInlineable(bool b) { _getImplAndRefersToInlineable = b; }
+
+   /**
+    * \brief Indicates whether the native \c java.lang.ref.Reference
+    * methods, \c getImpl and \c refersTo, can be inlined.
+    *
+    * \return \c true if they can be inlined; \c false otherwise
+    */
+   bool getGetImplAndRefersToInlineable() { return _getImplAndRefersToInlineable; }
 
    //for converters
    bool canTransformConverterMethod(TR::RecognizedMethod method);
@@ -352,30 +364,83 @@ class OMR_EXTENSIBLE Compilation : public OMR::CompilationConnector
    bool isDeserializedAOTMethod() const { return _deserializedAOTMethod; }
    void setDeserializedAOTMethod(bool deserialized) { _deserializedAOTMethod = deserialized; }
 
+   bool isDeserializedAOTMethodStore() const { return _deserializedAOTMethodStore; }
+   void setDeserializedAOTMethodStore(bool deserializedStore) { _deserializedAOTMethodStore = deserializedStore; }
+
    bool isDeserializedAOTMethodUsingSVM() const { return _deserializedAOTMethodUsingSVM; }
    void setDeserializedAOTMethodUsingSVM(bool usingSVM) { _deserializedAOTMethodUsingSVM = usingSVM; }
 
    bool isAOTCacheStore() const { return _aotCacheStore; }
    void setAOTCacheStore(bool store) { _aotCacheStore = store; }
 
+   bool ignoringLocalSCC() const { return _ignoringLocalSCC; }
+   void setIgnoringLocalSCC(bool ignoringLocalSCC) { _ignoringLocalSCC = ignoringLocalSCC; }
+
    Vector<std::pair<const AOTCacheRecord *, uintptr_t>> &getSerializationRecords() { return _serializationRecords; }
    // Adds an AOT cache record and the corresponding offset into AOT relocation data to the list that
    // will be used when the result of this out-of-process compilation is serialized and stored in
-   // JITServer AOT cache. If record is NULL, fails serialization by setting _aotCacheStore to false.
+   // JITServer AOT cache. If record is NULL, fails serialization by setting _aotCacheStore to false if we are not
+   // ignoring the client's SCC, and otherwise fails the compilation entirely.
    void addSerializationRecord(const AOTCacheRecord *record, uintptr_t reloDataOffset);
 
    UnorderedSet<const AOTCacheThunkRecord *> &getThunkRecords() { return _thunkRecords; }
    // Adds an AOT cache thunk record to the set of thunks that this compilation depends on, and also adds it
    // to the list of records that this compilation depends on if the thunk record is new. If the record is NULL,
-   // fails serialization by setting _aotCacheStore to false.
+   // fails serialization by setting _aotCacheStore to false if we are not ignoring the client's SCC, and otherwise
+   // fails the compilation entirely.
    void addThunkRecord(const AOTCacheThunkRecord *record);
+#else
+   bool isDeserializedAOTMethod() const { return false; }
+   bool ignoringLocalSCC() const { return false; }
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
    TR::SymbolValidationManager *getSymbolValidationManager() { return _symbolValidationManager; }
 
+   /**
+    * \brief Determine whether it's currently expected to be possible to add
+    * OSR assumptions and corresponding fear points somewhere in the method.
+    *
+    * The result is independent of any particular program point. Even if the
+    * result is true, there may still be restrictions on the placement of fear
+    * points. However, if the result is false, then no fear points can be
+    * placed and no new assumptions can be made.
+    *
+    * \param comp the compilation object
+    * \return true if it's possible in general to add assumptions, false otherwise
+    */
+   bool canAddOSRAssumptions();
+
+   /**
+    * \brief Determine whether fear points may be placed (almost) anywhere.
+    *
+    * If the result is true, then prior to fear point analysis, the compiler
+    * must ensure that OSR induction remains possible at every OSR yield point.
+    * As such, fear points may be placed almost anywhere in the method.
+    *
+    * \warning This does not allow fear points to be placed on the taken side
+    * of a guard (except after an OSR yield point, e.g. a cold call). That
+    * restriction is due to a limitation of the fear point analysis.
+    *
+    * \return true if fear points may be placed (almost) anywhere
+    */
+   bool isFearPointPlacementUnrestricted() { return false; }
+
+   // Flag to record whether fear-point analysis has already been done.
+   void setFearPointAnalysisDone() { _wasFearPointAnalysisDone = true; }
+   bool wasFearPointAnalysisDone() { return _wasFearPointAnalysisDone; }
+
    // Flag to record if any optimization has prohibited OSR over a range of trees
    void setOSRProhibitedOverRangeOfTrees() { _osrProhibitedOverRangeOfTrees = true; }
    bool isOSRProhibitedOverRangeOfTrees() { return _osrProhibitedOverRangeOfTrees; }
+
+#if defined(PERSISTENT_COLLECTIONS_UNSUPPORTED)
+   void addAOTMethodDependency(TR_OpaqueClassBlock *ramClass) {}
+   void addAOTMethodDependency(TR_OpaqueClassBlock *ramClass, uintptr_t chainOffset) {}
+#else
+   void addAOTMethodDependency(TR_OpaqueClassBlock *ramClass);
+   void addAOTMethodDependency(TR_OpaqueClassBlock *ramClass, uintptr_t chainOffset);
+   uintptr_t populateAOTMethodDependencies(TR_OpaqueClassBlock *definingClass, Vector<uintptr_t> &chainBuffer);
+#endif
 
 private:
    enum CachedClassPointerId
@@ -390,6 +455,10 @@ private:
       };
 
    TR_OpaqueClassBlock *getCachedClassPointer(CachedClassPointerId which);
+
+#if !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED)
+   void addAOTMethodDependency(uintptr_t offset, bool classIsInitialized);
+#endif  /*  !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED) */
 
    J9VMThread *_j9VMThread;
 
@@ -417,7 +486,7 @@ private:
 
    bool _needsClassLookahead;
 
-   uint16_t _dltBcIndex;
+   int32_t _dltBcIndex;
 
    int32_t * _dltSlotDescription;
 
@@ -429,7 +498,7 @@ private:
 
    void * _curMethodMetadata;
 
-   bool _getImplInlineable;
+   bool _getImplAndRefersToInlineable;
 
    TR_ValueProfileInfoManager *_vpInfoManager;
 
@@ -487,12 +556,18 @@ private:
    // True if this remote compilation resulted in deserializing an AOT method
    // received from the JITServer AOT cache; always false at the server
    bool _deserializedAOTMethod;
+   // True if this remote compilation resulted in deserializing an AOT method
+   // that was compiled as an AOT cache store; always false at the server
+   bool _deserializedAOTMethodStore;
    // True if this deserialized AOT method received from the
    // JITServer AOT cache uses SVM; always false at the server
    bool _deserializedAOTMethodUsingSVM;
    // True if the result of this out-of-process compilation will be
    // stored in JITServer AOT cache; always false at the client
    bool _aotCacheStore;
+   // True at the client if the compilation is to be stored in the AOT cache at the server and the
+   // client is ignoring the local SCC; always false at the server
+   bool _ignoringLocalSCC;
    // List of AOT cache records and corresponding offsets into AOT relocation data that will
    // be used to store the result of this compilation in AOT cache; always empty at the client
    Vector<std::pair<const AOTCacheRecord *, uintptr_t>> _serializationRecords;
@@ -500,8 +575,17 @@ private:
    UnorderedSet<const AOTCacheThunkRecord *> _thunkRecords;
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
+#if !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED)
+   // A map recording the dependencies of an AOT method. The keys are the class
+   // chain offsets of classes this method depends on, and the values record
+   // whether the class needs to be initialized before method loading, or only
+   // loaded.
+   UnorderedMap<uintptr_t, bool> _aotMethodDependencies;
+#endif /* defined(PERSISTENT_COLLECTIONS_UNSUPPORTED) */
+
    TR::SymbolValidationManager *_symbolValidationManager;
    bool _osrProhibitedOverRangeOfTrees;
+   bool _wasFearPointAnalysisDone;
    };
 
 }

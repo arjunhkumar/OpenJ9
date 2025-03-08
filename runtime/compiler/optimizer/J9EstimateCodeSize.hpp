@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9ESTIMATECS_INCL
@@ -43,9 +43,9 @@ class TR_J9EstimateCodeSize : public TR_EstimateCodeSize
    {
    public:
 
-      TR_J9EstimateCodeSize() : TR_EstimateCodeSize(), _optimisticSize(0), _lastCallBlockFrequency(-1) { }
+      TR_J9EstimateCodeSize() : TR_EstimateCodeSize(), _analyzedSize(0), _lastCallBlockFrequency(-1) { }
 
-      int32_t getOptimisticSize()       { return _optimisticSize; }
+      int32_t getOptimisticSize()       { return _analyzedSize; }
 
    /** \brief
     *     The inliner weight adjustment factor used for java/lang/String* compression related methods.
@@ -56,6 +56,8 @@ class TR_J9EstimateCodeSize : public TR_EstimateCodeSize
     *     The inliner weight adjustment factor used for `java/lang/reflect/Method.invoke`.
     */
    static const float METHOD_INVOKE_ADJUSTMENT_FACTOR;
+
+   static const float CONST_ARG_IN_CALLEE_ADJUSTMENT_FACTOR;
 
    /** \brief
     *     Adjusts the estimated \p value by a \p factor for string compression related methods.
@@ -92,6 +94,21 @@ class TR_J9EstimateCodeSize : public TR_EstimateCodeSize
     *     \endcode
     */
    static bool adjustEstimateForMethodInvoke(TR_ResolvedMethod* method, int32_t& value, float factor);
+
+   /**
+    * \brief
+    *    Adjusts the estimated \p value by \p factor for methods with args that are constant strings,
+    *    const class/object refs or load consts
+    * \param target
+    *    The call target to examine
+    * \param value
+    *    The weight that may be modified if const args exist
+    * \param factor
+    *    The factor multiplier to adjust the \p value
+    * \return
+    *    true if the \p value was lowered using the adjustment factor, otherwise false
+    */
+   bool adjustEstimateForConstArgs(TR_CallTarget * target, int32_t& value, float factor);
 
    static TR::Block *getBlock(TR::Compilation *comp, TR::Block * * blocks, TR_ResolvedMethod *feMethod, int32_t i, TR::CFG & cfg);
 
@@ -147,7 +164,7 @@ class TR_J9EstimateCodeSize : public TR_EstimateCodeSize
 
 
       int32_t _lastCallBlockFrequency;
-      int32_t _optimisticSize;          // size if we assume we are doing a partial inline
+      int32_t _analyzedSize;          // size if we assume we are doing a partial inline
    };
 
 #define NUM_PREV_BC 5

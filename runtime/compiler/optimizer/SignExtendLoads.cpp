@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "optimizer/SignExtendLoads.hpp"
@@ -49,12 +49,12 @@
 // -------------------------------------------------------------------------------------------
 bool shouldEnableSEL(TR::Compilation *comp)
    {
-   static char * enableSEL = feGetEnv("TR_SIGNEXTENDLOADS");
+   static const char *enableSEL = feGetEnv("TR_SIGNEXTENDLOADS");
    if (comp->target().cpu.isZ())
       {
       // enable only for 390
-      static char * nenableSEL = feGetEnv("TR_NSIGNEXTENDLOADS");
-      if(nenableSEL ==NULL) enableSEL = "enable";
+      static const char *nenableSEL = feGetEnv("TR_NSIGNEXTENDLOADS");
+      if (nenableSEL == NULL) enableSEL = "enable";
       }
    return ((enableSEL != NULL) &&
            comp->target().is64Bit());

@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 #
 
 # Externalised messages for the JVMTI module.
@@ -637,4 +637,39 @@ J9NLS_JVMTI_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_UNMOUNT=Zg\u0142o\u015b od\u01
 J9NLS_JVMTI_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_UNMOUNT.explanation=Internationalized description of a JVMTI extension
 J9NLS_JVMTI_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_UNMOUNT.system_action=None
 J9NLS_JVMTI_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_UNMOUNT.user_response=None
+# END NON-TRANSLATABLE
+
+J9NLS_J9JVMTI_EVENT_OPENJ9_VM_CHECKPOINT=W fazie wst\u0119pnego punktu kontrolnego maszyny wirtualnej.
+# START NON-TRANSLATABLE
+J9NLS_J9JVMTI_EVENT_OPENJ9_VM_CHECKPOINT.explanation=VM is preparing to take a checkpoint.
+J9NLS_J9JVMTI_EVENT_OPENJ9_VM_CHECKPOINT.system_action=None
+J9NLS_J9JVMTI_EVENT_OPENJ9_VM_CHECKPOINT.user_response=None
+# END NON-TRANSLATABLE
+
+J9NLS_J9JVMTI_EVENT_OPENJ9_VM_RESTORE=W fazie po odtworzeniu maszyny wirtualnej.
+# START NON-TRANSLATABLE
+J9NLS_J9JVMTI_EVENT_OPENJ9_VM_RESTORE.explanation=VM is in the process of being restored from a checkpoint.
+J9NLS_J9JVMTI_EVENT_OPENJ9_VM_RESTORE.system_action=None
+J9NLS_J9JVMTI_EVENT_OPENJ9_VM_RESTORE.user_response=None
+# END NON-TRANSLATABLE
+
+J9NLS_J9JVMTI_OPENJ9_FUNCTION_ADD_DEBUG_THREAD=Dodaj w\u0105tek debugowania Java do listy maszyn wirtualnych.
+# START NON-TRANSLATABLE
+J9NLS_J9JVMTI_OPENJ9_FUNCTION_ADD_DEBUG_THREAD.explanation=Add JDWP debug thread to VM list since special handling is needed for checkpoint/restore.
+J9NLS_J9JVMTI_OPENJ9_FUNCTION_ADD_DEBUG_THREAD.system_action=None
+J9NLS_J9JVMTI_OPENJ9_FUNCTION_ADD_DEBUG_THREAD.user_response=None
+# END NON-TRANSLATABLE
+
+J9NLS_J9JVMTI_OPENJ9_FUNCTION_REMOVE_DEBUG_THREAD=Usu\u0144 w\u0105tek debugowania Java z listy maszyn wirtualnych.
+# START NON-TRANSLATABLE
+J9NLS_J9JVMTI_OPENJ9_FUNCTION_REMOVE_DEBUG_THREAD.explanation=Remove a JDWP thread from list used for checkpoint/restore.
+J9NLS_J9JVMTI_OPENJ9_FUNCTION_REMOVE_DEBUG_THREAD.system_action=None
+J9NLS_J9JVMTI_OPENJ9_FUNCTION_REMOVE_DEBUG_THREAD.user_response=None
+# END NON-TRANSLATABLE
+
+J9NLS_JVMTI_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_DESTROY=Zwolnij zasoby natywne po zako\u0144czeniu w\u0105tku wirtualnego.
+# START NON-TRANSLATABLE
+J9NLS_JVMTI_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_DESTROY.explanation=Internationalized description of a JVMTI extension
+J9NLS_JVMTI_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_DESTROY.system_action=None
+J9NLS_JVMTI_COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_DESTROY.user_response=None
 # END NON-TRANSLATABLE

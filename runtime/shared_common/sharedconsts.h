@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #ifndef SHAREDCONSTS_H_
 #define SHAREDCONSTS_H_
@@ -119,6 +119,9 @@
 #define J9OSCACHE_OPEN_MODE_GROUPACCESS 0x8
 #define J9OSCACHE_OPEN_MODE_CHECKBUILDID 0x10
 #define J9OSCACHE_OPEN_MODE_CHECK_NETWORK_CACHE 0x20
+#if defined(J9VM_OPT_JITSERVER)
+#define J9OSCACHE_OPEN_MODE_JITSERVER_AOT_LAYER 0x40
+#endif /* defined(J9VM_OPT_JITSERVER) */
 
 #define SHARE_PATHBUF_SIZE 512
 #define SHARE_CLASS_FILE_EXT_STRING ".class"

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.j9.dump.indexsupport;
 
 import java.io.IOException;
@@ -56,20 +56,19 @@ public class XMLIndexReader extends DefaultHandler implements IParserNode
 	private ICoreFileReader _coreFile;
 	private Image _coreImage;
 	private Stack _elements;
-		
+
 	//used for pulling out raw data between XML tags
 	private StringBuffer _scrapingBuffer = new StringBuffer();
-	
+
 	/**
 	 * Responsible for finding files requested by the DTFJ components.  This is passed to the Builder so it can
 	 * intelligently delegate file resolution.
 	 */
 	private IFileLocationResolver _fileResolvingAgent;
-	
+
 	private ClosingFileReader _reader;
 	private ImageInputStream _stream;
-	
-	
+
 	/**
 	 * Creates an Image from the given XML index stream and the corresponding corefile
 	 * @param input
@@ -104,7 +103,7 @@ public class XMLIndexReader extends DefaultHandler implements IParserNode
 		//we need to hook the image we created here
 		return _coreImage;
 	}
-	
+
 	/**
 	 * Creates an Image from the given XML index stream and the corresponding corefile
 	 * @param input
@@ -138,29 +137,29 @@ public class XMLIndexReader extends DefaultHandler implements IParserNode
 		//we need to hook the image we created here
 		return _coreImage;
 	}
-	
+
 	public void startElement(String uri,
-            String localName,
-            String qName,
-            Attributes attributes)
-     throws SAXException
-     {
+			String localName,
+			String qName,
+			Attributes attributes)
+		throws SAXException
+	{
 		_checkScrapeBuffer();
 		IParserNode node = ((IParserNode)(_elements.peek())).nodeToPushAfterStarting(uri, localName, qName, attributes);
 		assert (null != node) : "Node should not be null when starting new tag: " + qName;
 		_elements.push(node);
-    }
-	
+	}
+
 	public void endElement(String uri,
-            String localName,
-            String qName)
-     throws SAXException
-     {
+			String localName,
+			String qName)
+		throws SAXException
+	{
 		_checkScrapeBuffer();
 		// pop whatever we were parsing and notify them that we are discarding them
 		IParserNode formerTop = (IParserNode) _elements.pop();
 		formerTop.didFinishParsing();
-     }
+	}
 
 	private void _checkScrapeBuffer()
 	{
@@ -168,7 +167,7 @@ public class XMLIndexReader extends DefaultHandler implements IParserNode
 		_scrapingBuffer = new StringBuffer();
 		((IParserNode)(_elements.peek())).stringWasParsed(collapse);
 	}
-	
+
 	public void characters(char[] arg0, int arg1, int arg2) throws SAXException
 	{
 		_scrapingBuffer.append(arg0, arg1, arg2);
@@ -177,7 +176,7 @@ public class XMLIndexReader extends DefaultHandler implements IParserNode
 	public IParserNode nodeToPushAfterStarting(String uri, String localName, String qName, Attributes attributes)
 	{
 		IParserNode next = null;
-		
+
 		if (qName.equals("j9dump")) {
 			next = new NodeJ9Dump(this,  attributes);
 		} else {
@@ -185,18 +184,18 @@ public class XMLIndexReader extends DefaultHandler implements IParserNode
 			next = NodeUnexpectedTag.unexpectedTag(qName, attributes);
 		}
 		return next;
-     }
-	
+	}
+
 	public void stringWasParsed(String string)
 	{
 		//ignore
 	}
-	
+
 	public void didFinishParsing()
 	{
 		//ignore
 	}
-	
+
 	public void setJ9DumpData(long environ, String osType, String osSubType, String cpuType, int cpuCount, long bytesMem, int pointerSize, Image[] imageRef, ImageAddressSpace[] addressSpaceRef, ImageProcess[] processRef)
 	{
 		Builder builder = null;
@@ -229,7 +228,7 @@ public class XMLIndexReader extends DefaultHandler implements IParserNode
 				if (vb) try {
 					System.out.println("process "+process1.getID());
 				} catch (DataUnavailable e) {
-				} catch (CorruptDataException e) {	
+				} catch (CorruptDataException e) {
 				}
 				if (process == null || isProcessForEnvironment(environ, addressSpace1, process1)) {
 					addressSpace = addressSpace1;
@@ -242,7 +241,7 @@ public class XMLIndexReader extends DefaultHandler implements IParserNode
 			// Double-check core file and XML pointer sizes
 			//CMVC 156226 - DTFJ exception: XML and core file pointer sizes differ (zOS)
 			// z/OS can have 64-bit or 31-bit processes, Java only reports 64-bit or 32-bit.
-			if (process.getPointerSize() != pointerSize && 
+			if (process.getPointerSize() != pointerSize &&
 				!(process.getPointerSize() == 31 && pointerSize == 32)) {
 				System.out.println("XML and core file pointer sizes differ "+process.getPointerSize()+"!="+pointerSize);
 			}
@@ -302,11 +301,11 @@ public class XMLIndexReader extends DefaultHandler implements IParserNode
 		}
 		return false;
 	}
-	
+
 	/**
-	 * This is like the setJ9DumpData method but is to be used when we fail to parse the file.  It is meant to try to construct the 
+	 * This is like the setJ9DumpData method but is to be used when we fail to parse the file.  It is meant to try to construct the
 	 * Image object with what it was able to get
-	 * 
+	 *
 	 * @param e The cause of the error
 	 */
 	private void _createCoreImageAfterParseError(Exception e)

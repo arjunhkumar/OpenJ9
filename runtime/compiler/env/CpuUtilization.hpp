@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef CPUUTILIZATION_HPP
@@ -99,6 +99,8 @@ private:
    int32_t _vmCpuUsage;  // percentage of used CPU by the VM for the last update interval
    int32_t _avgCpuUsage; // percentage of time each processor is used on average (0..100)
    int32_t _avgCpuIdle;  // percentage of time each processor is idle on average (0..100)
+
+   const int64_t _minIntervalLength; // Postpone the update until this many ns passed since the last update operation
 
    int64_t _prevIntervalLength; // the duration (in ns) of the last update interval
 

@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 set(OMR_ENHANCED_WARNINGS OFF)
@@ -73,9 +73,6 @@ j9vm_add_library(jvmti_test_src STATIC
 
 	com/ibm/jvmti/tests/getClassVersionNumbers/gcvn001.c
 
-	com/ibm/jvmti/tests/getConstantPool/gcp001.c
-	com/ibm/jvmti/tests/getConstantPool/gcp_bcdump.c
-
 	com/ibm/jvmti/tests/getCurrentThreadCpuTimerInfo/gctcti001.c
 
 	com/ibm/jvmti/tests/getHeapFreeTotalMemory/ghftm001.c
@@ -105,11 +102,13 @@ j9vm_add_library(jvmti_test_src STATIC
 	com/ibm/jvmti/tests/getStackTrace/gst002.c
 
 	com/ibm/jvmti/tests/getStackTraceExtended/gste001.c
+	com/ibm/jvmti/tests/getStackTraceExtended/gste002.c
 
 	com/ibm/jvmti/tests/getThreadGroupChildren/gtgc001.c
 	com/ibm/jvmti/tests/getThreadGroupChildren/gtgc002.c
 
 	com/ibm/jvmti/tests/getThreadListStackTracesExtended/gtlste001.c
+	com/ibm/jvmti/tests/getThreadListStackTracesExtended/gtlste002.c
 
 	com/ibm/jvmti/tests/getThreadState/gts001.c
 
@@ -198,5 +197,9 @@ target_link_libraries(jvmti_test_src
 )
 
 if(OMR_OS_ZOS)
-	target_compile_options(jvmti_test_src PRIVATE -Wc,DLL,EXPORTALL)
+	if(OMR_TOOLCONFIG STREQUAL "openxl")
+		target_compile_options(jvmti_test_src PRIVATE -fvisibility=default)
+	else()
+		target_compile_options(jvmti_test_src PRIVATE -Wc,DLL,EXPORTALL)
+	endif()
 endif()

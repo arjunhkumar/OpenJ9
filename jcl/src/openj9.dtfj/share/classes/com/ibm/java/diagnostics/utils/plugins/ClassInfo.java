@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.diagnostics.utils.plugins;
 
 import java.net.URL;
@@ -29,7 +29,7 @@ import java.util.List;
 /**
  * Information about the structural aspects of a class such as the annotations found and interfaces
  * supported.
- * 
+ *
  * @author adam
  *
  */
@@ -39,37 +39,37 @@ public class ClassInfo {
 	private final String classname;		//fully qualified name of this class
 	private final URL url;				//where the class was loaded from
 	private String superclass = null;	//super class name
-	
+
 	public ClassInfo(String classname, URL url) {
 		this.classname = classname;
 		this.url = url;
 	}
-	
+
 	public List<String> getInterfaces() {
 		return ifaces;
 	}
-	
+
 	public void addInterface(String iface) {
 		ifaces.add(iface);
 	}
-	
+
 	public List<Annotation> getAnnotations() {
 		return annotations;
 	}
-	
+
 	public boolean hasInterface(Class<?> iface) {
 		return ifaces.contains(iface.getName());
 	}
-	
+
 	public boolean hasInterface(String iface) {
 		return ifaces.contains(iface);
 	}
-	
+
 	public boolean hasAnnotation(String classname) {
 		Annotation annotation = new Annotation(classname);
 		return annotations.contains(annotation);
 	}
-	
+
 	public Annotation getAnnotation(String classname) {
 		Annotation annotation = new Annotation(classname);
 		int index = annotations.indexOf(annotation);
@@ -78,7 +78,7 @@ public class ClassInfo {
 		}
 		return annotations.get(index);
 	}
-	
+
 	/**
 	 * Adds an annotation to the list
 	 * @param classname class name for the annotation
@@ -98,7 +98,7 @@ public class ClassInfo {
 	public String getClassname() {
 		return classname;
 	}
-	
+
 	public URL getURL() {
 		return url;
 	}
@@ -124,7 +124,5 @@ public class ClassInfo {
 	public int hashCode() {
 		return classname.hashCode();
 	}
-	
-	
-	
+
 }

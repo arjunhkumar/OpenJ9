@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <dirent.h>
@@ -97,7 +97,8 @@ jobject getPlatformPropertyList(JNIEnv *env, const char *strings[], int propInde
 	char home[EsMaxPath] = {0};
 	char *homeAlloc = NULL;
 	J9VMThread *currentThread = (J9VMThread*)env;
-	J9InternalVMFunctions *vmFuncs = currentThread->javaVM->internalVMFunctions;
+	J9JavaVM *vm = currentThread->javaVM;
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 
 	/* Hard coded file/path separators and other values */
 
@@ -158,7 +159,7 @@ jobject getPlatformPropertyList(JNIEnv *env, const char *strings[], int propInde
 	/* Skip getpwuid if a checkpoint can be taken.
 	 * https://github.com/eclipse-openj9/openj9/issues/15800
 	 */
-	if (!vmFuncs->isCheckpointAllowed(currentThread))
+	if (!vmFuncs->isCheckpointAllowed(vm))
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 	{
 		/*[PR 101939] user.home not set correctly when j9 invoked via execve(x,y,null) */
@@ -250,11 +251,6 @@ char *getPlatformFileEncoding(JNIEnv * env, char *codepageProp, int propSize, in
 #endif /* defined(LINUX) */
 	PORT_ACCESS_FROM_ENV(env);
 #endif /* defined(LINUX) || defined(OSX) */
-
-	/* Called with codepageProp == NULL to initialize the locale */
-	if (NULL == codepageProp) {
-		return NULL;
-	}
 
 #if defined(LINUX)
 	/*[PR 104520] Return EUC_JP when LC_CTYPE is not set, and the LANG environment variable is "ja" */

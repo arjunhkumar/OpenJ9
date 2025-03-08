@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 /* Undefine the winsockapi because winsock2 defines it.  Removes warnings. */
 #if defined(_WINSOCKAPI_) && !defined(_WINSOCK2API_)
@@ -185,9 +185,6 @@ char* getPlatformFileEncoding(JNIEnv *env, char *codepage, int size, int encodin
 	int i;
 #endif
 	int length;
-
-	/* Called with codepage == NULL to initialize the locale */
-	if (!codepage) return NULL;
 
     if (encodingType == 2) {
     	/* file.encoding */

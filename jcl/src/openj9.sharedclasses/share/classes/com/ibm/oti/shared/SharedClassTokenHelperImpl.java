@@ -2,7 +2,7 @@
 package com.ibm.oti.shared;
 
 import com.ibm.oti.util.Msg;
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -21,8 +21,8 @@ import com.ibm.oti.util.Msg;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 /**
  * Implementation of SharedClassTokenHelper.
@@ -33,12 +33,19 @@ import com.ibm.oti.util.Msg;
  */
 final class SharedClassTokenHelperImpl extends SharedClassAbstractHelper implements SharedClassTokenHelper {
 	/* Not public - should only be created by factory */
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+	SharedClassTokenHelperImpl(ClassLoader loader, int id) {
+		initialize(loader, id);
+		initializeShareableClassloader(loader);
+	}
+	/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 	SharedClassTokenHelperImpl(ClassLoader loader, int id, boolean canFind, boolean canStore) {
 		initialize(loader, id, canFind, canStore);
 		initializeShareableClassloader(loader);
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
-	private native boolean findSharedClassImpl2(int loaderId, String className, ClassLoader loader, String token, 
+	private native boolean findSharedClassImpl2(int loaderId, String className, ClassLoader loader, String token,
 			boolean doFind, boolean doStore, byte[] romClassCookie);
 
 	private native boolean storeSharedClassImpl2(int loaderId, ClassLoader loader, String token, Class<?> clazz, byte[] flags);
@@ -51,9 +58,11 @@ final class SharedClassTokenHelperImpl extends SharedClassAbstractHelper impleme
 			printVerboseInfo(Msg.getString("K059f")); //$NON-NLS-1$
 			return null;
 		}
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (!canFind) {
 			return null;
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		if (token==null) {
 			/*[MSG "K05a0", "Cannot call findSharedClass with null token. Returning null."]*/
 			printVerboseError(Msg.getString("K05a0")); //$NON-NLS-1$
@@ -90,9 +99,11 @@ final class SharedClassTokenHelperImpl extends SharedClassAbstractHelper impleme
 
 	@Override
 	public boolean storeSharedClass(String token, Class<?> clazz) {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (!canStore) {
 			return false;
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		if (token==null) {
 			/*[MSG "K05a2", "Cannot call storeSharedClass with null token. Returning false."]*/
 			printVerboseError(Msg.getString("K05a2")); //$NON-NLS-1$
@@ -110,7 +121,7 @@ final class SharedClassTokenHelperImpl extends SharedClassAbstractHelper impleme
 		}
 		return storeSharedClassImpl2(this.id, actualLoader, token, clazz, nativeFlags);
 	}
-	
+
 	@Override
 	String getHelperType() {
 		return "SharedClassTokenHelper"; //$NON-NLS-1$

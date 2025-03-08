@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9CFG_H
@@ -78,7 +78,6 @@ extern "C" {
 #cmakedefine J9VM_BUILD_JAVA8RAW
 #cmakedefine J9VM_BUILD_JAVA9
 #cmakedefine J9VM_BUILD_NEW_COMPILER
-#cmakedefine J9VM_BUILD_OPENJ9
 #cmakedefine J9VM_BUILD_OUNCEMAKE
 #cmakedefine J9VM_BUILD_PRODUCT
 #cmakedefine J9VM_BUILD_REALTIME
@@ -114,6 +113,7 @@ extern "C" {
 #cmakedefine J9VM_GC_DYNAMIC_CLASS_UNLOADING
 #cmakedefine J9VM_GC_DYNAMIC_NEW_SPACE_SIZING
 #cmakedefine J9VM_GC_ENABLE_DOUBLE_MAP
+#cmakedefine J9VM_GC_SPARSE_HEAP_ALLOCATION
 #cmakedefine J9VM_GC_FINALIZATION
 #cmakedefine J9VM_GC_FRAGMENTED_HEAP
 #cmakedefine J9VM_GC_GENERATIONAL
@@ -208,6 +208,7 @@ extern "C" {
 #cmakedefine J9VM_MATH_DIRECT_HELPERS
 #cmakedefine J9VM_OPT_ANNOTATIONS
 #cmakedefine J9VM_OPT_BIG_INTEGER
+#cmakedefine J9VM_OPT_CRAC_SUPPORT
 #cmakedefine J9VM_OPT_CRIU_SUPPORT
 #cmakedefine J9VM_OPT_CUDA
 #cmakedefine J9VM_OPT_DEBUG_INFO_SERVER
@@ -220,6 +221,7 @@ extern "C" {
 #cmakedefine J9VM_OPT_INLINE_JSRS
 #cmakedefine J9VM_OPT_INVARIANT_INTERNING
 #cmakedefine J9VM_OPT_JAVA_OFFLOAD_SUPPORT
+#cmakedefine J9VM_OPT_JFR
 #cmakedefine J9VM_OPT_JITSERVER
 #cmakedefine J9VM_OPT_JVMTI
 #cmakedefine J9VM_OPT_JXE_LOAD_SUPPORT
@@ -235,12 +237,13 @@ extern "C" {
 #cmakedefine J9VM_OPT_NRR
 #cmakedefine J9VM_OPT_OPENJDK_METHODHANDLE
 #cmakedefine J9VM_OPT_PACKED
-#cmakedefine J9VM_OPT_PANAMA
 #cmakedefine J9VM_OPT_PHP_SUPPORT
 #cmakedefine J9VM_OPT_REFLECT
 #cmakedefine J9VM_OPT_RESOURCE_MANAGED
 #cmakedefine J9VM_OPT_ROM_IMAGE_SUPPORT
 #cmakedefine J9VM_OPT_SHARED_CLASSES
+#cmakedefine J9VM_OPT_SNAPSHOTS
+#cmakedefine J9VM_OPT_SHR_MSYNC_SUPPORT
 #cmakedefine J9VM_OPT_SIDECAR
 #cmakedefine J9VM_OPT_SRP_AVL_TREE_SUPPORT
 #cmakedefine J9VM_OPT_STRING_COMPRESSION
@@ -249,6 +252,7 @@ extern "C" {
 #cmakedefine J9VM_OPT_USE_FFI
 #cmakedefine J9VM_OPT_USE_FFI_ONLY
 #cmakedefine J9VM_OPT_VALHALLA_VALUE_TYPES
+#cmakedefine J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES
 #cmakedefine J9VM_OPT_VEE_SUPPORT
 #cmakedefine J9VM_OPT_VM_LOCAL_STORAGE
 #cmakedefine J9VM_OPT_ZERO
@@ -259,6 +263,7 @@ extern "C" {
 #cmakedefine J9VM_PORT_RUNTIME_INSTRUMENTATION
 #cmakedefine J9VM_PORT_SIGNAL_SUPPORT
 #cmakedefine J9VM_PORT_ZOS_CEEHDLRSUPPORT
+#cmakedefine J9VM_PROF_CONTINUATION_ALLOCATION
 #cmakedefine J9VM_PROF_COUNT_ARGS_TEMPS
 #cmakedefine J9VM_PROF_EVENT_REPORTING
 #cmakedefine J9VM_PROF_JVMTI
@@ -283,6 +288,11 @@ extern "C" {
 
 #if defined(J9VM_ENV_DATA64)
 #define J9VM_OPT_MULTI_LAYER_SHARED_CLASS_CACHE
+#endif
+
+#if defined(J9VM_OPT_SHARED_CLASSES) \
+	&& (defined(J9VM_ARCH_AARCH64) || defined(J9VM_ARCH_POWER) || defined(J9VM_ARCH_S390) || defined(J9VM_ARCH_X86))
+#define J9VM_OPT_PORTABLE_SHARED_CACHE
 #endif
 
 #ifdef __cplusplus

@@ -16,7 +16,7 @@ dnl
 dnl [1] https://www.gnu.org/software/classpath/license.html
 dnl [2] https://openjdk.org/legal/assembly-exception.html
 dnl
-dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 include(zhelpers.m4)
 
@@ -344,8 +344,10 @@ OLD_DUAL_MODE_HELPER_NO_RETURN_VALUE(jitPutFlattenableStaticField,3)
 OLD_DUAL_MODE_HELPER(jitLoadFlattenableArrayElement,2)
 OLD_DUAL_MODE_HELPER_NO_RETURN_VALUE(jitStoreFlattenableArrayElement,3)
 SLOW_PATH_ONLY_HELPER_NO_RETURN_VALUE(jitResolveFlattenableField,3)
-FAST_PATH_ONLY_HELPER(jitLookupDynamicInterfaceMethod,3)
-OLD_DUAL_MODE_HELPER(jitLookupDynamicPublicInterfaceMethod,3)
+
+ifdef({ASM_J9VM_OPT_OPENJDK_METHODHANDLE},{
+OLD_DUAL_MODE_HELPER(jitLookupDynamicPublicInterfaceMethod,2)
+}) dnl ASM_J9VM_OPT_OPENJDK_METHODHANDLE
 
 dnl Trap handlers
 
@@ -407,6 +409,7 @@ EXCEPTION_THROW_HELPER(jitThrowInstantiationException,0)
 EXCEPTION_THROW_HELPER(jitThrowNullPointerException,0)
 EXCEPTION_THROW_HELPER(jitThrowWrongMethodTypeException,0)
 EXCEPTION_THROW_HELPER(jitThrowIncompatibleReceiver,2)
+EXCEPTION_THROW_HELPER(jitThrowIdentityException,0)
 
 dnl Write barrier helpers
 

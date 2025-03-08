@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(MHINTERPRETER_HPP_)
@@ -41,7 +41,6 @@
 #include "AtomicSupport.hpp"
 #include "VMHelpers.hpp"
 #include "BytecodeAction.hpp"
-#include "FFITypeHelpers.hpp"
 #include "ObjectAllocationAPI.hpp"
 #include "ObjectAccessBarrierAPI.hpp"
 
@@ -75,6 +74,27 @@ public:
  * Function members
  */
 private:
+
+	/**
+	 * Narrow a 32-bit value (via masking or sign-extension) based on its
+	 * type (boolean, byte, char, short).
+	 *
+	 * @param fieldClass[in] J9Class representing the primitive type
+	 * @param value[in/out] The value to narrow (in place)
+	 */
+	VMINLINE void
+	narrow32BitValue(J9Class *fieldClass, U_32 &value) const
+	{
+		if (fieldClass == _vm->booleanReflectClass) {
+			value &= 1;
+		} else if (fieldClass == _vm->byteReflectClass) {
+			value = (U_32)(I_32)(I_8)value;
+		} else if (fieldClass == _vm->charReflectClass) {
+			value &= 0xFFFF;
+		} else if (fieldClass == _vm->shortReflectClass) {
+			value = (U_32)(I_32)(I_16)value;
+		}
+	}
 
 	/**
 	 * Fetch the vmSlot field from the j.l.i.PrimitiveHandle.
@@ -384,80 +404,6 @@ foundITable:
 		return methodHandle;
 	}
 
-#ifdef J9VM_OPT_PANAMA
-	/**
-	 * @brief Converts the type of the return value to the return type
-	 * @param returnType[in] The type of the return value
-	 * @param returnStorage[in] The pointer to the return value
-	 * @param methodHandle[in] The methodHandle used by object return values
-	 */
-	VMINLINE void
-	convertJNIReturnValue(U_8 returnType, UDATA* returnStorage, j9object_t methodHandle, UDATA structSize)
-	{
-		switch (returnType) {
-		case J9NtcBoolean:
-			*returnStorage = (UDATA)(U_8)*returnStorage;
-			break;
-		case J9NtcByte:
-			*returnStorage = (UDATA)(IDATA)(I_8)*returnStorage;
-			break;
-		case J9NtcChar:
-			*returnStorage = (UDATA)(U_16)*returnStorage;
-			break;
-		case J9NtcShort:
-			*returnStorage = (UDATA)(IDATA)(I_16)*returnStorage;
-			break;
-		case J9NtcInt:
-			*returnStorage = (UDATA)(IDATA)(I_32)*returnStorage;
-			break;
-		case J9NtcFloat:
-			*returnStorage = (UDATA)*(U_32*)returnStorage;
-			break;
-		case J9NtcVoid:
-			/* Fall through is intentional */
-		case J9NtcLong:
-			/* Fall through is intentional */
-		case J9NtcDouble:
-			/* Fall through is intentional */
-		case J9NtcClass:
-			break;
-		}
-	}
-
-	/**
-	 * @brief Convert argument or return type from J9Class to J9NativeTypeCode
-	 * @param type[in] The pointer to the J9Class of the type
-	 * @return The J9NativeTypeCode corresponding to the J9Class
-	 */
-	VMINLINE U_8
-	getJ9NativeTypeCode(J9Class *type)
-	{
-		U_8 typeCode = 0;
-		if (type == _vm->voidReflectClass) {
-			typeCode = J9NtcVoid;
-		} else if (type == _vm->booleanReflectClass) {
-			typeCode = J9NtcBoolean;
-		} else if (type == _vm->charReflectClass) {
-			typeCode = J9NtcChar;
-		} else if (type == _vm->floatReflectClass) {
-			typeCode = J9NtcFloat;
-		} else if (type == _vm->doubleReflectClass) {
-			typeCode = J9NtcDouble;
-		} else if (type == _vm->byteReflectClass) {
-			typeCode = J9NtcByte;
-		} else if (type == _vm->shortReflectClass) {
-			typeCode = J9NtcShort;
-		} else if (type == _vm->intReflectClass) {
-			typeCode = J9NtcInt;
-		} else if (type == _vm->longReflectClass) {
-			typeCode = J9NtcLong;
-		} else {
-			Assert_VM_unreachable();
-		}
-		return typeCode;
-	}
-#endif /* J9VM_OPT_PANAMA */
-
 	/**
 	* @brief
 	* Perform argument conversion for AsTypeHandle.
@@ -589,17 +535,6 @@ foundITable:
 	*/
 	void
 	mhStackValidator(j9object_t methodhandle);
-
-#ifdef J9VM_OPT_PANAMA
-	VMINLINE VM_BytecodeAction
-	runNativeMethodHandle(j9object_t methodHandle);
-
-	VMINLINE FFI_Return
-	callFunctionFromNativeMethodHandle(void * nativeMethodStartAddress, UDATA *javaArgs, U_8 *returnType, j9object_t methodHandle);
-
-	VMINLINE FFI_Return
-	nativeMethodHandleCallout(void *function, UDATA *javaArgs, U_8 *returnType, j9object_t methodHandle, void *returnStorage, UDATA *structSize);
-#endif /* J9VM_OPT_PANAMA */
 
 #if defined(ENABLE_DEBUG_FUNCTIONS)
 	void

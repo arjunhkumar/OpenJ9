@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17 & !OPENJDK_METHODHANDLES]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,26 +18,26 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 final class Insert2Handle extends InsertHandle {
 	final Object value_1;
 	final Object value_2;
-	
+
 	Insert2Handle(MethodType type, MethodHandle next, int insertionIndex, Object values[]) {
 		super(type, next, insertionIndex, values);
 		this.value_1 = values[0];
 		this.value_2 = values[1];
 	}
-	
+
 	Insert2Handle(Insert2Handle originalHandle, MethodType nextType) {
 		super(originalHandle, nextType);
 		this.value_1 = originalHandle.value_1;
 		this.value_2 = originalHandle.value_2;
 	}
-	
+
 	@Override
 	MethodHandle cloneWithNewType(MethodType newType) {
 		return new Insert2Handle(this, newType);
@@ -62,11 +62,10 @@ final class Insert2Handle extends InsertHandle {
 		}
 		return ILGenMacros.invokeExact_X(next, ILGenMacros.placeholder(
 				ILGenMacros.firstN(numPrefixArgs(), argPlaceholder),
-				value_1, 
+				value_1,
 				value_2,
 				ILGenMacros.lastN(numSuffixArgs(), argPlaceholder)));
 	}
 
 	// }}} JIT support
 }
-

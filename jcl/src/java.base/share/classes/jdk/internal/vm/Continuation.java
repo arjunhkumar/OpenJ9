@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 19]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2022
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package jdk.internal.vm;
 
 import java.util.EnumSet;
@@ -28,6 +28,8 @@ import java.util.function.Supplier;
 import jdk.internal.access.JavaLangAccess;
 import jdk.internal.access.SharedSecrets;
 import jdk.internal.misc.Unsafe;
+import jdk.internal.vm.annotation.Hidden;
+import jdk.internal.vm.annotation.JvmtiMountTransition;
 
 /**
  * Continuation class performing the mount/unmount operation for VirtualThread
@@ -36,14 +38,25 @@ public class Continuation {
 	private long vmRef; /* J9VMContinuation */
 	protected Thread vthread; /* Parent VirtualThread */
 
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+	private Object blocker;
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
+
+	/* The live thread's scopedValueCache is always kept in J9VMThread->scopedValueCache
+	 * whereas the unmounted thread's scopedValueCache is stored in this field. This
+	 * field is modified in ContinuationHelpers.hpp::swapFieldsWithContinuation. This
+	 * assures a one to one mapping between a java.lang.Thread and scopedValueCache.
+	 */
+	private Object[] scopedValueCache;
+
 	private final ContinuationScope scope;
 	private final Runnable runnable;
 	private Continuation parent;
-	private boolean started;
-	private boolean finished;
+	/* bit flag for finished state, matching native constant J9_GC_CONTINUATION_STATE_FINISHED */
+	public static final long CONTINUATION_FINISHED = 2;
 	/* it's a bit-wise struct of CarrierThread ID and continuation flags(includes started and finished flag)
 	 * low 8 bits are reserved for flags and the rest are the carrier thread ID.
-	 * the state should not be directly accessed from Java
+	 * the state should not be directly accessed from Java, instead using get methods(such as isDone()).
 	 */
 	private volatile long state;
 
@@ -62,7 +75,13 @@ public class Continuation {
 		/** Holding monitor(s) */
 		MONITOR(2),
 		/** In critical section */
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+		CRITICAL_SECTION(3),
+		/** Exception */
+		EXCEPTION(4);
+/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 		CRITICAL_SECTION(3);
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
 		private final int errorCode;
 
@@ -172,12 +191,12 @@ public class Continuation {
 		isAccessible = true;
 	}
 
+	@Hidden
 	private static void enter(Continuation cont) {
 		try {
 			cont.runnable.run();
 		} finally {
-			cont.finished = true;
-			yieldImpl();
+			yieldImpl(true);
 		}
 	}
 
@@ -185,7 +204,7 @@ public class Continuation {
 		if (!trylockAccess()) {
 			throw new IllegalStateException("Continuation inaccessible: mounted or being inspected.");
 		}
-		if (finished) {
+		if (isDone()) {
 			throw new IllegalStateException("Continuation has already finished.");
 		}
 
@@ -219,6 +238,8 @@ public class Continuation {
 	 * @param scope the scope to lookup/suspend
 	 * @return {@link true} or {@link false} based on success/failure
 	 */
+	@Hidden
+	@JvmtiMountTransition
 	public static boolean yield(ContinuationScope scope) {
 		/* TODO find matching scope to yield */
 		Thread carrierThread = JLA.currentCarrierThread();
@@ -227,6 +248,8 @@ public class Continuation {
 		return cont.yield0();
 	}
 
+	@Hidden
+	@JvmtiMountTransition
 	private boolean yield0() {
 		int rcPinned = isPinnedImpl();
 		if (rcPinned != 0) {
@@ -237,12 +260,16 @@ public class Continuation {
 				reason = Pinned.MONITOR;
 			} else if (rcPinned == Pinned.NATIVE.errorCode()) {
 				reason = Pinned.NATIVE;
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+			} else if (rcPinned == Pinned.EXCEPTION.errorCode()) {
+				reason = Pinned.EXCEPTION;
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 			} else {
 				throw new AssertionError("Unknown pinned error code: " + rcPinned);
 			}
 			onPinned(reason);
 		} else {
-			yieldImpl();
+			yieldImpl(false);
 			onContinue();
 		}
 		return (rcPinned == 0);
@@ -256,7 +283,7 @@ public class Continuation {
 	}
 
 	public boolean isDone() {
-		return finished;
+		return 0 != (state & CONTINUATION_FINISHED);
 	}
 
 	public boolean isPreempted() {
@@ -278,7 +305,11 @@ public class Continuation {
 	}
 
 	/* Continuation Native APIs */
+	@Hidden
+	@JvmtiMountTransition
 	private native boolean enterImpl();
-	private static native boolean yieldImpl();
 
+	@Hidden
+	@JvmtiMountTransition
+	private static native boolean yieldImpl(boolean isFinished);
 }

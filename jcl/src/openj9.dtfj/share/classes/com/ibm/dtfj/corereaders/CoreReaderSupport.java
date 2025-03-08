@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders;
 
 import java.io.IOException;
@@ -43,23 +43,23 @@ public abstract class CoreReaderSupport implements ICoreFileReader {
 	public CoreReaderSupport(DumpReader reader) {
 		_reader = reader;
 	}
-	
+
 	protected int coreReadInt() throws IOException {
 		return _reader.readInt();
 	}
-	
+
 	protected void coreSeek(long position) throws IOException {
 		_reader.seek(position);
 	}
-	
+
 	protected long coreReadLong() throws IOException {
 		return _reader.readLong();
 	}
-	
+
 	protected long coreReadAddress() throws IOException {
 		return _reader.readAddress();
 	}
-	
+
 	protected short coreReadShort() throws IOException {
 		return _reader.readShort();
 	}
@@ -67,7 +67,7 @@ public abstract class CoreReaderSupport implements ICoreFileReader {
 	protected byte coreReadByte() throws IOException {
 		return _reader.readByte();
 	}
-	
+
 	protected byte[] coreReadBytes(int n) throws IOException {
 		return _reader.readBytes(n);
 	}
@@ -82,23 +82,23 @@ public abstract class CoreReaderSupport implements ICoreFileReader {
 				_addressSpace = new DumpReaderAddressSpace(ranges, _reader, isLittleEndian(), is64Bit());
 			}
 		}
-		
+
 		//initialize the J9RAS structure reader
 		if (_addressSpace != null) {
 			_j9rasReader = new J9RASReader(_addressSpace,is64Bit());
 		}
 		return _addressSpace;
 	}
-	
+
 	@Override
 	public boolean isTruncated() {
 		return false;
 	}
-	
+
 	protected long coreGetPosition() throws IOException {
 		return _reader.getPosition();
 	}
-	
+
 	protected boolean coreCheckOffset (long location) throws IOException {
 		boolean canRead;
 		long currentPos = coreGetPosition();

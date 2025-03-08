@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2010
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.phd.util;
 
 import java.util.NoSuchElementException;
@@ -29,22 +29,22 @@ import java.util.NoSuchElementException;
  * Keeps the refs in a LongArray - only outputs to the compressed bitstream if it overflows
  */
 public class BufferedNumberStream extends NumberStream {
-	
+
 	static final int BUFFER_SIZE = LongArray.CHUNK_SIZE;
 	LongArray buffer;
 	int bufferCount;
 	int size;
 	int readBufferCount;
-	
+
 	public BufferedNumberStream() {
 		this(BUFFER_SIZE);
 	}
-	
+
 	public BufferedNumberStream(int size) {
 		buffer = new LongArray(size);
 		this.size = size;
 	}
-	
+
 	public void writeLong(long n) {
 		buffer.put(bufferCount++, n);
 		if (bufferCount == BUFFER_SIZE) {
@@ -72,21 +72,21 @@ public class BufferedNumberStream extends NumberStream {
 				throw new NoSuchElementException();
 		}
 	}
-	
+
 	public boolean hasMore() {
 		return super.hasMore() || readBufferCount > 0;
 	}
-	
+
 	public int elementCount() {
 		return super.elementCount() + bufferCount;
 	}
-	
+
 	public void rewind() {
 		//flushBuffer();
 		super.rewind();
 		readBufferCount = bufferCount;
 	}
-	
+
 	public void clear() {
 		super.clear();
 		bufferCount = 0;

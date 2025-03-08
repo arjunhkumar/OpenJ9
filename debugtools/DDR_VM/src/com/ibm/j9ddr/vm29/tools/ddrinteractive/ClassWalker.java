@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.tools.ddrinteractive;
 
 import java.util.HashMap;
@@ -90,7 +90,11 @@ public abstract class ClassWalker {
 			throw new CorruptDataException("Structure \"" + structureName + "\" can not be found.");
 		}
 
-		for ( FieldDescriptor fd : sd.getFields() ) {
+		for (FieldDescriptor fd : sd.getFields()) {
+			if (!fd.isPresent()) {
+				continue;
+			}
+
 			/* Get the name of the field from field descriptor */
 			String outName = fd.getName();
 			/* Get SlotType by using field type name */

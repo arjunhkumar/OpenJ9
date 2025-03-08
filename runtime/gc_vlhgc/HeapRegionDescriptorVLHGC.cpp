@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -46,6 +46,9 @@ MM_HeapRegionDescriptorVLHGC::MM_HeapRegionDescriptorVLHGC(MM_EnvironmentVLHGC *
 	,_projectedLiveBytesPreviousPGC(0)
 	,_projectedLiveBytesDeviation(0)
 	,_compactDestinationQueueNext(NULL)
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	,_sparseHeapAllocation(false)
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 	,_defragmentationTarget(false)
 	,_extensions(MM_GCExtensions::getExtensions(env))
 	,_allocationAge(0)

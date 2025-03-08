@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -159,8 +159,8 @@ sendLifecycleEventCallback(struct J9VMThread* vmThread, struct J9NativeLibrary* 
 			if (0 == vmThread->javaVM->javaVM31) {
 				queryJavaVM31(vmThread->javaVM);
 			}
-			args[0]= &ffi_type_sint32;
-			args[1]= &ffi_type_sint32;
+			args[0] = &ffi_type_uint32;
+			args[1] = &ffi_type_uint32;
 			values[0] = (void*)&(vmThread->javaVM->javaVM31);
 			values[1] = (void*)&nullSecondParam;
 
@@ -292,7 +292,7 @@ openNativeLibrary(J9JavaVM *vm, J9ClassLoader *classLoader, const char *libName,
 					}
 					fullPathBufferLength = expectedPathLength;
 				}
-				j9str_printf(PORTLIB, fullPathPtr, expectedPathLength, "%.*s%s%s", pathLength, libraryPath, dirSeparator, libName);
+				j9str_printf(fullPathPtr, expectedPathLength, "%.*s%s%s", pathLength, libraryPath, dirSeparator, libName);
 				result = openFunction(userData, classLoader, libName, fullPathPtr, libraryPtr, errorBuffer, bufferLength, flags | J9PORT_SLOPEN_DECORATE | J9PORT_SLOPEN_NO_LOOKUP_MSG_FOR_NOT_FOUND);
 				if(result == J9NATIVELIB_LOAD_ERR_NOT_FOUND) {
 					result = openFunction(userData, classLoader, libName, fullPathPtr, libraryPtr, errorBuffer, bufferLength, flags | J9PORT_SLOPEN_NO_LOOKUP_MSG_FOR_NOT_FOUND);
@@ -627,7 +627,7 @@ classLoaderRegisterLibrary(void *voidVMThread, J9ClassLoader *classLoader, const
 				/* Proceed to check for the JNI_OnLoad_L() routine.  If not found skip to linking 
 				 * dynamically.
 				 */
-				j9str_printf(PORTLIB, onloadRtnName, nameLength, "%s%s", J9STATIC_ONLOAD, logicalName);
+				j9str_printf(onloadRtnName, nameLength, "%s%s", J9STATIC_ONLOAD, logicalName);
 				RELEASE_CLASS_LOADER_BLOCKS_MUTEX(javaVM);
 #if defined(J9VM_INTERP_ATOMIC_FREE_JNI)
 				exitVMToJNI(vmThread);
@@ -650,6 +650,9 @@ classLoaderRegisterLibrary(void *voidVMThread, J9ClassLoader *classLoader, const
 					if (NULL != libraryPtr) {
 						*libraryPtr = newNativeLibrary;
 					}
+#if defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT)
+					newNativeLibrary->doSwitching = validateLibrary(javaVM, logicalName, newNativeLibrary->handle, JNI_TRUE);
+#endif /* defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT) */
 				} else {
 					/* Return value is not 1.8 (or above); could mean either of 2 things:
 					 * 1. JNI_OnLoad_L /was/ defined, but didn't return 1.8 (or above).  Eg. a 
@@ -665,11 +668,11 @@ classLoaderRegisterLibrary(void *voidVMThread, J9ClassLoader *classLoader, const
 						j9sl_close_shared_library(newNativeLibrary->handle);
 						newNativeLibrary->handle = 0;
 						rc = J9NATIVELIB_LOAD_ERR_JNI_ONLOAD_FAILED;
-						j9str_printf(PORTLIB, 
-									 msgBuffer, 
-									 MAXIMUM_MESSAGE_LENGTH, 
-									 "0x%.8x not a valid JNI version for static linking (1.8 or later required)",
-									 jniVersion);
+						j9str_printf(
+								msgBuffer,
+								MAXIMUM_MESSAGE_LENGTH,
+								"0x%.8x not a valid JNI version for static linking (1.8 or later required)",
+								jniVersion);
 						reportError(errBuf, msgBuffer, bufLen);
 						goto leave_routine;
 					}
@@ -711,11 +714,11 @@ classLoaderRegisterLibrary(void *voidVMThread, J9ClassLoader *classLoader, const
 		if (NULL != libraryPtr) {
 			*libraryPtr = newNativeLibrary;
 		}
-#ifdef J9VM_OPT_JAVA_OFFLOAD_SUPPORT
+#if defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT)
 		if (J9NATIVELIB_LOAD_OK == rc) {
-			validateLibrary(javaVM, newNativeLibrary);
+			newNativeLibrary->doSwitching = validateLibrary(javaVM, newNativeLibrary->name, newNativeLibrary->handle, JNI_FALSE);
 		}
-#endif
+#endif /* defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT) */
 		RELEASE_CLASS_LOADER_BLOCKS_MUTEX(javaVM);
 
 		/* Call JNI_OnLoad to get the required JNI version, only if the library has not
@@ -740,11 +743,11 @@ classLoaderRegisterLibrary(void *voidVMThread, J9ClassLoader *classLoader, const
 			if ((FALSE == jniVersionIsValid(jniVersion)) || (NULL != vmThread->currentException)) {
 				char msgBuffer[MAXIMUM_MESSAGE_LENGTH];
 
-				j9str_printf(PORTLIB, 
-							 msgBuffer, 
-							 MAXIMUM_MESSAGE_LENGTH, 
-							 "0x%.8x is not a valid JNI version", 
-							 jniVersion);
+				j9str_printf(
+						msgBuffer,
+						MAXIMUM_MESSAGE_LENGTH,
+						"0x%.8x is not a valid JNI version",
+						jniVersion);
 				if ((UDATA)-1 == jniVersion) {
 					strcpy(msgBuffer, "JNI_OnLoad returned JNI_ERR");
 				}
@@ -865,3 +868,52 @@ initializeNativeLibrary(J9JavaVM * javaVM, J9NativeLibrary* library)
 	library->flags = 0;
 	return 0;
 }
+
+
+#if defined(J9VM_ZOS_3164_INTEROPERABILITY) && (JAVA_SPEC_VERSION >= 17)
+/*
+ * Utility function used by NativeLibraries to invoke JNI_OnLoad or JNI_OnUnload
+ * functions in 31-bit native interoperability targets. This requires mapping to
+ * the corresponding 31-bit JavaVM object handle, along with invoking CEL4RO31
+ * (via ffi) to the corresponding target function.
+ *
+ * \param vm The J9JavaVM pointer passed as first parameter to JNI_OnXLoad function
+ * \param handle The target function pointer to invoke - should be a 31-bit interop target
+ * \param isOnLoad JNI_TRUE if invoking JNI_OnLoad, JNI_FALSE if invoking JNI_OnUnload
+ * \param reserved The reserved second parameter to JNI_OnXLoad function
+ * \return the return value for JNI_OnLoad, or 0 for JNI_OnUnload
+ */
+I_32
+invoke31BitJNI_OnXLoad(J9JavaVM *vm, void *handle, jboolean isOnLoad, void *reserved)
+{
+	I_32 result = JNI_VERSION_1_1;
+
+	if (J9_IS_31BIT_INTEROP_TARGET(handle)) {
+		ffi_type *args[2];
+		void *values[2];
+		U_32 nullSecondParam = 0;
+		UDATA returnValue = 0;
+		ffi_cif cif;
+
+		if (0 == vm->javaVM31) {
+			queryJavaVM31(vm);
+		}
+		args[0] = &ffi_type_uint32;
+		args[1] = &ffi_type_uint32;
+		values[0] = (void *)&(vm->javaVM31);
+		values[1] = (void *)&nullSecondParam;
+
+		if (isOnLoad) {
+			if (FFI_OK == ffi_prep_cif(&cif, FFI_CEL4RO31, 2, &ffi_type_sint32, args)) {
+				ffi_call(&cif, FFI_FN(handle), &returnValue, values);
+				result = (I_32)(IDATA)returnValue;
+			}
+		} else {
+			if (FFI_OK == ffi_prep_cif(&cif, FFI_CEL4RO31, 2, &ffi_type_void, args)) {
+				ffi_call(&cif, FFI_FN(handle), NULL, values);
+			}
+		}
+	}
+	return result;
+}
+#endif /* defined(J9VM_ZOS_3164_INTEROPERABILITY) && (JAVA_SPEC_VERSION >= 17) */

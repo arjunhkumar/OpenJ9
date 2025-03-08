@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2019
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.openj9.test.attachAPI;
 
 import static org.openj9.test.attachAPI.TestConstants.TARGET_VM_CLASS;
@@ -79,7 +79,7 @@ public class TestJps extends AttachApiTest {
 		assertTrue(CHILD_PROCESS_DID_NOT_LAUNCH, tgtMgr1.syncWithTarget());
 		assertTrue(CHILD_PROCESS_DID_NOT_LAUNCH, tgtMgr2.syncWithTarget());
 		List<String> jpsOutput = runCommandAndLogOutput(Collections.singletonList("-q")); //$NON-NLS-1$
-		
+
 		boolean searchResult = StringUtilities.contains(vmId, jpsOutput);
 		assertTrue(TEST_PROCESS_ID_MISSING + ": " + vmId, searchResult); //$NON-NLS-1$
 		

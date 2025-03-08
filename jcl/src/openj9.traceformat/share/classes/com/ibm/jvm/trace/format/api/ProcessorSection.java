@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2000
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.trace.format.api;
 
 import java.io.BufferedWriter;
@@ -28,7 +28,7 @@ import java.nio.ByteBuffer;
 
 /**
  * Processor section of a file header
- * 
+ *
  * @author Tim Preece
  */
 public class ProcessorSection {
@@ -39,10 +39,11 @@ public class ProcessorSection {
 	protected static final int LONG = 8; // length of a long in bytes
 	protected static final String SUM_TAB = "        ";
 
-	private final static String[] Archs = { "Unknown", "x86", "S390", "Power", "IA64", "S390X", "AMD64", "RISCV"};
-	private final static String[] SubTypes = { "i486", "i586", "Pentium II", "Pentium III", "Merced", "McKinley", "PowerRS", "PowerPC", "GigaProcessor", "ESA", "Pentium IV", "T-Rex", "Opteron", "RV64G"};
+	private final static String[] Archs = { "Unknown", "x86", "S390", "Power", "IA64", "S390X", "AMD64", "RISCV", "AArch64" };
+	private final static String[] SubTypes = { "i486", "i586", "Pentium II", "Pentium III", "Merced", "McKinley",
+		"PowerRS", "PowerPC", "GigaProcessor", "ESA", "Pentium IV", "T-Rex", "Opteron", "RV64G", "Armv8-A" };
 	private final static String[] trCounter = { "Sequence Counter", "Special", "RDTSC Timer", "AIX Timer", "MFSPR Timer", "MFTB Timer", "STCK Timer", "J9 timer" };
-	
+
 	TraceContext context;
 
 	int arch;
@@ -51,7 +52,7 @@ public class ProcessorSection {
 	int procs;
 	int subType;
 	int counter;
-	
+
 	String textSummary;
 
 	public ProcessorSection(TraceContext context, ByteBuffer data) throws IllegalArgumentException {
@@ -67,7 +68,6 @@ public class ProcessorSection {
 		subType = data.getInt();
 		counter = data.getInt();
 
-
 		if (context.debugStream != null) {
 			context.debug(this, 1, summary());
 		}
@@ -76,7 +76,7 @@ public class ProcessorSection {
 	public String toString() {
 		return "Processor information";
 	}
-	
+
 	public String summary() {
 		if (textSummary == null) {
 			StringBuilder s = new StringBuilder(toString()+":"+System.getProperty("line.separator"));
@@ -89,7 +89,7 @@ public class ProcessorSection {
 
 			textSummary = s.toString();
 		}
-		
+
 		return textSummary;
 	}
 }

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,16 +18,16 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 /*
- * A simple class that will be injected in each class loader, as 
- * required, to act as a "trampoline" to ensure that methods which 
+ * A simple class that will be injected in each class loader, as
+ * required, to act as a "trampoline" to ensure that methods which
  * are sensitive to their caller (ie: use getCallerClass())
  * can find a class in the correct ClassLoader and ProtectionDomain
- * when invoked by MethodHandle invocation.  
+ * when invoked by MethodHandle invocation.
  */
 final class SecurityFrame {
 
@@ -35,14 +35,13 @@ final class SecurityFrame {
 	/* Required for revealDirect() access checking */
 	@SuppressWarnings("unused")
 	private final Class<?> accessClass;
-	
+
 	public SecurityFrame(MethodHandle target, Class<?> accessClass) {
 		this.target = target.asFixedArity();
-		this.accessClass = accessClass; 
+		this.accessClass = accessClass;
 	}
-	
+
 	public Object invoke(Object... args) throws Throwable {
 		return target.invokeWithArguments(args);
 	}
 }
-

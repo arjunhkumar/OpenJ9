@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.j9.dump.indexsupport;
 
 import org.xml.sax.Attributes;
@@ -34,7 +34,7 @@ import com.ibm.dtfj.java.j9.TraceBuffer;
 public class NodeTrace extends NodeAbstract
 {
 	private TraceBuffer _traceBuffer;
-	
+
 	public NodeTrace(JavaRuntime runtime, Attributes attributes)
 	{
 		//trace objects are special in that DTFJ says that they are implementation dependent.  As a result, it is hard to know how to implement them, at this time
@@ -48,7 +48,7 @@ public class NodeTrace extends NodeAbstract
 	public IParserNode nodeToPushAfterStarting(String uri, String localName, String qName, Attributes attributes)
 	{
 		IParserNode child = null;
-		
+
 		if (qName.equals("header")) {
 			child = new NodeHeader(_traceBuffer, attributes);
 		} else if (qName.equals("buffers")) {

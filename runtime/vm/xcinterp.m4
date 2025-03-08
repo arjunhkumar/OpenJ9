@@ -16,7 +16,7 @@ dnl
 dnl [1] https://www.gnu.org/software/classpath/license.html
 dnl [2] https://openjdk.org/legal/assembly-exception.html
 dnl
-dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 include(xhelpers.m4)
 
@@ -168,6 +168,8 @@ C_FUNCTION_SYMBOL(cInterpreter):
 	CALL_C_ADDR_WITH_VMTHREAD(uword ptr J9TR_JavaVM_bytecodeLoop[_rax],0)
 	cmp _rax,J9TR_bcloop_exit_interpreter
 	je SHORT_JMP cInterpExit
+	cmp _rax,J9TR_bcloop_reenter_interpreter
+	je SHORT_JMP C_FUNCTION_SYMBOL(cInterpreter)
 	RESTORE_PRESERVED_REGS
 	SWITCH_TO_JAVA_STACK
 	jmp uword ptr J9TR_VMThread_tempSlot[_rbp]

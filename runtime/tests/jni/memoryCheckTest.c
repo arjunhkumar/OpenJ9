@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9port.h"
@@ -29,28 +29,23 @@
 
 /**
  * The block that isn't being freed should be detected.
- *
-*/
-void JNICALL 
+ */
+void JNICALL
 Java_j9vm_test_memchk_NoFree_test(JNIEnv * env, jclass clazz)
 {
-	char * charArray;
 	PORT_ACCESS_FROM_ENV(env);
-
-	charArray = j9mem_allocate_memory(11, OMRMEM_CATEGORY_VM);
-    strcpy(charArray, "nofree");
+	char *charArray = j9mem_allocate_memory(11, OMRMEM_CATEGORY_VM);
+	strcpy(charArray, "nofree");
 }
 
-void JNICALL 
+void JNICALL
 Java_j9vm_test_memchk_BlockOverrun_test(JNIEnv * env, jclass clazz)
 {
-	char * charArray;
 	PORT_ACCESS_FROM_ENV(env);
-
-	/* TODO - for mprotect, install a handler here that checks that we failed because we tried to write to a locked page */ 
-	charArray = j9mem_allocate_memory(OVERRUN_UNDERRUN_TEST_BLOCK_SIZE_BYTES, OMRMEM_CATEGORY_VM);
-	j9tty_err_printf(((J9VMThread *) (env))->javaVM->portLibrary, "j9mem_allocate_memory(%i) returned %p\n", OVERRUN_UNDERRUN_TEST_BLOCK_SIZE_BYTES, charArray);
-    strcpy(charArray, "overrun");
+	/* TODO - for mprotect, install a handler here that checks that we failed because we tried to write to a locked page */
+	char *charArray = j9mem_allocate_memory(OVERRUN_UNDERRUN_TEST_BLOCK_SIZE_BYTES, OMRMEM_CATEGORY_VM);
+	j9tty_err_printf("j9mem_allocate_memory(%i) returned %p\n", OVERRUN_UNDERRUN_TEST_BLOCK_SIZE_BYTES, charArray);
+	strcpy(charArray, "overrun");
 	charArray[16] = 'b';
 	charArray[17] = 'e';
 	charArray[18] = 'r';
@@ -62,15 +57,13 @@ Java_j9vm_test_memchk_BlockOverrun_test(JNIEnv * env, jclass clazz)
 	charArray[24] = 'r';
 }
 
-void JNICALL 
+void JNICALL
 Java_j9vm_test_memchk_BlockUnderrun_test(JNIEnv * env, jclass clazz)
 {
-	char * charArray;
 	PORT_ACCESS_FROM_ENV(env);
-
-	charArray = j9mem_allocate_memory(OVERRUN_UNDERRUN_TEST_BLOCK_SIZE_BYTES, OMRMEM_CATEGORY_VM);
-	j9tty_err_printf(((J9VMThread *) (env))->javaVM->portLibrary, "j9mem_allocate_memory(%i) returned %p\n", OVERRUN_UNDERRUN_TEST_BLOCK_SIZE_BYTES, charArray);
-    strcpy(charArray, "underrun");
+	char *charArray = j9mem_allocate_memory(OVERRUN_UNDERRUN_TEST_BLOCK_SIZE_BYTES, OMRMEM_CATEGORY_VM);
+	j9tty_err_printf("j9mem_allocate_memory(%i) returned %p\n", OVERRUN_UNDERRUN_TEST_BLOCK_SIZE_BYTES, charArray);
+	strcpy(charArray, "underrun");
 	charArray[-9] = 'b';
 	charArray[-8] = 'e';
 	charArray[-7] = 'r';
@@ -82,13 +75,11 @@ Java_j9vm_test_memchk_BlockUnderrun_test(JNIEnv * env, jclass clazz)
 	charArray[-1] = 'r';
 }
 
-void JNICALL 
+void JNICALL
 Java_j9vm_test_memchk_Generic_test(JNIEnv * env, jclass clazz)
 {
-	char * charArray;
 	PORT_ACCESS_FROM_ENV(env);
-
-	charArray = j9mem_allocate_memory(16, OMRMEM_CATEGORY_VM);
-    strcpy(charArray, "generic");
+	char *charArray = j9mem_allocate_memory(16, OMRMEM_CATEGORY_VM);
+	strcpy(charArray, "generic");
 	j9mem_free_memory(charArray);
 }

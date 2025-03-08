@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -28,6 +28,10 @@
 #include "AtomicSupport.hpp"
 
 extern "C" {
+
+#if JAVA_SPEC_VERSION >= 21
+J9_DECLARE_CONSTANT_UTF8(ojdk_changesCurrentThread, "Ljdk/internal/vm/annotation/ChangesCurrentThread");
+#endif /* JAVA_SPEC_VERSION >= 21 */
 
 #if JAVA_SPEC_VERSION >= 16
 J9_DECLARE_CONSTANT_UTF8(ojdk_intrinsicCandidate, "Ljdk/internal/vm/annotation/IntrinsicCandidate;");
@@ -219,7 +223,7 @@ jitIsFieldStable(J9VMThread *currentThread, J9Class *clazz, UDATA cpIndex)
 BOOLEAN
 jitIsMethodTaggedWithForceInline(J9VMThread *currentThread, J9Method *method)
 {
-	return FALSE != methodContainsRuntimeAnnotation(currentThread, method, (J9UTF8 *)&ojdk_forceInline);
+	return methodContainsRuntimeAnnotation(currentThread, method, (J9UTF8 *)&ojdk_forceInline);
 }
 
 /**
@@ -232,7 +236,7 @@ jitIsMethodTaggedWithForceInline(J9VMThread *currentThread, J9Method *method)
 BOOLEAN
 jitIsMethodTaggedWithDontInline(J9VMThread *currentThread, J9Method *method)
 {
-	return FALSE != methodContainsRuntimeAnnotation(currentThread, method, (J9UTF8 *)&ojdk_dontInline);
+	return methodContainsRuntimeAnnotation(currentThread, method, (J9UTF8 *)&ojdk_dontInline);
 }
 
 /**
@@ -246,10 +250,27 @@ BOOLEAN
 jitIsMethodTaggedWithIntrinsicCandidate(J9VMThread *currentThread, J9Method *method)
 {
 #if JAVA_SPEC_VERSION >= 16
-	return FALSE != methodContainsRuntimeAnnotation(currentThread, method, (J9UTF8 *)&ojdk_intrinsicCandidate);
+	return methodContainsRuntimeAnnotation(currentThread, method, (J9UTF8 *)&ojdk_intrinsicCandidate);
 #else /* JAVA_SPEC_VERSION >= 16 */
 	return FALSE;
 #endif /* JAVA_SPEC_VERSION >= 16 */
 }
 
+/**
+ * Queries if the method is annotated with @ChangesCurrentThread
+ *
+ * @param currentThread the currentThread
+ * @param method the method to check for the annotation
+ * @return true if method is annotated with @ChangesCurrentThread, false otherwise
+ */
+BOOLEAN
+jitIsMethodTaggedWithChangesCurrentThread(J9VMThread *currentThread, J9Method *method)
+{
+#if JAVA_SPEC_VERSION >= 21
+	return methodContainsRuntimeAnnotation(currentThread, method, (J9UTF8 *)&ojdk_changesCurrentThread);
+#else /* JAVA_SPEC_VERSION >= 21 */
+	return FALSE;
+#endif /* JAVA_SPEC_VERSION >= 21 */
 }
+
+} /* extern "C" */

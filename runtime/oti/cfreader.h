@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef cfreader_h
@@ -75,15 +75,9 @@
 #define	CFR_STACKMAP_TYPE_BYTE_ARRAY			0x0E
 #define	CFR_STACKMAP_TYPE_CHAR_ARRAY			0x0F
 #define	CFR_STACKMAP_TYPE_BOOL_ARRAY			0x10
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-#define CFR_STACKMAP_TYPE_PRIMITIVE_OBJECT		0x11
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 
 #define	CFR_METHOD_NAME_INIT	1
 #define	CFR_METHOD_NAME_CLINIT	2
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-#define	CFR_METHOD_NAME_NEW		3
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 #define	CFR_METHOD_NAME_INVALID	-1
 
 /* Macros. */

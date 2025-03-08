@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -84,7 +84,7 @@ MM_MarkingDelegate::initialize(MM_EnvironmentBase *env, MM_MarkingScheme *markin
 void
 MM_MarkingDelegate::clearClassLoadersScannedFlag(MM_EnvironmentBase *env)
 {
-	J9JavaVM *javaVM = (J9JavaVM*)env->getLanguageVM();
+	J9JavaVM *javaVM = (J9JavaVM *)env->getLanguageVM();
 
 	/**
 	 *	ClassLoaders might be scanned already at concurrent stage.
@@ -138,6 +138,7 @@ MM_MarkingDelegate::workerSetupForGC(MM_EnvironmentBase *env)
 		gcEnv->_scavengerJavaStats.clearContinuationCounts();
 	}
 #endif /* defined(J9VM_GC_MODRON_SCAVENGER) */
+	gcEnv->_continuationStats.clear();
 #if defined(OMR_GC_MODRON_STANDARD) || defined(OMR_GC_REALTIME)
 		/* record that this thread is participating in this cycle */
 		env->_markStats._gcCount = env->_workPacketStats._gcCount = _extensions->globalGCStats.gcCount;
@@ -168,6 +169,8 @@ MM_MarkingDelegate::workerCleanupAfterGC(MM_EnvironmentBase *env)
 	Assert_MM_true(gcEnv->_referenceObjectBuffer->isEmpty());
 
 	_extensions->markJavaStats.merge(&gcEnv->_markJavaStats);
+	_extensions->continuationStats.merge(&gcEnv->_continuationStats);
+
 #if defined(J9VM_GC_MODRON_SCAVENGER)
 	if (_extensions->scavengerEnabled) {
 		/* merge scavenger ownableSynchronizerObjects stats, only in generational gc */
@@ -187,6 +190,7 @@ MM_MarkingDelegate::mainSetupForGC(MM_EnvironmentBase *env)
 #endif /* J9VM_GC_DYNAMIC_CLASS_UNLOADING */
 
 	_collectStringConstantsEnabled = _extensions->collectStringConstants;
+	_extensions->continuationStats.clear();
 }
 
 void
@@ -278,7 +282,7 @@ MM_MarkingDelegate::scanContinuationNativeSlots(MM_EnvironmentBase *env, omrobje
 
 		GC_VMThreadStackSlotIterator::scanContinuationSlots(currentThread, objectPtr, (void *)&localData, stackSlotIteratorForMarkingDelegate, stackFrameClassWalkNeeded, false);
 		if (isConcurrentGC) {
-			VM_VMHelpers::exitConcurrentGCScan(currentThread, objectPtr, isGlobalGC);
+			MM_GCExtensions::exitContinuationConcurrentGCScan(currentThread, objectPtr, isGlobalGC);
 		}
 	}
 }
@@ -303,18 +307,30 @@ MM_MarkingDelegate::scanRoots(MM_EnvironmentBase *env, bool processLists)
 		 */
 		if (env->isMainThread()) {
 			J9JavaVM * javaVM = (J9JavaVM*)env->getLanguageVM();
-			((J9ClassLoader *)javaVM->systemClassLoader)->gcFlags |= J9_GC_CLASS_LOADER_SCANNED;
-			_markingScheme->markObject(env, (omrobjectptr_t )((J9ClassLoader *)javaVM->systemClassLoader)->classLoaderObject);
-			if (javaVM->applicationClassLoader) {
-				((J9ClassLoader *)javaVM->applicationClassLoader)->gcFlags |= J9_GC_CLASS_LOADER_SCANNED;
-				_markingScheme->markObject(env, (omrobjectptr_t )((J9ClassLoader *)javaVM->applicationClassLoader)->classLoaderObject);
-			}
+
+			/* Mark systemClassLoader */
+			markPermanentClassloader(env, javaVM->systemClassLoader);
+
+			/* Mark applicationClassLoader */
+			markPermanentClassloader(env, javaVM->applicationClassLoader);
+
+			/* Mark extensionClassLoader */
+			markPermanentClassloader(env, javaVM->extensionClassLoader);
 		}
 	}
 #endif /* J9VM_GC_DYNAMIC_CLASS_UNLOADING */
 
 	/* Scan roots */
 	rootMarker.scanRoots(env);
+}
+
+void
+MM_MarkingDelegate::markPermanentClassloader(MM_EnvironmentBase *env, J9ClassLoader *classLoader)
+{
+	if (NULL != classLoader) {
+		classLoader->gcFlags |= J9_GC_CLASS_LOADER_SCANNED;
+		_markingScheme->markObject(env, classLoader->classLoaderObject);
+	}
 }
 
 void
@@ -399,9 +415,6 @@ MM_MarkingDelegate::completeMarking(MM_EnvironmentBase *env)
 										J9Module * const module = *modulePtr;
 
 										_markingScheme->markObjectNoCheck(env, (omrobjectptr_t )module->moduleObject);
-										if (NULL != module->moduleName) {
-											_markingScheme->markObjectNoCheck(env, (omrobjectptr_t )module->moduleName);
-										}
 										if (NULL != module->version) {
 											_markingScheme->markObjectNoCheck(env, (omrobjectptr_t )module->version);
 										}
@@ -409,7 +422,7 @@ MM_MarkingDelegate::completeMarking(MM_EnvironmentBase *env)
 									}
 
 									if (classLoader == javaVM->systemClassLoader) {
-										_markingScheme->markObjectNoCheck(env, (omrobjectptr_t )javaVM->unamedModuleForSystemLoader->moduleObject);
+										_markingScheme->markObjectNoCheck(env, (omrobjectptr_t )javaVM->unnamedModuleForSystemLoader->moduleObject);
 									}
 								}
 							}

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.image.j9;
 
 import java.io.File;
@@ -48,7 +48,7 @@ public class ZipExtractionResolver implements IFileLocationResolver, ResourceRel
 	private ZipFile _container;
 	private Map _openFilesByName = new HashMap();
 	private List _deletables = new Vector();
-	
+
 	public ZipExtractionResolver(ZipFile zip)
 	{
 		_container = zip;
@@ -65,11 +65,11 @@ public class ZipExtractionResolver implements IFileLocationResolver, ResourceRel
 		//take the end of the path and see if we have such an entry
 		String name = (new File(fullPath)).getName();
 		File knownFile = (File) _openFilesByName.get(fullPath);
-		
+
 		if (null == knownFile) {
 			//first try to get the entry by its long name.  If that doesn't work, try the short name (an easy way to get some backward compatibility)
 			ZipEntry entry = _container.getEntry(fullPath);
-			
+
 			if (null == entry) {
 				entry = _container.getEntry(name);
 			}
@@ -122,7 +122,7 @@ public class ZipExtractionResolver implements IFileLocationResolver, ResourceRel
 							fnf.setStackTrace(e.getStackTrace());
 							throw fnf;
 						}
-	
+
 						try {
 							size  = zipContent.read(buffer);
 						} catch (IOException e) {
@@ -143,7 +143,7 @@ public class ZipExtractionResolver implements IFileLocationResolver, ResourceRel
 						FileNotFoundException fnf = new FileNotFoundException("Unable to close file: " + e.getMessage());
 						fnf.setStackTrace(e.getStackTrace());
 						throw fnf;
-					} 
+					}
 				}
 
 				//save this to the collection
@@ -159,7 +159,7 @@ public class ZipExtractionResolver implements IFileLocationResolver, ResourceRel
 	{
 		// we are going to try to infer the name of the core file since we know that it will be with an XML file of the same name
 		String coreName = _baseCoreName();
-		
+
 		if (null != coreName) {
 			return findFileWithFullPath(coreName);
 		} else {
@@ -175,11 +175,11 @@ public class ZipExtractionResolver implements IFileLocationResolver, ResourceRel
 		String coreName = null;
 		Enumeration outer = _container.entries();
 		String zipName = _container.getName();
-		
+
 		while ((null == coreName) && (outer.hasMoreElements())) {
 			ZipEntry outerEntry = (ZipEntry) outer.nextElement();
 			String outerName = outerEntry.getName();
-			
+
 			if (zipName.equals(outerName  + ".zip")) {
 				//outerEntry is the same name as the zip which is the JExtract convention for naming.  Therefore, this is the core file
 				coreName = outerName;
@@ -206,14 +206,14 @@ public class ZipExtractionResolver implements IFileLocationResolver, ResourceRel
 		return streamData;
 	}
 
-	public void closeOpenFiles() throws IOException 
+	public void closeOpenFiles() throws IOException
 	{
 		if(_container != null) {
 			_container.close();
 		}
 	}
-	
-	public Iterator getCreatedFiles() 
+
+	public Iterator getCreatedFiles()
 	{
 		return _deletables.iterator();
 	}

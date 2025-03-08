@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.heapdump.portable;
 
 import java.io.DataOutput;
@@ -29,11 +29,11 @@ import com.ibm.jvm.dtfjview.heapdump.ReferenceIterator;
 
 /**
  * Base class for all PHD records.
- * 
+ *
  * Contains logic common to relative-addressed entities with references
- * 
+ *
  * @author andhall
- * 
+ *
  */
 public abstract class PortableHeapDumpRecord
 {
@@ -58,7 +58,7 @@ public abstract class PortableHeapDumpRecord
 
 	/**
 	 * Constructor
-	 * 
+	 *
 	 * @param baseAddress
 	 *            The address to base the relative reference addresses from
 	 * @param references
@@ -68,7 +68,7 @@ public abstract class PortableHeapDumpRecord
 			ReferenceIterator references)
 	{
 		_baseAddress = address;
-		
+
 		if(references != null) {
 			_references = getDifferenceReferences(references, address);
 			_referenceFieldSize = calculateReferenceFieldSize(references);
@@ -76,7 +76,7 @@ public abstract class PortableHeapDumpRecord
 			_references = null;
 			_referenceFieldSize = 0;
 		}
-		
+
 		_gapPreceding = getAddressDifference(address,previousAddress);
 		_gapSize = sizeofReference(_gapPreceding);
 	}
@@ -84,11 +84,11 @@ public abstract class PortableHeapDumpRecord
 	private byte calculateReferenceFieldSize(ReferenceIterator references)
 	{
 		byte toReturn = ONE_BYTE_REF;
-		
+
 		references.reset();
-		
+
 		_numberOfReferences = 0;
-		
+
 		while (references.hasNext()) {
 			Long thisRef = references.next();
 
@@ -97,7 +97,7 @@ public abstract class PortableHeapDumpRecord
 			if (thisSize > toReturn) {
 				toReturn = thisSize;
 			}
-			
+
 			_numberOfReferences++;
 		}
 

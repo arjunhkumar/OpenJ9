@@ -18,7 +18,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <playlist xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../TKG/playlist.xsd">
 	<test>
@@ -29,6 +29,8 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 			<variation>Mode351</variation>
 			<variation>Mode501</variation>
 			<variation>Mode551</variation>
+			<variation>Mode501 -XXgc:disableVirtualLargeObjectHeap</variation>
+			<variation>Mode551 -XXgc:disableVirtualLargeObjectHeap</variation>
 			<variation>Mode610</variation>
 		</variations>
 		<command>$(ADD_JVM_LIB_DIR_TO_LIBPATH) \
@@ -148,12 +150,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	</test>
 	<test>
 		<testCaseName>CFdumptest</testCaseName>
-		<disables>
-			<disable>
-				<comment>excluded OpenJ9 tests</comment>
-			</disable>
-		</disables>
-		<command>$(JAVA_COMMAND) $(JVM_OPTIONS) \
+		<command>$(ADD_JVM_LIB_DIR_TO_LIBPATH) $(JAVA_COMMAND) $(JVM_OPTIONS) \
 	-cp $(Q)$(TEST_RESROOT)$(D)VM_Test.jar$(P)$(LIB_DIR)$(D)junit4.jar$(Q) \
 	junit.textui.TestRunner com.ibm.j9.cfdump.tests.CfdumpTestSuite; \
 	$(TEST_STATUS)</command>

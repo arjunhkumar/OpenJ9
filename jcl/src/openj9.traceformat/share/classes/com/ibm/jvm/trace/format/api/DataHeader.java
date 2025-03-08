@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2000
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.trace.format.api;
 
 import java.io.UnsupportedEncodingException;
@@ -59,7 +59,7 @@ public class DataHeader {
 	public DataHeader(TraceContext context, ByteBuffer data, String signature) throws IllegalArgumentException {
 		this(context, data, signature, true);
 	}
-	
+
 	protected DataHeader(TraceContext context, ByteBuffer data, String signature, boolean confirmBody) throws IllegalArgumentException {
 		/* check there's enough data to reconstruct the UtDataHeader */
 		if (data.remaining() < DATAHEADER_SIZE) {
@@ -105,7 +105,7 @@ public class DataHeader {
 		version = data.getInt();
 		modification = data.getInt();
 		this.signature = signature;
-		
+
 		if (confirmBody) {
 			/* check there's sufficient data available to read the structure */
 			if (data.remaining() < length - DATAHEADER_SIZE) {

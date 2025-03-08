@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1991
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.tools;
 
 import java.io.ByteArrayOutputStream;
@@ -30,7 +30,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.util.Arrays;
-import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -277,8 +276,7 @@ public class StructureStubGenerator {
 
 		Collections.sort(fields);
 		for (FieldDescriptor fieldDescriptor : fields) {
-			if (fieldDescriptor.isPresent()
-					&& getOffsetConstant(fieldDescriptor).equals(fieldDescriptor.getName())
+			if (getOffsetConstant(fieldDescriptor).equals(fieldDescriptor.getName())
 					&& !PointerGenerator.omitFieldImplementation(structure, fieldDescriptor)) {
 				if (!headingPrinted) {
 					writer.println("\t// Offsets");
@@ -308,8 +306,7 @@ public class StructureStubGenerator {
 		Collections.sort(fields);
 		for (FieldDescriptor fieldDescriptor : fields) {
 			String fieldName = fieldDescriptor.getName();
-			if (fieldDescriptor.isPresent()
-					&& getOffsetConstant(fieldDescriptor).equals(fieldName)
+			if (getOffsetConstant(fieldDescriptor).equals(fieldName)
 					&& !PointerGenerator.omitFieldImplementation(structure, fieldDescriptor)) {
 				CTypeParser parser = new CTypeParser(fieldDescriptor.getType());
 
@@ -419,7 +416,7 @@ public class StructureStubGenerator {
 	}
 
 	private static void writeCopyright(PrintWriter writer) {
-		writer.println("/*******************************************************************************");
+		writer.println("/*");
 		writer.println(" * Copyright IBM Corp. and others 1991");
 		writer.println(" *");
 		writer.println(" * This program and the accompanying materials are made available under");
@@ -438,8 +435,8 @@ public class StructureStubGenerator {
 		writer.println(" * [1] https://www.gnu.org/software/classpath/license.html");
 		writer.println(" * [2] https://openjdk.org/legal/assembly-exception.html");
 		writer.println(" *");
-		writer.println(" * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception");
-		writer.println(" *******************************************************************************/");
+		writer.println(" * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0");
+		writer.println(" */");
 	}
 
 }

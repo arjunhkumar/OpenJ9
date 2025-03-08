@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /* Includes */
@@ -559,16 +559,16 @@ public :
 	{
 		PORT_ACCESS_FROM_PORT(_PortLibrary);
 		char buffer[1 + (sizeof(UDATA) * 8)];
-		
+
 		switch (radix) {
 		case 16:
-			j9str_printf(PORTLIB, buffer, sizeof(buffer), "%.*zX", sizeof(UDATA) * 2, data);
+			j9str_printf(buffer, sizeof(buffer), "%.*zX", sizeof(UDATA) * 2, data);
 			break;
 		default:
-			j9str_printf(PORTLIB, buffer, sizeof(buffer), "%zu", data);
+			j9str_printf(buffer, sizeof(buffer), "%zu", data);
 			break;
 		}
-		
+
 		append(buffer, strlen(buffer));
 
 		return *this;

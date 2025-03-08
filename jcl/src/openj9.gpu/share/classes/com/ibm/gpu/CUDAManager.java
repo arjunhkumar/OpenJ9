@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2014
  *
  * This program and the accompanying materials are made available under
@@ -18,14 +18,16 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.gpu;
 
 import java.io.IOException;
 import java.io.InputStream;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -38,12 +40,12 @@ import java.util.TreeMap;
 import com.ibm.cuda.Cuda;
 import com.ibm.cuda.CudaDevice;
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-/*[ELSE]
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 import sun.misc.Unsafe;
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 /**
  * This class contains information important to IBM GPU enabled functions.
@@ -60,9 +62,13 @@ public final class CUDAManager {
 		private static final int DEFAULT_THRESHOLD = 30000;
 
 		private static void loadProperties(Properties properties, String resourceName) throws IOException {
+			/*[IF JAVA_SPEC_VERSION >= 24]*/
+			try (InputStream input = CUDAManager.class.getResourceAsStream(resourceName)) {
+			/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 			PrivilegedAction<InputStream> action = () -> CUDAManager.class.getResourceAsStream(resourceName);
 
 			try (InputStream input = AccessController.doPrivileged(action)) {
+			/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 				if (input != null) {
 					properties.load(input);
 				}
@@ -253,14 +259,20 @@ public final class CUDAManager {
 	 * @return a CUDAManager instance
 	 * @throws GPUConfigurationException
 	 *          This exception is not actually thrown; use {@code instance()} instead.
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException
 	 *          If a security manager exists and the calling thread does not
 	 *          have permission to access the CUDAManager instance.
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 * @deprecated Use {@code instance()} instead.
 	 */
 	@Deprecated
 	public static CUDAManager getInstance()
-			throws GPUConfigurationException, SecurityException {
+			throws GPUConfigurationException
+			/*[IF JAVA_SPEC_VERSION < 24] */
+			, SecurityException
+			/*[ENDIF] JAVA_SPEC_VERSION < 24 */
+	{
 		return instance();
 	}
 
@@ -268,17 +280,25 @@ public final class CUDAManager {
 	 * Return a CUDAManager instance.
 	 *
 	 * @return a CUDAManager instance
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException
 	 *          If a security manager exists and the calling thread does not
 	 *          have permission to access the CUDAManager instance.
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
-	public static CUDAManager instance() throws SecurityException {
+	public static CUDAManager instance()
+		/*[IF JAVA_SPEC_VERSION < 24]*/
+		throws SecurityException
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
+	{
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		@SuppressWarnings("removal")
 		SecurityManager security = System.getSecurityManager();
 
 		if (security != null) {
 			security.checkPermission(GPUPermission.Access);
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 		return instanceInternal();
 	}
@@ -297,9 +317,13 @@ public final class CUDAManager {
 	}
 
 	static String getProperty(String name) {
+		/*[IF JAVA_SPEC_VERSION >= 24]*/
+		return System.getProperty(name);
+		/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 		PrivilegedAction<String> action = () -> System.getProperty(name);
 
 		return AccessController.doPrivileged(action);
+		/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 	}
 
 	/**
@@ -335,12 +359,12 @@ public final class CUDAManager {
 
 	private CUDADevice[] devices;
 
-	/*[IF Sidecar19-SE]*/
+	/*[IF JAVA_SPEC_VERSION >= 9]*/
 	private final VarHandle devicesHandle;
-	/*[ELSE]
+	/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 	private final long devicesOffset;
 	private final Unsafe unsafe;
-	/*[ENDIF]*/
+	/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 	private boolean doSortOnGPU;
 
@@ -359,13 +383,13 @@ public final class CUDAManager {
 		// set this early for better feedback
 		verboseOutput = getProperty("com.ibm.gpu.verbose") != null; //$NON-NLS-1$
 
-		/*[IF Sidecar19-SE]*/
+		/*[IF JAVA_SPEC_VERSION >= 9]*/
 		try {
 			devicesHandle = MethodHandles.lookup().findVarHandle(CUDAManager.class, "devices", CUDADevice[].class); //$NON-NLS-1$
 		} catch (IllegalAccessException | NoSuchFieldException e) {
 			throw new InternalError(e.toString(), e);
 		}
-		/*[ELSE]
+		/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 		try {
 			unsafe = Unsafe.getUnsafe();
 			devicesOffset = unsafe.objectFieldOffset(CUDAManager.class.getDeclaredField("devices")); //$NON-NLS-1$
@@ -374,7 +398,7 @@ public final class CUDAManager {
 			error.initCause(e);
 			throw error;
 		}
-		/*[ENDIF]*/
+		/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 		Configuration configuration = new Configuration(this);
 
@@ -515,11 +539,11 @@ public final class CUDAManager {
 
 				if (allDevices == null) {
 					allDevices = findDevices();
-					/*[IF Sidecar19-SE]*/
+					/*[IF JAVA_SPEC_VERSION >= 9]*/
 					devicesHandle.setRelease(this, allDevices);
-					/*[ELSE]
+					/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 					unsafe.putOrderedObject(this, devicesOffset, allDevices);
-					/*[ENDIF]*/
+					/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 				}
 			}
 		}

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "optimizer/J9ValuePropagation.hpp"
@@ -47,6 +47,8 @@
 #include "runtime/RuntimeAssumptions.hpp"
 #include "env/J9JitMemory.hpp"
 #include "optimizer/HCRGuardAnalysis.hpp"
+#include "optimizer/VectorAPIExpansion.hpp"
+
 
 #define OPT_DETAILS "O^O VALUE PROPAGATION: "
 
@@ -54,6 +56,7 @@ J9::ValuePropagation::ValuePropagation(TR::OptimizationManager *manager)
    : OMR::ValuePropagation(manager),
      _bcdSignConstraints(NULL),
      _callsToBeFoldedToNode(trMemory()),
+     _offHeapCopyMemory(trMemory()),
      _valueTypesHelperCallsToBeFolded(trMemory())
    {
    }
@@ -276,6 +279,7 @@ bool J9::ValuePropagation::transformIndexOfKnownString(
    // Keep track of whether or not all constraints are global.
    bool isGlobal = true;
    bool isGlobalQuery;
+   int32_t headerAdjustment = TR::Compiler->om.isOffHeapAllocationEnabled() ? 0 : TR::Compiler->om.contiguousArrayHeaderSizeInBytes();
 
    TR::VPConstraint *sourceConstraint = getConstraint(sourceStringNode, isGlobalQuery);
    isGlobal &= isGlobalQuery;
@@ -374,6 +378,15 @@ bool J9::ValuePropagation::transformIndexOfKnownString(
       }
    else if (targetIsConstChar)
       {
+      if (!is16Bit)
+         {
+         // The implementations of the 8-bit indexOf operations cast the character for
+         // which they are searching to a signed byte value, and the characters in the
+         // String themselves are stored in a signed byte array.  Make sure that folding
+         // at compile-time takes into account that operations are on signed bytes.
+         targetChar = (int32_t)(int8_t) targetChar;
+         }
+
       for (int32_t i = start; i < length; ++i)
          {
          int32_t ch;
@@ -381,14 +394,13 @@ bool J9::ValuePropagation::transformIndexOfKnownString(
             {
             if (is16Bit)
                {
-               uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, (2 * i) + TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
+               uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, (2 * i) + headerAdjustment);
                ch  = *((uint16_t*)element);
                }
             else
                {
-               uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, i + TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
-               uint8_t chByte  = *((uint8_t*)element);
-               ch = chByte;
+               uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, i + headerAdjustment);
+               ch  = *((uint8_t*)element);
                }
             }
          else
@@ -396,6 +408,15 @@ bool J9::ValuePropagation::transformIndexOfKnownString(
             // getStringCharacter should handle both 8 bit and 16 bit strings
             ch = TR::Compiler->cls.getStringCharacter(comp(), string, i);
             }
+         if (!is16Bit)
+            {
+            // The implementations of the 8-bit indexOf operations cast the character for
+            // which they are searching to a signed byte value, and the characters in the
+            // String themselves are stored in a signed byte array.  Make sure that folding
+            // at compile-time takes into account that operations are on signed bytes.
+            ch = (int32_t)(int8_t) ch;
+            }
+
          if (ch == targetChar)
             {
             if (performTransformation(comp(), "%sReplacing indexOf call node [" POINTER_PRINTF_FORMAT "] on known string receiver with constant value of %d\n", OPT_DETAILS, indexOfNode, i))
@@ -418,14 +439,13 @@ bool J9::ValuePropagation::transformIndexOfKnownString(
          {
          if (is16Bit)
             {
-            uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, (2 * start) + TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
+            uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, (2 * start) + headerAdjustment);
             ch  = *((uint16_t*)element);
             }
          else
             {
-            uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, start + TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
-            int8_t chByte  = *((uint8_t*)element);
-            ch = chByte;
+            uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, start + headerAdjustment);
+            ch  = *((uint8_t*)element);
             }
          }
       else
@@ -433,8 +453,37 @@ bool J9::ValuePropagation::transformIndexOfKnownString(
          // getStringCharacter should handle both 8 bit and 16 bit strings
          ch = TR::Compiler->cls.getStringCharacter(comp(), string, start);
          }
+
+      if (!is16Bit)
+         {
+         // The implementations of the 8-bit indexOf operations cast the character for
+         // which they are searching to a signed byte value, and the characters in the
+         // String themselves are stored in a signed byte array.  Make sure that the
+         // inlined version similarly operates on signed bytes.
+         ch = (int32_t)(int8_t) ch;
+         }
+
       if (!performTransformation(comp(), "%sReplacing indexOf call node [" POINTER_PRINTF_FORMAT "] on known string receiver with equivalent icmpeq tree\n", OPT_DETAILS, indexOfNode))
          return false;
+
+      // The implementations of the 8-bit indexOf operations cast the character for
+      // which they are searching to a signed byte value.  In some cases that happens
+      // at the call to the known method that's being processed here, and in some
+      // cases that happens within the known method itself.  If targetCharNode is not
+      // known to be the result of a b2i operation and is not already known to be in
+      // the required range for a signed byte value, force that.  Otherwise, this
+      // could end up looking for the degree symbol, U+00B0, say, as an unsigned
+      // value 176 rather than the signed value -80.
+      if (!is16Bit
+          && (targetCharNode->getOpCodeValue() != TR::b2i)
+          && ((targetConstraint == NULL)
+              || (targetConstraint->getLowInt() < -128)
+              || (targetConstraint->getHighInt() > 127)))
+         {
+         targetCharNode = TR::Node::create(indexOfNode, TR::b2i, 1,
+                             TR::Node::create(indexOfNode, TR::i2b, 1, targetCharNode));
+         }
+
       transformCallToNodeDelayedTransformations(
          _curTree,
          TR::Node::create(indexOfNode, TR::isub, 2,
@@ -448,7 +497,29 @@ bool J9::ValuePropagation::transformIndexOfKnownString(
       }
    else if (length < 4)
       {
+      if (!performTransformation(comp(), "%sReplacing indexOf call node [" POINTER_PRINTF_FORMAT "] on known string receiver with equivalent iselect tree\n", OPT_DETAILS, indexOfNode))
+         return false;
+
       TR::Node *root = TR::Node::iconst(indexOfNode, -1);
+
+      // The implementations of the 8-bit indexOf operations cast the character for
+      // which they are searching to a signed byte value.  In some cases that happens
+      // at the call to the known method that's being processed here, and in some
+      // cases that happens within the known method itself.  If targetCharNode is not
+      // known to be the result of a b2i operation and is not already known to be in
+      // the required range for a signed byte value, force that.  Otherwise, this
+      // could end up looking for the degree symbol, U+00B0, say, as an unsigned
+      // value 176 rather than the signed value -80.
+      if (!is16Bit
+          && (targetCharNode->getOpCodeValue() != TR::b2i)
+          && ((targetConstraint == NULL)
+              || (targetConstraint->getLowInt() < -128)
+              || (targetConstraint->getHighInt() > 127)))
+         {
+         targetCharNode = TR::Node::create(indexOfNode, TR::b2i, 1,
+                             TR::Node::create(indexOfNode, TR::i2b, 1, targetCharNode));
+         }
+
       for (int32_t i = length - 1; i >= start; --i)
          {
          int32_t ch;
@@ -456,14 +527,13 @@ bool J9::ValuePropagation::transformIndexOfKnownString(
             {
             if (is16Bit)
                {
-               uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, (2 * i) + TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
+               uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, (2 * i) + headerAdjustment);
                ch  = *((uint16_t*)element);
                }
             else
                {
-               uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, i + TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
-               int8_t chByte  = *((uint8_t*)element);
-               ch = chByte;
+               uintptr_t element = TR::Compiler->om.getAddressOfElement(comp(), string, i + headerAdjustment);
+               ch  = *((uint8_t*)element);
                }
             }
          else
@@ -471,8 +541,16 @@ bool J9::ValuePropagation::transformIndexOfKnownString(
             // getStringCharacter should handle both 8 bit and 16 bit strings
             ch = TR::Compiler->cls.getStringCharacter(comp(), string, i);
             }
-         if (!performTransformation(comp(), "%sReplacing indexOf call node [" POINTER_PRINTF_FORMAT "] on known string receiver with equivalent iselect tree\n", OPT_DETAILS, indexOfNode))
-            return false;
+
+         if (!is16Bit)
+            {
+            // The implementations of the 8-bit indexOf operations cast the character for
+            // which they are searching to a signed byte value, and the characters in the
+            // String themselves are stored in a signed byte array.  Make sure that the
+            // inlined version similarly operates on signed bytes.
+            ch = (int32_t)(int8_t) ch;
+            }
+
          root = TR::Node::create(TR::iselect, 3,
             TR::Node::create(indexOfNode, TR::icmpeq, 2,
                targetCharNode,
@@ -499,9 +577,17 @@ bool J9::ValuePropagation::transformUnsafeCopyMemoryCall(TR::Node *arraycopyNode
       TR::TreeTop *tt = _curTree;
       TR::Node *ttNode = tt->getNode();
 
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+      if (TR::Compiler->om.isOffHeapAllocationEnabled()
+            && (ttNode->getOpCodeValue() == TR::treetop || ttNode->getOpCode().isResolveOrNullCheck()))
+         {
+         _offHeapCopyMemory.add(new (comp()->trStackMemory()) J9::ValuePropagation::TR_TreeTopNodePair(tt, arraycopyNode));
+         return true;
+         }
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
+
       if ((ttNode->getOpCodeValue() == TR::treetop || ttNode->getOpCode().isResolveOrNullCheck())
             && performTransformation(comp(), "%sChanging call Unsafe.copyMemory [%p] to arraycopy\n", OPT_DETAILS, arraycopyNode))
-
          {
          TR::Node *unsafe     = arraycopyNode->getChild(0);
          TR::Node *src        = arraycopyNode->getChild(1);
@@ -610,7 +696,6 @@ J9::ValuePropagation::isValue(TR::VPConstraint *constraint, TR_OpaqueClassBlock 
       return type->isFixedClass() ? TR_no : TR_maybe;
       }
 
-   TR::Compilation *comp = TR::comp();
    clazz = type->getClass();
 
    // No need to check array class type because array classes should be marked as having identity.
@@ -621,7 +706,7 @@ J9::ValuePropagation::isValue(TR::VPConstraint *constraint, TR_OpaqueClassBlock 
 
    // Is the type either an abstract class or an interface (i.e., not a
    // concrete class)?  If so, it might be a value type.
-   if (!TR::Compiler->cls.isConcreteClass(comp, clazz))
+   if (!TR::Compiler->cls.isConcreteClass(comp(), clazz))
       {
       return TR_maybe;
       }
@@ -645,12 +730,21 @@ static bool owningMethodDoesNotContainBoundChecks(OMR::ValuePropagation *vp, TR:
    return false;
    }
 
-static TR::Node *getStoreValueBaseNode(TR::Node *storeValueNode, TR::SymbolReference *loadFlattenableElementSymRef)
+static bool owningMethodDoesNotContainNonNullableArrayNullStoreCheck(OMR::ValuePropagation *vp, TR::Node *node)
+   {
+   TR::ResolvedMethodSymbol *method = vp->comp()->getOwningMethodSymbol(node->getOwningMethod());
+   if (method && method->skipNonNullableArrayNullStoreCheck())
+      return true;
+   return false;
+   }
+
+static TR::Node *getStoreValueBaseNode(TR::Node *storeValueNode, TR::SymbolReferenceTable *symRefTab)
    {
    TR::Node *storeValueBaseNode = NULL;
 
-   // The value might be loaded using inline array access IL or the <jitLoadFlatttenableArrayElement>
-   // helper, so we need to take care of both cases.
+   // The value might be loaded using inline array access IL
+   // or the loadFlattenableArrayElement non-helper or helper,
+   // so we need to take care of all the cases.
    //
    if (storeValueNode->getOpCode().isLoadVar()
        && storeValueNode->getOpCode().isIndirect()
@@ -668,7 +762,8 @@ static TR::Node *getStoreValueBaseNode(TR::Node *storeValueNode, TR::SymbolRefer
             }
          }
    else if (storeValueNode->getOpCode().isCall()
-            && storeValueNode->getSymbolReference() == loadFlattenableElementSymRef)
+            && (symRefTab->isNonHelper(storeValueNode->getSymbolReference(), TR::SymbolReferenceTable::loadFlattenableArrayElementNonHelperSymbol) ||
+                                      (storeValueNode->getSymbolReference()->getReferenceNumber() == TR_ldFlattenableArrayElement)))
       {
       storeValueBaseNode = storeValueNode->getSecondChild();
       }
@@ -718,10 +813,12 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
                               || (lhs != NULL && rhs != NULL && lhs->mustBeEqual(rhs, this));
 
       if (trace())
-         traceMsg(comp(), "%s: callNode n%dn: lhsNode n%dn (lhsClass 0x%p)(isLhsValue %d)(lhs %p ValueNumber %d), rhsNode n%dn (rhsClass 0x%p)(isRhsValue %d)(rhs %p ValueNumber %d), areSameRef %d\n",
-               __FUNCTION__, node->getGlobalIndex(),
-               lhsNode->getGlobalIndex(), lhsClass, isLhsValue, lhs, getValueNumber(lhsNode),
-               rhsNode->getGlobalIndex(), rhsClass, isRhsValue, rhs, getValueNumber(rhsNode), areSameRef);
+         {
+         traceMsg(comp(), "%s: callNode n%dn: lhsNode n%dn (lhsClass 0x%p)(isLhsValue %s)(lhs %p ValueNumber %d) ",
+               __FUNCTION__, node->getGlobalIndex(), lhsNode->getGlobalIndex(), lhsClass, comp()->getDebug()->getName(isLhsValue), lhs, getValueNumber(lhsNode));
+         traceMsg(comp(), "rhsNode n%dn (rhsClass 0x%p)(isRhsValue %s)(rhs %p ValueNumber %d), areSameRef %d\n",
+               rhsNode->getGlobalIndex(), rhsClass, comp()->getDebug()->getName(isRhsValue), rhs, getValueNumber(rhsNode), areSameRef);
+         }
 
       // Non-helper equality/inequality comparison call is not needed if
       // either operand is definitely not an instance of a value type or
@@ -841,17 +938,20 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
       return;
       }
 
-   // Check for call to jit{Load|Store}FlattenableArrayElement helpers
-   TR::SymbolReference *loadFlattenableElementSymRef = comp()->getSymRefTab()->findOrCreateLoadFlattenableArrayElementSymbolRef();
+   // Check for call to {load|store}FlattenableArrayElementNonHelper
+   TR::SymbolReferenceTable *symRefTab = comp()->getSymRefTab();
+   TR::SymbolReference *loadFlattenableElementHelperSymRef = symRefTab->findOrCreateLoadFlattenableArrayElementSymbolRef();
+   TR::SymbolReference *storeFlattenableElementHelperSymRef = symRefTab->findOrCreateStoreFlattenableArrayElementSymbolRef();
+   bool isLoadFlattenableArrayElement = false;
+   bool isStoreFlattenableArrayElement = false;
 
-   const bool isLoadFlattenableArrayElement =
-                 node->getOpCode().isCall()
-                 && node->getSymbolReference() == loadFlattenableElementSymRef;
+   isLoadFlattenableArrayElement =
+              node->getOpCode().isCall()
+              && symRefTab->isNonHelper(node->getSymbolReference(), TR::SymbolReferenceTable::loadFlattenableArrayElementNonHelperSymbol);
 
-   const bool isStoreFlattenableArrayElement =
-                 node->getOpCode().isCall()
-                 && node->getSymbolReference()
-                    == comp()->getSymRefTab()->findOrCreateStoreFlattenableArrayElementSymbolRef();
+   isStoreFlattenableArrayElement =
+              node->getOpCode().isCall()
+              && symRefTab->isNonHelper(node->getSymbolReference(), TR::SymbolReferenceTable::storeFlattenableArrayElementNonHelperSymbol);
 
    if (isLoadFlattenableArrayElement || isStoreFlattenableArrayElement)
       {
@@ -860,6 +960,10 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
          {
          return;
          }
+
+      if (trace())
+         traceMsg(comp(), "%s: isLoadFlattenableArrayElement %d isStoreFlattenableArrayElement %d n%dn symRef #%d\n", __FUNCTION__,
+            isLoadFlattenableArrayElement, isStoreFlattenableArrayElement, node->getGlobalIndex(), node->getSymbolReference()->getReferenceNumber());
 
       bool arrayRefGlobal;
       bool storeValueGlobal;
@@ -870,7 +974,7 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
       TR::Node *indexNode = node->getChild(elementIndexOpIndex);
       TR::Node *arrayRefNode = node->getChild(arrayRefOpIndex);
       TR::VPConstraint *arrayConstraint = getConstraint(arrayRefNode, arrayRefGlobal);
-      TR_YesNoMaybe isCompTypePrimVT = isArrayCompTypePrimitiveValueType(arrayConstraint);
+      TR_YesNoMaybe isNullRestrictedArray = isArrayNullRestricted(arrayConstraint);
 
       TR::Node *storeValueNode = NULL;
       TR::VPConstraint *storeValueConstraint = NULL;
@@ -885,14 +989,14 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
          }
 
       /*
-       * ========== jit{Load|Store}FlattenableArrayElement Transformations ==========
+       * ========== {Load|Store}FlattenableArrayElement Transformations ==========
        *
        * Array flattening is disabled
-       *    - jitLoadFlattenableArrayElement
+       *    - loadFlattenableArrayElementNonHelper
        *         - Transform the helper call to regular aaload
        *               (Transformed in ILGen. VP is still capable of transforming the helper call to regular aaload if encountering one)
        *
-       *    - jitStoreFlattenableArrayElement
+       *    - storeFlattenableArrayElementNonHelper
        *         - Transform the helper call to regular aastore (Transformed in VP: canTransformUnflattenedArrayElementLoadStore)
        *
        * Array flattening is enabled
@@ -950,21 +1054,21 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
          }
 
       // Transform the helper call to regular aaload and aastore if array flattening is not enabled,
-      // or the array is known to be of a primitive value type that is not flattened.
+      // or the array is known to be of a null-restricted array that is not flattened.
       bool canTransformUnflattenedArrayElementLoadStore = TR::Compiler->om.isValueTypeArrayFlatteningEnabled() ? false : true;
       if (!canTransformUnflattenedArrayElementLoadStore &&
           arrayConstraint &&
-          (isCompTypePrimVT == TR_yes) &&
+          (isNullRestrictedArray == TR_yes) &&
           !TR::Compiler->cls.isValueTypeClassFlattened(arrayConstraint->getClass()))
          {
          canTransformUnflattenedArrayElementLoadStore = true;
          }
 
-      // If the array is known to have a component type that is not a primitive value type or
+      // If the array is not a null-restricted array or
       // the value being stored is known not to be a value type, transform the helper
       // call to a regular aaload or aastore
       bool canTransformIdentityArrayElementLoadStore = false;
-      if ((arrayConstraint != NULL && isCompTypePrimVT == TR_no)
+      if ((arrayConstraint != NULL && isNullRestrictedArray == TR_no)
           || (isStoreFlattenableArrayElement && isStoreValueVT == TR_no))
          {
          canTransformIdentityArrayElementLoadStore = true;
@@ -973,7 +1077,9 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
       bool canTransformFlattenedArrayElementLoadStoreUseTypeHint = false;
       bool canTransformUnflattenedArrayElementLoadStoreUseTypeHint = false;
       bool canTransformIdentityArrayElementLoadStoreUseTypeHint = false;
-      static const char *disableFlattenedArrayElementTypeHintXForm = feGetEnv("TR_DisableFlattenedArrayElementTypeHintXForm");
+      // Disable transformation based on type hint which is no longer sufficient enough
+      // to decide whether the array is null-restricted or not
+      static const char *enableFlattenedArrayElementTypeHintXForm = feGetEnv("TR_EnableFlattenedArrayElementTypeHintXForm");
       static const char *enableUnflattenedArrayElementTypeHintXForm = feGetEnv("TR_EnableUnflattenedArrayElementTypeHintXForm");
       TR_OpaqueClassBlock *typeHintClass = arrayConstraint ? arrayConstraint->getTypeHintClass() : NULL;
 
@@ -991,11 +1097,11 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
             }
 
          if (!canTransformIdentityArrayElementLoadStoreUseTypeHint &&
-             TR::Compiler->cls.isValueTypeClass(hintComponentClass))
+             TR::Compiler->cls.isArrayNullRestricted(comp(), typeHintClass)) //TODO-VALUETYPE: typeHintClass eventually should be the null-restricted array class
             {
             if (TR::Compiler->cls.isValueTypeClassFlattened(hintComponentClass))
                {
-               if (!disableFlattenedArrayElementTypeHintXForm)
+               if (enableFlattenedArrayElementTypeHintXForm)
                   {
                   if (isLoadFlattenableArrayElement)
                      {
@@ -1013,6 +1119,10 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
 
                         // If the value that's being stored is not the same as the array hint component type, use helper call.
                         canTransformFlattenedArrayElementLoadStoreUseTypeHint = (isInstanceOfHintComponentType == TR_yes);
+                        }
+                     else if (trace())
+                        {
+                        traceMsg(comp(), "%s: n%dn %s valueClass is NULL storeValueConstraint 0x%p storeValueNode n%dn 0x%p\n", __FUNCTION__, node->getGlobalIndex(), node->getOpCode().getName(), storeValueConstraint, storeValueNode->getGlobalIndex(), storeValueNode);
                         }
                      }
                   }
@@ -1140,40 +1250,51 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
 
             flagsForTransform.set(ValueTypesHelperCallTransform::InsertDebugCounter);
 
-            if (isStoreFlattenableArrayElement && !owningMethodDoesNotContainStoreChecks(this, node))
+            if (isStoreFlattenableArrayElement)
                {
                // Determine whether the value is being copied from the same array that is the target
                // of the array element store.  If so, there's no need for an ArrayStoreCHK or a call
                // to the <nonNullableArrayNullStoreCheck> non-helper.
                //
-               TR::Node *storeValueBaseNode = getStoreValueBaseNode(storeValueNode, loadFlattenableElementSymRef);
+               TR::Node *storeValueBaseNode = getStoreValueBaseNode(storeValueNode, symRefTab);
 
                // If the value was loaded from the same array that is the target of the store, no need
                // to perform ArrayStoreCHK or a call to the <nonNullableArrayNullStoreCheck> non-helper
                //
                if (storeValueBaseNode == NULL || getValueNumber(storeValueBaseNode) != getValueNumber(arrayRefNode))
                   {
-                  // If storing to an array whose component type is or might be a primitive value
-                  // type and the value that's being assigned is or might be null, both a run-time
+                  // If storing to an array that is or might be null-restricted
+                  // and the value that's being assigned is or might be null, both a run-time
                   // NULLCHK of the value is required (guarded by a check of whether the
                   // component type is a value type) and an ArrayStoreCHK are required;
                   // otherwise, only the ArrayStoreCHK is required.
                   //
                   bool mustFail = false;
-                  if (isArrayStoreCheckNeeded(arrayRefNode, storeValueNode, mustFail, storeClassForCheck, componentClassForCheck))
+                  if (!owningMethodDoesNotContainStoreChecks(this, node) &&
+                     isArrayStoreCheckNeeded(arrayRefNode, storeValueNode, mustFail, storeClassForCheck, componentClassForCheck))
                      {
                      flagsForTransform.set(ValueTypesHelperCallTransform::RequiresStoreCheck);
                      }
 
-                  if ((isCompTypePrimVT != TR_no) && (storeValueConstraint == NULL || !storeValueConstraint->isNonNullObject()))
+                   // If the value being stored is NULL and the destination array is null-restricted at runtime,
+                   // an ArrayStoreException is expected to throw. Therefore, when the array component type is not
+                   // known to be identity type in compilation time, a call to <nonNullableArrayNullStoreCheck> is
+                   // required to check whether a null reference is being stored to a null-restricted array
+                   if ((isNullRestrictedArray != TR_no) &&
+                      (storeValueConstraint == NULL || !storeValueConstraint->isNonNullObject()) &&
+                      !owningMethodDoesNotContainNonNullableArrayNullStoreCheck(this, node))
                      {
                      flagsForTransform.set(ValueTypesHelperCallTransform::RequiresNullValueCheck);
+
+                     const char *counterName = TR::DebugCounter::debugCounterName(comp(), "vt-helper/vp-nullvaluechk/aastore/(%s)/%s/block_%d",
+                                                     comp()->signature(),
+                                                     comp()->getHotnessName(comp()->getMethodHotness()),
+                                                     _curTree->getEnclosingBlock()->getNumber());
+
+                     TR::DebugCounter::prependDebugCounter(comp(), counterName, _curTree);
                      }
                   }
-               }
 
-            if (isStoreFlattenableArrayElement)
-               {
                callToTransform =
                      new (trStackMemory()) ArrayElementStoreHelperCallTransform(_curTree, node, flagsForTransform, arrayLength, NULL,
                                                  storeClassForCheck, componentClassForCheck);
@@ -1191,36 +1312,33 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
             TR_OpaqueClassBlock *storeClassForCheck = NULL;
             TR_OpaqueClassBlock *componentClassForCheck = NULL;
 
-            if (isStoreFlattenableArrayElement && !owningMethodDoesNotContainStoreChecks(this, node))
+            if (isStoreFlattenableArrayElement)
                {
-               TR::Node *storeValueBaseNode = getStoreValueBaseNode(storeValueNode, loadFlattenableElementSymRef);
+               TR::Node *storeValueBaseNode = getStoreValueBaseNode(storeValueNode, symRefTab);
 
                // If the value was loaded from the same array that is the target of the store, no need
                // to perform ArrayStoreCHK or a call to the <nonNullableArrayNullStoreCheck> non-helper
                //
                if (storeValueBaseNode == NULL || getValueNumber(storeValueBaseNode) != getValueNumber(arrayRefNode))
                   {
-                  // If storing to an array whose component type is or might be a primitive value
-                  // type and the value that's being assigned is or might be null, both a run-time
-                  // NULLCHK of the value is required (guarded by a check of whether the
-                  // component type is a value type) and an ArrayStoreCHK are required;
-                  // otherwise, only the ArrayStoreCHK is required.
-                  //
+                  // If storing to an array that is or might be null restricted and the value that's being assigned
+                  // is or might be null, a call to <nonNullableArrayNullStoreCheck> is required to check whether
+                  // a null reference is being stored to a null-restricted array
                   bool mustFail = false;
-                  if (isArrayStoreCheckNeeded(arrayRefNode, storeValueNode, mustFail, storeClassForCheck, componentClassForCheck))
+                  if (!owningMethodDoesNotContainStoreChecks(this, node) &&
+                     isArrayStoreCheckNeeded(arrayRefNode, storeValueNode, mustFail, storeClassForCheck, componentClassForCheck))
                      {
                      flagsForTransform.set(ValueTypesHelperCallTransform::RequiresStoreCheck);
                      }
 
-                  if (canTransformUnflattenedArrayElementLoadStoreUseTypeHint && (!storeValueConstraint || !storeValueConstraint->isNonNullObject()))
+                  //TODO: Require the <nonNullableArrayNullStoreCheck> non-helper if !canSkipNonNullableArrayNullValueChecks(...)
+                  if (canTransformUnflattenedArrayElementLoadStoreUseTypeHint &&
+                     (!storeValueConstraint || !storeValueConstraint->isNonNullObject()))
                      {
                      flagsForTransform.set(ValueTypesHelperCallTransform::RequiresNullValueCheck);
                      }
                   }
-               }
 
-            if (isStoreFlattenableArrayElement)
-               {
                callToTransform =
                      new (trStackMemory()) ArrayElementStoreHelperCallTransform(_curTree, node, flagsForTransform, arrayLength, typeHintClass, storeClassForCheck, componentClassForCheck);
                }
@@ -1232,6 +1350,29 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
             }
 
          _valueTypesHelperCallsToBeFolded.add(callToTransform);
+
+         // After the transformations using type hint (canTransform*UseTypeHint), the IL trees will contain
+         // the helper calls (jit{Load|Store}FlattenableArrayElement) to prevent the calls from being transformed
+         // more than once in VP. Therefore, the non-helper calls should be converted into helper calls here.
+         //
+         // After other transformations that do not rely on type hint, there will be no more helper calls.
+         // No need to do any non-helper to helper call conversions here.
+         //
+         // For un-transformed non-helper calls, the non-helper calls will be eventually converted into
+         // helper calls in Optimizer tree lowering.
+         if ((canTransformFlattenedArrayElementLoadStoreUseTypeHint ||
+              canTransformUnflattenedArrayElementLoadStoreUseTypeHint ||
+              canTransformIdentityArrayElementLoadStoreUseTypeHint))
+            {
+            if (isLoadFlattenableArrayElement)
+               {
+               node->setSymbolReference(loadFlattenableElementHelperSymRef);
+               }
+            else // isStoreFlattenableArrayElement
+               {
+               node->setSymbolReference(storeFlattenableElementHelperSymRef);
+               }
+            }
          }
       else
          {
@@ -1245,11 +1386,11 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
             {
             reason = "no-array-constraint";
             }
-         else if (isCompTypePrimVT == TR_yes)
+         else if (isNullRestrictedArray == TR_yes)
             {
             reason = "comp-type-is-vt";
             }
-         else if (isCompTypePrimVT == TR_maybe)
+         else if (isNullRestrictedArray == TR_maybe)
             {
             reason = "comp-type-may-be-vt";
             }
@@ -1544,13 +1685,107 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
             }
          break;
          }
-      case TR::java_lang_Class_getComponentType:
+      case TR::java_lang_Class_isValue:
+      case TR::java_lang_Class_isIdentity:
          {
          TR::Node *classChild = node->getLastChild();
          bool classChildGlobal;
          TR::VPConstraint *classChildConstraint = getConstraint(classChild, classChildGlobal);
-         if (classChildConstraint && classChildConstraint->isJavaLangClassObject() == TR_yes
+
+         // If the class is known for a call to Class.isValue or
+         // Class.isIdentity, fold it at compile-time.  Otherwise, inline a test of the
+         // class flags
+         //
+         if (classChildConstraint
+             && classChildConstraint->isJavaLangClassObject() == TR_yes
              && classChildConstraint->isNonNullObject()
+             && classChildConstraint->getClassType()
+             && classChildConstraint->getClassType()->asFixedClass())
+            {
+            TR_OpaqueClassBlock *thisClass = classChildConstraint->getClass();
+
+            const int queryResult = ((rm == TR::java_lang_Class_isValue) && TR::Compiler->cls.isValueTypeClass(thisClass))
+                                     || ((rm == TR::java_lang_Class_isIdentity) && TR::Compiler->cls.classHasIdentity(thisClass));
+            transformCallToIconstInPlaceOrInDelayedTransformations(_curTree, queryResult, classChildGlobal, true, false);
+            TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "constrainCall/(%s)", signature));
+            }
+         else if (classChildConstraint
+                  && classChildConstraint->isJavaLangClassObject() == TR_yes
+                  && classChildConstraint->isNonNullObject())
+            {
+            // Consider two cases:
+            //
+            // (i)  The operand is an instance of java.lang.Class indirectly loaded through a vft.  In that case,
+            //      we can work with the vft directly
+            // (ii) The operand is definitely a non-null instance of java.lang.Class.  In that case, load the
+            //      J9Class from the java.lang.Class by way of <classFromJavaLangClass>
+            //
+            // The result of Class.isValueType() and Class.isIdentity() can then be determined by checking
+            // the corresponding bit in the classFlags field.
+            //
+            TR::SymbolReference *symRef = classChild->getOpCode().hasSymbolReference() ? classChild->getSymbolReference() : NULL;
+            TR::Node *classOperand = NULL;
+
+            if ((symRef != NULL) && (symRef == comp()->getSymRefTab()->findJavaLangClassFromClassSymbolRef()))
+               {
+               classOperand = classChild->getFirstChild();
+               }
+            else
+               {
+               classOperand = TR::Node::createWithSymRef(TR::aloadi, 1, 1, classChild,
+                                                      comp()->getSymRefTab()->findOrCreateClassFromJavaLangClassSymbolRef());
+               }
+
+            TR::Node *testFlagsNode = NULL;
+            TR::ILOpCodes testFlagsCompareOp;
+
+            switch (rm)
+               {
+               case TR::java_lang_Class_isValue:
+                  {
+                  testFlagsNode = comp()->fej9()->testIsClassValueType(classOperand);
+                  break;
+                  }
+               case TR::java_lang_Class_isIdentity:
+                  {
+                  testFlagsNode = comp()->fej9()->testIsClassIdentityType(classOperand);
+                  break;
+                  }
+               default:
+                  {
+                  TR_ASSERT_FATAL(false, "%s:  How did we get here?\n", __FUNCTION__);
+                  break;
+                  }
+               }
+
+            // The testIsClass*Type methods will produce IL whose result is zero if the specified
+            // flags(s) are not set, and non-zero if any of the specified flag(s) are set;
+            // compare the result to zero to force the result to be zero or one.
+            //
+            TR::Node *inlineFlagsTest = TR::Node::create(node, TR::icmpne, 2, testFlagsNode, TR::Node::iconst(node, 0));
+            transformCallToNodeDelayedTransformations(_curTree, inlineFlagsTest, false);
+            }
+
+         break;
+         }
+      case TR::java_lang_Class_getComponentType:
+         {
+         // Constrain the call in the last run of vp to avoid adding the transformation twice if the call is inside a loop.
+         if (!lastTimeThrough())
+            return;
+
+         TR::Node *classChild = node->getLastChild();
+         bool classChildGlobal;
+         TR::VPConstraint *classChildConstraint = getConstraint(classChild, classChildGlobal);
+         bool isNonNullJavaLangClass = classChildConstraint
+                                       && classChildConstraint->isJavaLangClassObject() == TR_yes
+                                       && classChildConstraint->isNonNullObject();
+
+         // If the specific Class is known and is non-null, the result of Class.getComponentType()
+         // is known statically - either the component type, if the Class is an array class or
+         // the null reference if the Class is not an array class
+         //
+         if (isNonNullJavaLangClass
              && classChildConstraint->getClassType()
              && classChildConstraint->getClassType()->asFixedClass())
             {
@@ -1605,6 +1840,117 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
                TR::DebugCounter::incStaticDebugCounter(comp(), TR::DebugCounter::debugCounterName(comp(), "constrainCall/(%s)", signature));
                return;
                }
+            }
+         else if (isNonNullJavaLangClass)
+            {
+            if (!performTransformation(comp(), "%sTransforming %s on node %p to load component type inline\n", OPT_DETAILS, signature, node))
+               break;
+
+            // Consider two cases:
+            //
+            // (i)  The operand is an instance of java.lang.Class indirectly loaded through a vft.  In that case,
+            //      we can work with the vft directly
+            // (ii) The operand is definitely a non-null instance of java.lang.Class.  In that case, load the
+            //      J9Class from the java.lang.Class by way of <classFromJavaLangClass>
+            //
+
+            TR::SymbolReference *symRef = classChild->getOpCode().hasSymbolReference() ? classChild->getSymbolReference() : NULL;
+            TR::SymbolReference *jlcFromClassSymRef = comp()->getSymRefTab()->findOrCreateJavaLangClassFromClassSymbolRef();
+            TR::Node *classOperand = NULL;
+
+            if ((symRef != NULL) && (symRef == jlcFromClassSymRef))
+               {
+               classOperand = classChild->getFirstChild();
+               }
+            else
+               {
+               classOperand = TR::Node::createWithSymRef(TR::aloadi, 1, 1, classChild,
+                                 comp()->getSymRefTab()->findOrCreateClassFromJavaLangClassSymbolRef());
+               }
+
+            TR::Node *loadComponentTypeNode = comp()->fej9()->loadArrayClassComponentType(classOperand);
+            TR::Node *jlcOfComponentTypeNode = NULL;
+
+            if ((classChildConstraint == NULL)
+                || (classChildConstraint->getClassType() == NULL)
+                || !comp()->fej9()->isClassArray(classChildConstraint->getClass()))
+               {
+               // Generate IL of the following form, inlining Class.getComponentType()
+               // without control flow:
+               //
+               //    n99n aselect
+               //    n98n   icmpne
+               //    n97n     iand
+               //    n96n       l2i
+               //    n95n         lloadi <classDepthAndFlags>
+               //    n94n           aloadi <vft> (or aloadi <classFromJavaLangClass>)
+               //    n93n       iconst 0x10000
+               //    n92n     iconst 0
+               //    n91n   aloadi <javaLangClassFromClass>
+               //    n90n     aselect
+               //    n98n       ==> icmpne
+               //    n89n       aloadi <componentClass>
+               //    n94n         ==> aloadi <vft> (or aloadi <classFromJavaLangClass>)
+               //    n94n       ==> aloadi <vft> (or aloadi <classFromJavaLangClass>)
+               //    n88n   aconst NULL
+               //
+               // Note that the same condition testing whether the class is an array
+               // class applies to both aselect operations.  If it is an array, the
+               // <componentClass> field of the j9ArrayClass is loaded, and then the
+               // corresponding java/lang/Class is returned; if it is not an array, a
+               // null reference results.
+               //
+               // Note further that both operands of an aselect are always evaluated,
+               // so if the class is not an array class, whatever bits appear
+               // at the offset of <componentClass> will be loaded for the second
+               // operand of the inner aselect (node n89n, in the example above), but
+               // the result of that aselect in that case will be the j9class for the
+               // original class, which is the third operand of the inner aselect.  That
+               // ensures that the aloadi <javaLangClassFromClass> (node n91n) has a
+               // valid j9Class to operate on regardless of whether the original operand
+               // was an array class, but the result of that aloadi is discarded if the
+               // class was not an array class.
+               //
+
+
+               // Assert that overlaying a J9Class instance with the layout of
+               // J9ArrayClass and loading the J9ArrayClass.componentType field will not
+               // access memory that is beyond the end of the J9Class.  This inline IL
+               // generated for Class.getComponentType() relies on that.
+               //
+               static_assert(sizeof(J9Class) >= offsetof(J9ArrayClass, componentType)
+                                                   + sizeof(J9ArrayClass::componentType),
+                             "The J9ArrayClass.componentType field must be within the size of J9Class");
+
+               TR::Node *testIsArrayClassNode =
+                     TR::Node::create(node, TR::icmpne, 2,
+                        comp()->fej9()->testIsClassArrayType(classOperand),
+                        TR::Node::iconst(node, 0));
+               loadComponentTypeNode =
+                  TR::Node::create(TR::aselect, 3,
+                                   testIsArrayClassNode,
+                                   loadComponentTypeNode,
+                                   classOperand);
+               loadComponentTypeNode =
+                  TR::Node::createWithSymRef(node, TR::aloadi, 1, loadComponentTypeNode, jlcFromClassSymRef);
+               jlcOfComponentTypeNode =
+                  TR::Node::create(TR::aselect, 3,
+                                   testIsArrayClassNode,
+                                   loadComponentTypeNode,
+                                   TR::Node::aconst(node, 0));
+               }
+            else
+               {
+               // Class is known to be an array, but actual component type is not
+               // statically known.  Simply load java/lang/Class from component
+               // type's j9Class
+               //
+               jlcOfComponentTypeNode =
+                  TR::Node::createWithSymRef(node, TR::aloadi, 1, loadComponentTypeNode, jlcFromClassSymRef);
+               }
+
+            transformCallToNodeDelayedTransformations(_curTree, jlcOfComponentTypeNode, false);
+            return;
             }
          break;
          }
@@ -1709,7 +2055,24 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
             return;
          break;
          }
-
+      case TR::java_lang_StringLatin1_indexOfChar:
+      case TR::java_lang_StringUTF16_indexOfCharUnsafe:
+         {
+         TR::Node *sourceStringNode = node->getFirstChild();
+         TR::Node *targetCharNode = node->getSecondChild();
+         TR::Node *startNode = node->getChild(2);
+         TR::Node *lengthNode = node->getChild(3);
+         bool is16Bit = rm == TR::java_lang_StringUTF16_indexOfCharUnsafe;
+         if (transformIndexOfKnownString(
+               node,
+               sourceStringNode,
+               targetCharNode,
+               startNode,
+               lengthNode,
+               is16Bit))
+            return;
+         break;
+         }
       default:
          break;
       }
@@ -1721,6 +2084,13 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
          {
          case TR::java_lang_invoke_MethodHandle_asType:
             {
+#if defined(J9VM_OPT_JITSERVER)
+            // The J9VMJAVALANG macros used later
+            // will access vm information which is not available on the JITServer,
+            // bypass in this case to prevent an invalid class pointer being retrieved
+            if (comp()->isOutOfProcessCompilation())
+               break;
+#endif // J9VM_OPT_JITSERVER
             TR::Node* mh = node->getArgument(0);
             TR::Node* mt = node->getArgument(1);
             bool mhConstraintGlobal, mtConstraintGlobal;
@@ -1772,6 +2142,13 @@ J9::ValuePropagation::constrainRecognizedMethod(TR::Node *node)
 #if defined(J9VM_OPT_METHOD_HANDLE)
          case TR::java_lang_invoke_PrimitiveHandle_initializeClassIfRequired:
             {
+#if defined(J9VM_OPT_JITSERVER)
+            // The macro J9VMJAVALANGINVOKEPRIMITIVEHANDLE used later
+            // will access vm information which is not available on the JITServer,
+            // bypass in this case to prevent an invalid class pointer being retrieved
+            if (comp()->isOutOfProcessCompilation())
+               break;
+#endif // J9VM_OPT_JITSERVER
             TR::Node* mh = node->getArgument(0);
             bool mhConstraintGlobal;
             TR::VPConstraint* mhConstraint = getConstraint(mh, mhConstraintGlobal);
@@ -2296,8 +2673,9 @@ J9::ValuePropagation::transformFlattenedArrayElementStore(TR_OpaqueClassBlock *a
    // The value that is being stored into the array element has to be non null.
    if (needsNullValueCheck)
       {
-      TR::Node *passThru  = TR::Node::create(callNode, TR::PassThrough, 1, valueNode);
-      TR::Node *nullCheck = TR::Node::createWithSymRef(callNode, TR::NULLCHK, 1, passThru, comp()->getSymRefTab()->findOrCreateNullCheckSymbolRef(comp()->getMethodSymbol()));
+      TR::Node *isNonNull = TR::Node::create(callNode, TR::acmpne, 2, valueNode, TR::Node::aconst(0));
+      TR::Node *nullCheck = TR::Node::createWithSymRef(callNode, TR::ZEROCHK, 1, isNonNull,
+                                  comp()->getSymRefTab()->findOrCreateArrayStoreExceptionSymbolRef(comp()->getMethodSymbol()));
       callTree->insertBefore(TR::TreeTop::create(comp(), nullCheck));
       if (trace())
          {
@@ -2585,14 +2963,15 @@ J9::ValuePropagation::transformUnflattenedArrayElementLoadStoreUseTypeHint(TR_Op
 TR_YesNoMaybe
 J9::ValuePropagation::isArrayElementFlattened(TR::VPConstraint *arrayConstraint)
    {
-   if (!TR::Compiler->om.areValueTypesEnabled())
+   if (!TR::Compiler->om.areValueTypesEnabled() ||
+       !TR::Compiler->om.isValueTypeArrayFlatteningEnabled()) // isValueTypeArrayFlatteningEnabled() checks areFlattenableValueTypesEnabled()
       {
       return TR_no;
       }
 
-   TR_YesNoMaybe isCompTypePrimVT = isArrayCompTypePrimitiveValueType(arrayConstraint);
+   TR_YesNoMaybe isNullRestrictedArray = isArrayNullRestricted(arrayConstraint);
 
-   if (isCompTypePrimVT == TR_yes)
+   if (isNullRestrictedArray == TR_yes)
       {
       TR_OpaqueClassBlock *arrayClass = arrayConstraint->getClass();
       if (TR::Compiler->cls.isValueTypeClassFlattened(arrayClass))
@@ -2606,72 +2985,71 @@ J9::ValuePropagation::isArrayElementFlattened(TR::VPConstraint *arrayConstraint)
       }
 
    // Return TR_maybe or TR_no
-   return isCompTypePrimVT;
+   return isNullRestrictedArray;
    }
 
 TR_YesNoMaybe
-J9::ValuePropagation::isArrayCompTypePrimitiveValueType(TR::VPConstraint *arrayConstraint)
+J9::ValuePropagation::isArrayNullRestricted(TR::VPConstraint *arrayConstraint)
    {
-   if (!TR::Compiler->om.areValueTypesEnabled())
+   if (!TR::Compiler->om.areValueTypesEnabled() ||
+       !TR::Compiler->om.areFlattenableValueTypesEnabled()) // Only null-restricted arrays are flattenable
       {
       return TR_no;
       }
 
    // If there's no constraint for the array operand, or no information
    // is available about the class of the array, or the operand is not
-   // even definitely known to be an array, VP has to assume that it might
-   // have a component type that is a primitive value type
+   // even definitely known to be an array, VP has to assume that the array
+   // might be null-restricted
    //
    if (!(arrayConstraint && arrayConstraint->getClass()
               && arrayConstraint->getClassType()->isArray() == TR_yes))
       {
+      if (trace())
+         traceMsg(comp(), "%s: return TR_maybe. arrayConstraint %p\n", __FUNCTION__, arrayConstraint);
       return TR_maybe;
+      }
+
+   TR_OpaqueClassBlock *arrayClass = arrayConstraint->getClass();
+
+   if (TR::Compiler->cls.isArrayNullRestricted(comp(), arrayClass))
+      {
+      if (trace())
+         traceMsg(comp(), "%s: return TR_yes. arrayClass %p\n", __FUNCTION__, arrayClass);
+      return TR_yes;
       }
 
    TR_OpaqueClassBlock *arrayComponentClass = fe()->getComponentClassFromArrayClass(arrayConstraint->getClass());
 
-   // Cases to consider:
-   //
-   //   - Is no information available about the component type of the array?
-   //     If not, assume it might be a primitive value type.
-   //   - Is the component type definitely a identity type?
-   //   - Is the component type definitely a primitive value type?
-   //   - Is the component type definitely a value type, but not primitive?
-   //   - Is the component type either an abstract class or an interface
-   //     (i.e., not a concrete class)?  If so, it might be a value type.
-   //   - Is the array an array of java/lang/Object?  See below.
-   //   - Otherwise, it must be a concrete class known not to be a value
-   //     type
-   //
    if (!arrayComponentClass)
       {
+      if (trace())
+         traceMsg(comp(), "%s: return TR_maybe. arrayComponentClass NULL\n", __FUNCTION__);
       return TR_maybe;
-      }
-
-   // No need to check array class type because array classes should be marked as having identity.
-   if (TR::Compiler->cls.classHasIdentity(arrayComponentClass))
-      {
-      return TR_no;
-      }
-
-   if (TR::Compiler->cls.isPrimitiveValueTypeClass(arrayComponentClass))
-      {
-      return TR_yes;
-      }
-
-   if (TR::Compiler->cls.isValueTypeClass(arrayComponentClass))
-      {
-      return TR_no;
       }
 
    if (!TR::Compiler->cls.isConcreteClass(comp(), arrayComponentClass))
       {
-      return TR_maybe;
+      // Interface shouldn't have identity flag set and it can be implemented by both
+      // value class and identity class.
+      // If abstract class has identity flag set, it cannot be extended by value class.
+      if (TR::Compiler->cls.classHasIdentity(arrayComponentClass))
+         {
+         if (trace())
+            traceMsg(comp(), "%s: return TR_no. abstract classHasIdentity\n", __FUNCTION__);
+         return TR_no;
+         }
+      else
+         {
+         if (trace())
+            traceMsg(comp(), "%s: return TR_maybe. Not concrete class\n", __FUNCTION__);
+         return TR_maybe;
+         }
       }
 
    int32_t len;
    const char *sig = arrayConstraint->getClassSignature(len);
-
+   TR_YesNoMaybe ret;
    // If the array is an array of java/lang/Object, and it is fixed to
    // that type, the component type is not a value type (though it
    // can still hold references to instances of value types).  If it is
@@ -2681,14 +3059,20 @@ J9::ValuePropagation::isArrayCompTypePrimitiveValueType(TR::VPConstraint *arrayC
    if (sig && sig[0] == '[' && len == 19
        && !strncmp(sig, "[Ljava/lang/Object;", 19))
       {
-      return (arrayConstraint->isFixedClass()) ? TR_no : TR_maybe;
+      ret = (arrayConstraint->isFixedClass()) ? TR_no : TR_maybe;
+      if (trace())
+         traceMsg(comp(), "%s: return %s. java.lang.Object\n", __FUNCTION__, comp()->getDebug()->getName(ret));
+      return ret;
       }
 
    // If we get to this point, we know this is not an array of
    // java/lang/Object, and we know the component must be a concrete
-   // class that is not a value type.
+   // class.
    //
-   return TR_no;
+   ret = TR::Compiler->cls.classHasIdentity(arrayComponentClass) ? TR_no : TR_maybe;
+   if (trace())
+      traceMsg(comp(), "%s: return %s. Concrete class\n", __FUNCTION__, comp()->getDebug()->getName(ret));
+   return ret;
    }
 
 void
@@ -2783,7 +3167,7 @@ J9::ValuePropagation::transformVTObjectEqNeCompare(TR_OpaqueClassBlock *containi
        * n101n        aladd
        * n36n           aload  ACMPWideFieldsPrimitive.VALUE1 QWideFieldsPrimitive;
        * n99n           ==>lconst 4
-       * n98n         iconst 12
+       * n98n         lconst 12
        * n102n      iconst 0
        */
       int32_t totalFieldSize = 0;
@@ -2795,7 +3179,7 @@ J9::ValuePropagation::transformVTObjectEqNeCompare(TR_OpaqueClassBlock *containi
          totalFieldSize += TR::DataType::getSize(fieldEntry._datatype);
          }
 
-      TR::Node *totalFieldSizeNode = TR::Node::iconst(callNode, totalFieldSize);
+      TR::Node *totalFieldSizeNode = TR::Node::lconst(callNode, totalFieldSize);
 
       TR::Node * lhsOffsetNode = NULL;
       TR::Node * rhsOffsetNode = NULL;
@@ -2905,6 +3289,22 @@ J9::ValuePropagation::doDelayedTransformations()
       }
    _callsToBeFoldedToNode.deleteAll();
 
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+   // Transform Unsafe.copyMemory in OffHeap
+   if (TR::Compiler->om.isOffHeapAllocationEnabled())
+      {
+      ListIterator<TR_TreeTopNodePair> copyMemoryIt(&_offHeapCopyMemory);
+      TR_TreeTopNodePair *copyMemoryPair;
+      for (copyMemoryPair = copyMemoryIt.getFirst();
+         copyMemoryPair; copyMemoryPair = copyMemoryIt.getNext())
+         {
+         if (performTransformation(comp(), "O^O Call arraycopy instead of Unsafe.copyMemory: %p\n", copyMemoryPair->_node))
+            TR::TransformUtil::transformUnsafeCopyMemorytoArrayCopyForOffHeap(self()->comp(), copyMemoryPair->_treetop, copyMemoryPair->_node);
+         }
+      _offHeapCopyMemory.deleteAll();
+      }
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
+
    // Process transformations for calls to value types helpers or non-helpers
    ListIterator<ValueTypesHelperCallTransform> valueTypesHelperCallsToBeFolded(&_valueTypesHelperCallsToBeFolded);
 
@@ -2937,7 +3337,7 @@ J9::ValuePropagation::doDelayedTransformations()
                             OPT_DETAILS,
                             callNode->getGlobalIndex(),
                             isInlineVTCompare ? "icall of <object{Inequality|Equality}Comparison>"
-                                 : (isLoad ? "acall of <jitLoadFlattenableArrayElement>" : "acall of <jitStoreFlattenableArrayElement>")))
+                                 : (isLoad ? "acall of <loadFlattenableArrayElementNonHelper>" : "call of <storeFlattenableArrayElementNonHelper>")))
          {
          continue;
          }
@@ -3228,6 +3628,26 @@ J9::ValuePropagation::getParmValues()
          bool isClassErased = false;
 
          TR_OpaqueClassBlock *opaqueClass = parmIterator->getOpaqueClass();
+
+         if (opaqueClass &&
+             parmIterator->isArray() &&
+             TR::Compiler->om.areFlattenableValueTypesEnabled())
+            {
+            TR_OpaqueClassBlock *arrayComponentClass = comp()->fej9()->getComponentClassFromArrayClass(opaqueClass);
+            uint32_t len = 0;
+            char *classSig = parmIterator->getUnresolvedJavaClassSignature(len);
+
+            // Both regular nullable array and null-restricted array have the same signature.
+            // If the array component class is not an identity type, the array might either be
+            // a null-restricted array or a nullable array. Therefore, we can't trust the array
+            // class returned by the signature.
+            if (!TR::Compiler->cls.classHasIdentity(arrayComponentClass) ||
+                (len == 19 && !strncmp(classSig, "[Ljava/lang/Object;", 19)))
+               {
+               opaqueClass = NULL;
+               }
+            }
+
          if (opaqueClass)
             {
             TR_OpaqueClassBlock *prexClass = NULL;
@@ -3381,9 +3801,28 @@ bool J9::ValuePropagation::isUnreliableSignatureType(
       return false;
 
    int32_t numDims = 0;
+   TR_OpaqueClassBlock *originClass = klass;
    klass = comp()->fej9()->getBaseComponentClass(klass, numDims);
+
    if (!TR::Compiler->cls.isInterfaceClass(comp(), klass))
-      return false;
+      {
+      // If the original class is an array class and it is not a null-restricted array,
+      // we can not trust its type as a nullable array because it can either be a nullable
+      // array class type or a null-restricted array type.
+      // TODO-VALUETYPE: However, if in the future Value Propagation constraints are able
+      // to distinguish between nullable and null-restricted arrays, this test can change.
+      if (TR::Compiler->om.areFlattenableValueTypesEnabled() &&
+         (numDims > 0) &&
+         TR::Compiler->cls.isValueTypeClass(klass) &&
+         !TR::Compiler->cls.isArrayNullRestricted(comp(), originClass))
+         {
+         // Do nothing here and will be handled next like an interface array
+         }
+      else
+         {
+         return false;
+         }
+      }
 
    // Find the best array type that we can guarantee based on an
    // array-of-interface signature.
@@ -3410,7 +3849,55 @@ bool J9::ValuePropagation::isUnreliableSignatureType(
    return true;
    }
 
-static void getHelperSymRefs(OMR::ValuePropagation *vp, TR::Node *curCallNode, TR::SymbolReference *&getHelpersSymRef, TR::SymbolReference *&helperSymRef, char *helperSig, int32_t helperSigLen, TR::MethodSymbol::Kinds helperCallKind)
+bool J9::ValuePropagation::canArrayClassBeTrustedAsFixedClass(TR_OpaqueClassBlock *arrayClass, TR_OpaqueClassBlock *componentClass)
+   {
+   if (TR::Compiler->om.areFlattenableValueTypesEnabled() &&
+       !TR::Compiler->cls.isArrayNullRestricted(comp(), arrayClass) && // If the array is null-restricted array, we know it is a fixed class
+       TR::Compiler->cls.isValueTypeClass(componentClass))
+      return false;
+
+   return true;
+   }
+
+bool J9::ValuePropagation::canClassBeTrustedAsFixedClass(TR::SymbolReference *symRef, TR_OpaqueClassBlock *classObject)
+   {
+   if (!TR::Compiler->om.areFlattenableValueTypesEnabled())
+      return true;
+
+   if (!classObject && symRef && symRef->getSymbol()->isClassObject())
+      {
+      if (!symRef->isUnresolved())
+         {
+         classObject = (TR_OpaqueClassBlock*)symRef->getSymbol()->getStaticSymbol()->getStaticAddress();
+         }
+      else
+         {
+         int32_t len;
+         const char *name = TR::Compiler->cls.classNameChars(comp(), symRef, len);
+         char *sig = TR::Compiler->cls.classNameToSignature(name, len, comp());
+         classObject = fe()->getClassFromSignature(sig, len, symRef->getOwningMethod(comp()));
+         }
+      }
+
+   if (classObject)
+      {
+      // If null-restricted array is enabled and the class is an array class, the null-restricted array
+      // class and the nullable array class share the same signature. The null-restricted array can be
+      // viewed as a sub-type of the nullable array. Therefore, if the array is not a null-restricted array,
+      // it can't be trusted as a fixed class.
+      int32_t numDims = 0;
+      TR_OpaqueClassBlock *klass = comp()->fej9()->getBaseComponentClass(classObject, numDims);
+
+      if ((numDims > 0) &&
+          !TR::Compiler->cls.isArrayNullRestricted(comp(), classObject) && // If the array is null-restricted array, we know it is a fixed class
+          TR::Compiler->cls.isValueTypeClass(klass))
+         return false;
+      }
+
+   return true;
+   }
+
+static void getHelperSymRefs(OMR::ValuePropagation *vp, TR::Node *curCallNode, TR::SymbolReference *&getHelpersSymRef, TR::SymbolReference *&helperSymRef, const char *helperSig, int32_t helperSigLen, TR::MethodSymbol::Kinds helperCallKind)
    {
    //Function to retrieve the JITHelpers.getHelpers and JITHelpers.<helperSig> method symbol references.
    //
@@ -3561,10 +4048,14 @@ J9::ValuePropagation::innerConstrainAcall(TR::Node *node)
          method->getRecognizedMethod() == TR::jdk_internal_vm_vector_VectorSupport_ternaryOp;
          bool isVectorSupportCompare =
          method->getRecognizedMethod() == TR::jdk_internal_vm_vector_VectorSupport_compare;
+         bool isVectorSupportCompressExpandOp =
+         method->getRecognizedMethod() == TR::jdk_internal_vm_vector_VectorSupport_compressExpandOp;
          bool isVectorSupportConvert =
          method->getRecognizedMethod() == TR::jdk_internal_vm_vector_VectorSupport_convert;
          bool isVectorSupportBlend =
          method->getRecognizedMethod() == TR::jdk_internal_vm_vector_VectorSupport_blend;
+         bool isVectorSupportBroadcastInt =
+         method->getRecognizedMethod() == TR::jdk_internal_vm_vector_VectorSupport_broadcastInt;
 
          if (isVectorSupportLoad ||
              isVectorSupportBinaryOp ||
@@ -3572,8 +4063,10 @@ J9::ValuePropagation::innerConstrainAcall(TR::Node *node)
              isVectorSupportUnaryOp ||
              isVectorSupportTernaryOp ||
              isVectorSupportCompare ||
+             isVectorSupportCompressExpandOp ||
              isVectorSupportConvert ||
-             isVectorSupportBlend)
+             isVectorSupportBlend ||
+             isVectorSupportBroadcastInt)
             {
             bool isGlobal; // dummy
             int typeChildIndex;
@@ -3588,6 +4081,11 @@ J9::ValuePropagation::innerConstrainAcall(TR::Node *node)
                typeChildIndex = 4;
             else
                typeChildIndex = 1;
+
+            if (isVectorSupportCompressExpandOp &&
+                node->getFirstChild()->getOpCode().isLoadConst() &&
+                node->getFirstChild()->get32bitIntegralValue() == TR_VectorAPIExpansion::VECTOR_OP_MASK_COMPRESS)
+                typeChildIndex = 2;
 
             TR::VPConstraint *jlClass = getConstraint(node->getChild(typeChildIndex), isGlobal);
 
@@ -3734,8 +4232,46 @@ J9::ValuePropagation::innerConstrainAcall(TR::Node *node)
                addGlobalConstraint(node, TR::VPNonNullObject::create(this));
                }
             }
+         else if ((method->getRecognizedMethod() == TR::jdk_internal_value_ValueClass_newArrayInstance) &&
+                  (node->getFirstChild()->getOpCodeValue() == TR::acall))
+            {
+            /*
+             *   n12n   acall  jdk/internal/value/ValueClass.newArrayInstance(Ljdk/internal/value/CheckedType;I)[Ljava/lang/Object;
+             *   n9n      acall  jdk/internal/value/NullRestrictedCheckedType.of(Ljava/lang/Class;)Ljdk/internal/value/NullRestrictedCheckedType;
+             *   n8n        aloadi  <javaLangClassFromClass>
+             *   n7n          loadaddr  SomeValueClass
+             *   n11n     iload  Test.ARRAY_SIZE
+             */
+            bool isGlobal;
+            TR::Node *firstChildAcallNode = node->getFirstChild();
+            constraint = getConstraint(firstChildAcallNode, isGlobal);
+
+            if (constraint &&
+                constraint->isFixedClass() &&
+                firstChildAcallNode->getSymbol()->isResolvedMethod() &&
+                (firstChildAcallNode->getSymbol()->getResolvedMethodSymbol()->getRecognizedMethod() == TR::jdk_internal_value_NullRestrictedCheckedType_of))
+               {
+               if (trace())
+                  traceMsg(comp(), "%s: node n%dn its first child fixed class %p is an instance of NullRestrictedCheckedType\n", __FUNCTION__, node->getGlobalIndex(), constraint->getClass());
+
+               constraint = firstChildAcallNode->getFirstChild() ? getConstraint(firstChildAcallNode->getFirstChild(), isGlobal) : NULL;
+               TR_OpaqueClassBlock *arrayComponentClass = (constraint && constraint->isFixedClass()) ? constraint->getClass() : NULL;
+               TR_OpaqueClassBlock *nullRestrictedArrayClass = arrayComponentClass ? fe()->getNullRestrictedArrayClassFromComponentClass(arrayComponentClass) : NULL;
+
+               if (trace())
+                  traceMsg(comp(), "%s: node n%dn arrayComponentClass %p nullRestrictedArrayClass %p\n", __FUNCTION__, node->getGlobalIndex(), arrayComponentClass, nullRestrictedArrayClass);
+
+               if (nullRestrictedArrayClass)
+                  {
+                  TR::VPConstraint *newConstraint = TR::VPFixedClass::create(this, nullRestrictedArrayClass);
+                  addBlockOrGlobalConstraint(node, newConstraint, isGlobal);
+                  addGlobalConstraint(node, TR::VPNonNullObject::create(this));
+                  return node;
+                  }
+               }
+            }
          }
-      else
+      else // if (!node->getOpCode().isIndirect())
          {
          if ((method->getRecognizedMethod() == TR::java_math_BigDecimal_add) ||
              (method->getRecognizedMethod() == TR::java_math_BigDecimal_subtract) ||
@@ -3765,7 +4301,7 @@ J9::ValuePropagation::innerConstrainAcall(TR::Node *node)
    if (sig == NULL)  // helper
        return node;
 
-   TR_ASSERT(sig[0] == 'L' || sig[0] == '[' || sig[0] == 'Q', "Ref call return type is not a class");
+   TR_ASSERT(sig[0] == 'L' || sig[0] == '[', "Ref call return type is not a class");
 
    TR::MethodSymbol *symbol = node->getSymbol()->castToMethodSymbol();
    TR_ResolvedMethod *owningMethod = symRef->getOwningMethod(comp());

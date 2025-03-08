@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -254,7 +254,7 @@ private:
 	/**
 	 * Fix up the spine pointers of any arraylet leaf regions
 	 */
-	void fixupArrayletLeafRegionSpinePointers();
+	void fixupArrayletLeafRegionSpinePointers(MM_EnvironmentVLHGC *env);
 	
 	/**
 	 * Fix up the data in required arraylet leaf regions, unfinalized lists and ownable synchronizer lists.
@@ -546,6 +546,14 @@ private:
 	 */
 	void clearClassLoaderRememberedSetsForCompactSet(MM_EnvironmentVLHGC *env);
 	
+	/**
+	 * Determine whether the object pointer is found within the heap proper.
+	 * @return Boolean indicating if the object pointer is within the heap boundaries.
+	 */
+	MMINLINE bool isHeapObject(J9Object *objectPtr)
+	{
+		return (_heapBase <= (uint8_t *)objectPtr) && (_heapTop > (uint8_t *)objectPtr);
+	}
 	/**
 	 * Create a WriteOnceCompactor object.
 	 */

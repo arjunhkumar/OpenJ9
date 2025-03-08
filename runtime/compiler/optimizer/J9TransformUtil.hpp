@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_TRANSFORMUTIL_INCL
@@ -36,6 +36,7 @@ namespace J9 { typedef J9::TransformUtil TransformUtilConnector; }
 #include "optimizer/Optimization.hpp"
 #include "control/RecompilationInfo.hpp"
 
+namespace TR { class AnyConst; }
 namespace TR { class Compilation; }
 namespace TR { class Node; }
 namespace TR { class Block; }
@@ -106,7 +107,7 @@ public:
          TR::Compilation *comp,
          TR::Node *object);
 
-   static bool transformDirectLoad(TR::Compilation *, TR::Node *node);
+   static bool transformDirectLoad(TR::Compilation *comp, TR::Node *node);
 
    /**
     * \brief
@@ -194,9 +195,43 @@ public:
     */
    static TR_YesNoMaybe canFoldStaticFinalField(TR::Compilation *comp, TR::Node *node);
 
+   /**
+    * \brief
+    *    Determine whether a static final field can be folded without a node.
+    *
+    *    The caller must have already checked that the field in question is
+    *    both static and final.
+    *
+    *    If a node is available, prefer
+    *    canFoldStaticFinalField(TR::Compilation*, TR::Node*).
+    *
+    * \param comp the compilation object
+    * \param declaringClass the class that declares the field
+    * \param recField the corresponding recognized field, or UnknownField
+    * \param owningMethod the owning method of the field reference
+    * \param cpIndex the constant pool index of the field reference
+    * \return TR_yes if the field is reliable, TR_maybe if it can be folded
+    *         with OSR protection, or TR_no if it should not be folded.
+    */
+   static TR_YesNoMaybe canFoldStaticFinalField(
+      TR::Compilation *comp,
+      TR_OpaqueClassBlock *declaringClass,
+      TR::Symbol::RecognizedField recField,
+      TR_ResolvedMethod *owningMethod,
+      int32_t cpIndex);
+
+   union value{
+      int32_t i;
+      int64_t l;
+      float f;
+      double d;
+      void *p;
+      TR::KnownObjectTable::Index idx;
+   };
+
    static bool transformIndirectLoadChain(TR::Compilation *, TR::Node *node, TR::Node *baseExpression, TR::KnownObjectTable::Index baseKnownObject, TR::Node **removedNode);
    static bool transformIndirectLoadChainAt(TR::Compilation *, TR::Node *node, TR::Node *baseExpression, uintptr_t *baseReferenceLocation, TR::Node **removedNode);
-   static bool transformIndirectLoadChainImpl( TR::Compilation *, TR::Node *node, TR::Node *baseExpression, void *baseAddress, int32_t baseStableArrayRank, TR::Node **removedNode);
+   static bool transformIndirectLoadChainImpl( TR::Compilation *, TR::Node *node, TR::Node *baseExpression, TR::KnownObjectTable::Index baseKnownObject, void *baseAddress, int32_t baseStableArrayRank, TR::Node **removedNode);
 
    static bool fieldShouldBeCompressed(TR::Node *node, TR::Compilation *comp);
 
@@ -293,26 +328,76 @@ public:
     */
    static bool refineMethodHandleLinkTo(TR::Compilation* comp, TR::TreeTop* treetop, TR::Node* node, TR::KnownObjectTable::Index mnIndex, bool trace = false);
 
-   /*
+   /**
     * \brief
-    *    Determine the known-object index to use for a reference-typed final
-    *    static field that is foldable in the walker.
+    *    Determine whether it's currently expected that it's possible to fold
+    *    static final fields with OSR protection somewhere in the method.
     *
-    *    The caller must check in advance that the field is a final reference.
-    *    This method does not verify.
+    *    The result is independent of any particular program point. Even if the
+    *    result is true, folding might still be impossible at certain points
+    *    due to restrictions on the placement of fear points. However, if the
+    *    result is false, then such folding cannot be done anywhere.
     *
     * \param comp the compilation object
-    * \param owningMethod the owning method of the static field reference
-    * \param cpIndex the constant pool index of the static field reference
-    * \param dataAddress The static field address from \c staticAttributes()
-    *
-    * \return the known object index, or \c UNKNOWN if disallowed
+    * \return true if it's possible in general to fold, false otherwise
     */
-   static TR::KnownObjectTable::Index knownObjectFromFinalStatic(
+   static bool canDoGuardedStaticFinalFieldFolding(TR::Compilation *comp);
+
+   /**
+    * \brief
+    *    Get the value of a static final field.
+    *
+    *    canFoldStaticFinalField() must have already run for the given field in
+    *    the current compilation, and it must have produced a result of TR_yes
+    *    or TR_maybe.
+    *
+    * \param[in] comp the compilation object
+    * \param[in] owningMethod the owning method of the field reference
+    * \param[in] cpIndex the constant pool index of the field reference
+    * \param[in] staticAddr the address of the static field
+    * \param[in] loadType the type that a direct load of the static field would have
+    * \param[in] recField the corresponding recognized field, or UnknownField
+    * \param[out] outValue the resulting value
+    * \return true for success, or (rarely) false for failure
+    */
+   static bool staticFinalFieldValue(
       TR::Compilation *comp,
       TR_ResolvedMethod *owningMethod,
       int32_t cpIndex,
-      void *dataAddress);
+      void *staticAddr,
+      TR::DataType loadType,
+      TR::Symbol::RecognizedField recField,
+      TR::AnyConst *outValue);
+
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+   /**
+    * \brief
+    *    Converts Unsafe.copyMemory call into arraycopy node replacing
+    *    src and dest to loads if symbol reference is passed.
+    *
+    * \return
+    *    Return the TreeTop of the arrayCopy
+    */
+   static TR::TreeTop* convertUnsafeCopyMemoryCallToArrayCopyWithSymRefLoad(TR::Compilation *comp, TR::TreeTop *arrayCopyTT, TR::SymbolReference * srcRef, TR::SymbolReference * destRef);
+
+   /**
+    * \brief
+    *    Insert Unsafe.copyMemory src/dest argument checks and adjustments for offheap.
+    *
+    * \return
+    *    Return the new call block.
+    */
+   static TR::Block* insertUnsafeCopyMemoryArgumentChecksAndAdjustForOffHeap(TR::Compilation *comp, TR::Node* node, TR::SymbolReference* symRef, TR::Block* callBlock, bool insertArrayCheck, TR::CFG* cfg);
+
+   /**
+    * \brief
+    *    Convert Unsafe.copyMemory call to an arraycopy with all necessary checks for offheap
+    *
+    * \return
+    *    Return true if call is converted
+    */
+   static void transformUnsafeCopyMemorytoArrayCopyForOffHeap(TR::Compilation *comp, TR::TreeTop *arrayCopyTT, TR::Node *arraycopyNode);
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
 
 protected:
    /**

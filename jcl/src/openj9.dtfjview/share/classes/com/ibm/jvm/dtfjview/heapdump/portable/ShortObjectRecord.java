@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.heapdump.portable;
 
 import java.io.DataOutput;
@@ -28,15 +28,15 @@ import java.io.IOException;
 import com.ibm.jvm.dtfjview.heapdump.ReferenceIterator;
 
 public class ShortObjectRecord extends ObjectRecord
-{   
+{
 	private final byte _classCacheIndex;
-	
+
 	public ShortObjectRecord(long address, long previousAddress,
 			long classAddress, int hashCode,
 			ReferenceIterator references, byte classCacheIndex, boolean is32BitHash)
 	{
 		super(address,previousAddress,classAddress,hashCode,references,is32BitHash);
-		
+
 		_classCacheIndex = classCacheIndex;
 	}
 
@@ -47,17 +47,17 @@ public class ShortObjectRecord extends ObjectRecord
 		tagAndFlag |= _numberOfReferences << 3;
 		tagAndFlag |= _gapSize << 2;
 		tagAndFlag |= _referenceFieldSize;
-		
+
 		out.writeByte(tagAndFlag);
 		writeReference(out,_gapSize,_gapPreceding);
-		
+
 		// JVMs prior to 2.6 have a 16-bit hashcode for all objects, which is added to all PHD records.
 		if (!_is32BitHash) {
 			out.writeShort(_hashCode);
 		}
 		// Note: JVM 2.6 and later have optional 32-bit hashcodes. We use a LongObjectRecord if the hashcode was set.
-		
+
 		writeReferences(out);
 	}
-	
+
 }

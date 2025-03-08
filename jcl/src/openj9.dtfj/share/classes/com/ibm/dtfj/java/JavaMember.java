@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java;
 
 import com.ibm.dtfj.image.CorruptDataException;
@@ -27,7 +27,7 @@ import com.ibm.dtfj.image.DataUnavailable;
 
 /**
  * <p>Base interface inherited by JavaField and JavaMethod.</p>
- * 
+ *
  * <p>This interface is modeled on java.lang.reflect.Member.</p>
  */
 public interface JavaMember {
@@ -35,35 +35,35 @@ public interface JavaMember {
 	/**
 	 * Get the set of modifiers for this field or method - a set of bits
 	 * @return the modifiers for this field or method. The values for the constants representing
-     * the modifiers can be obtained from java.lang.reflect.Modifier.
-	 * @throws CorruptDataException 
-     *
-     */
-    public int getModifiers()  throws CorruptDataException;
+	 * the modifiers can be obtained from java.lang.reflect.Modifier.
+	 * @throws CorruptDataException
+	 *
+	 */
+	public int getModifiers()  throws CorruptDataException;
 
-    /**
-     * Get the class which declares this field or method
-     * @return the JavaClass which declared this field or method
-     * @throws CorruptDataException 
-     * @throws DataUnavailable 
-     */
-    public JavaClass getDeclaringClass() throws CorruptDataException, DataUnavailable;
-    
-    /**
-     * Get the name of the field or method
-     * @return the name of the field or method
-     * @throws CorruptDataException 
-     */
-    public String getName()  throws CorruptDataException;
-    
-    /**
-     * Get the signature of the field or method
-     * @return the signature of the field or method.
-     * e.g. "(Ljava/lang/String;)V"
-     * @throws CorruptDataException 
-     */
-    public String getSignature()  throws CorruptDataException;
-    
+	/**
+	 * Get the class which declares this field or method
+	 * @return the JavaClass which declared this field or method
+	 * @throws CorruptDataException
+	 * @throws DataUnavailable
+	 */
+	public JavaClass getDeclaringClass() throws CorruptDataException, DataUnavailable;
+
+	/**
+	 * Get the name of the field or method
+	 * @return the name of the field or method
+	 * @throws CorruptDataException
+	 */
+	public String getName()  throws CorruptDataException;
+
+	/**
+	 * Get the signature of the field or method
+	 * @return the signature of the field or method.
+	 * e.g. "(Ljava/lang/String;)V"
+	 * @throws CorruptDataException
+	 */
+	public String getSignature()  throws CorruptDataException;
+
 	/**
 	 * @param obj
 	 * @return True if the given object refers to the same Java Member in the image

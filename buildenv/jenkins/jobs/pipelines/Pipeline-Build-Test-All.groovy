@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -66,20 +66,17 @@
  *   ENABLE_SUMMARY_AUTO_REFRESH: Boolean - flag to enable the downstream summary auto-refresh, default: false
  */
 
-CURRENT_RELEASES = ['8', '11', '17', '19', '20', 'next']
+CURRENT_RELEASES = ['8', '11', '17', '21', '23', '24', 'next']
 
 SPECS = ['ppc64_aix' : CURRENT_RELEASES,
          'ppc64le_linux'  : CURRENT_RELEASES,
-         'ppc64le_linux_criu' : CURRENT_RELEASES,
          'ppc64le_linux_gcc11': CURRENT_RELEASES,
          'ppc64le_linux_jit' : CURRENT_RELEASES,
          's390x_linux'    : CURRENT_RELEASES,
-         's390x_linux_criu' : CURRENT_RELEASES,
          's390x_linux_gcc11': CURRENT_RELEASES,
          's390x_linux_jit' : CURRENT_RELEASES,
          's390x_zos'      : CURRENT_RELEASES,
          'x86-64_linux'   : CURRENT_RELEASES,
-         'x86-64_linux_criu': CURRENT_RELEASES,
          'x86-64_linux_gcc11': CURRENT_RELEASES,
          'x86-64_linux_jit' : CURRENT_RELEASES,
          'x86-64_linux_valhalla'   : ['next'],
@@ -88,8 +85,8 @@ SPECS = ['ppc64_aix' : CURRENT_RELEASES,
          'x86-32_windows' : ['8'],
          'x86-64_windows' : CURRENT_RELEASES,
          'aarch64_linux' : CURRENT_RELEASES,
-         'aarch64_linux_criu': CURRENT_RELEASES,
          'aarch64_linux_gcc11' : CURRENT_RELEASES,
+         'aarch64_linux_jit' : CURRENT_RELEASES,
          'aarch64_mac' : CURRENT_RELEASES - '8',
          'ppc64_aix_ojdk292' : ['8', '11'],
          'ppc64le_linux_ojdk292' : ['8', '11'],
@@ -100,6 +97,7 @@ SPECS = ['ppc64_aix' : CURRENT_RELEASES,
          'x86-32_windows_ojdk292' : ['8'],
          'x86-64_windows_ojdk292' : ['8', '11'],
          'aarch64_linux_ojdk292' : ['8', '11'],
+         'aarch64_mac_ojdk292' : ['11'],
          'aarch64_linux_aot'  : CURRENT_RELEASES,
          'aarch64_mac_aot'    : CURRENT_RELEASES - '8',
          'ppc64_aix_aot'      : CURRENT_RELEASES,
@@ -123,18 +121,15 @@ SPECS = ['ppc64_aix' : CURRENT_RELEASES,
 
 // SHORT_NAMES is used for PullRequest triggers
 // TODO Combine SHORT_NAMES and SPECS
-SHORT_NAMES = ['all' : ['ppc64le_linux','s390x_linux','x86-64_linux','ppc64_aix','x86-64_windows','x86-32_windows','x86-64_mac', 'aarch64_linux', 'aarch64_mac'],
+SHORT_NAMES = ['all' : ['ppc64le_linux', 's390x_linux', 'x86-64_linux', 'ppc64_aix', 'x86-64_windows', 'x86-32_windows', 'x86-64_mac', 'aarch64_linux', 'aarch64_mac'],
             'aix' : ['ppc64_aix'],
             'zlinux' : ['s390x_linux'],
-            'zlinuxcriu' : ['s390x_linux_criu'],
             'zlinuxgcc11' : ['s390x_linux_gcc11'],
             'zlinuxjit' : ['s390x_linux_jit'],
             'plinux' : ['ppc64le_linux'],
-            'plinuxcriu' : ['ppc64le_linux_criu'],
             'plinuxgcc11' : ['ppc64le_linux_gcc11'],
             'plinuxjit' : ['ppc64le_linux_jit'],
             'xlinux' : ['x86-64_linux'],
-            'xlinuxcriu' : ['x86-64_linux_criu'],
             'xlinuxgcc11' : ['x86-64_linux_gcc11'],
             'xlinuxjit' : ['x86-64_linux_jit'],
             'xlinuxval' : ['x86-64_linux_valhalla'],
@@ -143,9 +138,10 @@ SHORT_NAMES = ['all' : ['ppc64le_linux','s390x_linux','x86-64_linux','ppc64_aix'
             'win' : ['x86-64_windows'],
             'osx' : ['x86-64_mac'],
             'xmac' : ['x86-64_mac'],
+            'alinux' : ['aarch64_linux'],
             'alinux64' : ['aarch64_linux'],
-            'alinux64criu' : ['aarch64_linux_criu'],
             'alinux64gcc11' : ['aarch64_linux_gcc11'],
+            'alinux64jit' : ['aarch64_linux_jit'],
             'amac' : ['aarch64_mac'],
             'zos' : ['s390x_zos'],
             'aixojdk292' : ['ppc64_aix_ojdk292'],
@@ -157,6 +153,7 @@ SHORT_NAMES = ['all' : ['ppc64le_linux','s390x_linux','x86-64_linux','ppc64_aix'
             'osxojdk292' : ['x86-64_mac_ojdk292'],
             'xmacojdk292' : ['x86-64_mac_ojdk292'],
             'alinux64ojdk292' : ['aarch64_linux_ojdk292'],
+            'amacojdk292' : ['aarch64_mac_ojdk292'],
             'zosojdk292' : ['s390x_zos_ojdk292'],
             'zosxlojdk292' : ['s390x_zos_xl_ojdk292'],
             'zoslargeheapojdk292' : ['s390x_zos_xl_ojdk292'],
@@ -226,6 +223,8 @@ ghprbTargetBranch = (params.ghprbTargetBranch) ? params.ghprbTargetBranch : ""
 echo "ghprbTargetBranch:'${ghprbTargetBranch}'"
 ghprbActualCommit = (params.ghprbActualCommit) ? params.ghprbActualCommit : ""
 echo "ghprbActualCommit:'${ghprbActualCommit}'"
+ghprbPullLink = (params.ghprbPullLink) ? params.ghprbPullLink : ""
+echo "ghprbPullLink:'${ghprbPullLink}'"
 
 // If custom repo/branch/refspec is passed, use it,
 // elif build is OpenJ9 PR, use pr merge-ref/refspec,
@@ -296,6 +295,12 @@ try {
                     // Determine if build is a PullRequest
                     if (ghprbPullId) {
                         buildFile.setup_pull_request()
+                    }
+
+                    // Add link of PullRequest in description, if it is set
+                    if (ghprbPullLink) {
+                        def ghprbPullLink_hyperlink_tag = "<a href='${ghprbPullLink}'>PR #${ghprbPullId}</a>: ${ghprbPullTitle}"
+                        CUSTOM_DESCRIPTION = ((CUSTOM_DESCRIPTION) ? CUSTOM_DESCRIPTION + "<br>" : "") + ghprbPullLink_hyperlink_tag
                     }
 
                     BUILD_SPECS.putAll(variableFile.get_specs(SPECS))
@@ -491,7 +496,7 @@ def get_node_labels(NODE_LABELS, SPECS) {
         NODE_LABELS.trim().split(",").each { ITEM ->
             def ENTRY = ITEM.trim().split("=")
             if (ENTRY.size() != 2) {
-                error("Invalid format for node labels: ${ITEM}! Expected value: spec1=labels1,spec2=labels2,...,specNe=labelsN e.g. aix_ppc-64_cmprssptrs=csp70027,linux_x86-64=(ci.project.openj9 && hw.arch.x86 && sw.os.ubuntu.14)")
+                error("Invalid format for node labels: ${ITEM}! Expected value: spec1=labels1,spec2=labels2,...,specN=labelsN e.g. aix_ppc-64_cmprssptrs=csp70027,linux_x86-64=(ci.project.openj9 && hw.arch.x86 && sw.os.ubuntu.14)")
             }
 
             if (!SPECS.contains(ENTRY[0].trim())) {
@@ -677,10 +682,10 @@ def draw_summary_table() {
         if (ENABLE_SUMMARY_AUTO_REFRESH) {
             def actions = manager.build.actions
             for (int i = 0; i < actions.size(); i++) {
-                 def action = actions.get(i)
-                 if (action.metaClass && action.metaClass.hasProperty(action, "text") && action.text.contains("Downstream Jobs Status")) {
-                     actions.remove(action)
-                 }
+                def action = actions.get(i)
+                if (action.metaClass && action.metaClass.hasProperty(action, "text") && action.text.contains("Downstream Jobs Status")) {
+                    actions.remove(action)
+                }
             }
         }
 

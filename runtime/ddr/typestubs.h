@@ -17,15 +17,16 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #ifndef TYPESTUBS_H
 #define TYPESTUBS_H
 
-//typedefs required to allow the pre-processed VM source to parse.
-//
-//For the purposes of the parser, we don't need the typedefs to be correct. We just need
-//the name defined.
+/* typedefs required to allow the pre-processed VM source to parse.
+ *
+ * For the purposes of the parser, we don't need the typedefs to be correct.
+ * We just need the name defined.
+ */
 
 #define __inline__ inline
 #define inline
@@ -64,7 +65,7 @@ typedef int cpu_set_t;
 
 #define INT_MAX (size_t)(-1)
 
-extern void * va_start(va_list, void*);
+extern void * va_start(va_list, void *);
 extern void va_end(va_list);
 
 extern void * memset (void *, int, size_t);
@@ -118,9 +119,9 @@ struct sigaction {
 	int foo;
 };
 
-void pthread_mutex_lock(void*);
-void pthread_mutex_unlock(void*);
-void __cs1(void*,void*,void*);
-void __csg(void*,void*,void*);
+void pthread_mutex_lock(void *);
+void pthread_mutex_unlock(void *);
+void __cs1(void *, void *, void *);
+void __csg(void *, void *, void *);
 
-#endif
+#endif /* TYPESTUBS_H */

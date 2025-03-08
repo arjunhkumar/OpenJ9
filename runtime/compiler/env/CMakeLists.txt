@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 j9jit_files(
@@ -31,6 +31,7 @@ j9jit_files(
 	env/CHTable.cpp
 	env/ClassLoaderTable.cpp
 	env/CpuUtilization.cpp
+	env/DependencyTable.cpp
 	env/FilePointer.cpp
 	env/J2IThunk.cpp
 	env/J9ArithEnv.cpp
@@ -68,4 +69,3 @@ if(J9VM_OPT_JITSERVER)
 		env/VMJ9Server.cpp
 	)
 endif()
-

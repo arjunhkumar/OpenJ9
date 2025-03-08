@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 /*
  * ClassFileOracle.cpp
@@ -35,11 +35,6 @@
 #include "ut_j9bcu.h"
 #include "util_api.h"
 #include "j9protos.h"
-
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-/* major version 63 is Java 19 */
-#define VALUE_TYPES_MAJOR_VERSION 63
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
 
 /* The array entries must be in same order as the enums in ClassFileOracle.hpp */
 ClassFileOracle::KnownAnnotation ClassFileOracle::_knownAnnotations[] = {
@@ -86,6 +81,22 @@ ClassFileOracle::KnownAnnotation ClassFileOracle::_knownAnnotations[] = {
 		{NOTCHECKPOINTSAFE_SIGNATURE, sizeof(NOTCHECKPOINTSAFE_SIGNATURE)},
 #undef NOTCHECKPOINTSAFE_SIGNATURE
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#if JAVA_SPEC_VERSION >= 20
+#define JVMTIMOUNTTRANSITION_SIGNATURE "Ljdk/internal/vm/annotation/JvmtiMountTransition;"
+		{JVMTIMOUNTTRANSITION_SIGNATURE , sizeof(JVMTIMOUNTTRANSITION_SIGNATURE)},
+#undef JVMTIMOUNTTRANSITION_SIGNATURE
+#endif /* JAVA_SPEC_VERSION >= 20 */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+#define NULLRESTRICTED_SIGNATURE "Ljdk/internal/vm/annotation/NullRestricted;"
+		{NULLRESTRICTED_SIGNATURE , sizeof(NULLRESTRICTED_SIGNATURE)},
+#undef NULLRESTRICTED_SIGNATURE
+#define IMPLICITLYCONSTRUCTIBLE_SIGNATURE "Ljdk/internal/vm/annotation/ImplicitlyConstructible;"
+		{IMPLICITLYCONSTRUCTIBLE_SIGNATURE , sizeof(IMPLICITLYCONSTRUCTIBLE_SIGNATURE)},
+#undef IMPLICITLYCONSTRUCTIBLE_SIGNATURE
+#define LOOSELYCONSISTENTVALUE_SIGNATURE "Ljdk/internal/vm/annotation/LooselyConsistentValue;"
+		{LOOSELYCONSISTENTVALUE_SIGNATURE , sizeof(LOOSELYCONSISTENTVALUE_SIGNATURE)},
+#undef LOOSELYCONSISTENTVALUE_SIGNATURE
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		{0, 0}
 };
 
@@ -219,13 +230,13 @@ ClassFileOracle::ClassFileOracle(BufferManager *bufferManager, J9CfrClassFile *c
 	_needsStaticConstantInit(false),
 	_isRecord(false),
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	_hasIdentityFlagSet(false),
-	_isIdentityFlagNeeded(false),
-	_isValueType(false),
 	_hasNonStaticSynchronizedMethod(false),
-	_hasNonStaticFields(false),
-	_hasNonEmptyConstructor(false),
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+	_loadableDescriptorsAttribute(NULL),
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	_hasImplicitCreationAttribute(false),
+	_implicitCreationFlags(0),
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	_recordComponentCount(0),
 	_permittedSubclassesAttribute(NULL),
 	_isSealed(false),
@@ -257,28 +268,6 @@ ClassFileOracle::ClassFileOracle(BufferManager *bufferManager, J9CfrClassFile *c
 		_buildResult = _constantPoolMap->getBuildResult();
 		return;
 	}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)	
-	if (J9_ARE_ALL_BITS_SET(_classFile->accessFlags, CFR_ACC_VALUE_TYPE) 
-		|| J9_ARE_NO_BITS_SET(_classFile->accessFlags, CFR_ACC_ABSTRACT | CFR_ACC_INTERFACE)
-	) {
-		/**
-		 * We care about whether there is a non-empty constructor only for non-value type abstract classes.
-		 * Simply set _hasNonEmptyConstructor to true for value types, or concrete classes.
-		 */ 
-		_hasNonEmptyConstructor = true;
-	}
-
-	if (J9_ARE_ALL_BITS_SET(_classFile->accessFlags, CFR_ACC_VALUE_TYPE | CFR_ACC_IDENTITY)) {
-		_buildResult = InvalidValueType;
-	} else {
-		if (J9_ARE_ALL_BITS_SET(_classFile->accessFlags, CFR_ACC_VALUE_TYPE)) {
-			_isValueType = true;
-		}
-		if (J9_ARE_ALL_BITS_SET(_classFile->accessFlags, CFR_ACC_IDENTITY)) {
-			_hasIdentityFlagSet = true;
-		}
-	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 
 	/* analyze class file */
 
@@ -308,9 +297,14 @@ ClassFileOracle::ClassFileOracle(BufferManager *bufferManager, J9CfrClassFile *c
 	
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 	if (OK == _buildResult) {
-		checkAndRecordIsIdentityFlagNeeded();
+		if (J9_IS_CLASSFILE_VALUETYPE(_classFile)) {
+			if (_hasNonStaticSynchronizedMethod) {
+				_buildResult = InvalidValueType;
+			}
+		}
 	}
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+
 	if (OK == _buildResult) {
 		_constantPoolMap->computeConstantPoolMapAndSizes();
 		if (!constantPoolMap->isOK()) {
@@ -383,7 +377,7 @@ ClassFileOracle::walkFields()
 					markStringAsReferenced(constantValueIndex);
 				}
 			}
-			if ((IS_REF_OR_VAL_SIGNATURE(fieldChar))
+			if ((IS_CLASS_SIGNATURE(fieldChar))
 				|| ('[' == fieldChar)
 			) {
 				_objectStaticCount++;
@@ -400,9 +394,6 @@ ClassFileOracle::walkFields()
 				 */
 				_hasFinalFields = true;
 			}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-			_hasNonStaticFields = true;
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 		}
 
 		for (U_16 attributeIndex = 0; (OK == _buildResult) && (attributeIndex < field->attributesCount); ++attributeIndex) {
@@ -426,13 +417,26 @@ ClassFileOracle::walkFields()
 					knownAnnotations = addAnnotationBit(knownAnnotations, CONTENDED_ANNOTATION);
 					knownAnnotations = addAnnotationBit(knownAnnotations, JAVA8_CONTENDED_ANNOTATION);
 				}
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+				knownAnnotations = addAnnotationBit(knownAnnotations, NULLRESTRICTED_ANNOTATION);
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 				if (0 == attribAnnotations->rawDataLength) {
 					UDATA foundAnnotations = walkAnnotations(attribAnnotations->numberOfAnnotations, attribAnnotations->annotations, knownAnnotations);
-
-
 					if (containsKnownAnnotation(foundAnnotations, CONTENDED_ANNOTATION) || containsKnownAnnotation(foundAnnotations, JAVA8_CONTENDED_ANNOTATION)) {
 						_fieldsInfo[fieldIndex].isFieldContended = true;
 					}
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+					if (containsKnownAnnotation(foundAnnotations, NULLRESTRICTED_ANNOTATION)) {
+						if (!IS_CLASS_SIGNATURE(fieldChar)) {
+							if ('[' == fieldChar) {
+								throwGenericErrorWithCustomMsg(J9NLS_CFR_NO_NULLRESTRICTED_IN_ARRAYFIELD__ID, fieldIndex);
+							} else { /* primitive type */
+								throwGenericErrorWithCustomMsg(J9NLS_CFR_NO_NULLRESTRICTED_IN_PRIMITIVEFIELD__ID, fieldIndex);
+							}
+						}
+						_fieldsInfo[fieldIndex].isNullRestricted = true;
+					}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 				}
 				_fieldsInfo[fieldIndex].annotationsAttribute = attribAnnotations;
 				break;
@@ -450,6 +454,20 @@ ClassFileOracle::walkFields()
 			case CFR_ATTRIBUTE_Deprecated:
 				/* Do nothing */
 				break;
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+			case CFR_ATTRIBUTE_NullRestricted:
+				/* JVMS: There must not be a NullRestricted attribute in the attributes table of a field_info
+				 * structure whose descriptor_index references a primitive type or an array type.*/
+				if (!IS_CLASS_SIGNATURE(fieldChar)) {
+					if ('[' == fieldChar) {
+						throwGenericErrorWithCustomMsg(J9NLS_CFR_NO_NULLRESTRICTED_IN_ARRAYFIELD__ID, fieldIndex);
+					} else { /* primitive type */
+						throwGenericErrorWithCustomMsg(J9NLS_CFR_NO_NULLRESTRICTED_IN_PRIMITIVEFIELD__ID, fieldIndex);
+					}
+				}
+				_fieldsInfo[fieldIndex].isNullRestricted = true;
+				break;
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 			default:
 				Trc_BCU_ClassFileOracle_walkFields_UnknownAttribute((U_32)attrib->tag, (U_32)getUTF8Length(attrib->nameIndex), getUTF8Data(attrib->nameIndex), attrib->length);
 				break;
@@ -545,6 +563,10 @@ ClassFileOracle::walkAttributes()
 			}
 			knownAnnotations = addAnnotationBit(knownAnnotations, UNMODIFIABLE_ANNOTATION);
 			knownAnnotations = addAnnotationBit(knownAnnotations, VALUEBASED_ANNOTATION);
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+			knownAnnotations = addAnnotationBit(knownAnnotations, IMPLICITLYCONSTRUCTIBLE_ANNOTATION);
+			knownAnnotations = addAnnotationBit(knownAnnotations, LOOSELYCONSISTENTVALUE_ANNOTATION);
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 			_annotationsAttribute = (J9CfrAttributeRuntimeVisibleAnnotations *)attrib;
 			if (0 == _annotationsAttribute->rawDataLength) {
 				UDATA foundAnnotations = walkAnnotations(_annotationsAttribute->numberOfAnnotations, _annotationsAttribute->annotations, knownAnnotations);
@@ -557,6 +579,16 @@ ClassFileOracle::walkAttributes()
 				if (containsKnownAnnotation(foundAnnotations, VALUEBASED_ANNOTATION)) {
 					_isClassValueBased = true;
 				}
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+				if (containsKnownAnnotation(foundAnnotations, IMPLICITLYCONSTRUCTIBLE_ANNOTATION)) {
+					_hasImplicitCreationAttribute = true;
+					_implicitCreationFlags |= J9AccImplicitCreateHasDefaultValue;
+				}
+				if (containsKnownAnnotation(foundAnnotations, LOOSELYCONSISTENTVALUE_ANNOTATION)) {
+					_hasImplicitCreationAttribute = true;
+					_implicitCreationFlags |= J9AccImplicitCreateNonAtomic;
+				}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 			}
 			break;
 		}
@@ -599,6 +631,23 @@ ClassFileOracle::walkAttributes()
 			}
 			break;
 		}
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+		case CFR_ATTRIBUTE_LoadableDescriptors: {
+			_loadableDescriptorsAttribute = (J9CfrAttributeLoadableDescriptors *)attrib;
+			for (U_16 numberOfDescriptors = 0; numberOfDescriptors < _loadableDescriptorsAttribute->numberOfDescriptors; numberOfDescriptors++) {
+				U_16 descriptorCpIndex = _loadableDescriptorsAttribute->descriptors[numberOfDescriptors];
+				markConstantUTF8AsReferenced(descriptorCpIndex);
+			}
+			break;
+		}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		case CFR_ATTRIBUTE_ImplicitCreation: {
+			_hasImplicitCreationAttribute = true;
+			_implicitCreationFlags = ((J9CfrAttributeImplicitCreation *)attrib)->implicitCreationFlags;
+			break;
+		}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 #if JAVA_SPEC_VERSION >= 11
 		case CFR_ATTRIBUTE_NestMembers:
 			/* ignore CFR_ATTRIBUTE_NestMembers for hidden classes, as the nest members never know the name of hidden classes */
@@ -780,47 +829,12 @@ ClassFileOracle::walkInterfaces()
 	InterfaceVisitor interfaceVisitor(this, _constantPoolMap);
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 	interfacesDo(&interfaceVisitor, 0);
-#else
+#else /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	interfacesDo(&interfaceVisitor);
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	_isCloneable = interfaceVisitor.wasCloneableSeen();
 	_isSerializable = interfaceVisitor.wasSerializableSeen();
 }
-
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-void
-ClassFileOracle::checkAndRecordIsIdentityFlagNeeded()
-{
-	if (isValueType()) {
-		if (_hasNonStaticSynchronizedMethod) {
-			_buildResult = InvalidValueType;
-		}
-	} else {
-		if (!_hasIdentityFlagSet
-			&& (getSuperClassNameIndex() != 0) /* j.l.Object has no superClass */
-		) {
-			if (J9_ARE_NO_BITS_SET(_classFile->accessFlags, CFR_ACC_ABSTRACT | CFR_ACC_INTERFACE)) {
-				/* For concrete classes, IdentityInterface is needed.  */
-				_isIdentityFlagNeeded = true;
-			} else {
-				/**
-				 * For abstract classes, IdentityInterface is needed only when it has non-static fields,
-				 * non-static synchronized method or non-empty constructor.
-				 */
-				if ((_hasNonStaticFields)
-					|| (_hasNonStaticSynchronizedMethod)
-					|| (_hasNonEmptyConstructor)
-				) {
-					_isIdentityFlagNeeded = true;
-				}
-			}
-			if (_isIdentityFlagNeeded) {
-				_classFile->accessFlags |= CFR_ACC_IDENTITY;
-			}
-		}
-	}
-}
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
 
 void
 ClassFileOracle::walkMethods()
@@ -846,8 +860,6 @@ ClassFileOracle::walkMethods()
 		 */
 		if (methodIsEmpty(methodIndex)) {
 			_methodsInfo[methodIndex].modifiers |= J9AccEmptyMethod;
-		} else if (methodIsForwarder(methodIndex)) {
-			_methodsInfo[methodIndex].modifiers |= J9AccForwarderMethod;
 		} else if (methodIsGetter(methodIndex)) {
 			_methodsInfo[methodIndex].modifiers |= J9AccGetterMethod;
 		} else if (methodIsClinit(methodIndex)) {
@@ -857,17 +869,6 @@ ClassFileOracle::walkMethods()
 		if (methodIsObjectConstructor(methodIndex)) {
 			_methodsInfo[methodIndex].modifiers |= J9AccMethodObjectConstructor;
 		}
-		
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		if (!_hasNonEmptyConstructor) {
-			if (methodIsConstructor(methodIndex)) {
-				/* Do not record constructor forwarded to its superclass. */
-				if (J9_ARE_NO_BITS_SET(_methodsInfo[methodIndex].modifiers, J9AccForwarderMethod)) {
-					_hasNonEmptyConstructor = true;
-				}
-			}
-		}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 
 		/* does the method belong in vtables? */
 		if (methodIsVirtual(methodIndex)) {
@@ -880,7 +881,7 @@ ClassFileOracle::walkMethods()
 		}
 
 		/* Look for an instance selector whose name is finalize()V */
-		if (methodIsFinalize(methodIndex, 0 != (_methodsInfo[methodIndex].modifiers & J9AccForwarderMethod))) {
+		if (methodIsFinalize(methodIndex)) {
 			_hasFinalizeMethod = true;
 			/* If finalize() is empty, mark this class so it does not inherit CFR_ACC_FINALIZE_NEEDED from its superclass */
 			if (0 != (_methodsInfo[methodIndex].modifiers & J9AccEmptyMethod)) {
@@ -937,6 +938,9 @@ ClassFileOracle::walkMethodAttributes(U_16 methodIndex)
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 			knownAnnotations = addAnnotationBit(knownAnnotations, NOT_CHECKPOINT_SAFE_ANNOTATION);
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#if JAVA_SPEC_VERSION >= 20
+			knownAnnotations = addAnnotationBit(knownAnnotations, JVMTIMOUNTTRANSITION_ANNOTATION);
+#endif /* JAVA_SPEC_VERSION >= 20 */
 
 			J9CfrAttributeRuntimeVisibleAnnotations *attribAnnotations = (J9CfrAttributeRuntimeVisibleAnnotations *)attrib;
 			if (0 == attribAnnotations->rawDataLength) { /* rawDataLength non-zero in case of error in the attribute */
@@ -977,6 +981,12 @@ ClassFileOracle::walkMethodAttributes(U_16 methodIndex)
 					_methodsInfo[methodIndex].extendedModifiers |= CFR_METHOD_EXT_NOT_CHECKPOINT_SAFE_ANNOTATION;
 				}
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#if JAVA_SPEC_VERSION >= 20
+				if (containsKnownAnnotation(foundAnnotations, JVMTIMOUNTTRANSITION_ANNOTATION)) {
+					/* JvmtiMountTransition annotation is used by OpenJDK to tag methods which should be hidden for JVMTI and stackwalk */
+					_methodsInfo[methodIndex].extendedModifiers |= CFR_METHOD_EXT_JVMTIMOUNTTRANSITION_ANNOTATION;
+				}
+#endif /* JAVA_SPEC_VERSION >= 20 */
 			}
 			_methodsInfo[methodIndex].annotationsAttribute = attribAnnotations;
 			_methodsInfo[methodIndex].modifiers |= J9AccMethodHasMethodAnnotations;
@@ -1155,20 +1165,11 @@ ClassFileOracle::computeSendSlotCount(U_16 methodIndex)
 			while ((index < count) && ('[' == bytes[index])) {
 				++index;
 			}
-			if ((index >= count)
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-				|| (('L' != bytes[index]) && ('Q' != bytes[index]))
-#else
-				|| ('L' != bytes[index])
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
-			) {
+			if ((index >= count) || ('L' != bytes[index])) {
 				break;
 			}
 			/* fall through */
 		case 'L':
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		case 'Q':
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
 			++index;
 			while ((index < count) && (';' != bytes[index])) {
 				++index;
@@ -2173,24 +2174,6 @@ ClassFileOracle::walkMethodCodeAttributeCode(U_16 methodIndex)
 			}
 			break;
 		}
-
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		case CFR_BC_aconst_init:
-			if (_classFile->majorVersion >= VALUE_TYPES_MAJOR_VERSION) {
-				cpIndex = PARAM_U16();
-				addBytecodeFixupEntry(entry++, codeIndex + 1, cpIndex, ConstantPoolMap::ACONST_INIT);
-				markClassAsUsedByAconst_init(cpIndex);
-			}
-			break;
-		case CFR_BC_withfield:
-			if (_classFile->majorVersion >= VALUE_TYPES_MAJOR_VERSION) {
-				cpIndex = PARAM_U16();
-				addBytecodeFixupEntry(entry++, codeIndex + 1, cpIndex, ConstantPoolMap::WITH_FIELD);
-				markFieldRefAsUsedByWithField(cpIndex);
-			}
-			break;
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
-
 		default:
 			/* Do nothing */
 			break;
@@ -2259,7 +2242,7 @@ ClassFileOracle::walkStackMapSlots(U_8 *framePointer, U_16 typeInfoCount)
 }
 
 bool
-ClassFileOracle::methodIsFinalize(U_16 methodIndex, bool isForwarder)
+ClassFileOracle::methodIsFinalize(U_16 methodIndex)
 {
 	ROMCLASS_VERBOSE_PHASE_HOT(_context, MethodIsFinalize);
 
@@ -2308,29 +2291,6 @@ ClassFileOracle::methodIsObjectConstructor(U_16 methodIndex)
 	return false;
 }
 
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-/**
- * Determine if a method is constructor of a non-Value Type (Value Type constructors are static).
- *
- * @param methodIndex[in] the method index
- *
- * @returns true if the method is a constructor of a non-Value Type, false if not.
- */
-bool
-ClassFileOracle::methodIsConstructor(U_16 methodIndex)
-{
-	ROMCLASS_VERBOSE_PHASE_HOT(_context, MethodIsConstructor);
-
-	if (J9_ARE_NO_BITS_SET(_classFile->methods[methodIndex].accessFlags, (CFR_ACC_ABSTRACT | CFR_ACC_STATIC | CFR_ACC_SYNCHRONIZED))
-		&& ('<' == getUTF8Data(_classFile->methods[methodIndex].nameIndex)[0])
-	) {
-		return true;
-	}
-
-	return false;
-}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
-
 /**
  * Determine if a method is <clinit>.
  *
@@ -2355,155 +2315,6 @@ ClassFileOracle::methodIsClinit(U_16 methodIndex)
 
 	return false;
 }
-
-/* answers non-zero if this method simply forwards to its superclass.
-   A forwarder method is not synchronized.
-   Forwarder methods must have return type void (because right now we only care if it forwards to an empty method)
-*/
-
-bool
-ClassFileOracle::methodIsForwarder(U_16 methodIndex)
-{
-	ROMCLASS_VERBOSE_PHASE_HOT(_context, MethodIsForwarder);
-	if (_classFile->methods[methodIndex].accessFlags & (CFR_ACC_ABSTRACT | CFR_ACC_NATIVE | CFR_ACC_SYNCHRONIZED | CFR_ACC_STATIC)) {
-		return false;
-	}
-
-	/* Must return void */
-	U_16 signatureIndex = _classFile->methods[methodIndex].descriptorIndex;
-	U_8 *signatureData = getUTF8Data(signatureIndex);
-	U_16 signatureLength = getUTF8Length(signatureIndex);
-	if ((signatureData[signatureLength - 1]) != 'V') {
-		return false;
-	}
-
-	J9CfrAttributeCode *codeAttribute = _classFile->methods[methodIndex].codeAttribute;
-
-	/* ensure that there are no exception handlers */
-	if (codeAttribute->exceptionTableLength > 0) {
-		return false;
-	}
-
-	/* check that there are no temps */
-	U_8 argCount = _methodsInfo[methodIndex].sendSlotCount;
-	++argCount; /* not static */
-	U_16 tempCount = codeAttribute->maxLocals;
-	if (tempCount >= argCount) {
-		tempCount -= argCount;
-	} else {
-		Trc_BCU_Assert_Equals(0, tempCount);
-	}
-
-	if (0 != tempCount) {
-		return false;
-	}
-
-	IDATA thisArg = 0;
-	U_8 *code = codeAttribute->code;
-	for (U_32 codeIndex = 0; ;codeIndex++) {
-		switch (code[codeIndex]) {
-		case CFR_BC_aload_0:
-			if (thisArg++ != 0) {
-				return false;
-			}
-			break;
-		case CFR_BC_iload_1:
-		case CFR_BC_fload_1:
-		case CFR_BC_aload_1:
-			if (thisArg++ != 1) {
-				return false;
-			}
-			break;
-		case CFR_BC_dload_1:
-		case CFR_BC_lload_1:
-			if (thisArg != 1) {
-				return false;
-			}
-			thisArg += 2;
-			break;
-		case CFR_BC_iload_2:
-		case CFR_BC_fload_2:
-		case CFR_BC_aload_2:
-			if (thisArg++ != 2) {
-				return false;
-			}
-			break;
-		case CFR_BC_dload_2:
-		case CFR_BC_lload_2:
-			if (thisArg != 2) {
-				return false;
-			}
-			thisArg += 2;
-			break;
-		case CFR_BC_iload_3:
-		case CFR_BC_fload_3:
-		case CFR_BC_aload_3:
-			if (thisArg++ != 3) {
-				return false;
-			}
-			break;
-		case CFR_BC_dload_3:
-		case CFR_BC_lload_3:
-			if (thisArg != 3) {
-				return false;
-			}
-			thisArg += 2;
-			break;
-		case CFR_BC_iload:
-		case CFR_BC_fload:
-		case CFR_BC_aload:
-			if (thisArg++ != code[++codeIndex]) {
-				return false;
-			}
-			break;
-		case CFR_BC_dload:
-		case CFR_BC_lload:
-			if (thisArg != code[++codeIndex]) {
-				return false;
-			}
-			thisArg += 2;
-			break;
-		case CFR_BC_invokespecial: {
-			if (thisArg++ != argCount) {
-				/* we haven't pushed all of our arguments */
-				return false;
-			}
-#define PARAM_U16() (U_16(code[codeIndex + 1]) << 8) | U_16(code[codeIndex + 2])
-			J9CfrConstantPoolInfo *methodRef = (J9CfrConstantPoolInfo *) &_classFile->constantPool[PARAM_U16()];
-#undef PARAM_U16
-
-			/* use identity comparisons for name and sig for simplicity.  Since they came from the same
-				class file they're almost certainly identical,and if not we just run a bit slower */
-
-			/* check that this is a super send */
-			if ( methodRef->slot1 != _classFile->superClass ) {
-				return false;
-			}
-			J9CfrConstantPoolInfo *nas = (J9CfrConstantPoolInfo *) &_classFile->constantPool[methodRef->slot2];
-			if ( !isUTF8AtIndexEqualToString(nas->slot1, (const char *)getUTF8Data(_classFile->methods[methodIndex].nameIndex),  getUTF8Length(_classFile->methods[methodIndex].nameIndex)+1)) {
-				return false;
-			}
-			if ( !isUTF8AtIndexEqualToString(nas->slot2, (const char *)getUTF8Data(_classFile->methods[methodIndex].descriptorIndex),  getUTF8Length(_classFile->methods[methodIndex].descriptorIndex)+1)) {
-				return false;
-			}
-
-			/* check that the next instruction is a void return */
-			if (CFR_BC_return == code[codeIndex+3]) {
-				return true;
-			}
-
-			/* fall through */
-		}
-		default:
-			return false;
-		}
-	}
-
-	/* can't get here, but add a return false just in case */
-	return false;
-}
-
-
 
 bool
 ClassFileOracle::methodIsGetter (U_16 methodIndex)
@@ -2885,22 +2696,6 @@ ClassFileOracle::markClassAsUsedByNew(U_16 classCPIndex)
 	markClassAsReferenced(classCPIndex);
 	_constantPoolMap->markClassAsUsedByNew(classCPIndex);
 }
-
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-void
-ClassFileOracle::markClassAsUsedByAconst_init(U_16 classCPIndex)
-{
-	markClassAsReferenced(classCPIndex);
-	_constantPoolMap->markClassAsUsedByAconst_init(classCPIndex);
-}
-
-void
-ClassFileOracle::markFieldRefAsUsedByWithField(U_16 fieldRefCPIndex)
-{
-	markFieldRefAsReferenced(fieldRefCPIndex);
-	_constantPoolMap->markFieldRefAsUsedByWithField(fieldRefCPIndex);
-}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 
 void
 ClassFileOracle::markFieldRefAsUsedByGetStatic(U_16 fieldRefCPIndex)

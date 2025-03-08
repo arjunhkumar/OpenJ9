@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2014
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management;
 
 import java.lang.management.PlatformManagedObject;
@@ -38,7 +38,7 @@ import java.lang.management.PlatformManagedObject;
  *         "Resource-Monitor" threads are special because they do not participate in idle accounting.
  *         This means that any CPU usage of these threads does not count towards determining the state of the application.
  *     <li>A thread can be part of only one category at any given time but can change categories any number of times during its timeline.
- *     <li>The usage information is in microseconds and increases monotonically. 
+ *     <li>The usage information is in microseconds and increases monotonically.
  *     <li>The CPU usage information consists of the following data:
  *     <ol>
  *         <li>Attached threads that are live.
@@ -56,16 +56,14 @@ import java.lang.management.PlatformManagedObject;
  *       </ol>
  *     </li>
  * </ol>
- * This information is based on repeatedly checking the CPU usage in the following use case scenarios: 
+ * This information is based on repeatedly checking the CPU usage in the following use case scenarios:
  * <ol>
  *     <li>Monitoring application idle and active behavior.
  *     <li>Calculating the JVM Overhead over a specific interval.
  *     <li>Collecting transaction metrics for a specific set of application threads over a specific duration.
  * </ol>
  * <br>
- * <table border="1">
- * <caption><b>Usage example for the {@link JvmCpuMonitorMXBean}</b></caption>
- * <tr> <td>
+ * <b>Usage example for the {@link JvmCpuMonitorMXBean}</b>
  * <pre>
  * {@code
  *   ...
@@ -79,23 +77,22 @@ import java.lang.management.PlatformManagedObject;
  *      if (true != mbeanServer.isRegistered(mxbeanName)) {
  *         // JvmCpuMonitorMXBean not registered
  *      }
- *      JvmCpuMonitorMXBean jcmBean = JMX.newMXBeanProxy(mbeanServer, mxbeanName, JvmCpuMonitorMXBean.class); 
+ *      JvmCpuMonitorMXBean jcmBean = JMX.newMXBeanProxy(mbeanServer, mxbeanName, JvmCpuMonitorMXBean.class);
  *   } catch (Exception e) {
  *      // Exception Handling
  *   }
  * }
- * </pre></td></tr>
- * </table>
+ * </pre>
  */
 public interface JvmCpuMonitorMXBean extends PlatformManagedObject {
-	
+
 	/**
 	 * This function updates the user provided <code>JvmCpuMonitorInfo</code> object
 	 * with CPU usage statistics of the various thread categories.
 	 * The statistics are an aggregate across all CPUs of the operating system.
 	 *
 	 * @param jcmInfo	User provided JvmCpuMonitorInfo object.
-	 * 
+	 *
 	 * @return the updated JvmCpuMonitorInfo instance.
 	 *
 	 * @throws NullPointerException if a null reference is passed.
@@ -108,7 +105,7 @@ public interface JvmCpuMonitorMXBean extends PlatformManagedObject {
 	 * This function creates a new {@link JvmCpuMonitorInfo} object and populates it
 	 * with CPU usage statistics of the various thread categories.
 	 * The statistics are an aggregate across all CPUs of the operating system.
-	 * 
+	 *
 	 * @return the new <code>JvmCpuMonitorInfo</code> instance.
 	 *
 	 * @throws UnsupportedOperationException if CPU monitoring is disabled.
@@ -126,7 +123,7 @@ public interface JvmCpuMonitorMXBean extends PlatformManagedObject {
 	 * Some notes on the setting the thread categories
 	 * <ol><li>"Application" threads cannot be changed to any "System-JVM" category.
 	 * <li>Threads in the "System-JVM" category cannot be modified.
-	 * <li>Once a thread is designated as "Resource-Monitor", it cannot be changed. 
+	 * <li>Once a thread is designated as "Resource-Monitor", it cannot be changed.
 	 * </ol>
 	 * @param id The target thread id for which the type needs to be set.
 	 * @param category The category of the target thread.

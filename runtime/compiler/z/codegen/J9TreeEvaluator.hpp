@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_Z_TREE_EVALUATOR_INCL
@@ -73,7 +73,8 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
     * Inline Java's (Java 11 onwards) StringLatin1.inflate([BI[CII)V
     */
    static TR::Register *inlineStringLatin1Inflate(TR::Node *node, TR::CodeGenerator *cg);
-   static TR::Register *VMinlineCompareAndSwap( TR::Node *node, TR::CodeGenerator *cg, TR::InstOpCode::Mnemonic casOp, bool isObj);
+   static TR::Register *inlineStringCodingHasNegativesOrCountPositives(TR::Node *node, TR::CodeGenerator *cg, bool isCountPositives);
+   static TR::Register *VMinlineCompareAndSwap( TR::Node *node, TR::CodeGenerator *cg, TR::InstOpCode::Mnemonic casOp, bool isObj, bool isExchange = false);
    static TR::Register *inlineAtomicOps(TR::Node *node, TR::CodeGenerator *cg, int8_t size, TR::MethodSymbol *method, bool isArray = false);
    static TR::Register *inlineAtomicFieldUpdater(TR::Node *node, TR::CodeGenerator *cg, TR::MethodSymbol *method);
    static TR::Register *inlineKeepAlive(TR::Node *node, TR::CodeGenerator *cg);
@@ -126,8 +127,10 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
     */
    static TR::Register *inlineVectorizedStringIndexOf(TR::Node *node, TR::CodeGenerator *cg, bool isCompressed);
    static TR::Register *inlineIntrinsicIndexOf(TR::Node *node, TR::CodeGenerator *cg, bool isLatin1);
-   static TR::Register *inlineDoubleMax(TR::Node *node, TR::CodeGenerator *cg);
-   static TR::Register *inlineDoubleMin(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *fminEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *dminEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *fmaxEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *dmaxEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *inlineMathFma(TR::Node *node, TR::CodeGenerator *cg);
 
    /* This Evaluator generates the SIMD routine for methods
@@ -136,9 +139,24 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
     * parameter passed to it.
     */
    static TR::Register *inlineStringHashCode(TR::Node *node, TR::CodeGenerator *cg, bool isCompressed);
+   static TR::Register *inlineVectorizedHashCode(TR::Node* node, TR::CodeGenerator* cg);
    static TR::Register *inlineUTF16BEEncodeSIMD(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register* inlineUTF16BEEncode    (TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *inlineCRC32CUpdateBytes(TR::Node *node, TR::CodeGenerator *cg, bool isDirectBuffer);
+
+   /**
+   * \brief
+   * Accelerate inlining onSpinWait() method.
+   *
+   * \details
+   * onSpinWait() method calls VM_AtomicSupport::yieldCPU() which is a simple NOP instruction on Z.
+   *
+   * \param node the method call node.
+   * \param cg the code generator.
+   *
+   * \return NULL
+   */
+   static TR::Register *inlineOnSpinWait(TR::Node *node, TR::CodeGenerator *cg);
 
    static TR::Register *zdloadEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *zdloadiEvaluator(TR::Node *node, TR::CodeGenerator *cg);
@@ -224,6 +242,7 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
    static TR::Register *resolveAndNULLCHKEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *evaluateNULLCHKWithPossibleResolve(TR::Node *node, bool needResolution, TR::CodeGenerator *cg);
    static float interpreterProfilingInstanceOfOrCheckCastTopProb(TR::CodeGenerator * cg, TR::Node * node);
+   static TR::Register *inlineCheckAssignableFromEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 
    /**
     * \brief
@@ -345,7 +364,7 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
 
    static bool isZonedOperationAnEffectiveNop(TR::Node * node, int32_t shiftAmount, bool isTruncation, TR_PseudoRegister *srcReg, bool isSetSign, int32_t sign,TR::CodeGenerator * cg);
 
-   
+
    static TR::Register *BCDCHKEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *BCDCHKEvaluatorImpl(TR::Node * node,
                                             TR::CodeGenerator * cg,
@@ -412,9 +431,9 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
    /** \brief
     *     Helper to generate a VPSOP instruction.
     *
-    *  \param node 
+    *  \param node
     *     The node to which the instruction is associated.
-    *  \param cg 
+    *  \param cg
     *     The codegen object.
     *  \param setPrecision
     *     Determines whether the VPSOP instruction will set precision.
@@ -430,7 +449,7 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
     *     Validate the input digits
     *  \param sign
     *     The new sign. Used if signOpType is SignOperationType::setSign. Possible values include:
-    *       - positive: 0xA, 0xC 
+    *       - positive: 0xA, 0xC
     *       - negative: 0xB, 0xD
     *       - unsigned: 0xF
     *  \param setConditionCode
@@ -451,6 +470,7 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
                                                          bool ignoreDecimalOverflow = false);
 
    static TR::Register *pdchkEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *zdchkEvaluator(TR::Node *node, TR::CodeGenerator *cg);
 
    static TR::Register *pdcmpeqEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *pdcmpneEvaluator(TR::Node *node, TR::CodeGenerator *cg);
@@ -496,13 +516,13 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
 
 /** \brief
     *  Generates Sequence to check and use Guarded Load for ArrayCopy
-    *  
+    *
     * \param node
     *     The arraycopy node.
     *
     *  \param cg
     *     The code generator used to generate the instructions.
-    * 
+    *
     *  \param byteSrcReg
     *     Register holding starting address of source
     *
@@ -511,16 +531,16 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
     *
     *  \param byteLenReg
     *     Register holding number of bytes to copy
-    * 
+    *
     *  \param mergeLabel
     *     Label Symbol to merge from generated OOL sequence
-    * 
+    *
     *  \param srm
     *     Scratch Register Manager providing pool of scratch registers to use
-    * 
+    *
     *  \param isForward
     *     Boolean specifying if we need to copy elements in forward direction
-    * 
+    *
     */
    static void         genGuardedLoadOOL(TR::Node *node, TR::CodeGenerator *cg, TR::Register *byteSrcReg, TR::Register *byteDstReg, TR::Register *byteLenReg, TR::LabelSymbol *mergeLabel, TR_S390ScratchRegisterManager *srm, bool isForward);
    static void         genArrayCopyWithArrayStoreCHK(TR::Node *node, TR::Register *srcObjReg, TR::Register *dstObjReg, TR::Register *srcAddrReg, TR::Register *dstAddrReg, TR::Register *lengthReg, TR::CodeGenerator *cg);
@@ -535,14 +555,14 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
    /*
     * Generate instructions for static/instance field access report.
     * @param dataSnippetRegister: Optional, can be used to pass the address of the snippet inside the register.
-    */ 
+    */
    static void generateTestAndReportFieldWatchInstructions(TR::CodeGenerator *cg, TR::Node *node, TR::Snippet *dataSnippet, bool isWrite, TR::Register *sideEffectRegister, TR::Register *valueReg, TR::Register *dataSnippetRegister);
 
 
    /*
     * Generate instructions to fill in the J9JITWatchedStaticFieldData.fieldAddress, J9JITWatchedStaticFieldData.fieldClass for static fields,
     * and J9JITWatchedInstanceFieldData.offset for instance fields at runtime. Used for fieldwatch support.
-    * @param dataSnippetRegister: Optional, can be used to pass the address of the snippet inside the register.  
+    * @param dataSnippetRegister: Optional, can be used to pass the address of the snippet inside the register.
     */
    static void generateFillInDataBlockSequenceForUnresolvedField (TR::CodeGenerator *cg, TR::Node *node, TR::Snippet *dataSnippet, bool isWrite, TR::Register *sideEffectRegister, TR::Register *dataSnippetRegister);
    static TR::Register *irdbarEvaluator(TR::Node *node, TR::CodeGenerator *cg);
@@ -555,10 +575,16 @@ class OMR_EXTENSIBLE TreeEvaluator: public J9::TreeEvaluator
    static TR::Register *dwrtbariEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *awrtbarEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *awrtbariEvaluator(TR::Node *node, TR::CodeGenerator *cg);
-
    static TR::Register *inlineIntegerStringSize(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *inlineIntegerToCharsForLatin1Strings(TR::Node *node, TR::CodeGenerator *cg);
    static TR::Register *inlineIntegerToCharsForUTF16Strings(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *bstoreEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *sstoreEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *istoreEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *lstoreEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *astoreEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *fstoreEvaluator(TR::Node *node, TR::CodeGenerator *cg);
+   static TR::Register *dstoreEvaluator(TR::Node *node, TR::CodeGenerator *cg);
    };
 }
 

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef bcverify_api_h
@@ -149,17 +149,7 @@ bcvCheckMethodName (J9CfrConstantPoolInfo * info);
 * @return IDATA
 */
 I_32
-bcvIsInitOrClinitOrNew (J9CfrConstantPoolInfo * info);
-
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-/**
-* @brief
-* @param info
-* @return BOOLEAN
-*/
-BOOLEAN
-bcvIsReferenceTypeDescriptor(J9CfrConstantPoolInfo * info);
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+bcvIsInitOrClinit (J9CfrConstantPoolInfo * info);
 
 /* ---------------- clconstraints.c ---------------- */
 
@@ -170,10 +160,11 @@ bcvIsReferenceTypeDescriptor(J9CfrConstantPoolInfo * info);
 * @param loader2
 * @param sig1
 * @param sig2
+* @param copySig1
 * @return UDATA
 */
 UDATA
-j9bcv_checkClassLoadingConstraintsForSignature (J9VMThread* vmThread, J9ClassLoader* loader1, J9ClassLoader* loader2, J9UTF8* sig1, J9UTF8* sig2);
+j9bcv_checkClassLoadingConstraintsForSignature (J9VMThread *vmThread, J9ClassLoader *loader1, J9ClassLoader *loader2, J9UTF8 *sig1, J9UTF8 *sig2, BOOLEAN copySig1);
 
 /**
 * @brief
@@ -183,10 +174,12 @@ j9bcv_checkClassLoadingConstraintsForSignature (J9VMThread* vmThread, J9ClassLoa
 * @param name1
 * @param name2
 * @param length
+* @param copyName1
+* @param copyName2
 * @return UDATA
  */
 UDATA
-j9bcv_checkClassLoadingConstraintForName (J9VMThread* vmThread, J9ClassLoader* loader1, J9ClassLoader* loader2, U_8* name1, U_8* name2, UDATA length, UDATA copyUTFs);
+j9bcv_checkClassLoadingConstraintForName (J9VMThread *vmThread, J9ClassLoader *loader1, J9ClassLoader *loader2, U_8 *name1, U_8 *name2, UDATA length, BOOLEAN copyName1, BOOLEAN copyName2);
 
 /**
 * @brief

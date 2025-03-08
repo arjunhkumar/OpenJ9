@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_CODEGENERATOR_INCL
@@ -47,7 +47,6 @@ namespace J9 { typedef J9::CodeGenerator CodeGeneratorConnector; }
 #include "control/Recompilation.hpp"
 #include "control/RecompilationInfo.hpp"
 #include "optimizer/Dominators.hpp"
-#include "cs2/arrayof.h"
 
 class NVVMIRBuffer;
 class TR_BitVector;
@@ -158,7 +157,7 @@ public:
                                           uint8_t *target,
                                           uint8_t *target2,  //pass in NULL when no target2
                                           TR_ExternalRelocationTargetKind kind,
-                                          char *generatingFileName,
+                                          const char *generatingFileName,
                                           uintptr_t generatingLineNumber,
                                           TR::Node *node);
    //TR::ExternalOrderedPair32BitRelocation
@@ -166,7 +165,7 @@ public:
                                           uint8_t *location2,
                                           uint8_t *target,
                                           TR_ExternalRelocationTargetKind kind,
-                                          char *generatingFileName,
+                                          const char *generatingFileName,
                                           uintptr_t generatingLineNumber,
                                           TR::Node *node);
    //TR::BeforeBinaryEncodingExternalRelocation
@@ -174,7 +173,7 @@ public:
                                           uint8_t *target,
                                           uint8_t *target2,   //pass in NULL when no target2
                                           TR_ExternalRelocationTargetKind kind,
-                                          char *generatingFileName,
+                                          const char *generatingFileName,
                                           uintptr_t generatingLineNumber,
                                           TR::Node *node);
 
@@ -183,6 +182,7 @@ public:
    bool needRelocationsForStatics();
    bool needRelocationsForHelpers();
    bool needRelocationsForCurrentMethodPC();
+   bool needRelocationsForCurrentMethodStartPC();
 #if defined(J9VM_OPT_JITSERVER)
    bool needRelocationsForBodyInfoData();
    bool needRelocationsForPersistentInfoData();
@@ -461,6 +461,26 @@ public:
    void setSupportsInlineStringHashCode() { _j9Flags.set(SupportsInlineStringHashCode); }
 
    /** \brief
+   *    Determines whether the code generator supports inlining of java/lang/StringCoding.countPositives
+   */
+   bool getSupportsInlineStringCodingCountPositives() { return _j9Flags.testAny(SupportsInlineStringCodingCountPositives); }
+
+   /** \brief
+   *    The code generator supports inlining of java/lang/StringCoding.countPositives
+   */
+   void setSupportsInlineStringCodingCountPositives() { _j9Flags.set(SupportsInlineStringCodingCountPositives); }
+
+   /** \brief
+   *    Determines whether the code generator supports inlining of java/lang/StringCoding.hasNegatives
+   */
+   bool getSupportsInlineStringCodingHasNegatives() { return _j9Flags.testAny(SupportsInlineStringCodingHasNegatives); }
+
+   /** \brief
+   *    The code generator supports inlining of java/lang/StringCoding.hasNegatives
+   */
+   void setSupportsInlineStringCodingHasNegatives() { _j9Flags.set(SupportsInlineStringCodingHasNegatives); }
+
+   /** \brief
    *    Determines whether the code generator supports inlining of java/lang/StringLatin1.inflate
    */
    bool getSupportsInlineStringLatin1Inflate() { return _j9Flags.testAny(SupportsInlineStringLatin1Inflate); }
@@ -490,6 +510,56 @@ public:
 	*   The code generator supports inlining of java/lang/StringCoding.encodeASCII
 	*/
    void setSupportsInlineEncodeASCII() { _j9Flags.set(SupportsInlineEncodeASCII); }
+
+   /** \brief
+   *   Determines whether the code generator supports inlining of jdk/internal/util/ArraysSupport.vectorizedMismatch
+   */
+   bool getSupportsInlineVectorizedMismatch() { return _j9Flags.testAny(SupportsInlineVectorizedMismatch); }
+
+   /** \brief
+   *   The code generator supports inlining of jdk/internal/util/ArraysSupport.vectorizedMismatch
+   */
+   void setSupportsInlineVectorizedMismatch() { _j9Flags.set(SupportsInlineVectorizedMismatch); }
+
+   /** \brief
+   *   Determines whether the code generator supports inlining of jdk/internal/util/ArraysSupport.vectorizedHashCode
+   */
+   bool getSupportsInlineVectorizedHashCode() { return _j9Flags.testAny(SupportsInlineVectorizedHashCode); }
+
+   /** \brief
+   *   The code generator supports inlining of jdk/internal/util/ArraysSupport.vectorizedHashCode
+   */
+   void setSupportsInlineVectorizedHashCode() { _j9Flags.set(SupportsInlineVectorizedHashCode); }
+
+   /** \brief
+   *   Determines whether the code generator supports inlining of java_lang_Math_max/min_F/D
+   */
+   bool getSupportsInlineMath_MaxMin_FD() { return _j9Flags.testAny(SupportsInlineMath_MaxMin_FD); }
+
+   /** \brief
+   *   The code generator supports inlining of java_lang_Math_max/min_F/D
+   */
+   void setSupportsInlineMath_MaxMin_FD() { _j9Flags.set(SupportsInlineMath_MaxMin_FD); }
+
+   /** \brief
+   *    Determines whether the code generator supports inlining of jdk/internal/misc/Unsafe.CompareAndSet[Object|Reference|Int|Long]
+   */
+   bool getSupportsInlineUnsafeCompareAndSet() { return _j9Flags.testAny(SupportsInlineUnsafeCompareAndSet); }
+
+   /** \brief
+   *    The code generator supports inlining of jdk/internal/misc/Unsafe.CompareAndSet[Object|Reference|Int|Long]
+   */
+   void setSupportsInlineUnsafeCompareAndSet() { _j9Flags.set(SupportsInlineUnsafeCompareAndSet); }
+
+   /** \brief
+   *    Determines whether the code generator supports inlining of jdk/internal/misc/Unsafe.CompareAndExchange[Object|Reference|Int|Long]
+   */
+   bool getSupportsInlineUnsafeCompareAndExchange() { return _j9Flags.testAny(SupportsInlineUnsafeCompareAndExchange); }
+
+   /** \brief
+   *    The code generator supports inlining of jdk/internal/misc/Unsafe.CompareAndExchange[Object|Reference|Int|Long]
+   */
+   void setSupportsInlineUnsafeCompareAndExchange() { _j9Flags.set(SupportsInlineUnsafeCompareAndExchange); }
 
    /**
     * \brief
@@ -622,6 +692,22 @@ public:
     */
    bool guaranteesResolvedVirtualDispatchForSVM() { return false; } // safe default
 
+   /** \brief
+   *    Determines if this method is saving all Non Volatile registers for the GC
+   */
+   bool getSavesNonVolatileGPRsForGC() { return _j9Flags.testAny(SavesNonVolatileGPRsForGC); }
+
+   /** \brief
+   *    Set the flag specifying that this method is saving all Non Volatile registers for the GC
+   */
+   void setSavesNonVolatileGPRsForGC() {_j9Flags.set(SavesNonVolatileGPRsForGC); }
+
+   /// Determine whether \c jitDispatchJ9Method is (supported and) enabled.
+   bool enableJitDispatchJ9Method();
+
+   /// Determine whether to stress the J2I path for \c jitDispatchJ9Method.
+   bool stressJitDispatchJ9MethodJ2I();
+
 private:
 
    enum // Flags
@@ -637,6 +723,14 @@ private:
       SupportsIntegerStringSize                           = 0x00000100,
       SupportsIntegerToChars                              = 0x00000200,
       SupportsInlineEncodeASCII                           = 0x00000400,
+      SavesNonVolatileGPRsForGC                           = 0x00000800,
+      SupportsInlineVectorizedMismatch                    = 0x00001000,
+      SupportsInlineVectorizedHashCode                    = 0x00002000,
+      SupportsInlineStringCodingHasNegatives              = 0x00004000,
+      SupportsInlineStringCodingCountPositives            = 0x00008000,
+      SupportsInlineMath_MaxMin_FD                        = 0x00010000,
+      SupportsInlineUnsafeCompareAndSet                   = 0x00020000,
+      SupportsInlineUnsafeCompareAndExchange              = 0x00040000,
       };
 
    flags32_t _j9Flags;

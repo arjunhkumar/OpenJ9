@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.j9.stackmap;
 
 import static com.ibm.j9ddr.vm29.j9.BCNames.JBdup;
@@ -43,7 +43,6 @@ import static com.ibm.j9ddr.vm29.j9.BCNames.JBldc;
 import static com.ibm.j9ddr.vm29.j9.BCNames.JBldcw;
 import static com.ibm.j9ddr.vm29.j9.BCNames.JBmultianewarray;
 import static com.ibm.j9ddr.vm29.j9.BCNames.JBputfield;
-import static com.ibm.j9ddr.vm29.j9.BCNames.JBwithfield;
 import static com.ibm.j9ddr.vm29.j9.BCNames.JBputstatic;
 import static com.ibm.j9ddr.vm29.j9.BCNames.JBswap;
 import static com.ibm.j9ddr.vm29.j9.BCNames.JBtableswitch;
@@ -503,7 +502,7 @@ public class StackMap
 						utf8Signature = J9ROMFieldRefPointer.cast(pool.add(index)).nameAndSignature().signature();
 						
 						signature = J9UTF8Helper.stringValue(utf8Signature).charAt(0);
-						if (J9ClassHelper.isRefOrValSignature(signature) || (signature == '[')) {
+						if (J9ClassHelper.isClassSignature(signature) || (signature == '[')) {
 							PUSH(OBJ);
 						} else {
 							PUSH(INT);
@@ -516,7 +515,7 @@ public class StackMap
 						utf8Signature = J9ROMFieldRefPointer.cast(pool.add(index)).nameAndSignature().signature();
 						
 						signature = J9UTF8Helper.stringValue(utf8Signature).charAt(0);
-						if (J9ClassHelper.isRefOrValSignature(signature) || (signature == '[')) {
+						if (J9ClassHelper.isClassSignature(signature) || (signature == '[')) {
 							PUSH(OBJ);
 						} else {
 							PUSH(INT);
@@ -524,7 +523,7 @@ public class StackMap
 								PUSH(INT);
 							}
 						}
-					} else if ((bc == JBputfield)  || (bc == JBwithfield)) {
+					} else if (bc == JBputfield) {
 						POP();
 						index = PARAM_16(bcIndex, 1).intValue();
 						utf8Signature = J9ROMFieldRefPointer.cast(pool.add(index)).nameAndSignature().signature();
@@ -532,9 +531,6 @@ public class StackMap
 						POP();
 						if ((signature == 'D') || (signature == 'J')) {
 							POP();
-						}
-						if (bc == JBwithfield) {
-							PUSH(OBJ);
 						}
 					} else if (bc == JBputstatic) {
 						index = PARAM_16(bcIndex, 1).intValue();
@@ -553,52 +549,12 @@ public class StackMap
 						|| (bc == JBinvokespecial) 
 						|| (bc == JBinvokespecialsplit)
 						|| (bc == JBinvokeinterface)
-					) {
-						POP();
-						index = PARAM_16(bcIndex, 1).intValue();
-						if (bc == JBinvokestaticsplit) {
-							index = romClass.staticSplitMethodRefIndexes().at(index).intValue();
-						} else if (bc == JBinvokespecialsplit) {
-							index = romClass.specialSplitMethodRefIndexes().at(index).intValue();
-						}
-						utf8Signature = J9ROMMethodRefPointer.cast(pool.add(index)).nameAndSignature().signature();
-						char[] args = J9UTF8Helper.stringValue(utf8Signature).toCharArray();
-						int i = 0;
-						
-						for (i = 1; args[i] != ')'; i++) {
-							POP();
-							if (args[i] == '[') {
-								while (args[++i] == '[');
-								if (J9ClassHelper.isRefOrValSignature(args[i])) {
-									continue;
-								}
-							}
-							if (J9ClassHelper.isRefOrValSignature(args[i])) {
-								while (args[++i] != ';');
-								continue;
-							}
-							if ((args[i] == 'D') || (args[i] == 'J')) {
-								POP();
-							}
-						}
-
-						signature = args[i + 1];
-						if (signature != 'V') {
-							if (J9ClassHelper.isRefOrValSignature(signature) || (signature == '[')) {
-								PUSH(OBJ);
-							} else {
-								PUSH(INT);
-								if ((signature == 'J') || (signature == 'D')) {
-									PUSH(INT);
-								}
-							}
-						}
-						if (bc == JBinvokeinterface2) {
-							bcIndex = bcIndex.sub(2);
-						}
-					} else if ((bc == JBinvokestatic)
+						|| (bc == JBinvokestatic)
 						|| (bc == JBinvokestaticsplit)
 					) {
+						if ((bc != JBinvokestatic) && (bc != JBinvokestaticsplit)) {
+							POP();
+						}
 						index = PARAM_16(bcIndex, 1).intValue();
 						if (bc == JBinvokestaticsplit) {
 							index = romClass.staticSplitMethodRefIndexes().at(index).intValue();
@@ -611,24 +567,23 @@ public class StackMap
 						
 						for (i = 1; args[i] != ')'; i++) {
 							POP();
-							if (args[i] == '[') {
-								while (args[++i] == '[');
-								if (J9ClassHelper.isRefOrValSignature(args[i])) {
-									continue;
-								}
-							}
-							if (J9ClassHelper.isRefOrValSignature(args[i])) {
-								while (args[++i] != ';');
-								continue;
-							}
 							if ((args[i] == 'D') || (args[i] == 'J')) {
 								POP();
+								continue;
+							}
+							while (args[i] == '[') {
+								i += 1;
+							}
+							if (J9ClassHelper.isClassSignature(args[i])) {
+								do {
+									i += 1;
+								} while (args[i] != ';');
 							}
 						}
 
 						signature = args[i + 1];
 						if (signature != 'V') {
-							if (J9ClassHelper.isRefOrValSignature(signature) || (signature == '[')) {
+							if (J9ClassHelper.isClassSignature(signature) || (signature == '[')) {
 								PUSH(OBJ);
 							} else {
 								PUSH(INT);
@@ -786,11 +741,16 @@ public class StackMap
 				
 				buffer.append("outputStackMap. bits = ");
 				buffer.append(bits);
-				buffer.append(" resultsArray size = " + resultsArray.length);
-				buffer.append(" result: ");
-				
-				for (int i=0;i < resultsArray.length; i++) {
-					buffer.append(Integer.toHexString(resultsArray[i]));
+				if (resultsArray != null) {
+					buffer.append(" resultsArray size = ");
+					buffer.append(resultsArray.length);
+					buffer.append(" result: ");
+
+					for (int i=0;i < resultsArray.length; i++) {
+						buffer.append(Integer.toHexString(resultsArray[i]));
+					}
+				} else {
+					buffer.append(" resultsArray = null");
 				}
 				
 				logger.logp(FINE,"StackMap_V1","outputStackMap",buffer.toString());

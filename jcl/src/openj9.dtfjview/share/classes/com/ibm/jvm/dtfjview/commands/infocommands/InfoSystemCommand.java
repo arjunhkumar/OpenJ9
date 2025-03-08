@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands.infocommands;
 
 import java.io.PrintStream;
@@ -43,9 +43,9 @@ import com.ibm.jvm.dtfjview.commands.BaseJdmpviewCommand;
 public class InfoSystemCommand extends BaseJdmpviewCommand {
 	{
 		addCommand("info sys", "", "shortened form of info system");
-		addCommand("info system", "", "displays information about the system the core dump is from");				
+		addCommand("info system", "", "displays information about the system the core dump is from");
 	}
-	
+
 	public void run(String command, String[] args, IContext context, PrintStream out) throws CommandException {
 		if(initCommand(command, args, context, out)) {
 			return;		//processing already handled by super class
@@ -56,7 +56,7 @@ public class InfoSystemCommand extends BaseJdmpviewCommand {
 		}
 		doCommand();
 	}
-	
+
 	public void doCommand(){
 		try {
 			out.println("\nMachine OS:\t" + ctx.getImage().getSystemType());
@@ -81,18 +81,18 @@ public class InfoSystemCommand extends BaseJdmpviewCommand {
 
 		out.println("Machine IP address(es):");
 		try {
-			Iterator<?> itIPAddresses = ctx.getImage().getIPAddresses(); 
+			Iterator<?> itIPAddresses = ctx.getImage().getIPAddresses();
 			while (itIPAddresses.hasNext()) {
-				Object addr = itIPAddresses.next(); 
+				Object addr = itIPAddresses.next();
 				if (addr instanceof InetAddress) {
 					out.println("\t\t" + ((InetAddress)addr).getHostAddress());
 				} else if (addr instanceof CorruptData) {
 					out.println("\t\tdata corrupted");
-				} 
+				}
 			}
 		} catch (DataUnavailable du) {
 			out.println("\t\tdata unavailable");
-		}		
+		}
 		try {
 			out.println("System memory:\t" + ctx.getImage().getInstalledMemory());
 		} catch (DataUnavailable exc) {
@@ -111,7 +111,7 @@ public class InfoSystemCommand extends BaseJdmpviewCommand {
 		} catch (DataUnavailable d) {
 			out.println("\nDump creation time: data unavailable");
 		}
-		
+
 		// Dump creation time - nanotime - added in DTFJ 1.12
 		try {
 			long createTimeNanos = ctx.getImage().getCreationTimeNanos();
@@ -178,7 +178,7 @@ public class InfoSystemCommand extends BaseJdmpviewCommand {
 				kernelSettingPrinted = true;
 			}
 		}
-		
+
 		out.println();
 	}
 

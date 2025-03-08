@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2006
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders.zos.util;
 
 import java.util.Random;
@@ -33,111 +33,111 @@ import java.util.HashMap;
 
 public final class IntegerMap extends AbstractHashMap {
 
-    /** The array of values */
-    long[] values = new long[INITIAL_SIZE];
+	/** The array of values */
+	long[] values = new long[INITIAL_SIZE];
 
-    /**
-     * Overridden method to return values array.
-     */
-    Object getValuesArray() {
-        return values;
-    }
+	/**
+	 * Overridden method to return values array.
+	 */
+	Object getValuesArray() {
+		return values;
+	}
 
-    /**
-     * Overridden method to allocate new values array.
-     */
-    void allocNewValuesArray(int newSize) {
-        values = new long[newSize];
-    }
+	/**
+	 * Overridden method to allocate new values array.
+	 */
+	void allocNewValuesArray(int newSize) {
+		values = new long[newSize];
+	}
 
-    /**
-     * Overridden method to repopulate with key plus value at given offset.
-     */
-    void put(long key, Object oldvalues, int offset) {
-        long[] v = (long[])oldvalues;
-        put(key, v[offset]);
-    }
+	/**
+	 * Overridden method to repopulate with key plus value at given offset.
+	 */
+	void put(long key, Object oldvalues, int offset) {
+		long[] v = (long[])oldvalues;
+		put(key, v[offset]);
+	}
 
-    /**
-     * Returns the value mapped by the given key.
-     * @return the value or -1 if it cannot be found
-     */
-    public long get(long key) {
-        int index = getIndex(key) ;
-        return index == -1 ? -1 : values[index];
-    }
+	/**
+	 * Returns the value mapped by the given key.
+	 * @return the value or -1 if it cannot be found
+	 */
+	public long get(long key) {
+		int index = getIndex(key) ;
+		return index == -1 ? -1 : values[index];
+	}
 
-    /**
-     * Add the key/value pair to the map. The value must not be -1.
-     */
-    public void put(long key, long value) {
-        values[putIndex(key)] = value;
-        checkRehash();
-    }
+	/**
+	 * Add the key/value pair to the map. The value must not be -1.
+	 */
+	public void put(long key, long value) {
+		values[putIndex(key)] = value;
+		checkRehash();
+	}
 
-    /**
-     * Remove the key from the map and return the old value.
-     */
-    public long remove(long key) {
-        int index = removeIndex(key) ;
-        return index == -1 ? -1 : values[index];
-    }
+	/**
+	 * Remove the key from the map and return the old value.
+	 */
+	public long remove(long key) {
+		int index = removeIndex(key) ;
+		return index == -1 ? -1 : values[index];
+	}
 
-    public int memoryUsage() {
-        return tableSize * 17;
-    }
+	public int memoryUsage() {
+		return tableSize * 17;
+	}
 
-    private boolean doCheck = true;
+	private boolean doCheck = true;
 
-    /**
-     * Test method.
-     */
-    private void test() {
-        Random rand = new Random(23);
-        HashMap check = new HashMap();
-        for (int i = 0; i < 500000; i++) {
-            long key = rand.nextLong();
-            long value = rand.nextLong();
-            boolean remove = ((i % 3) == 0);
-            if (get(key) != -1) {
-                continue;
-            }
-            put(key, value);
-            if (doCheck) {
-                check.put(Long.valueOf(key), Long.valueOf(value));
-                if (get(key) != value) {
-                    throw new Error("found " + get(key) + " expected " + value);
-                }
-                if (remove) {
-                    remove(key);
-                    check.remove(Long.valueOf(key));
-                }
-            }
-        }
-        if (doCheck) {
-            Long[] keys = (Long[])check.keySet().toArray(new Long[0]);
-            for (int i = 0; i < keys.length; i++) {
-                long key = keys[i].longValue();
-                long value = ((Long)check.get(keys[i])).longValue();
-                if (get(key) != value) {
-                    throw new Error("at " + i + " found " + get(key) + " expected " + value + " key " + key);
-                }
-            }
-        }
-    }
+	/**
+	 * Test method.
+	 */
+	private void test() {
+		Random rand = new Random(23);
+		HashMap check = new HashMap();
+		for (int i = 0; i < 500000; i++) {
+			long key = rand.nextLong();
+			long value = rand.nextLong();
+			boolean remove = ((i % 3) == 0);
+			if (get(key) != -1) {
+				continue;
+			}
+			put(key, value);
+			if (doCheck) {
+				check.put(Long.valueOf(key), Long.valueOf(value));
+				if (get(key) != value) {
+					throw new Error("found " + get(key) + " expected " + value);
+				}
+				if (remove) {
+					remove(key);
+					check.remove(Long.valueOf(key));
+				}
+			}
+		}
+		if (doCheck) {
+			Long[] keys = (Long[])check.keySet().toArray(new Long[0]);
+			for (int i = 0; i < keys.length; i++) {
+				long key = keys[i].longValue();
+				long value = ((Long)check.get(keys[i])).longValue();
+				if (get(key) != value) {
+					throw new Error("at " + i + " found " + get(key) + " expected " + value + " key " + key);
+				}
+			}
+		}
+	}
 
-    /**
-     * Run some basic tests on this class.
-     *
-     * @exclude
-     */
-    public static void main(String args[]) {
-        IntegerMap map = new IntegerMap();
-        map.test();
-        for (IntEnumeration e = map.getKeys(); e.hasMoreElements(); ) {
-            long key = e.nextInt();
-            if (map.get(key) == -1) throw new Error("uh oh");
-        }
-        System.out.println("finished!");
-    }
+	/**
+	 * Run some basic tests on this class.
+	 *
+	 * @exclude
+	 */
+	public static void main(String args[]) {
+		IntegerMap map = new IntegerMap();
+		map.test();
+		for (IntEnumeration e = map.getKeys(); e.hasMoreElements(); ) {
+			long key = e.nextInt();
+			if (map.get(key) == -1) throw new Error("uh oh");
+		}
+		System.out.println("finished!");
+	}
 }

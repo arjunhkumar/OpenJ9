@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_PERSISTENTINFO_HPP
@@ -42,6 +42,7 @@ class TR_FrontEnd;
 class TR_PersistentMemory;
 class TR_PersistentCHTable;
 class TR_PersistentClassLoaderTable;
+class TR_AOTDependencyTable;
 class TR_MHJ2IThunkTable;
 namespace J9 { class Options; }
 
@@ -159,24 +160,37 @@ class PersistentInfo : public OMR::PersistentInfoConnector
          _gpuInitMonitor(NULL),
          _runtimeInstrumentationEnabled(false),
          _runtimeInstrumentationRecompilationEnabled(false),
+         _aotDependencyTable(NULL),
+         _trackAOTDependencies(false),
 #if defined(J9VM_OPT_JITSERVER)
          _JITServerAddress("localhost"),
          _JITServerPort(38400),
          _socketTimeoutMs(0),
          _clientUID(0),
+         _serverUID(0),
+         _hasEverConnectedToServer(false),
          _JITServerMetricsPort(38500),
+         _JITServerUseHealthPort(true),
+         _JITServerHealthPort(38600),
          _requireJITServer(false),
          _localSyncCompiles(true),
          _JITServerUseAOTCache(false),
          _JITServerAOTCacheName("default"),
          _JITServerUseAOTCachePersistence(false),
          _JITServerAOTCacheDir(),
+         _JITServerAOTCacheDelayMethodRelocation(false),
+         _JITServerAOTCacheIgnoreLocalSCC(true),
+         _doNotRequestJITServerAOTCacheLoad(false),
+         _doNotRequestJITServerAOTCacheStore(false),
 #endif /* defined(J9VM_OPT_JITSERVER) */
       OMR::PersistentInfoConnector(pm)
       {}
 
    void setPersistentClassLoaderTable(TR_PersistentClassLoaderTable *table) { _persistentClassLoaderTable = table; }
    TR_PersistentClassLoaderTable *getPersistentClassLoaderTable() { return _persistentClassLoaderTable; }
+
+   void setAOTDependencyTable(TR_AOTDependencyTable *table) { _aotDependencyTable = table; }
+   TR_AOTDependencyTable *getAOTDependencyTable() const { return _aotDependencyTable; }
 
    TR_OpaqueClassBlock **getVisitedSuperClasses() { return _visitedSuperClasses; }
    void clearVisitedSuperClasses() { _tooManySuperClasses = false; _numVisitedSuperClasses = 0; }
@@ -201,6 +215,7 @@ class PersistentInfo : public OMR::PersistentInfoConnector
    void addUnloadedClass(TR_OpaqueClassBlock *clazz, uintptr_t startAddress, uint32_t size);
    bool isUnloadedClass(void *v, bool yesIReallyDontCareAboutHCR); // You probably want isObsoleteClass
    bool isInUnloadedMethod(uintptr_t address);
+   void incNumUnloadedClasses(int32_t count) { _numUnloadedClasses += count; }
    int32_t getNumUnloadedClasses() const { return _numUnloadedClasses; }
    TR_AddressSet* getUnloadedClassAddresses() const { return _unloadedClassAddresses; }
 
@@ -335,6 +350,9 @@ class PersistentInfo : public OMR::PersistentInfoConnector
    uint8_t _paddingBefore[128];
    int32_t _countForRecompile;
 
+  void setTrackAOTDependencies(bool b) { _trackAOTDependencies = b;}
+  bool getTrackAOTDependencies() const { return _trackAOTDependencies; }
+
 #if defined(J9VM_OPT_JITSERVER)
    static JITServer::RemoteCompilationModes _remoteCompilationMode; // JITServer::NONE, JITServer::CLIENT, JITServer::SERVER
 
@@ -349,8 +367,14 @@ class PersistentInfo : public OMR::PersistentInfoConnector
    void setClientUID(uint64_t val) { _clientUID = val; }
    uint64_t getServerUID() const { return _serverUID; }
    void setServerUID(uint64_t val) { _serverUID = val; }
+   bool hasEverConnectedToServer() const { return _hasEverConnectedToServer; }
+   void setHasEverConnectedToServer() { _hasEverConnectedToServer = true; }
    uint32_t getJITServerMetricsPort() const { return _JITServerMetricsPort; }
    void setJITServerMetricsPort(uint32_t port) { _JITServerMetricsPort = port; }
+   bool getJITServerUseHealthPort() const { return _JITServerUseHealthPort; }
+   void setJITServerUseHealthPort(bool b) { _JITServerUseHealthPort = b; }
+   uint32_t getJITServerHealthPort() const { return _JITServerHealthPort; }
+   void setJITServerHealthPort(uint32_t port) { _JITServerHealthPort = port; }
    bool getRequireJITServer() const { return _requireJITServer; }
    void setRequireJITServer(bool requireJITServer) { _requireJITServer = requireJITServer; }
    bool isLocalSyncCompiles() const { return _localSyncCompiles; }
@@ -363,6 +387,14 @@ class PersistentInfo : public OMR::PersistentInfoConnector
    void setJITServerUseAOTCachePersistence(bool use) { _JITServerUseAOTCachePersistence = use; }
    const std::string &getJITServerAOTCacheDir() const { return _JITServerAOTCacheDir; }
    void setJITServerAOTCacheDir(const char *dir) { _JITServerAOTCacheDir = dir; }
+   bool getJITServerAOTCacheDelayMethodRelocation() const { return _JITServerAOTCacheDelayMethodRelocation; }
+   void setJITServerAOTCacheDelayMethodRelocation(bool b) { _JITServerAOTCacheDelayMethodRelocation = b; }
+   bool getJITServerAOTCacheIgnoreLocalSCC() const { return _JITServerAOTCacheIgnoreLocalSCC; }
+   void setJITServerAOTCacheIgnoreLocalSCC(bool b) { _JITServerAOTCacheIgnoreLocalSCC = b; }
+   bool doNotRequestJITServerAOTCacheLoad() const { return _doNotRequestJITServerAOTCacheLoad; }
+   void setDoNotRequestJITServerAOTCacheLoad(bool b) { _doNotRequestJITServerAOTCacheLoad = b; }
+   bool doNotRequestJITServerAOTCacheStore() const { return _doNotRequestJITServerAOTCacheStore; }
+   void setDoNotRequestJITServerAOTCacheStore(bool b) { _doNotRequestJITServerAOTCacheStore = b; }
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
    private:
@@ -373,6 +405,8 @@ class PersistentInfo : public OMR::PersistentInfoConnector
    TR_PersistentCHTable *_persistentCHTable;
 
    TR_PersistentClassLoaderTable *_persistentClassLoaderTable;
+
+   TR_AOTDependencyTable *_aotDependencyTable;
 
    // these fields are RW
 
@@ -447,19 +481,31 @@ class PersistentInfo : public OMR::PersistentInfoConnector
 
    int32_t _numLoadedClasses; ///< always increasing
 
+   bool _trackAOTDependencies;
+
 #if defined(J9VM_OPT_JITSERVER)
    std::string _JITServerAddress;
    uint32_t    _JITServerPort;
    uint32_t    _socketTimeoutMs; // timeout for communication sockets used in out-of-process JIT compilation
    uint64_t    _clientUID;
    uint64_t    _serverUID; // At the client, this represents the UID of the server the client is connected to
+   bool        _hasEverConnectedToServer; // At the client, true if the client has connected to a server at some point in the past
    uint32_t    _JITServerMetricsPort; // Port for receiving http metrics requests from Prometheus; only used at server
+   bool        _JITServerUseHealthPort; // True if the server should open _JITServerHealthPort
+   uint32_t    _JITServerHealthPort; // Port for receiving readiness/liveness probes from Kubernetes; only used at server
    bool        _requireJITServer;
    bool        _localSyncCompiles;
    bool        _JITServerUseAOTCache;
    std::string _JITServerAOTCacheName; // Name of the server AOT cache that this client is using
    bool        _JITServerUseAOTCachePersistence; // Whether to persist the JITServer AOT caches at the server
    std::string _JITServerAOTCacheDir;  // Directory where the JITServer persistent AOT caches are located
+   bool        _JITServerAOTCacheDelayMethodRelocation; // At the client, whether to delay deserialized method relocation or not
+   // At the client, whether or not to use the new AOT cache implementation (with serialization record IDs as SCC offsets)
+   bool        _JITServerAOTCacheIgnoreLocalSCC;
+   // True if the client should not request AOT cache loads during this server connection
+   bool        _doNotRequestJITServerAOTCacheLoad;
+   // True if the client should not request AOT cache stores during this server connection
+   bool        _doNotRequestJITServerAOTCacheStore;
 #endif /* defined(J9VM_OPT_JITSERVER) */
    };
 

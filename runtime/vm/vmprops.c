@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -34,7 +34,6 @@
 
 #if defined(LINUX)
 /* Copy the system properties names and values into malloced memory */
-static char* copyToMem(J9JavaVM * vm, char * source);
 static void copySystemProperties(J9JavaVM* vm);
 #endif /* defined(LINUX) */
 
@@ -52,37 +51,79 @@ static UDATA addPropertiesForOptionWithAssignArg(J9JavaVM *vm, const char *optio
 static UDATA addPropertyForOptionWithEqualsArg(J9JavaVM *vm, const char *optionName, UDATA optionNameLen, const char *propName);
 static UDATA addModularitySystemProperties(J9JavaVM * vm);
 
-#if defined(LINUX)
-/* Copy the system properties names and values into malloced memory */
-static char*
-copyToMem(J9JavaVM * vm, char * source)
+/*
+ * Create a copy of the given string in allocated memory.
+ *
+ * @param [in] vm the J9JavaVM
+ * @param [in] source the null-terminated string to be copied
+ *
+ * @return a copy of the string in allocated memory
+ *         or NULL if space could not be allocated
+ */
+static char *
+copyToMem(J9JavaVM *vm, const char *source)
 {
-	char* dest;
-	UDATA length;
 	PORT_ACCESS_FROM_JAVAVM(vm);
-
-	length = strlen(source);
-	dest = j9mem_allocate_memory(length + 1, OMRMEM_CATEGORY_VM);
-	if (dest != NULL) {
+	UDATA length = strlen(source);
+	char *dest = (char *)j9mem_allocate_memory(length + 1, OMRMEM_CATEGORY_VM);
+	if (NULL != dest) {
 		strcpy(dest, source);
 	}
 	return dest;
 }
 
+/**
+ * Adds a system property, attempting to ensure that both the
+ * name and the value are in allocated memory (if not already
+ * there according to the supplied flags).
+ *
+ * The motivation for this is to improve the likelihood that
+ * DDR will be able to access these strings, even without the
+ * benefit of augmented information collected via jpackcore.
+ *
+ * @param [in] vm the J9JavaVM
+ * @param [in] name null-terminated property name to be added
+ * @param [in] value null-terminated property value to be added
+ * @param [in] flags flags as speicified by addSystemProperty()
+ *
+ * @return J9SYSPROP_ERROR_NONE on success, or a J9SYSPROP_ERROR_* value on failure.
+ */
+static UDATA
+addAllocatedSystemProperty(J9JavaVM *vm, const char *name, const char *value, UDATA flags)
+{
+	if (J9_ARE_NO_BITS_SET(flags, J9SYSPROP_FLAG_NAME_ALLOCATED)) {
+		char *copy = copyToMem(vm, name);
+		if (NULL != copy) {
+			flags |= J9SYSPROP_FLAG_NAME_ALLOCATED;
+			name = copy;
+		}
+	}
+
+	if (J9_ARE_NO_BITS_SET(flags, J9SYSPROP_FLAG_VALUE_ALLOCATED)) {
+		char *copy = copyToMem(vm, value);
+		if (NULL != copy) {
+			flags |= J9SYSPROP_FLAG_VALUE_ALLOCATED;
+			value = copy;
+		}
+	}
+
+	return addSystemProperty(vm, name, value, flags);
+}
+
+#if defined(LINUX)
+/* Copy the system properties names and values into malloced memory. */
 static void
 copySystemProperties(J9JavaVM* vm)
 {
 	pool_state walkState;
-	char* copied;
 
-	J9VMSystemProperty* property = pool_startDo(vm->systemProperties, &walkState);
-	while (property != NULL) {
-
+	J9VMSystemProperty *property = pool_startDo(vm->systemProperties, &walkState);
+	while (NULL != property) {
 		/* copy the name */
-		if ((property->flags & J9SYSPROP_FLAG_NAME_ALLOCATED) == 0) {
-			copied = copyToMem(vm, property->name);
+		if (J9_ARE_NO_BITS_SET(property->flags, J9SYSPROP_FLAG_NAME_ALLOCATED)) {
+			char *copied = copyToMem(vm, property->name);
 
-			if (copied == NULL) {
+			if (NULL == copied) {
 				/* Give up at this point as the memory allocation will probably continue to fail */
 				return;
 			}
@@ -91,17 +132,16 @@ copySystemProperties(J9JavaVM* vm)
 		}
 
 		/* copy the value */
-		if ((property->flags & J9SYSPROP_FLAG_VALUE_ALLOCATED) == 0) {
-			copied = copyToMem(vm, property->value);
+		if (J9_ARE_NO_BITS_SET(property->flags, J9SYSPROP_FLAG_VALUE_ALLOCATED)) {
+			char *copied = copyToMem(vm, property->value);
 
-			if (copied == NULL) {
+			if (NULL == copied) {
 				/* Give up at this point as the memory allocation will probably continue to fail */
 				return;
 			}
 			property->value = copied;
 			property->flags |= J9SYSPROP_FLAG_VALUE_ALLOCATED;
 		}
-
 
 		property = pool_nextDo(&walkState);
 	}
@@ -302,7 +342,7 @@ addPropertyForOptionWithModuleListArg(J9JavaVM *vm, const char *optionName, IDAT
 					listSize += strlen(prevList);
 					modulesList = j9mem_allocate_memory(listSize + 2, OMRMEM_CATEGORY_VM); /* +1 for ',' and +1 for '\0' */
 					if (NULL != modulesList) {
-						j9str_printf(PORTLIB, modulesList, listSize + 2, "%s,%s", prevList, optionArg);
+						j9str_printf(modulesList, listSize + 2, "%s,%s", prevList, optionArg);
 						j9mem_free_memory(prevList);
 					} else {
 						j9mem_free_memory(optionArg);
@@ -387,7 +427,7 @@ addPropertiesForOptionWithAssignArg(J9JavaVM *vm, const char *optionName, UDATA 
 					rc = J9SYSPROP_ERROR_OUT_OF_MEMORY;
 					goto _end;
 				}
-				j9str_printf(PORTLIB, propName, propNameLen, "%s%zu", basePropName, index);
+				j9str_printf(propName, propNameLen, "%s%zu", basePropName, index);
 				rc = addSystemProperty(vm, propName, optionArg, J9SYSPROP_FLAG_NAME_ALLOCATED | J9SYSPROP_FLAG_VALUE_ALLOCATED );
 				if (J9SYSPROP_ERROR_NONE != rc) {
 					goto _end;
@@ -401,7 +441,7 @@ addPropertiesForOptionWithAssignArg(J9JavaVM *vm, const char *optionName, UDATA 
 
 			argIndex = FIND_NEXT_ARG_IN_VMARGS_FORWARD(OPTIONAL_LIST_MATCH_USING_EQUALS, optionName, NULL, argIndex);
 			index += 1;
-			indexLen = j9str_printf(PORTLIB, NULL, 0, "%zu", index); /* get number of digits in 'index' */
+			indexLen = j9str_printf(NULL, 0, "%zu", index); /* get number of digits in 'index' */
 		} while (argIndex >= 0);
 		if (NULL != propertyCount) {
 			*propertyCount = index;
@@ -489,6 +529,17 @@ addModularitySystemProperties(J9JavaVM * vm)
 		goto _end;
 	}
 #endif /* JAVA_SPEC_VERSION >= 17 */
+
+#if JAVA_SPEC_VERSION >= 24
+	/* Find and consume the last --illegal-native-access option. */
+	rc = addPropertyForOptionWithEqualsArg(
+			vm, VMOPT_ILLEGAL_NATIVE_ACCESS,
+			LITERAL_STRLEN(VMOPT_ILLEGAL_NATIVE_ACCESS),
+			SYSPROP_JDK_MODULE_ILLEGALNATIVEACCESS);
+	if (J9SYSPROP_ERROR_NONE != rc) {
+		goto _end;
+	}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 
 	/* Find last --illegal-access */
 	rc = addPropertyForOptionWithEqualsArg(vm, VMOPT_ILLEGAL_ACCESS, LITERAL_STRLEN(VMOPT_ILLEGAL_ACCESS), SYSPROP_JDK_MODULE_ILLEGALACCESS);
@@ -608,7 +659,7 @@ initializeSystemProperties(J9JavaVM * vm)
 		if (JAVA_SPEC_VERSION == 8) {
 			classVersion = "52.0";
 		} else {
-			classVersion = "55.0";	/* Java 11 */
+			classVersion = "55.0"; /* Java 11 */
 		}
 		rc = addSystemProperty(vm, "java.class.version", classVersion, 0);
 		if (J9SYSPROP_ERROR_NONE != rc) {
@@ -628,11 +679,18 @@ initializeSystemProperties(J9JavaVM * vm)
 #endif /* JAVA_SPEC_VERSION < 12 */
 
 #if JAVA_SPEC_VERSION == 8
-	rc = addSystemProperty(vm, "java.specification.maintenance.version", "4", 0);
+#define JAVA_SPEC_MAINTENANCE_VERSION "6"
+#elif JAVA_SPEC_VERSION == 11 /* JAVA_SPEC_VERSION == 8 */
+#define JAVA_SPEC_MAINTENANCE_VERSION "3"
+#endif /* JAVA_SPEC_VERSION == 8 */
+
+#if defined(JAVA_SPEC_MAINTENANCE_VERSION)
+	rc = addSystemProperty(vm, "java.specification.maintenance.version", JAVA_SPEC_MAINTENANCE_VERSION, 0);
 	if (J9SYSPROP_ERROR_NONE != rc) {
 		goto fail;
 	}
-#endif /* JAVA_SPEC_VERSION == 8 */
+#undef JAVA_SPEC_MAINTENANCE_VERSION
+#endif /* defined(JAVA_SPEC_MAINTENANCE_VERSION) */
 
 	rc = addSystemProperty(vm, "java.vm.vendor", JAVA_VM_VENDOR, 0);
 	if (J9SYSPROP_ERROR_NONE != rc) {
@@ -640,11 +698,6 @@ initializeSystemProperties(J9JavaVM * vm)
 	}
 
 	rc = addSystemProperty(vm, "com.ibm.oti.vm.library.version", J9_DLL_VERSION_STRING, 0);
-	if (J9SYSPROP_ERROR_NONE != rc) {
-		goto fail;
-	}
-
-	rc = addSystemProperty(vm, "java.fullversion", EsBuildVersionString, J9SYSPROP_FLAG_WRITEABLE);
 	if (J9SYSPROP_ERROR_NONE != rc) {
 		goto fail;
 	}
@@ -664,12 +717,26 @@ initializeSystemProperties(J9JavaVM * vm)
 		goto fail;
 	}
 
-	rc = addSystemProperty(vm, "java.vm.version", J9JVM_VERSION_STRING, 0);
+	/*
+	 * For each of the system properties "java.fullversion", "java.vm.name"
+	 * and "java.vm.version", we try to put both the name and value in
+	 * allocated memory so DDR can more reliably have access to those strings.
+	 *
+	 * See:
+	 *   - com.ibm.jvm.dtfjview.commands.OpenCommand#createContexts()
+	 *   - com.ibm.j9ddr.vm29.tools.ddrinteractive.commands.CoreInfoCommand#run()
+	 */
+	rc = addAllocatedSystemProperty(vm, "java.fullversion", EsBuildVersionString, J9SYSPROP_FLAG_WRITEABLE);
 	if (J9SYSPROP_ERROR_NONE != rc) {
 		goto fail;
 	}
 
-	rc = addSystemProperty(vm, "java.vm.name", JAVA_VM_NAME, 0);
+	rc = addAllocatedSystemProperty(vm, "java.vm.name", JAVA_VM_NAME, 0);
+	if (J9SYSPROP_ERROR_NONE != rc) {
+		goto fail;
+	}
+
+	rc = addAllocatedSystemProperty(vm, "java.vm.version", J9JVM_VERSION_STRING, 0);
 	if (J9SYSPROP_ERROR_NONE != rc) {
 		goto fail;
 	}
@@ -688,11 +755,13 @@ initializeSystemProperties(J9JavaVM * vm)
 	}
 #endif
 
+#if JAVA_SPEC_VERSION < 21
 	/* Don't know the JIT yet, put in a placeholder and make it writeable for now */
 	rc = addSystemProperty(vm, "java.compiler", "", J9SYSPROP_FLAG_WRITEABLE);
 	if (J9SYSPROP_ERROR_NONE != rc) {
 		goto fail;
 	}
+#endif /* JAVA_SPEC_VERSION < 21 */
 
 	/* We don't have enough information yet. Put in placeholders. */
 #if defined(J9VM_OPT_SIDECAR) && !defined(WIN32)
@@ -990,7 +1059,50 @@ initializeSystemProperties(J9JavaVM * vm)
 	}
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
-	/* If we get here all is good */
+#if JAVA_SPEC_VERSION >= 23
+	{
+		/* JEP 471: Deprecate the Memory-Access Methods in sun.misc.Unsafe for Removal
+		 * --sun-misc-unsafe-memory-access=value which is expected to be "allow", "warn", "debug" or "deny".
+		 */
+		IDATA argIndex = FIND_AND_CONSUME_VMARG(STARTSWITH_MATCH, VMOPT_DISABLE_SUN_MISC_UNSAFE_MEMORY_ACCESS, NULL);
+		if (argIndex >= 0) {
+			PORT_ACCESS_FROM_JAVAVM(vm);
+			UDATA optionNameLen = LITERAL_STRLEN(VMOPT_DISABLE_SUN_MISC_UNSAFE_MEMORY_ACCESS);
+			/* option name includes the '=' so go back one to get the option arg */
+			char *optionArg = getOptionArg(vm, argIndex, optionNameLen - 1);
+
+			if (NULL != optionArg) {
+				if ((0 == strcmp(optionArg, "allow"))
+					|| (0 == strcmp(optionArg, "warn"))
+					|| (0 == strcmp(optionArg, "debug"))
+					|| (0 == strcmp(optionArg, "deny"))
+				) {
+					rc = addSystemProperty(vm, SYSPROP_SUN_MISC_UNSAFE_MEMORY_ACCESS, optionArg, J9SYSPROP_FLAG_VALUE_ALLOCATED);
+					if (J9SYSPROP_ERROR_NONE != rc) {
+						goto fail;
+					}
+				} else {
+					j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_VM_UNRECOGNISED_SUN_MISC_UNSAFE_MEMORY_ACCESS_VALUE, optionArg);
+					rc = J9SYSPROP_ERROR_INVALID_VALUE;
+					goto fail;
+				}
+			} else {
+				j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_VM_UNRECOGNISED_SUN_MISC_UNSAFE_MEMORY_ACCESS_VALUE, "");
+				rc = J9SYSPROP_ERROR_ARG_MISSING;
+				goto fail;
+			}
+		}
+	}
+#endif /* JAVA_SPEC_VERSION >= 23 */
+
+#if defined(JDK_DEBUG_LEVEL)
+	rc = addSystemProperty(vm, "jdk.debug", JDK_DEBUG_LEVEL, 0);
+	if (J9SYSPROP_ERROR_NONE != rc) {
+		goto fail;
+	}
+#endif /* defined(JDK_DEBUG_LEVEL) */
+
+	/* If we get here, all is good. */
 	rc = J9SYSPROP_ERROR_NONE;
 
 fail:
@@ -1090,7 +1202,7 @@ setSystemPropertyValue(J9JavaVM * vm, J9VMSystemProperty * property, char * newV
 		PORT_ACCESS_FROM_JAVAVM(vm);
 		/* If the old value of the property was allocated (not static data), then free it */
 
-		if (J9_ARE_ALL_BITS_SET(property->flags, J9SYSPROP_FLAG_VALUE_ALLOCATED)) {
+		if (J9_ARE_ANY_BITS_SET(property->flags, J9SYSPROP_FLAG_VALUE_ALLOCATED)) {
 			j9mem_free_memory(property->value);
 		}
 
@@ -1110,23 +1222,19 @@ setSystemProperty(J9JavaVM * vm, J9VMSystemProperty * property, const char * val
 {
 	/* Make sure the property is writeable */
 
-	if (!(property->flags & J9SYSPROP_FLAG_WRITEABLE)) {
+	if (J9_ARE_NO_BITS_SET(property->flags, J9SYSPROP_FLAG_WRITEABLE)) {
 		return J9SYSPROP_ERROR_READ_ONLY;
 	}
 
 	/* If value is NULL, don't write it (used to check for read-only without modifying) */
 
-	if (value != NULL) {
-		PORT_ACCESS_FROM_JAVAVM(vm);
-		char * copiedValue;
-
+	if (NULL != value) {
 		/* Make a copy of the value */
+		char * copiedValue = copyToMem(vm, value);
 
-		copiedValue = j9mem_allocate_memory(strlen(value) + 1, OMRMEM_CATEGORY_VM);
-		if (copiedValue == NULL) {
+		if (NULL == copiedValue) {
 			return J9SYSPROP_ERROR_OUT_OF_MEMORY;
 		}
-		strcpy(copiedValue, value);
 		setSystemPropertyValue(vm, property, copiedValue, TRUE);
 	}
 
@@ -1262,52 +1370,62 @@ containsBackslashU(const char *userString, UDATA stringLength) {
 	return FALSE; /* hit the end of the string without encountering \u sequence */
 }
 
+static U_8 *
+convertString(J9JavaVM *vm, I_32 fromCode, const char *userString, UDATA stringLength)
+{
+	PORT_ACCESS_FROM_JAVAVM(vm);
+	U_8 *result = NULL;
+	I_32 bufferLength = j9str_convert(fromCode, J9STR_CODE_MUTF8, userString, stringLength, NULL, 0) + 1; /* +1 for terminating null */
+	if (bufferLength > 0) {
+		U_8 *mutf8Buffer = j9mem_allocate_memory(bufferLength, OMRMEM_CATEGORY_VM);
+		if (NULL != mutf8Buffer) {
+			I_32 resultLength = j9str_convert(fromCode, J9STR_CODE_MUTF8, userString, stringLength,
+					(char *)mutf8Buffer, bufferLength);
+			/* j9str_convert null-terminated the string */
+			if (resultLength >= 0) {
+				result = mutf8Buffer;
+			} else {
+				j9mem_free_memory(mutf8Buffer);
+			}
+		}
+	}
+	return result;
+}
 
-U_8*
-getMUtf8String(J9JavaVM * vm, const char *userString, UDATA stringLength) {
-
+U_8 *
+getMUtf8String(J9JavaVM *vm, const char *userString, UDATA stringLength)
+{
 	PORT_ACCESS_FROM_JAVAVM(vm);
 
 	U_8 *mutf8Buffer = NULL;
 	U_8 *result = NULL;
-	BOOLEAN doUnicodeConversion = J9_ARE_ALL_BITS_SET(vm->runtimeFlags, J9_RUNTIME_ARGENCODING_UNICODE)
+	BOOLEAN doUnicodeConversion = J9_ARE_ANY_BITS_SET(vm->runtimeFlags, J9_RUNTIME_ARGENCODING_UNICODE)
 					&& containsBackslashU(userString, stringLength);
 
-	if (!doUnicodeConversion && isAscii(userString, stringLength)) { /* This is entirely ASCII */
-		UDATA bufferLength = stringLength+1; /* leave room for the terminating null */
+	if (doUnicodeConversion) {
+		result = unicodeEscapeStringToMUtf8(vm, userString, stringLength);
+	} else if (isAscii(userString, stringLength)) { /* This is entirely ASCII. */
+		UDATA bufferLength = stringLength + 1; /* leave room for the terminating null */
 		mutf8Buffer = j9mem_allocate_memory(bufferLength, OMRMEM_CATEGORY_VM);
 		if (NULL != mutf8Buffer) {
 			memcpy(mutf8Buffer, userString, stringLength);
 			mutf8Buffer[stringLength] = '\0';
 		}
 		result = mutf8Buffer;
-	} else 	if (doUnicodeConversion) {
-		result = unicodeEscapeStringToMUtf8(vm, userString, stringLength);
-	} else 	{
-#ifdef WIN32
-		I_32 fromCode = J9STR_CODE_UTF8; /* commandline arguments should be in UTF-8 */
-#else
+	} else {
+#if defined(OSX) || defined(WIN32)
+		I_32 fromCode = J9STR_CODE_UTF8; /* command-line arguments should be in UTF-8 */
+#else /* defined(OSX) || defined(WIN32) */
 		I_32 fromCode = J9STR_CODE_PLATFORM_RAW;
-#endif
-		I_32 bufferLength = -1;
-		if (J9_ARE_ALL_BITS_SET(vm->runtimeFlags, J9_RUNTIME_ARGENCODING_UTF8)) {
+#endif /* defined(OSX) || defined(WIN32) */
+		if (J9_ARE_ANY_BITS_SET(vm->runtimeFlags, J9_RUNTIME_ARGENCODING_UTF8)) {
 			fromCode = J9STR_CODE_UTF8;
-		} else if (J9_ARE_ALL_BITS_SET(vm->runtimeFlags, J9_RUNTIME_ARGENCODING_LATIN)) {
+		} else if (J9_ARE_ANY_BITS_SET(vm->runtimeFlags, J9_RUNTIME_ARGENCODING_LATIN)) {
 			fromCode =  J9STR_CODE_LATIN1;
 		}
-		bufferLength = j9str_convert(fromCode, J9STR_CODE_MUTF8, userString, stringLength,
-				NULL, 0);
-		if (bufferLength >= 0) {
-			++bufferLength; /* account for terminating null */
-			mutf8Buffer = j9mem_allocate_memory(bufferLength, OMRMEM_CATEGORY_VM);
-			if (NULL != mutf8Buffer) {
-				I_32 resultLength = j9str_convert(fromCode, J9STR_CODE_MUTF8, userString, stringLength,
-						(char*)mutf8Buffer, bufferLength);
-				/* j9str_convert null-terminated the string */
-				if (resultLength >= 0) {
-					result = mutf8Buffer;
-				}
-			}
+		result = convertString(vm, fromCode, userString, stringLength);
+		if ((NULL == result) && (J9STR_CODE_UTF8 != fromCode)) {
+			result = convertString(vm, J9STR_CODE_UTF8, userString, stringLength);
 		}
 	}
 	if (NULL == result) {

@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar19-SE]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 9]*/
+/*
  * Copyright IBM Corp. and others 2017
  *
  * This program and the accompanying materials are made available under
@@ -18,12 +18,14 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.gpu.internal;
 
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 import com.ibm.gpu.CUDAManager;
 import com.ibm.gpu.spi.GPUAssist;
@@ -48,12 +50,17 @@ public final class CudaGPUAssistProvider implements GPUAssist.Provider {
 	}
 
 	@Override
-	/*[IF JAVA_SPEC_VERSION >= 17]*/
+	/*[IF (17 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24)]*/
 	@SuppressWarnings("removal")
-	/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
+	/*[ENDIF] (17 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24) */
 	public GPUAssist getGPUAssist() {
+		CUDAManager manager;
+		/*[IF JAVA_SPEC_VERSION >= 24]*/
+		manager = CUDAManager.instance();
+		/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 		PrivilegedAction<CUDAManager> getInstance = () -> CUDAManager.instance();
-		CUDAManager manager = AccessController.doPrivileged(getInstance);
+		manager = AccessController.doPrivileged(getInstance);
+		/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
 		if (manager.isSortEnabledOnGPU() || manager.isSortEnforcedOnGPU()) {
 			if (manager.getDeviceCount() > 0) {

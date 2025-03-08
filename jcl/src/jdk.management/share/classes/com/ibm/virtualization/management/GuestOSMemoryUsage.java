@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2013
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.virtualization.management;
 
 import javax.management.openmbean.CompositeData;
@@ -32,7 +32,7 @@ import com.ibm.virtualization.management.internal.GuestOSMemoryUsageUtil;
  * Memory usage statistics as seen by the Hypervisor Host.
  * The supported Operating System and Hypervisor combinations are:
  * <ol>
- *     <li>Linux and Windows on VMWare.
+ *     <li>Linux and Windows on VMWare (IBM Java 8 only).
  *     <li>AIX and Linux on PowerVM.
  *     <li>Linux and z/OS on z/VM.
  *     <li>Guest Operating System memory usage statistics are not available on Linux for PowerKVM.
@@ -60,12 +60,12 @@ public final class GuestOSMemoryUsage {
 	 * @param memUsed		The current used snapshot of Memory in MB or -1 if undefined.
 	 * @param timestamp		The timestamp when the snapshot was taken in microseconds.
 	 * @param maxMemLimit	The Max Memory limit if any set for this Guest or -1 if undefined.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if
 	 * <ul>
 	 *     <li>The values of cpuTime or cpuEntitlement or hostCpuClockSpeed are negative but not -1; or
 	 *     <li>memUsed is greater than maxMemLimit if defined.
-	 *     <li>The value of timestamp is negative. 
+	 *     <li>The value of timestamp is negative.
 	 * </ul>
 	 */
 	private GuestOSMemoryUsage(long memUsed, long timestamp, long maxMemLimit) throws IllegalArgumentException {
@@ -108,7 +108,7 @@ public final class GuestOSMemoryUsage {
 
 	/* (non-Javadoc)
 	 * Setter method for updating Guest Memory usage parameters for this instance.
-	 * 
+	 *
 	 * @param used	The current used snapshot of Memory in MB.
 	 * @param timestamp The timestamp when the snapshot was taken in microseconds.
 	 * @param limit The Max Memory limit if any set for this Guest.
@@ -123,9 +123,9 @@ public final class GuestOSMemoryUsage {
 	 * Receives a {@link javax.management.openmbean.CompositeData} representing a {@link GuestOSMemoryUsage}
 	 * object and attempts to return the root {@link GuestOSMemoryUsage} instance.
 	 *
-	 * @param cd	A {@link javax.management.openmbean.CompositeData} that represents a 
+	 * @param cd	A {@link javax.management.openmbean.CompositeData} that represents a
 	 *                {@link GuestOSMemoryUsage}.
-	 * 
+	 *
 	 * @return	if <code>cd</code> is non- <code>null</code>, returns a new instance of
 	 * 		{@link GuestOSMemoryUsage}, If <code>cd</code>
 	 * 		is <code>null</code>, returns <code>null</code>.

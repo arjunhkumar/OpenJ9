@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -34,6 +34,10 @@
 #include "VMThreadStackSlotIterator.hpp"
 #include "VMHelpers.hpp"
 
+#if JAVA_SPEC_VERSION >= 19
+#include "ContinuationHelpers.hpp"
+#endif /* JAVA_SPEC_VERSION >= 19 */
+
 extern "C" {
 	
 /**
@@ -41,8 +45,8 @@ extern "C" {
  * Simply massages the arguments and calls the function that was passed by the user into
  * GC_VMThreadStackSlotIterator::scanSlots()
  */
-static void
-vmThreadStackDoOSlotIterator(J9VMThread *vmThread, J9StackWalkState *walkState, j9object_t *oSlotPointer, const void * stackLocation) 
+void
+gc_vmThreadStackDoOSlotIterator(J9VMThread *vmThread, J9StackWalkState *walkState, j9object_t *oSlotPointer, const void * stackLocation)
 {
 	J9MODRON_OSLOTITERATOR *oSlotIterator = (J9MODRON_OSLOTITERATOR*)walkState->userData1;
 
@@ -75,7 +79,7 @@ GC_VMThreadStackSlotIterator::initializeStackWalkState(
 {
 	J9JavaVM *vm = vmThread->javaVM;
 
-	stackWalkState->objectSlotWalkFunction = vmThreadStackDoOSlotIterator;
+	stackWalkState->objectSlotWalkFunction = gc_vmThreadStackDoOSlotIterator;
 	stackWalkState->userData1 = (void *)oSlotIterator;
 	stackWalkState->userData2 = (void *)vm;
 	stackWalkState->userData3 = userData;
@@ -144,7 +148,8 @@ GC_VMThreadStackSlotIterator::scanContinuationSlots(
 
 #if JAVA_SPEC_VERSION >= 19
 	J9VMContinuation *continuation = J9VMJDKINTERNALVMCONTINUATION_VMREF(vmThread, continuationObjectPtr);
-	vmThread->javaVM->internalVMFunctions->walkContinuationStackFrames(vmThread, continuation, &stackWalkState);
+	/* pass NULL as threadObject to avoid to retrieve threadObject via const pool api, since we don't need it for this case */
+	vmThread->javaVM->internalVMFunctions->walkContinuationStackFrames(vmThread, continuation, NULL, &stackWalkState);
 #endif /* JAVA_SPEC_VERSION >= 19 */
 }
 
@@ -152,6 +157,7 @@ GC_VMThreadStackSlotIterator::scanContinuationSlots(
 void
 GC_VMThreadStackSlotIterator::scanSlots(
 			J9VMThread *vmThread,
+			J9VMThread *walkThread,
 			J9VMContinuation *continuation,
 			void *userData,
 			J9MODRON_OSLOTITERATOR *oSlotIterator,
@@ -162,6 +168,6 @@ GC_VMThreadStackSlotIterator::scanSlots(
 	J9StackWalkState stackWalkState;
 	initializeStackWalkState(&stackWalkState, vmThread, userData, oSlotIterator, includeStackFrameClassReferences, trackVisibleFrameDepth);
 
-	vmThread->javaVM->internalVMFunctions->walkContinuationStackFrames(vmThread, continuation, &stackWalkState);
+	vmThread->javaVM->internalVMFunctions->walkContinuationStackFrames(vmThread, continuation, walkThread->carrierThreadObject, &stackWalkState);
 }
 #endif /* JAVA_SPEC_VERSION >= 19 */

@@ -16,7 +16,7 @@ dnl
 dnl [1] https://www.gnu.org/software/classpath/license.html
 dnl [2] https://openjdk.org/legal/assembly-exception.html
 dnl
-dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 include(jilvalues.m4)
 
@@ -247,9 +247,7 @@ PPA2   DS    0D
         DC   XL3'000000'
 })
 
-define({FILE_END},{
-    END
-})
+define({FILE_END},{END})
 
 },{
 
@@ -297,8 +295,7 @@ LCALLDESC DS 0D
     DC BL.3'000',BL.5'00000'
     DC BL.6'001000',BL.6'000000',BL.6'000000',BL.6'000000'
 })
-    END
-})
+    END})
 
 })
 

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -538,7 +538,7 @@ extern "C" void jitBytecodePrintFunction(void *userData, char *format, ...)
    char outputBuffer[512];
 
    va_start(args, format);
-   vsprintf(outputBuffer, format, args);
+   vsnprintf(outputBuffer, sizeof(outputBuffer), format, args);
    va_end(args);
    TR_Debug *dbg = (TR_Debug*)userData;
 
@@ -546,7 +546,7 @@ extern "C" void jitBytecodePrintFunction(void *userData, char *format, ...)
    }
 
 void
-TR_Debug::printByteCodeStack(int32_t parentStackIndex, uint16_t byteCodeIndex, char * indent)
+TR_Debug::printByteCodeStack(int32_t parentStackIndex, uint16_t byteCodeIndex, size_t *indentLen)
    {
 #if defined(J9VM_OPT_JITSERVER)
    if (_comp->isOutOfProcessCompilation() || _comp->isRemoteCompilation())
@@ -558,14 +558,13 @@ TR_Debug::printByteCodeStack(int32_t parentStackIndex, uint16_t byteCodeIndex, c
       void *bcPrintFunc = (void *)jitBytecodePrintFunction;
       if (parentStackIndex == -1)
          {
-         sprintf(indent, " \\\\");
-         trfprintf(_file, "%s %s\n", indent, _comp->getCurrentMethod()->signature(comp()->trMemory(), heapAlloc));
+         trfprintf(_file, " \\\\ %s\n", _comp->getCurrentMethod()->signature(comp()->trMemory(), heapAlloc));
          ramMethod = (J9Method *)_comp->getCurrentMethod()->resolvedMethodAddress();
          }
       else
          {
          TR_InlinedCallSite & site = _comp->getInlinedCallSite(parentStackIndex);
-         printByteCodeStack(site._byteCodeInfo.getCallerIndex(), site._byteCodeInfo.getByteCodeIndex(), indent);
+         printByteCodeStack(site._byteCodeInfo.getCallerIndex(), site._byteCodeInfo.getByteCodeIndex(), indentLen);
          ramMethod = (J9Method *)site._methodInfo;
          }
 
@@ -575,11 +574,12 @@ TR_Debug::printByteCodeStack(int32_t parentStackIndex, uint16_t byteCodeIndex, c
          uint32_t flags = BCT_BigEndianOutput;
       #endif
 
+      trfprintf(_file, " \\\\");
       j9bcutil_dumpBytecodes(((TR_J9VMBase *)_comp->fej9())->_portLibrary,
                              J9_CLASS_FROM_METHOD(ramMethod)->romClass,
                              J9_BYTECODE_START_FROM_RAM_METHOD(ramMethod),
-                             byteCodeIndex, byteCodeIndex, flags, bcPrintFunc, this, indent);
-      sprintf(indent, "%s   ", indent);
+                             byteCodeIndex, byteCodeIndex, flags, bcPrintFunc, this, *indentLen);
+      *indentLen += 3;
       }
    }
 

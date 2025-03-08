@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -220,19 +220,23 @@ UDATA  walkStackFrames(J9VMThread *currentThread, J9StackWalkState *walkState)
 	if (walkState->flags & J9_STACKWALK_CHECK_I_SLOTS_FOR_OBJECTS) swPrintf(walkState, 2, "\tCHECK_I_SLOTS_FOR_OBJECTS\n");
 	if (walkState->flags & J9_STACKWALK_SAVE_STACKED_REGISTERS) swPrintf(walkState, 2, "\tSAVE_STACKED_REGISTERS\n");
 
-	if ((walkState->flags & (J9_STACKWALK_MAINTAIN_REGISTER_MAP | J9_STACKWALK_INCLUDE_CALL_IN_FRAMES)) == (J9_STACKWALK_MAINTAIN_REGISTER_MAP | J9_STACKWALK_INCLUDE_CALL_IN_FRAMES)) {
-		PORT_ACCESS_FROM_WALKSTATE(walkState);
-		J9UTF8 * className = J9ROMCLASS_CLASSNAME(((J9Class *) walkState->userData4)->romClass);
-		char detailStackBuffer[J9VM_PACKAGE_NAME_BUFFER_LENGTH];
-		char * detail = NULL;
-		j9object_t detailMessage = J9VMJAVALANGTHROWABLE_DETAILMESSAGE(currentThread, walkState->restartException);
+	if (J9_ARE_ALL_BITS_SET(walkState->flags, J9_STACKWALK_MAINTAIN_REGISTER_MAP | J9_STACKWALK_INCLUDE_CALL_IN_FRAMES)) {
+		J9Class * clazz = (J9Class *) walkState->userData4;
 
-		if (NULL != detailMessage) {
-			detail = walkState->walkThread->javaVM->internalVMFunctions->copyStringToUTF8WithMemAlloc(currentThread, detailMessage, J9_STR_NULL_TERMINATE_RESULT, ": ", 2, detailStackBuffer, J9VM_PACKAGE_NAME_BUFFER_LENGTH, NULL);
-		}
-		swPrintf(walkState, 2, "\tThrowing exception: %.*s%s\n", J9UTF8_LENGTH(className), J9UTF8_DATA(className), detail ? detail : "");
-		if (detailStackBuffer != detail) {
-			j9mem_free_memory(detail);
+		if (NULL != clazz) {
+			PORT_ACCESS_FROM_WALKSTATE(walkState);
+			J9UTF8 * className = J9ROMCLASS_CLASSNAME(clazz->romClass);
+			char detailStackBuffer[J9VM_PACKAGE_NAME_BUFFER_LENGTH];
+			char * detail = NULL;
+			j9object_t detailMessage = J9VMJAVALANGTHROWABLE_DETAILMESSAGE(currentThread, walkState->restartException);
+
+			if (NULL != detailMessage) {
+				detail = walkState->walkThread->javaVM->internalVMFunctions->copyStringToUTF8WithMemAlloc(currentThread, detailMessage, J9_STR_NULL_TERMINATE_RESULT, ": ", 2, detailStackBuffer, J9VM_PACKAGE_NAME_BUFFER_LENGTH, NULL);
+			}
+			swPrintf(walkState, 2, "\tThrowing exception: %.*s%s\n", J9UTF8_LENGTH(className), J9UTF8_DATA(className), detail ? detail : "");
+			if (detailStackBuffer != detail) {
+				j9mem_free_memory(detail);
+			}
 		}
 	}
 
@@ -439,10 +443,6 @@ terminationPoint:
 
 	if (currentThread != NULL) {
 		currentThread->activeWalkState = oldState;
-	}
-
-	if (J9_ARE_ANY_BITS_SET(walkState->walkThread->privateFlags, J9_PRIVATE_FLAGS_STACK_CORRUPT)) {
-		rc = J9_STACKWALK_RC_STACK_CORRUPT;
 	}
 
 	return rc;
@@ -667,10 +667,10 @@ static void walkDescribedPushes(J9StackWalkState * walkState, UDATA * highestSlo
 			char indexedTag[64];
 			PORT_ACCESS_FROM_WALKSTATE(walkState);
 			if (walkState->slotType == J9_STACKWALK_SLOT_TYPE_METHOD_LOCAL) {
-				j9str_printf(PORTLIB, indexedTag, 64, "%s-Slot: %s%d",
-						 (description & 1) ? "O" : "I", (walkState->slotIndex >= (IDATA)argCount) ? "t" : "a", walkState->slotIndex);
+				j9str_printf(indexedTag, 64, "%s-Slot: %s%d",
+						(description & 1) ? "O" : "I", (walkState->slotIndex >= (IDATA)argCount) ? "t" : "a", walkState->slotIndex);
 			} else {
-				j9str_printf(PORTLIB, indexedTag, 64, "%s-Slot: p%d", (description & 1) ? "O" : "I", walkState->slotIndex);
+				j9str_printf(indexedTag, 64, "%s-Slot: p%d", (description & 1) ? "O" : "I", walkState->slotIndex);
 			}
 
 			if (description & 1) {
@@ -701,6 +701,7 @@ static void
 walkMethodFrame(J9StackWalkState * walkState)
 {
 	J9SFMethodFrame * methodFrame = (J9SFMethodFrame *) ((U_8*) walkState->walkSP + (UDATA) walkState->literals);
+	BOOLEAN isJNINative = (J9SF_FRAME_TYPE_JNI_NATIVE_METHOD == (UDATA)walkState->pc);
 
 	walkState->bp = (UDATA *) &(methodFrame->savedA0);
 	walkState->frameFlags = methodFrame->specialFrameFlags;
@@ -734,7 +735,7 @@ walkMethodFrame(J9StackWalkState * walkState)
 #endif
 
 	if ((walkState->flags & J9_STACKWALK_ITERATE_O_SLOTS) && walkState->literals) {
-		if (walkState->frameFlags & J9_SSF_JNI_REFS_REDIRECTED) {
+		if ((walkState->frameFlags & J9_SSF_JNI_REFS_REDIRECTED) || isJNINative) {
 			walkPushedJNIRefs(walkState);
 		} else {
 			walkObjectPushes(walkState);

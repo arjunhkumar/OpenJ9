@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include <string.h>
 #include "j9cfg.h"
@@ -316,7 +316,7 @@ getStringForShcModlevel(J9PortLibrary* portlib, uint32_t modlevel, char* buffer,
 		break;
 	default :
 		if (modlevel >= 10) {
-			j9str_printf(portlib, buffer, buffSize, "%s%u", "Java", modlevel);
+			j9str_printf(buffer, buffSize, "%s%u", "Java", modlevel);
 		} else {
 			/* J9SH_MODLEVEL_JAVA9 is 5. Does not have modlevel that is 7,8,9 */
 			strncpy(buffer, "Unknown", buffSize);

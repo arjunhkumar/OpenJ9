@@ -17,12 +17,16 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(J9VM_OPT_JITSERVER)
+#include <vector>
+#include <string>
+#endif /* defined(J9VM_OPT_JITSERVER) */
 
 #ifdef WINDOWS
 // Undefine the winsockapi because winsock2 defines it. Removes warnings.
@@ -126,6 +130,10 @@
 #include "runtime/MetricsServer.hpp"
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+#include "runtime/CRRuntime.hpp"
+#endif
+
 extern "C" int32_t encodeCount(int32_t count);
 
 extern "C" {
@@ -156,7 +164,7 @@ bool isQuickstart = false;
 TR::Monitor *vpMonitor = 0;
 
 
-char *compilationErrorNames[]={
+const char *compilationErrorNames[]={
    "compilationOK",                                        // 0
    "compilationFailure",                                   // 1
    "compilationRestrictionILNodes",                        // 2
@@ -212,6 +220,8 @@ char *compilationErrorNames[]={
    "compilationStreamVersionIncompatible",                 // compilationFirstJITServerFailure + 3 = 51
    "compilationStreamInterrupted",                         // compilationFirstJITServerFailure + 4 = 52
    "aotCacheDeserializationFailure",                       // compilationFirstJITServerFailure + 5 = 53
+   "aotDeserializerReset",                                 // compilationFirstJITServerFailure + 6 = 54
+   "compilationAOTCachePersistenceFailure",                // compilationFirstJITServerFailure + 7 = 55
 #endif /* defined(J9VM_OPT_JITSERVER) */
    "compilationMaxError"
 };
@@ -244,6 +254,13 @@ extern "C" int32_t setUpHooks(J9JavaVM * javaVM, J9JITConfig * jitConfig, TR_Fro
 extern "C" int32_t startJITServer(J9JITConfig *jitConfig);
 extern "C" int32_t waitJITServerTermination(J9JITConfig *jitConfig);
 
+extern "C" void jitAddNewLowToHighRSSRegion(const char *name, uint8_t *start, uint32_t size, size_t pageSize)
+   {
+   static OMR::RSSReport *rssReport = OMR::RSSReport::instance();
+
+   if (rssReport)
+      rssReport->addNewRegion(name, start, size, OMR::RSSRegion::lowToHigh, pageSize);
+   }
 
 
 // -----------------------------------------------------------------------------
@@ -288,7 +305,7 @@ j9jit_testarossa_err(
          // Obsolete method bodies are invalid.
          //
          TR::Recompilation::fixUpMethodCode(oldStartPC);
-         jbi->setIsInvalidated();
+         jbi->setIsInvalidated(TR_JitBodyInvalidations::HCR);
          }
 
       if (jbi->getIsInvalidated())
@@ -1180,27 +1197,27 @@ onLoadInternal(
    int32_t numCodeCachesToCreateAtStartup = 1;
 
 #if defined(J9ZOS390) && !defined(TR_TARGET_64BIT)
-    // zOS 31-bit
-    J9JavaVM * vm = javaVM; //macro FIND_AND_CONSUME_VMARG refers to javaVM as vm
-    if (isQuickstart)
-       {
-       jitConfig->codeCacheKB = 1024;
-       jitConfig->dataCacheKB = 1024;
-       }
+   // zOS 31-bit
+   J9JavaVM * vm = javaVM; //macro FIND_AND_CONSUME_VMARG refers to javaVM as vm
+   if (isQuickstart)
+      {
+      jitConfig->codeCacheKB = 1024;
+      jitConfig->dataCacheKB = 1024;
+      }
    else
-       {
-       jitConfig->codeCacheKB = 2048;
-       jitConfig->dataCacheKB = 2048;
-       }
-#else
-#if (defined(TR_HOST_POWER) || defined(TR_HOST_S390) || (defined(TR_HOST_X86) && defined(TR_HOST_64BIT)))
+      {
       jitConfig->codeCacheKB = 2048;
       jitConfig->dataCacheKB = 2048;
+      }
+#else
+#if (defined(TR_HOST_POWER) || defined(TR_HOST_S390) || (defined(TR_HOST_X86) && defined(TR_HOST_64BIT)))
+   jitConfig->codeCacheKB = 2048;
+   jitConfig->dataCacheKB = 2048;
 
-      //zOS will set the code cache to create at startup after options are enabled below
+   //zOS will set the code cache to create at startup after options are enabled below
 #if !defined(J9ZOS390)
-      if (!isQuickstart) // for -Xquickstart start with one code cache
-         numCodeCachesToCreateAtStartup = 4;
+   if (!isQuickstart) // for -Xquickstart start with one code cache
+      numCodeCachesToCreateAtStartup = 4;
 #endif
 #else
       jitConfig->codeCacheKB = 2048; // WAS-throughput guided change
@@ -1228,27 +1245,56 @@ onLoadInternal(
    else
       {
 #if defined(TR_TARGET_64BIT)
-         jitConfig->codeCacheTotalKB = 256 * 1024;
-         jitConfig->dataCacheTotalKB = 384 * 1024;
+      jitConfig->codeCacheTotalKB = 256 * 1024;
+      jitConfig->dataCacheTotalKB = 384 * 1024;
 #else
-         jitConfig->codeCacheTotalKB = 64 * 1024;
-         jitConfig->dataCacheTotalKB = 192 * 1024;
+      jitConfig->codeCacheTotalKB = 64 * 1024;
+      jitConfig->dataCacheTotalKB = 192 * 1024;
 #endif
 
 #if defined(J9ZTPF)
+
+#if defined(J9VM_OPT_JITSERVER)
+      if (!(javaVM->internalVMFunctions->isJITServerEnabled(javaVM)))
+#endif
+         {
          /*
-          * The z/TPF OS does not have the ability to reserve memory. It allocates whatever it
-          * is asked to allocate. Allocate the code cache based on a percentage (20%) of memory
-          * the process is allowed to have; cap the maximum using the default 256m and use a 1m floor.
-          * MAXXMMES is specified as the number of 1MB frames.
+          * Allocate the code cache based on 10% of the maximum size of the 64-bit heap region
+          * limited by z/TPF's MAXMMAP setting.
+          * Cap the maximum using the default 256m and use a 1m floor.
+          * MAXMMAP is specified as the maximum number of 1MB frames available to MMAP for a given Process.
+          * (z/TPF still supports allocating the code cache from a different 64-bit region limited by
+          * z/TPF's MAXXMMES region).
           * Use the default 2048 KB data cache. The default values for z/TPF can be
           * overridden via the command line interface.
           */
-         const uint16_t ZTPF_CODE_CACHE_DIVISOR = 5;
+         const uint16_t ZTPF_CODE_CACHE_DIVISOR = 10;
 
-         /* Retrieve the maximum number of 1MB frames that a z/TPF process can have and */
-         /* then take 20% of that value to use for the code cache size. */
-         const uint16_t physMemory = *(static_cast<uint16_t*>(cinfc_fast(CINFC_CMMMMES)) + 4) / ZTPF_CODE_CACHE_DIVISOR;
+         void *maxmmapReturnValue;
+         uint16_t physMemory;
+
+         /* We can move this define to a header (i.e., bits/mman.h) later on */
+         void *checkSupport = mmap(NULL, 0, 0, MAP_SUPPORTED|MAP_PRIVATE, 0, 0);
+
+         /* Retrieve the maximum number of 1MB frames allocated for the z/TPF Java Process (from MAXXMMES or MAXMMAP)  */
+         /* then take 10% of that value to use for the code cache size. */
+         if (checkSupport != MAP_FAILED)
+            {
+            checkSupport = mmap(&maxmmapReturnValue, 0, 0, MAP_SUPPORTED|MAP_MAXMMAP|MAP_PRIVATE, 0, 0);
+            if (checkSupport == MAP_FAILED)
+               {
+                 /* If that failed fall back to MAXXMMES */
+                 physMemory = *(static_cast<uint16_t*>(cinfc_fast(CINFC_CMMMMES)) + 4) / ZTPF_CODE_CACHE_DIVISOR;
+               }
+            else
+               {
+                 physMemory = (unsigned long int) maxmmapReturnValue / ZTPF_CODE_CACHE_DIVISOR;
+               }
+            }
+         else
+            {
+            physMemory = *(static_cast<uint16_t*>(cinfc_fast(CINFC_CMMMMES)) + 4) / ZTPF_CODE_CACHE_DIVISOR;
+            }
 
          /* Provide a 1MB floor and 256MB ceiling for the code cache size */
          if (physMemory <= 1)
@@ -1269,7 +1315,8 @@ onLoadInternal(
 
          jitConfig->dataCacheKB = 2048;
          jitConfig->dataCacheTotalKB = 384 * 1024;
-#endif
+         }
+#endif /* defined(J9ZTPF) */
       }
 
    TR::Options::setScratchSpaceLimit(DEFAULT_SCRATCH_SPACE_LIMIT_KB * 1024);
@@ -1287,7 +1334,7 @@ onLoadInternal(
    //
    if (xaotCommandLine)
       {
-      char *endAOTOptions = TR::Options::processOptionsAOT(xaotCommandLine, jitConfig, feWithoutThread);
+      const char *endAOTOptions = TR::Options::processOptionsAOT(xaotCommandLine, jitConfig, feWithoutThread);
       if (*endAOTOptions)
          {
          // Generate AOT error message only if error occurs in -Xaot processing
@@ -1303,7 +1350,7 @@ onLoadInternal(
          }
       }
 
-   char *endJITOptions = TR::Options::processOptionsJIT(xjitCommandLine, jitConfig, feWithoutThread);
+   const char *endJITOptions = TR::Options::processOptionsJIT(xjitCommandLine, jitConfig, feWithoutThread);
 
    if (*endJITOptions)
       {
@@ -1364,6 +1411,12 @@ onLoadInternal(
    memset(aotStats, 0, sizeof(TR_AOTStats));
    ((TR_JitPrivateConfig*)jitConfig->privateConfig)->aotStats = aotStats;
 
+   bool produceRSSReportDetailed = TR::Options::getCmdLineOptions()->getVerboseOption(TR_VerboseRSSReportDetailed);
+   bool produceRSSReport = produceRSSReportDetailed || TR::Options::getCmdLineOptions()->getVerboseOption(TR_VerboseRSSReport);
+
+   if (produceRSSReport)
+      new (PERSISTENT_NEW) OMR::RSSReport(produceRSSReportDetailed);
+
    TR::CodeCacheManager *codeCacheManager = (TR::CodeCacheManager *) j9mem_allocate_memory(sizeof(TR::CodeCacheManager), J9MEM_CATEGORY_JIT);
    if (codeCacheManager == NULL)
       return -1;
@@ -1374,6 +1427,16 @@ onLoadInternal(
 
    TR::CodeCacheConfig &codeCacheConfig = codeCacheManager->codeCacheConfig();
 
+   if (TR::Options::_overrideCodecachetotal && TR::Options::isAnyVerboseOptionSet(TR_VerbosePerformance,TR_VerboseCodeCache))
+      {
+      // Code cache total value defaults were overridden due to low memory available
+      bool incomplete;
+      uint64_t freePhysicalMemoryB = getCompilationInfo(jitConfig)->computeAndCacheFreePhysicalMemory(incomplete);
+      if (freePhysicalMemoryB != OMRPORT_MEMINFO_NOT_AVAILABLE)
+         TR_VerboseLog::writeLineLocked(TR_Vlog_CODECACHE, "Available freePhysicalMemory=%llu MB, allocating code cache total size=%lu MB", freePhysicalMemoryB >> 20, jitConfig->codeCacheTotalKB >> 10);
+      else
+         TR_VerboseLog::writeLineLocked(TR_Vlog_CODECACHE, "Allocating code cache total=%llu MB due to low available memory", jitConfig->codeCacheTotalKB >> 10);
+      }
    // Do not allow code caches smaller than 128KB
    if (jitConfig->codeCacheKB < 128)
       jitConfig->codeCacheKB = 128;
@@ -1554,7 +1617,7 @@ onLoadInternal(
 #endif // defined(J9VM_OPT_JITSERVER)
       {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
-      if (javaVM->internalVMFunctions->isCheckpointAllowed(curThread))
+      if (javaVM->internalVMFunctions->isCheckpointAllowed(javaVM))
          {
          if (TR::Options::_numAllocatedCompilationThreads > maxNumberOfCodeCaches)
             {
@@ -1750,6 +1813,9 @@ onLoadInternal(
          }
       }
 
+   if (compInfo->getPersistentInfo()->getRemoteCompilationMode() != JITServer::NONE)
+      JITServer::MessageBuffer::initTotalBuffersMonitor();
+
    if (compInfo->getPersistentInfo()->getRemoteCompilationMode() == JITServer::SERVER)
       {
       JITServer::CommunicationStream::initConfigurationFlags();
@@ -1852,9 +1918,90 @@ onLoadInternal(
          return -1;
       persistentMemory->getPersistentInfo()->setInvokeExactJ2IThunkTable(ieThunkTable);
       }
+
+
+   jitConfig->jitAddNewLowToHighRSSRegion = jitAddNewLowToHighRSSRegion;
+
    return 0;
    }
 
+#if defined(J9VM_OPT_JITSERVER)
+static int32_t J9THREAD_PROC fetchServerCachedAOTMethods(void * entryarg)
+   {
+   J9JITConfig *jitConfig = (J9JITConfig *) entryarg;
+   J9JavaVM *vm = jitConfig->javaVM;
+   TR::CompilationInfo * compInfo = TR::CompilationInfo::get(jitConfig);
+   TR::PersistentInfo *persistentInfo = compInfo->getPersistentInfo();
+
+   j9thread_t osThread = (j9thread_t) jitConfig->serverAOTQueryThread;
+   J9VMThread *vmThread = NULL;
+
+   int rc = vm->internalVMFunctions->internalAttachCurrentThread(vm, &vmThread, NULL,
+                              J9_PRIVATE_FLAGS_DAEMON_THREAD | J9_PRIVATE_FLAGS_NO_OBJECT |
+                              J9_PRIVATE_FLAGS_SYSTEM_THREAD | J9_PRIVATE_FLAGS_ATTACHED_THREAD,
+                              osThread);
+
+   if (rc != JNI_OK)
+   {
+      return rc;
+   }
+
+   try
+      {
+      JITServer::ClientStream *client = new (PERSISTENT_NEW) JITServer::ClientStream(persistentInfo);
+      client->write(JITServer::MessageType::AOTCacheMap_request,
+                     persistentInfo->getJITServerAOTCacheName());
+
+      client->read();
+      auto result = client->getRecvData<std::vector<std::string>>();
+
+      std::vector<std::string> &cachedMethods = std::get<0>(result);
+
+      if (TR::Options::getVerboseOption(TR_VerboseJITServer))
+         TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "Received %d methods",
+                                       cachedMethods.size());
+
+      PersistentUnorderedSet<std::string> *serverAOTMethodSet =
+         new (PERSISTENT_NEW) PersistentUnorderedSet<std::string>(
+            PersistentUnorderedSet<std::string>::allocator_type
+               (TR::Compiler->persistentAllocator()));
+
+      for (const auto &methodSig : cachedMethods)
+         {
+         serverAOTMethodSet->insert(methodSig);
+         }
+
+      client->~ClientStream();
+      TR_Memory::jitPersistentFree(client);
+
+      FLUSH_MEMORY(TR::Compiler->target.isSMP());
+      jitConfig->serverAOTMethodSet = (void *) serverAOTMethodSet;
+      }
+   catch (const JITServer::StreamFailure &e)
+      {
+      if (TR::Options::isAnyVerboseOptionSet(TR_VerboseJITServer, TR_VerboseCompilationDispatch))
+         TR_VerboseLog::writeLineLocked(TR_Vlog_FAILURE,
+            "JITServer::StreamFailure: %s",
+            e.what());
+
+      JITServerHelpers::postStreamFailure(
+         OMRPORT_FROM_J9PORT(vm->portLibrary),
+         compInfo, e.retryConnectionImmediately(), true);
+      }
+   catch (const std::bad_alloc &e)
+      {
+      if (TR::Options::isAnyVerboseOptionSet(TR_VerboseJITServer, TR_VerboseCompilationDispatch))
+         TR_VerboseLog::writeLineLocked(TR_Vlog_FAILURE,
+            "std::bad_alloc: %s",
+            e.what());
+      }
+
+   vm->internalVMFunctions->DetachCurrentThread((JavaVM *) vm);
+   j9thread_exit(NULL);
+
+   return 0;
+   }
+#endif // J9VM_OPT_JITSERVER
 
 extern "C" int32_t
 aboutToBootstrap(J9JavaVM * javaVM, J9JITConfig * jitConfig)
@@ -1904,7 +2051,7 @@ aboutToBootstrap(J9JavaVM * javaVM, J9JITConfig * jitConfig)
       }
 #endif
 
-   char * endOptionsAOT = TR::Options::latePostProcessAOT(jitConfig);
+   const char *endOptionsAOT = TR::Options::latePostProcessAOT(jitConfig);
    if ((intptr_t)endOptionsAOT == 1)
       return 1;
 
@@ -1918,7 +2065,7 @@ aboutToBootstrap(J9JavaVM * javaVM, J9JITConfig * jitConfig)
       return -1;
       }
 
-   char * endOptions = TR::Options::latePostProcessJIT(jitConfig);
+   const char *endOptions = TR::Options::latePostProcessJIT(jitConfig);
    if ((intptr_t)endOptions == 1)
       return 1;
 
@@ -1983,6 +2130,25 @@ aboutToBootstrap(J9JavaVM * javaVM, J9JITConfig * jitConfig)
       }
 #endif
 
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+   if (compInfo->getCRRuntime())
+      compInfo->getCRRuntime()->cacheEventsStatus();
+
+   bool debugOnRestoreEnabled = javaVM->internalVMFunctions->isDebugOnRestoreEnabled(javaVM);
+
+   /* If the JVM is in CRIU mode and checkpointing is allowed, then the JIT should be
+    * limited to the same processor features as those used in Portable AOT mode. This
+    * is because, the restore run may not be on the same machine as the one that created
+    * the snapshot; thus the JIT code must be portable.
+    */
+   if (javaVM->internalVMFunctions->isJVMInPortableRestoreMode(curThread))
+      {
+      TR::Compiler->target.cpu = TR::CPU::detectRelocatable(TR::Compiler->omrPortLib);
+      if (!J9_ARE_ANY_BITS_SET(javaVM->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_ENABLE_PORTABLE_SHARED_CACHE))
+         TR::Compiler->relocatableTarget.cpu = TR::CPU::detectRelocatable(TR::Compiler->omrPortLib);
+      jitConfig->targetProcessor = TR::Compiler->target.cpu.getProcessorDescription();
+      }
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 #if defined(J9VM_OPT_SHARED_CLASSES)
    if (isSharedAOT)
@@ -1994,38 +2160,14 @@ aboutToBootstrap(J9JavaVM * javaVM, J9JITConfig * jitConfig)
          validateSCC = false;
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+      if (debugOnRestoreEnabled)
+         validateSCC = false;
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+
       if (validateSCC)
          {
-         /* If AOT Shared Classes is turned ON, perform compatibility checks for AOT Shared Classes
-          *
-          * This check has to be done after latePostProcessJIT so that all the necessary JIT options
-          * can be set
-          */
-         TR_J9VMBase *fe = TR_J9VMBase::get(jitConfig, curThread);
-         if (!compInfo->reloRuntime()->validateAOTHeader(fe, curThread))
-            {
-            TR_ASSERT_FATAL(static_cast<TR_JitPrivateConfig *>(jitConfig->privateConfig)->aotValidHeader != TR_yes,
-                            "aotValidHeader is TR_yes after failing to validate AOT header\n");
-
-            /* If this is the second run, then failing to validate AOT header will cause aotValidHeader
-             * to be TR_no, in which case the SCC is not valid for use. However, if this is the first
-             * run, then aotValidHeader will be TR_maybe; try to store the AOT Header in this case.
-             */
-            if (static_cast<TR_JitPrivateConfig *>(jitConfig->privateConfig)->aotValidHeader == TR_no
-                || !compInfo->reloRuntime()->storeAOTHeader(fe, curThread))
-               {
-               static_cast<TR_JitPrivateConfig *>(jitConfig->privateConfig)->aotValidHeader = TR_no;
-               TR::Options::getAOTCmdLineOptions()->setOption(TR_NoLoadAOT);
-               TR::Options::getAOTCmdLineOptions()->setOption(TR_NoStoreAOT);
-               TR::Options::setSharedClassCache(false);
-               TR_J9SharedCache::setSharedCacheDisabledReason(TR_J9SharedCache::AOT_DISABLED);
-               }
-            }
-         else
-            {
-            TR::Compiler->relocatableTarget.cpu = TR::CPU::customize(compInfo->reloRuntime()->getProcessorDescriptionFromSCC(curThread));
-            jitConfig->relocatableTargetProcessor = TR::Compiler->relocatableTarget.cpu.getProcessorDescription();
-            }
+         TR_J9SharedCache::validateAOTHeader(jitConfig, curThread, compInfo);
          }
 
       if (TR::Options::getAOTCmdLineOptions()->getOption(TR_NoStoreAOT))
@@ -2052,6 +2194,17 @@ aboutToBootstrap(J9JavaVM * javaVM, J9JITConfig * jitConfig)
             }
 #endif /* defined(J9VM_OPT_JITSERVER) */
          }
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+      else if (debugOnRestoreEnabled)
+         {
+         javaVM->sharedClassConfig->runtimeFlags &= ~J9SHR_RUNTIMEFLAG_ENABLE_AOT;
+         TR::Options::getAOTCmdLineOptions()->setOption(TR_NoLoadAOT);
+         TR::Options::getAOTCmdLineOptions()->setOption(TR_NoStoreAOT);
+         TR::Options::setSharedClassCache(false);
+         TR_J9SharedCache::setSharedCacheDisabledReason(TR_J9SharedCache::AOT_HEADER_VALIDATION_DELAYED);
+         TR_J9SharedCache::setAOTHeaderValidationDelayed();
+         }
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
       if (javaVM->sharedClassConfig->runtimeFlags & J9SHR_RUNTIMEFLAG_ENABLE_READONLY)
          {
@@ -2065,33 +2218,30 @@ aboutToBootstrap(J9JavaVM * javaVM, J9JITConfig * jitConfig)
    // Create AOT deserializer at the client if using JITServer with AOT cache
    if ((persistentInfo->getRemoteCompilationMode() == JITServer::CLIENT) && persistentInfo->getJITServerUseAOTCache())
       {
-      if (TR::Options::sharedClassCache())
+      auto loaderTable = persistentInfo->getPersistentClassLoaderTable();
+      JITServerAOTDeserializer *deserializer = NULL;
+      if (persistentInfo->getJITServerAOTCacheIgnoreLocalSCC())
          {
-         auto deserializer = new (PERSISTENT_NEW) JITServerAOTDeserializer(persistentInfo->getPersistentClassLoaderTable());
-         if (!deserializer)
-            return -1;
-         compInfo->setJITServerAOTDeserializer(deserializer);
+         deserializer = new (PERSISTENT_NEW) JITServerNoSCCAOTDeserializer(loaderTable, jitConfig);
+         }
+      else if (TR::Options::sharedClassCache())
+         {
+         deserializer = new (PERSISTENT_NEW) JITServerLocalSCCAOTDeserializer(loaderTable, jitConfig);
          }
       else
          {
-         fprintf(stderr, "Disabling JITServer AOT cache since AOT compilation is disabled\n");
+         fprintf(stderr, "Disabling JITServer AOT cache since AOT compilation and JITServerAOTCacheIgnoreLocalSCC are disabled\n");
          persistentInfo->setJITServerUseAOTCache(false);
          }
+
+      if (persistentInfo->getJITServerUseAOTCache() && !deserializer)
+         {
+         fprintf(stderr, "Could not create JITServer AOT deserializer\n");
+         return -1;
+         }
+      compInfo->setJITServerAOTDeserializer(deserializer);
       }
 #endif /* defined(J9VM_OPT_JITSERVER) */
-
-#if defined(J9VM_OPT_CRIU_SUPPORT)
-   /* If the JVM is in CRIU mode and checkpointing is allowed, then the JIT should be
-    * limited to the same processor features as those used in Portable AOT mode. This
-    * is because, the restore run may not be on the same machine as the one that created
-    * the snapshot; thus the JIT code must be portable.
-    */
-   if (javaVM->internalVMFunctions->isCheckpointAllowed(curThread))
-      {
-      TR::Compiler->target.cpu = TR::CPU::detectRelocatable(TR::Compiler->omrPortLib);
-      jitConfig->targetProcessor = TR::Compiler->target.cpu.getProcessorDescription();
-      }
-#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
    #if defined(TR_TARGET_S390)
       uintptr_t * tocBase = (uintptr_t *)jitConfig->pseudoTOC;
@@ -2122,6 +2272,47 @@ aboutToBootstrap(J9JavaVM * javaVM, J9JITConfig * jitConfig)
    UT_MODULE_LOADED(J9_UTINTERFACE_FROM_VM(javaVM));
    Trc_JIT_VMInitStages_Event1(curThread);
    Trc_JIT_portableSharedCache_enabled_or_disabled(curThread, J9_ARE_ANY_BITS_SET(javaVM->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_ENABLE_PORTABLE_SHARED_CACHE) ? 1 : 0);
+
+#if defined(J9VM_OPT_JITSERVER)
+   if (!persistentInfo->getJITServerUseAOTCache())
+      {
+      TR::Options::getCmdLineOptions()->setOption(TR_RequestJITServerCachedMethods, false);
+      }
+
+   jitConfig->serverAOTMethodSet = NULL;
+   if (TR::Options::getCmdLineOptions()->getOption(TR_RequestJITServerCachedMethods))
+      {
+      // Ask the server for its cached methods
+      if (compInfo->getPersistentInfo()->getRemoteCompilationMode() == JITServer::CLIENT)
+         {
+         if (JITServerHelpers::isServerAvailable())
+            {
+            if (TR::Options::getVerboseOption(TR_VerboseJITServer))
+               TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer,
+                  "Creating a thread to ask the server for its cached methods");
+
+            IDATA result = javaVM->internalVMFunctions->createThreadWithCategory(
+               (omrthread_t *) &(jitConfig->serverAOTQueryThread),
+               javaVM->defaultOSStackSize,
+               J9THREAD_PRIORITY_NORMAL,
+               0,
+               &fetchServerCachedAOTMethods,
+               (void *) jitConfig,
+               J9THREAD_CATEGORY_SYSTEM_JIT_THREAD
+            );
+
+            if (result != J9THREAD_SUCCESS)
+               {
+               if (TR::Options::getVerboseOption(TR_VerboseJITServer))
+                  TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer,
+                                                "Query thread not created");
+               }
+            }
+         }
+      }
+#endif // J9VM_OPT_JITSERVER
+
+
    return 0;
    }
 

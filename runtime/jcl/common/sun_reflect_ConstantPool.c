@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jni.h"
@@ -292,7 +292,7 @@ getFieldAt(JNIEnv *env, jobject constantPoolOop, jint cpIndex, UDATA resolveFlag
 	if (NULL != constantPoolOop) {
 		J9RAMConstantRef *ramConstantRef = NULL;
 		jclass jlClass = NULL;
-		
+
 		vmFunctions->internalEnterVMFromJNI(vmThread);
 		resolveFlags |= (J9_RESOLVE_FLAG_NO_THROW_ON_FAIL | J9_RESOLVE_FLAG_NO_CLASS_INIT | J9_RESOLVE_FLAG_NO_CP_UPDATE);
 retry:
@@ -526,7 +526,7 @@ Java_sun_reflect_ConstantPool_getMemberRefInfoAt0(JNIEnv *env, jobject unusedObj
 	jobject nameObject = NULL;
 	jobject signatureObject = NULL;
 	J9VMThread *vmThread = (J9VMThread *) env;
-	J9InternalVMFunctions *vmFunctions = vmThread->javaVM->internalVMFunctions;	
+	J9InternalVMFunctions *vmFunctions = vmThread->javaVM->internalVMFunctions;
 	J9MemoryManagerFunctions *gcFunctions = vmThread->javaVM->memoryManagerFunctions;
 	SunReflectCPResult result = NULL_POINTER_EXCEPTION;
 
@@ -834,6 +834,12 @@ Java_jdk_internal_reflect_ConstantPool_getTagAt0(JNIEnv *env, jobject unusedObje
 	return 0;
 }
 
+void JNICALL
+Java_jdk_internal_reflect_ConstantPool_registerNatives(JNIEnv *env, jclass unused)
+{
+	registerJdkInternalReflectConstantPoolNatives(env);
+}
+
 /**
  * Registers natives for jdk.internal.reflect.ConstantPool.
  *
@@ -842,6 +848,7 @@ Java_jdk_internal_reflect_ConstantPool_getTagAt0(JNIEnv *env, jobject unusedObje
 jint
 registerJdkInternalReflectConstantPoolNatives(JNIEnv *env) {
 	jint result = 0;
+
 	JNINativeMethod natives[] = {
 		{
 			(char*)"getSize0",

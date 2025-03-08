@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17 & !OPENJDK_METHODHANDLES]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 import com.ibm.oti.util.Msg;
@@ -28,7 +28,7 @@ import java.lang.reflect.Array;
 import java.util.List;
 /*[ENDIF] JAVA_SPEC_VERSION >= 15 */
 
-/* CollectHandle is a MethodHandle subclass used to call another MethodHandle.  
+/* CollectHandle is a MethodHandle subclass used to call another MethodHandle.
  * It accepts the incoming arguments and collects the requested number
  * of them into an array of type 'T'.
  * <p>
@@ -46,7 +46,7 @@ final class CollectHandle extends MethodHandle {
 	@VMCONSTANTPOOL_FIELD
 	final int collectPosition; /* The starting position of arguments to collect */
 	final Object emptyArray;
-	
+
 	CollectHandle(MethodHandle next, int collectArraySize, int collectPosition) {
 		super(collectMethodType(next.type(), collectArraySize, collectPosition), KIND_COLLECT, new int[]{collectArraySize, collectPosition});
 		this.collectPosition = collectPosition;
@@ -58,7 +58,7 @@ final class CollectHandle extends MethodHandle {
 			emptyArray = null;
 		}
 	}
-	
+
 	CollectHandle(CollectHandle original, MethodType newType) {
 		super(original, newType);
 		this.collectPosition = original.collectPosition;
@@ -81,7 +81,7 @@ final class CollectHandle extends MethodHandle {
 		}
 		// Change the T[] into a 'T'
 		MethodType newType = type.changeParameterType(collectPosition, arrayComponent);
-		
+
 		// Add necessary additional 'T' to the type
 		if (0 == collectArraySize) {
 			newType = newType.dropParameterTypes(collectPosition , collectPosition + 1);
@@ -140,7 +140,7 @@ final class CollectHandle extends MethodHandle {
 			ILGenMacros.push(collectArraySize == 0 ? emptyArray : allocateArray(this)),
 			ILGenMacros.middleN(collectionStart(), numArgsToCollect(), argPlaceholder));
 		return ILGenMacros.invokeExact_X(
-			next, 
+			next,
 			ILGenMacros.placeholder(
 				ILGenMacros.firstN(collectionStart(), argPlaceholder),
 				ILGenMacros.pop_L(),

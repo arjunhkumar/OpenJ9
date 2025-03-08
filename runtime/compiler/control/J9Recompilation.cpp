@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "AtomicSupport.hpp"
@@ -273,7 +273,7 @@ J9::Recompilation::beforeOptimization()
          }
       else
          {
-         if (!debug("disableCatchBlockProfiler"))
+         if (!debug("disableCatchBlockProfiler") && _compilation->getOption(TR_EnableOldEDO))
             {
             _profilers.add(new (_compilation->trHeapMemory()) TR_CatchBlockProfiler(_compilation, self(), true));
             }
@@ -588,7 +588,7 @@ TR_PersistentMethodInfo::TR_PersistentMethodInfo(TR::Compilation *comp) :
    _bestProfileInfo(0),
    _optimizationPlan(0),
    _catchBlockCounter(0),
-   _numberOfInvalidations(0),
+   _numberOfPreexistenceInvalidations(0),
    _numberOfInlinedMethodRedefinition(0),
    _numPrexAssumptions(0)
    {
@@ -619,7 +619,7 @@ TR_PersistentMethodInfo::TR_PersistentMethodInfo(TR_OpaqueMethodBlock *methodInf
    _bestProfileInfo(0),
    _optimizationPlan(0),
    _catchBlockCounter(0),
-   _numberOfInvalidations(0),
+   _numberOfPreexistenceInvalidations(0),
    _numberOfInlinedMethodRedefinition(0),
    _numPrexAssumptions(0)
    {
@@ -654,7 +654,6 @@ TR_PersistentJittedBodyInfo::TR_PersistentJittedBodyInfo(
    _flags(0),
    _sampleIntervalCount(0),
    _startCount(0),
-   _isInvalidated(false),
    _aggressiveRecompilationChances((uint8_t)TR::Options::_aggressiveRecompilationChances),
    _startPCAfterPreviousCompile(0),
    _longRunningInterpreted(false),

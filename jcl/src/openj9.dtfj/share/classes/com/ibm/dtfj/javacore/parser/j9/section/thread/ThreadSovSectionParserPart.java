@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.thread;
 
 import com.ibm.dtfj.javacore.builder.IImageBuilder;
@@ -29,27 +29,18 @@ import com.ibm.dtfj.javacore.parser.j9.J9TagManager;
 import com.ibm.dtfj.javacore.parser.j9.SovereignSectionParserPart;
 
 public class ThreadSovSectionParserPart extends SovereignSectionParserPart implements IThreadTypes, IThreadTypesSov {
-	
 
-	
 	public ThreadSovSectionParserPart() {
 		super(THREAD_SECTION);
 
 	}
-	
-
-	
-
 
 	public Object readIntoDTFJ(ILookAheadBuffer lookAhead) throws ParserException {
 		return null;
 	}
 
-
-
-
 	/**
-	 * 
+	 *
 	 */
 	public void computeSovRule(String hookTag, ILookAheadBuffer lookAheadBuffer) throws ParserException {
 		setLookAheadBuffer(lookAheadBuffer);
@@ -59,9 +50,7 @@ public class ThreadSovSectionParserPart extends SovereignSectionParserPart imple
 			nativeStack();
 		}
 	}
-	
-	
-	
+
 	/**
 	 * registerList ::= REGISTER_LIST rule registerValues <br>
 	 * registerValues ::= REGISTER_LIST_VALUES rule registerValues | EPSILON <br>
@@ -72,8 +61,7 @@ public class ThreadSovSectionParserPart extends SovereignSectionParserPart imple
 //			matchAndSendTagOnlyAtLeastOnce(REGISTER_LIST_VALUES);
 //		}
 	}
-	
-	
+
 	/**
 	 * nativeStack ::= NATIVE_STACK rule stackLine <br>
 	 * stackLine ::= STACK_LINE rule stackLine | EPSILON
@@ -97,14 +85,9 @@ public class ThreadSovSectionParserPart extends SovereignSectionParserPart imple
 //		}
 	}
 
-
-
-
-
 	public void readIntoDTFJ(ILookAheadBuffer lookAhead, IImageBuilder imageBuilder) throws ParserException {
 		// TODO Auto-generated method stub
-		
-	}
 
+	}
 
 }

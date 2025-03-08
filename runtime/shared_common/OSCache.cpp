@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -68,7 +68,7 @@ SH_OSCache::getCacheVersionAndGen(J9PortLibrary* portlib, J9JavaVM* vm, char* bu
 
 	memset(versionStr, 0, J9SH_VERSION_STRING_LEN+1);
 	if (generation <= J9SH_GENERATION_07) {
-		J9SH_GET_VERSION_G07ANDLOWER_STRING(PORTLIB, versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->addrmode);
+		J9SH_GET_VERSION_G07ANDLOWER_STRING(versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->addrmode);
 	} else {
 		U_64 curVMVersion = 0;
 		U_64 oldVMVersion = 0;
@@ -88,14 +88,14 @@ SH_OSCache::getCacheVersionAndGen(J9PortLibrary* portlib, J9JavaVM* vm, char* bu
 
 		if ( curVMVersion >= oldVMVersion) {
 			if (generation <= J9SH_GENERATION_29) {
-				J9SH_GET_VERSION_G07TO29_STRING(PORTLIB, versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->addrmode);
+				J9SH_GET_VERSION_G07TO29_STRING(versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->addrmode);
 			} else if (versionData->modlevel < 10) {
-				J9SH_GET_VERSION_STRING_JAVA9ANDLOWER(PORTLIB, versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->feature, versionData->addrmode);
+				J9SH_GET_VERSION_STRING_JAVA9ANDLOWER(versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->feature, versionData->addrmode);
 			} else {
-				J9SH_GET_VERSION_STRING(PORTLIB, versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->feature, versionData->addrmode);
+				J9SH_GET_VERSION_STRING(versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->feature, versionData->addrmode);
 			}
 		} else {
-			J9SH_GET_VERSION_G07ANDLOWER_STRING(PORTLIB, versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->addrmode);
+			J9SH_GET_VERSION_G07ANDLOWER_STRING(versionStr, J9SH_VERSION(versionData->esVersionMajor, versionData->esVersionMinor), versionData->modlevel, versionData->addrmode);
 		}
 	}
 
@@ -106,28 +106,28 @@ SH_OSCache::getCacheVersionAndGen(J9PortLibrary* portlib, J9JavaVM* vm, char* bu
 		versionStr[versionStrLen] = J9SH_SNAPSHOT_PREFIX_CHAR;
 	}
 	if (generation <= J9SH_GENERATION_37) {
-		j9str_printf(PORTLIB, genString, 4, "G%02d", generation);
+		j9str_printf(genString, 4, "G%02d", generation);
 	} else {
 		Trc_SHR_Assert_True(
 							((0 <= layer) && (layer <= J9SH_LAYER_NUM_MAX_VALUE))
 							|| (J9SH_LAYER_NUM_UNSET == layer)
 							);
-		j9str_printf(PORTLIB, genString, 7, "G%02dL%02d", generation, layer);
+		j9str_printf(genString, 7, "G%02dL%02d", generation, layer);
 	}
 
 #if defined(WIN32)
-	j9str_printf(PORTLIB, buffer, bufferSize, "%s%c%s%c%s", versionStr, J9SH_PREFIX_SEPARATOR_CHAR, cacheName, J9SH_PREFIX_SEPARATOR_CHAR, genString);
+	j9str_printf(buffer, bufferSize, "%s%c%s%c%s", versionStr, J9SH_PREFIX_SEPARATOR_CHAR, cacheName, J9SH_PREFIX_SEPARATOR_CHAR, genString);
 #else
 	/* In either case we avoid attaching the "_memory_" or "_semaphore_" substring. */
 	if ((J9PORT_SHR_CACHE_TYPE_PERSISTENT == versionData->cacheType)
 		|| (J9PORT_SHR_CACHE_TYPE_SNAPSHOT == versionData->cacheType)
 		|| (J9PORT_SHR_CACHE_TYPE_CROSSGUEST == versionData->cacheType)
 	) {
-		j9str_printf(PORTLIB, buffer, bufferSize, "%s%c%s%c%s", versionStr, J9SH_PREFIX_SEPARATOR_CHAR, cacheName, J9SH_PREFIX_SEPARATOR_CHAR, genString);
+		j9str_printf(buffer, bufferSize, "%s%c%s%c%s", versionStr, J9SH_PREFIX_SEPARATOR_CHAR, cacheName, J9SH_PREFIX_SEPARATOR_CHAR, genString);
 	} else {
 		const char* identifier = isMemoryType ? J9SH_MEMORY_ID : J9SH_SEMAPHORE_ID;
 
-		j9str_printf(PORTLIB, buffer, bufferSize, "%s%s%s%c%s", versionStr, identifier, cacheName, J9SH_PREFIX_SEPARATOR_CHAR, genString);
+		j9str_printf(buffer, bufferSize, "%s%s%s%c%s", versionStr, identifier, cacheName, J9SH_PREFIX_SEPARATOR_CHAR, genString);
 	}
 #endif
 	Trc_SHR_OSC_getCacheVersionAndGen_Exit(buffer);
@@ -288,7 +288,7 @@ SH_OSCache::getCachePathName(J9PortLibrary* portLibrary, const char* cacheDirNam
 
 	Trc_SHR_OSC_getCachePathName_Entry(cacheNameWithVGen);
 
-	j9str_printf(PORTLIB, buffer, bufferSize, "%s%s", cacheDirName, cacheNameWithVGen);
+	j9str_printf(buffer, bufferSize, "%s%s", cacheDirName, cacheNameWithVGen);
 
 	Trc_SHR_OSC_getCachePathName_Exit();
 	return 0;
@@ -311,7 +311,7 @@ SH_OSCache::statCache(J9PortLibrary* portLibrary, const char* cacheDirName, cons
 
 	Trc_SHR_OSC_statCache_Entry(cacheNameWithVGen);
 
-	j9str_printf(PORTLIB, fullPath, J9SH_MAXPATH, "%s%s", cacheDirName, cacheNameWithVGen);
+	j9str_printf(fullPath, J9SH_MAXPATH, "%s%s", cacheDirName, cacheNameWithVGen);
 	if (j9file_attr(fullPath) == EsIsFile) {
 		Trc_SHR_OSC_statCache_cacheFound();
 		return 1;
@@ -625,7 +625,6 @@ SH_OSCache::getAllCacheStatistics(J9JavaVM* vm, const char* ctrlDirName, UDATA g
 	char persistentCacheDir[J9SH_MAXPATH];
 	char nonpersistentCacheDir[J9SH_MAXPATH];
 	char* nameWithVGen = NULL;
-	IDATA cntr = 0;
 	J9Pool* incompatibleList = NULL;
 	SH_OSCache_Info tempInfo;
 	SH_OSCache_Info* newElement = NULL;
@@ -760,7 +759,6 @@ SH_OSCache::getAllCacheStatistics(J9JavaVM* vm, const char* ctrlDirName, UDATA g
 											goto done;
 										}
 										memcpy(newElement, anElement, sizeof(SH_OSCache_Info));
-										++cntr;
 									} while ((anElement = (SH_OSCache_Info*)pool_nextDo(&poolState)) != NULL);
 								}
 							}
@@ -789,7 +787,6 @@ SH_OSCache::getAllCacheStatistics(J9JavaVM* vm, const char* ctrlDirName, UDATA g
 					memcpy(newElement, &tempInfo, sizeof(SH_OSCache_Info));
 				}
 			}
-			++cntr;
 		}
 		
 		if (NULL != lowerLayerList) {
@@ -1248,6 +1245,10 @@ SH_OSCache::getCacheStatsCommon(J9JavaVM* vm, const char* ctrlDirName, UDATA gro
 		goto done;
 	}
 
+	if (J9PORT_SHR_CACHE_TYPE_PERSISTENT == cacheInfo->versionData.cacheType) {
+		runtimeflags |= J9SHR_RUNTIMEFLAG_ENABLE_PERSISTENT_CACHE;
+	}
+
 	startedForStats = cmStats->startupForStats(currentThread, ctrlDirName, groupPerm, cache, &runtimeflags, lowerLayerList);
 
 	if (startedForStats != CC_STARTUP_OK) {
@@ -1398,10 +1399,10 @@ SH_OSCache::generateCacheUniqueID(J9VMThread* currentThread, const char* cacheDi
 #endif
 	I_64 fileSize = j9file_length(cacheFilePathName);
 	if (NULL != buf) {
-		UDATA bufLenRequired = j9str_printf(PORTLIB, NULL, 0, format, cacheFilePathName, fileSize, createtime, metadataBytes, classesBytes, lineNumTabBytes, varTabBytes);
+		UDATA bufLenRequired = j9str_printf(NULL, 0, format, cacheFilePathName, fileSize, createtime, metadataBytes, classesBytes, lineNumTabBytes, varTabBytes);
 		Trc_SHR_Assert_True(bufLenRequired <= bufLen);
 	}
-	return j9str_printf(PORTLIB, buf, bufLen, format, cacheFilePathName, fileSize, createtime, metadataBytes, classesBytes, lineNumTabBytes, varTabBytes);
+	return j9str_printf(buf, bufLen, format, cacheFilePathName, fileSize, createtime, metadataBytes, classesBytes, lineNumTabBytes, varTabBytes);
 }
 
 /**
@@ -1420,7 +1421,7 @@ SH_OSCache::getCacheNameAndLayerFromUnqiueID(J9JavaVM* vm, const char* uniqueID,
 	char versionStr[J9SH_VERSION_STRING_LEN +3];
 	J9PortShcVersion versionData;
 	setCurrentCacheVersion(vm, J2SE_VERSION(vm), &versionData);
-	J9SH_GET_VERSION_STRING(PORTLIB, versionStr, J9SH_VERSION(versionData.esVersionMajor, versionData.esVersionMinor), versionData.modlevel, versionData.feature, versionData.addrmode);
+	J9SH_GET_VERSION_STRING(versionStr, J9SH_VERSION(versionData.esVersionMajor, versionData.esVersionMinor), versionData.modlevel, versionData.feature, versionData.addrmode);
 	const char* cacheNameWithVGenStart = strstr(uniqueID, versionStr);
 	char* cacheNameWithVGenEnd = strnrchrHelper(cacheNameWithVGenStart, '-', idLen - (cacheNameWithVGenStart - uniqueID));
 	if (NULL == cacheNameWithVGenStart || NULL == cacheNameWithVGenEnd) {

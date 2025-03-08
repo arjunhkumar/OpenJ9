@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_CODECACHE_INCL
@@ -103,6 +103,8 @@ public:
    */
    void resetCodeCache();
 
+   int32_t disclaim(TR::CodeCacheManager *manager, bool canDisclaimOnSwap);
+
    private:
    /**
     * @brief Restore trampoline pointers to their initial positions
@@ -117,8 +119,12 @@ public:
    */
    void resetAllocationPointers();
 
-   uint8_t * _warmCodeAllocBase; // used to reset the allocation pointers to initial values
-   uint8_t * _coldCodeAllocBase;
+   uint8_t *_warmCodeAllocBase; // used to reset the allocation pointers to initial values
+   uint8_t *_coldCodeAllocBase;
+#ifdef LINUX
+   uint8_t *_smallPageAreaStart; // used for code cache disclaiming to remember where the small page area starts/ends
+   uint8_t *_smallPageAreaEnd;
+#endif
    };
 
 

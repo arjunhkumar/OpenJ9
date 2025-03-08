@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview;
 
 import java.io.File;
@@ -47,7 +47,7 @@ public class FileOutputChannel implements IOutputChannel {
 			fw.write(Utils.toString(outputString));
 			fw.flush();
 		} catch (IOException e) {
-			
+
 		}
 	}
 
@@ -60,7 +60,7 @@ public class FileOutputChannel implements IOutputChannel {
 			fw.write(Utils.toString(outputString) + "\n");
 			fw.flush();
 		} catch (IOException e) {
-			
+
 		}
 	}
 
@@ -71,10 +71,10 @@ public class FileOutputChannel implements IOutputChannel {
 			fw.write("\n");
 			fw.flush();
 		} catch (IOException e) {
-			
+
 		}
 	}
-	
+
 	//logs an error to the specified output channel
 	public void error(String msg, Exception e) {
 		try {
@@ -85,7 +85,7 @@ public class FileOutputChannel implements IOutputChannel {
 			e.printStackTrace(writer);
 			fw.flush();
 		} catch (IOException ioe) {
-			
+
 		}
 	}
 
@@ -95,15 +95,15 @@ public class FileOutputChannel implements IOutputChannel {
 					prompt + Utils.toString(outputString) + "\n");
 			fw.flush();
 		} catch (IOException e) {
-			
+
 		}
 	}
-	
+
 	public void close() {
 		try {
 			fw.close();
 		} catch (IOException e) {
-			
+
 		}
 	}
 
@@ -111,7 +111,7 @@ public class FileOutputChannel implements IOutputChannel {
 		try {
 			fw.flush();
 		} catch (IOException e) {
-			
+
 		}
 	}
 
@@ -132,6 +132,5 @@ public class FileOutputChannel implements IOutputChannel {
 	public int hashCode() {
 		return file.hashCode();
 	}
-	
-	
+
 }

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(OBJECTALLOCATIONAPI_HPP_)
@@ -321,7 +321,7 @@ public:
 		: _gcAllocationType(currentThread->javaVM->gcAllocationType)
 		, _contiguousIndexableHeaderSize(currentThread->contiguousIndexableHeaderSize)
 #if defined(J9VM_ENV_DATA64)
-		, _isIndexableDataAddrPresent(currentThread->isIndexableDataAddrPresent)
+		, _isIndexableDataAddrPresent(currentThread->javaVM->isIndexableDataAddrPresent)
 #endif /* defined(J9VM_ENV_DATA64) */
 #if defined(J9VM_GC_BATCH_CLEAR_TLH)
 		, _initializeSlotsOnTLHAllocate(currentThread->javaVM->initializeSlotsOnTLHAllocate)
@@ -447,10 +447,11 @@ public:
 	VMINLINE j9object_t
 	inlineAllocateIndexableValueTypeObject(J9VMThread *currentThread, J9Class *arrayClass, uint32_t size, bool initializeSlots = true, bool memoryBarrier = true, bool sizeCheck = true)
 	{
-		uintptr_t dataSize = ((uintptr_t)size) * J9ARRAYCLASS_GET_STRIDE(arrayClass);
+		uintptr_t stride = J9ARRAYCLASS_GET_STRIDE(arrayClass);
+		uintptr_t dataSize = ((uintptr_t)size) * stride;
 		bool validSize = true;
 #if !defined(J9VM_ENV_DATA64)
-		validSize = !sizeCheck || (size < ((uint32_t)J9_MAXIMUM_INDEXABLE_DATA_SIZE / J9ARRAYCLASS_GET_STRIDE(arrayClass)));
+		validSize = (!sizeCheck) || (0 == stride) || (size < ((uint32_t)J9_MAXIMUM_INDEXABLE_DATA_SIZE / stride));
 #endif /* J9VM_ENV_DATA64 */
 		return inlineAllocateIndexableObjectImpl(currentThread, arrayClass, size, dataSize, validSize, initializeSlots, memoryBarrier);
 	}

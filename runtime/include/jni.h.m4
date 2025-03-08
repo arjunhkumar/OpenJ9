@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef JNI_H
@@ -53,10 +53,12 @@ extern "C" {
 #define JNI_VERSION_1_4 0x00010004
 #define JNI_VERSION_1_6 0x00010006
 #define JNI_VERSION_1_8 0x00010008
-ifelse(eval(JAVA_SPEC_VERSION >=  9), 1, `#define JNI_VERSION_9   0x00090000', `dnl')
-ifelse(eval(JAVA_SPEC_VERSION >= 10), 1, `#define JNI_VERSION_10  0x000A0000', `dnl')
-ifelse(eval(JAVA_SPEC_VERSION >= 19), 1, `#define JNI_VERSION_19  0x00130000', `dnl')
-ifelse(eval(JAVA_SPEC_VERSION >= 20), 1, `#define JNI_VERSION_20  0x00140000', `dnl')
+ifelse(eval(JAVA_SPEC_VERSION >=  9), 1, `#define JNI_VERSION_9  0x00090000', `dnl')
+ifelse(eval(JAVA_SPEC_VERSION >= 10), 1, `#define JNI_VERSION_10 0x000A0000', `dnl')
+ifelse(eval(JAVA_SPEC_VERSION >= 19), 1, `#define JNI_VERSION_19 0x00130000', `dnl')
+ifelse(eval(JAVA_SPEC_VERSION >= 20), 1, `#define JNI_VERSION_20 0x00140000', `dnl')
+ifelse(eval(JAVA_SPEC_VERSION >= 21), 1, `#define JNI_VERSION_21 0x00150000', `dnl')
+ifelse(eval(JAVA_SPEC_VERSION >= 24), 1, `#define JNI_VERSION_24 0x00180000', `dnl')
 
 #define JVMEXT_VERSION_1_1 0x7E010001
 
@@ -460,6 +462,7 @@ struct JNINativeInterface_ {
 	jobjectRefType (JNICALL * GetObjectRefType)(JNIEnv* env, jobject obj);
 ifelse(eval(JAVA_SPEC_VERSION >= 9), 1, `	jobject (JNICALL * GetModule)(JNIEnv *env, jclass clazz);', `dnl')
 ifelse(eval(JAVA_SPEC_VERSION >= 19), 1, `	jboolean (JNICALL * IsVirtualThread)(JNIEnv *env, jobject obj);', `dnl')
+ifelse(eval(JAVA_SPEC_VERSION >= 24), 1, `	jlong (JNICALL *GetStringUTFLengthAsLong)(JNIEnv *env, jstring string);', `dnl')
 };
 
 struct JNIEnv_ {
@@ -698,6 +701,7 @@ struct JNIEnv_ {
 	jobjectRefType GetObjectRefType(jobject obj) { return functions->GetObjectRefType(this, obj); }
 ifelse(eval(JAVA_SPEC_VERSION >= 9), 1, `	jobject GetModule(jclass clazz) { return functions->GetModule(this, clazz); }', `dnl')
 ifelse(eval(JAVA_SPEC_VERSION >= 19), 1, `	jboolean IsVirtualThread(JNIEnv *env, jobject obj) { return functions->IsVirtualThread(this, obj); }', `dnl')
+ifelse(eval(JAVA_SPEC_VERSION >= 24), 1, `	jlong GetStringUTFLengthAsLong(JNIEnv *env, jstring string) { return functions->GetStringUTFLengthAsLong(this, string); }', `dnl')
 #endif
 };
 

@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package j9vm.test.jni;
 
 import java.util.Random;
@@ -138,9 +138,7 @@ public class CriticalRegionTest
 	
 	private static void discardAndGC()
 	{
-		// Double-GC to try for an aggressive collect
 		garbage = null;
-		System.gc();
 		System.gc();
 	}
 	
@@ -868,8 +866,8 @@ public class CriticalRegionTest
 		try {
 			//lock.wait(sleepTime * 2);
 			for(int i = 0; i < threadCount; i++) {
-				/* CMVC 195423 : Increase timeout to 5 seconds to allow all child threads to complete */
-				threads[i].join(sleepTime * 5);
+				/* Increase timeout to 10 seconds to allow all child threads to complete */
+				threads[i].join(sleepTime * 10);
 			}
 		} catch (InterruptedException e) {}
 			

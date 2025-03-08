@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef MESSAGE_TYPES_HPP
@@ -32,7 +32,9 @@ enum MessageType : uint16_t
    {
    compilationCode, // Send the compiled code back to the client
    compilationFailure,
+   AOTCache_storedAOTMethod, // Final response to a compilation request that was an AOT cache store that ignored the client SCC
    AOTCache_serializedAOTMethod,// Final response to a compilation request that was an AOT cache hit
+   AOTCache_failure,// Final response to a compilation request that could not be completed due to AOT cache failure
    mirrorResolvedJ9Method,
    get_params_to_construct_TR_j9method,
    getUnloadedClassRangesAndCHTable,
@@ -92,7 +94,9 @@ enum MessageType : uint16_t
    ResolvedMethod_dynamicConstant,
    ResolvedMethod_definingClassFromCPFieldRef,
    ResolvedMethod_getResolvedImplementorMethods,
+   ResolvedMethod_isFieldNullRestricted,
    ResolvedMethod_isFieldFlattened,
+   ResolvedMethod_getTargetMethodFromMemberName,
 
    ResolvedRelocatableMethod_createResolvedRelocatableJ9Method,
    ResolvedRelocatableMethod_fieldAttributes,
@@ -100,11 +104,9 @@ enum MessageType : uint16_t
    ResolvedRelocatableMethod_getFieldType,
 
    // For TR_J9ServerVM methods
-   VM_isClassLibraryClass,
    VM_isClassLibraryMethod,
    VM_isClassArray,
    VM_transformJlrMethodInvoke,
-   VM_getStaticReferenceFieldAtAddress,
    VM_getSystemClassFromClassName,
    VM_isMethodTracingEnabled,
    VM_getClassClassPointer,
@@ -125,14 +127,14 @@ enum MessageType : uint16_t
    VM_getObjectClass,
    VM_getObjectClassAt,
    VM_getObjectClassFromKnownObjectIndex,
+   VM_getObjectClassFromKnownObjectIndexJLClass,
+   VM_getObjectClassInfoFromObjectReferenceLocation,
    VM_stackWalkerMaySkipFrames,
-   VM_getStringUTF8Length,
    VM_classInitIsFinished,
    VM_getClassFromNewArrayType,
    VM_getArrayClassFromComponentClass,
+   VM_getNullRestrictedArrayClassFromComponentClass,
    VM_matchRAMclassFromROMclass,
-   VM_getReferenceFieldAtAddress,
-   VM_getVolatileReferenceFieldAt,
    VM_getInt32FieldAt,
    VM_getInt64FieldAt,
    VM_setInt64FieldAt,
@@ -176,7 +178,6 @@ enum MessageType : uint16_t
    VM_dereferenceStaticAddress,
    VM_getClassFromCP,
    VM_getROMMethodFromRAMMethod,
-   VM_getReferenceFieldAt,
    VM_getJ2IThunk,
    VM_needsInvokeExactJ2IThunk,
    VM_instanceOfOrCheckCastNoCacheUpdate,
@@ -192,13 +193,17 @@ enum MessageType : uint16_t
    VM_targetMethodFromInvokeCacheArrayMemberNameObj,
    VM_refineInvokeCacheElementSymRefWithKnownObjectIndex,
    VM_isLambdaFormGeneratedMethod,
-   VM_vTableOrITableIndexFromMemberName,
+   VM_getMemberNameMethodInfo,
    VM_getMemberNameFieldKnotIndexFromMethodHandleKnotIndex,
    VM_isMethodHandleExpectedType,
    VM_isStable,
    VM_delegatingMethodHandleTarget,
    VM_getVMTargetOffset,
    VM_getVMIndexOffset,
+   VM_inSnapshotMode,
+   VM_isInvokeCacheEntryAnArray,
+   VM_getMethodHandleTableEntryIndex,
+   VM_getLayoutVarHandle,
 
    // For static TR::CompilationInfo methods
    CompInfo_isCompiled,
@@ -222,9 +227,9 @@ enum MessageType : uint16_t
    ClassEnv_iTableRomClass,
    ClassEnv_getITable,
    ClassEnv_enumerateFields,
-   ClassEnv_isClassRefPrimitiveValueType,
    ClassEnv_flattenedArrayElementSize,
    ClassEnv_getDefaultValueSlotAddress,
+   ClassEnv_setClassHasIllegalStaticFinalFieldModification,
 
    // For TR_J9SharedCache
    SharedCache_getClassChainOffsetIdentifyingLoader,
@@ -274,15 +279,25 @@ enum MessageType : uint16_t
    KnownObjectTable_getPointer,
    KnownObjectTable_getExistingIndexAt,
    // for KnownObjectTable outside J9::KnownObjectTable class
-   KnownObjectTable_symbolReferenceTableCreateKnownObject,
    KnownObjectTable_mutableCallSiteEpoch,
    KnownObjectTable_dereferenceKnownObjectField,
    KnownObjectTable_dereferenceKnownObjectField2,
    KnownObjectTable_createSymRefWithKnownObject,
    KnownObjectTable_getReferenceField,
    KnownObjectTable_getKnownObjectTableDumpInfo,
+   // for getting a J9Class from KnownObjectTable
+   KnownObjectTable_getOpaqueClass,
+   // for getting a vectorBitSize from KnownObjectTable
+   KnownObjectTable_getVectorBitSize,
+   // used with J9TransformUtil
+   KnownObjectTable_addFieldAddressFromBaseIndex,
+   KnownObjectTable_getFieldAddressData,
 
    AOTCache_getROMClassBatch,
+
+   AOTCacheMap_request,
+   AOTCacheMap_reply,
+
 
    MessageType_MAXTYPE
    };

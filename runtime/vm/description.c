@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -63,11 +63,11 @@ isLeafField(J9ROMFieldShape* field)
 		storage: space to store the description if it does not fit in a slot
 */
 void
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 calculateInstanceDescription( J9VMThread *vmThread, J9Class *ramClass, J9Class *ramSuperClass, UDATA *storage, J9ROMFieldOffsetWalkState *walkState, J9ROMFieldOffsetWalkResult *walkResult, BOOLEAN hasReferences)
-#else /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#else /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 calculateInstanceDescription( J9VMThread *vmThread, J9Class *ramClass, J9Class *ramSuperClass, UDATA *storage, J9ROMFieldOffsetWalkState *walkState, J9ROMFieldOffsetWalkResult *walkResult)
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 {
 	UDATA const referenceSize = J9VMTHREAD_REFERENCE_SIZE(vmThread);
 	UDATA const objectHeaderSize = J9VMTHREAD_OBJECT_HEADER_SIZE(vmThread);
@@ -98,9 +98,9 @@ calculateInstanceDescription( J9VMThread *vmThread, J9Class *ramClass, J9Class *
 		ramClass->lockOffset =	walkState->lockOffset;
 		ramClass->finalizeLinkOffset = walkState->finalizeLinkOffset;
 	}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	if (hasReferences)
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	{
 		/* convert all sizes from bytes to object slots */
 		superClassSize = walkResult->superTotalInstanceSize / referenceSize;
@@ -177,8 +177,9 @@ calculateInstanceDescription( J9VMThread *vmThread, J9Class *ramClass, J9Class *
 					}
 				}
 
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-				if ('Q' == *fieldSigBytes) {
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+				if (J9ROMFIELD_IS_NULL_RESTRICTED(walkResult->field)
+				) {
 					J9Class *fieldClass = walkResult->flattenedClass;
 					if ((NULL != fieldClass) 
 						&& J9_IS_FIELD_FLATTENED(fieldClass, walkResult->field)
@@ -253,7 +254,7 @@ calculateInstanceDescription( J9VMThread *vmThread, J9Class *ramClass, J9Class *
 						shape[slotOffset] |= bit;
 					}
 				} else
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 				{
 					UDATA bit = (UDATA)1 << ((walkResult->offset % (referenceSize * slotsPerShapeElement)) / referenceSize);
 					shape[slotOffset] |= bit;
@@ -294,14 +295,14 @@ calculateInstanceDescription( J9VMThread *vmThread, J9Class *ramClass, J9Class *
 			Trc_VM_calculateInstanceDescription_indirectResult(NULL, storage[0]);
 		}
 	}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	else {
 		ramClass->instanceDescription = (UDATA *)(UDATA)1;
 #if defined(J9VM_GC_LEAF_BITS)
 		ramClass->instanceLeafDescription = (UDATA *)(UDATA)1;
 #endif /* defined(J9VM_GC_LEAF_BITS) */
 	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 }
 
 
@@ -334,12 +335,12 @@ checkLockwordNeeded(J9JavaVM *vm, J9ROMClass *romClass, J9Class *ramSuperClass, 
 	if (J9ROMCLASS_IS_ARRAY(romClass)) {
 		return NO_LOCKWORD_NEEDED;
 	}
-#ifdef J9VM_OPT_VALHALLA_VALUE_TYPES
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 	/* ValueTypes don not have lockwords */
 	if (J9ROMCLASS_IS_VALUE(romClass)) {
 		return NO_LOCKWORD_NEEDED;
 	}
-#endif
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	
 	/* check for primitive types or java.lang.Object */
 	if (ramSuperClass == NULL) {

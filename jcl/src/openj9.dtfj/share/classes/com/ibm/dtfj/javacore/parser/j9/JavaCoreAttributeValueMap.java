@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9;
 
 import java.util.Map;
@@ -28,11 +28,9 @@ import com.ibm.dtfj.javacore.builder.IBuilderData;
 import com.ibm.dtfj.javacore.parser.framework.scanner.IParserToken;
 
 public class JavaCoreAttributeValueMap implements IAttributeValueMap {
-	
-	
+
 	private Map fResults;
-	
-	
+
 	public JavaCoreAttributeValueMap(Map results) {
 		if (results == null) {
 			throw new NullPointerException("Must pass non-null results");
@@ -40,18 +38,15 @@ public class JavaCoreAttributeValueMap implements IAttributeValueMap {
 		fResults = results;
 	}
 
-	
 	/*
 	 * DATA EXTRACTION
 	 */
-	
-	
-	
+
 	/**
-	 * 
+	 *
 	 * @param results
 	 * @param tokenType
-	 * 
+	 *
 	 */
 	public String getTokenValue(String tokenType) {
 		IParserToken token = getToken(tokenType);
@@ -61,12 +56,11 @@ public class JavaCoreAttributeValueMap implements IAttributeValueMap {
 		}
 		return value;
 	}
-	
-	
+
 	/**
-	 * 
+	 *
 	 * @param tokenType
-	 * 
+	 *
 	 */
 	public long getLongValue(String tokenType) {
 		IParserToken token = getToken(tokenType);
@@ -96,9 +90,7 @@ public class JavaCoreAttributeValueMap implements IAttributeValueMap {
 		}
 		return value;
 	}
-	
-	
-	
+
 	public int getIntValue(String tokenType) {
 		IParserToken token = getToken(tokenType);
 		int value = IBuilderData.NOT_AVAILABLE;
@@ -108,11 +100,10 @@ public class JavaCoreAttributeValueMap implements IAttributeValueMap {
 		return value;
 	}
 
-	
 	/**
-	 * 
+	 *
 	 * @param tokenType
-	 * 
+	 *
 	 */
 	public IParserToken getToken(String tokenType) {
 		Object oToken = fResults.get(tokenType);

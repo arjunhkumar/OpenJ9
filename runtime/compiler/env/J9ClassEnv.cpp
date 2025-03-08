@@ -17,10 +17,11 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "compile/Compilation.hpp"
+#include "AtomicSupport.hpp"
 #if defined(J9VM_OPT_JITSERVER)
 #include "control/CompilationRuntime.hpp"
 #include "control/CompilationThread.hpp"
@@ -298,12 +299,6 @@ J9::ClassEnv::isConcreteClass(TR::Compilation *comp, TR_OpaqueClassBlock * clazz
    }
 
 bool
-J9::ClassEnv::isEnumClass(TR::Compilation *comp, TR_OpaqueClassBlock *clazzPointer, TR_ResolvedMethod *method)
-   {
-   return comp->fej9()->isEnumClass(clazzPointer, method);
-   }
-
-bool
 J9::ClassEnv::isPrimitiveClass(TR::Compilation *comp, TR_OpaqueClassBlock *clazz)
    {
    return comp->fej9()->isPrimitiveClass(clazz);
@@ -313,6 +308,38 @@ bool
 J9::ClassEnv::isPrimitiveArray(TR::Compilation *comp, TR_OpaqueClassBlock *clazz)
    {
    return comp->fej9()->isPrimitiveArray(clazz);
+   }
+
+TR::DataTypes
+J9::ClassEnv::primitiveArrayComponentType(TR::Compilation *comp, TR_OpaqueClassBlock *clazz)
+   {
+   TR_ASSERT_FATAL(
+      self()->isPrimitiveArray(comp, clazz), "not a primitive array: %p", clazz);
+
+   static const int32_t firstNewArrayTypeCode = 4;
+   static const TR::DataTypes newArrayTypes[] =
+      {
+      TR::Int8, // boolean
+      TR::Int16, // char
+      TR::Float,
+      TR::Double,
+      TR::Int8,
+      TR::Int16,
+      TR::Int32,
+      TR::Int64,
+      };
+
+   TR_J9VMBase *fej9 = comp->fej9();
+   for (int32_t i = 0; i < sizeof(newArrayTypes) / sizeof(newArrayTypes[0]); i++)
+      {
+      TR_OpaqueClassBlock *primitiveArrayClass =
+         fej9->getClassFromNewArrayTypeNonNull(firstNewArrayTypeCode + i);
+
+      if (clazz == primitiveArrayClass)
+         return newArrayTypes[i];
+      }
+
+   return TR::NoType;
    }
 
 bool
@@ -366,6 +393,38 @@ J9::ClassEnv::classHasIllegalStaticFinalFieldModification(TR_OpaqueClassBlock * 
       }
 #endif /* defined(J9VM_OPT_JITSERVER) */
    return J9_ARE_ANY_BITS_SET(j9clazz->classFlags, J9ClassHasIllegalFinalFieldModifications);
+   }
+
+void
+J9::ClassEnv::setClassHasIllegalStaticFinalFieldModification(
+   TR_OpaqueClassBlock *clazz, TR::Compilation *comp)
+   {
+   J9Class *j9c = TR::Compiler->cls.convertClassOffsetToClassPtr(clazz);
+
+#if defined(J9VM_OPT_JITSERVER)
+   if (comp->isOutOfProcessCompilation())
+      {
+      // Set the flag on the actual class in the client.
+      auto stream = comp->getStream();
+      stream->write(
+         JITServer::MessageType::ClassEnv_setClassHasIllegalStaticFinalFieldModification,
+         clazz);
+
+      stream->read<JITServer::Void>();
+
+      // Update the cache
+      ClientSessionData *clientSessionData = TR::compInfoPT->getClientData();
+      OMR::CriticalSection romMapCS(clientSessionData->getROMMapMonitor());
+      auto it = clientSessionData->getROMClassMap().find(j9c);
+      if (it != clientSessionData->getROMClassMap().end())
+         it->second._classFlags |= J9ClassHasIllegalFinalFieldModifications;
+
+      return;
+      }
+#endif
+
+   VM_AtomicSupport::bitOrU32(
+      &j9c->classFlags, J9ClassHasIllegalFinalFieldModifications);
    }
 
 bool
@@ -487,9 +546,8 @@ static void addEntryForFieldImpl(TR_VMField *field, TR::TypeLayoutBuilder &tlb, 
    bool trace = comp->getOption(TR_TraceILGen);
    uint32_t mergedLength = 0;
    J9UTF8 *signature = J9ROMFIELDSHAPE_SIGNATURE(field->shape);
-
-   if (TR::Compiler->om.areValueTypesEnabled() &&
-       vm->internalVMFunctions->isNameOrSignatureQtype(signature) &&
+   if (TR::Compiler->om.areFlattenableValueTypesEnabled() &&
+       vm->internalVMFunctions->isFieldNullRestricted(field->shape) &&
        vm->internalVMFunctions->isFlattenableFieldFlattened(definingClass, field->shape))
       {
       char *prefixForChild = buildTransitiveFieldNames(prefix, prefixLength, field->shape, comp->trMemory()->currentStackRegion(), mergedLength);
@@ -548,7 +606,6 @@ static void addEntryForFieldImpl(TR_VMField *field, TR::TypeLayoutBuilder &tlb, 
             break;
             }
          case 'L':
-         case 'Q':
          case '[':
             {
             dataType = TR::Address;
@@ -558,9 +615,10 @@ static void addEntryForFieldImpl(TR_VMField *field, TR::TypeLayoutBuilder &tlb, 
 
       char *fieldName = mergeFieldNames(prefix, prefixLength, field->shape, region, mergedLength);
       int32_t offset = offsetBase + field->offset + TR::Compiler->om.objectHeaderSizeInBytes();
-      bool isVolatile = (field->modifiers & J9AccVolatile) ? true : false;
-      bool isPrivate = (field->modifiers & J9AccPrivate) ? true : false;
-      bool isFinal = (field->modifiers & J9AccFinal) ? true : false;
+      bool isVolatile = J9_ARE_ALL_BITS_SET(field->modifiers, J9AccVolatile);
+      bool isPrivate = J9_ARE_ALL_BITS_SET(field->modifiers, J9AccPrivate);
+      bool isFinal = J9_ARE_ALL_BITS_SET(field->modifiers, J9AccFinal);
+      bool isFieldNullRestricted = J9_ARE_ALL_BITS_SET(field->modifiers, J9FieldFlagIsNullRestricted);
 
       int sigLen = strlen(signature);
       char *fieldSignature = new (region) char[sigLen+1];
@@ -569,7 +627,7 @@ static void addEntryForFieldImpl(TR_VMField *field, TR::TypeLayoutBuilder &tlb, 
 
       if (trace)
          traceMsg(comp, "type layout definingClass %p field: %s signature: %s field offset: %d offsetBase %d\n", definingClass, fieldName, fieldSignature, field->offset, offsetBase);
-      tlb.add(TR::TypeLayoutEntry(dataType, offset, fieldName, isVolatile, isPrivate, isFinal, fieldSignature));
+      tlb.add(TR::TypeLayoutEntry(dataType, offset, fieldName, isVolatile, isPrivate, isFinal, isFieldNullRestricted, fieldSignature));
       }
    }
 
@@ -715,7 +773,8 @@ uintptr_t
 J9::ClassEnv::getArrayElementWidthInBytes(TR::Compilation *comp, TR_OpaqueClassBlock* arrayClass)
    {
    TR_ASSERT(TR::Compiler->cls.isClassArray(comp, arrayClass), "Class must be array");
-   int32_t logElementSize = ((J9ROMArrayClass*)((J9Class*)arrayClass)->romClass)->arrayShape & 0x0000FFFF;
+   J9ROMClass *romClass = TR::Compiler->cls.romClassOf(arrayClass);
+   int32_t logElementSize = ((J9ROMArrayClass*)romClass)->arrayShape & 0x0000FFFF;
    return 1 << logElementSize;
    }
 
@@ -775,29 +834,6 @@ J9::ClassEnv::isValueTypeClass(TR_OpaqueClassBlock *clazz)
    }
 
 bool
-J9::ClassEnv::isPrimitiveValueTypeClass(TR_OpaqueClassBlock *clazz)
-   {
-#if defined(J9VM_OPT_JITSERVER)
-   if (auto stream = TR::CompilationInfo::getStream())
-      {
-      uintptr_t classFlags = 0;
-      JITServerHelpers::getAndCacheRAMClassInfo((J9Class *)clazz, TR::compInfoPT->getClientData(), stream, JITServerHelpers::CLASSINFO_CLASS_FLAGS, (void *)&classFlags);
-#ifdef DEBUG
-      stream->write(JITServer::MessageType::ClassEnv_classFlagsValue, clazz);
-      uintptr_t classFlagsRemote = std::get<0>(stream->read<uintptr_t>());
-      // Check that class flags from remote call is equal to the cached ones
-      classFlags = classFlags & J9ClassIsPrimitiveValueType;
-      classFlagsRemote = classFlagsRemote & J9ClassIsPrimitiveValueType;
-      TR_ASSERT(classFlags == classFlagsRemote, "remote call class flags is not equal to cached class flags");
-#endif
-      return classFlags & J9ClassIsPrimitiveValueType;
-      }
-#endif /* defined(J9VM_OPT_JITSERVER) */
-   J9Class *j9class = reinterpret_cast<J9Class*>(clazz);
-   return J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(j9class);
-   }
-
-bool
 J9::ClassEnv::isValueTypeClassFlattened(TR_OpaqueClassBlock *clazz)
    {
 #if defined(J9VM_OPT_JITSERVER)
@@ -841,6 +877,29 @@ J9::ClassEnv::isValueBasedOrValueTypeClass(TR_OpaqueClassBlock *clazz)
 #endif /* defined(J9VM_OPT_JITSERVER) */
    J9Class *j9class = reinterpret_cast<J9Class*>(clazz);
    return J9_ARE_ANY_BITS_SET(j9class->classFlags, J9_CLASS_DISALLOWS_LOCKING_FLAGS);
+   }
+
+bool
+J9::ClassEnv::isArrayNullRestricted(TR::Compilation *comp,TR_OpaqueClassBlock *arrayClass)
+   {
+#if defined(J9VM_OPT_JITSERVER)
+   if (auto stream = comp->getStream())
+      {
+      uintptr_t classFlags = 0;
+      JITServerHelpers::getAndCacheRAMClassInfo((J9Class *)arrayClass, TR::compInfoPT->getClientData(), stream, JITServerHelpers::CLASSINFO_CLASS_FLAGS, (void *)&classFlags);
+#ifdef DEBUG
+      stream->write(JITServer::MessageType::ClassEnv_classFlagsValue, arrayClass);
+      uintptr_t classFlagsRemote = std::get<0>(stream->read<uintptr_t>());
+      // Check that class flags from remote call is equal to the cached ones
+      classFlags = classFlags & J9ClassArrayIsNullRestricted;
+      classFlagsRemote = classFlagsRemote & J9ClassArrayIsNullRestricted;
+      TR_ASSERT_FATAL(classFlags == classFlagsRemote, "remote call class flags is not equal to cached class flags");
+#endif
+      return J9_ARE_ALL_BITS_SET(classFlags, J9ClassArrayIsNullRestricted);
+      }
+#endif /* defined(J9VM_OPT_JITSERVER) */
+   J9ArrayClass *j9class = reinterpret_cast<J9ArrayClass*>(arrayClass);
+   return J9_IS_J9ARRAYCLASS_NULL_RESTRICTED(j9class);
    }
 
 bool
@@ -920,7 +979,7 @@ J9::ClassEnv::isZeroInitializable(TR_OpaqueClassBlock *clazz)
    }
 
 bool
-J9::ClassEnv::containsZeroOrOneConcreteClass(TR::Compilation *comp, List<TR_PersistentClassInfo>* subClasses)
+J9::ClassEnv::containsZeroOrOneConcreteClass(TR::Compilation *comp, List<TR_PersistentClassInfo> *subClasses)
    {
    int count = 0;
 #if defined(J9VM_OPT_JITSERVER)
@@ -930,7 +989,7 @@ J9::ClassEnv::containsZeroOrOneConcreteClass(TR::Compilation *comp, List<TR_Pers
       TR_ScratchList<TR_PersistentClassInfo> subClassesNotCached(comp->trMemory());
 
       // Process classes cached at the server first
-      ClientSessionData * clientData = TR::compInfoPT->getClientData();
+      ClientSessionData *clientData = comp->getClientData();
       for (TR_PersistentClassInfo *ptClassInfo = j.getFirst(); ptClassInfo; ptClassInfo = j.getNext())
          {
          TR_OpaqueClassBlock *clazz = ptClassInfo->getClassId();
@@ -978,24 +1037,6 @@ J9::ClassEnv::containsZeroOrOneConcreteClass(TR::Compilation *comp, List<TR_Pers
    return true;
    }
 
-bool
-J9::ClassEnv::isClassRefPrimitiveValueType(TR::Compilation *comp, TR_OpaqueClassBlock *cpContextClass, int32_t cpIndex)
-   {
-#if defined(J9VM_OPT_JITSERVER)
-   if (auto stream = comp->getStream())
-      {
-      stream->write(JITServer::MessageType::ClassEnv_isClassRefPrimitiveValueType, cpContextClass, cpIndex);
-      return std::get<0>(stream->read<bool>());
-      }
-   else // non-jitserver
-#endif /* defined(J9VM_OPT_JITSERVER) */
-      {
-      J9Class * j9class = reinterpret_cast<J9Class *>(cpContextClass);
-      J9JavaVM *vm = comp->fej9()->getJ9JITConfig()->javaVM;
-      return vm->internalVMFunctions->isClassRefQtype(j9class, cpIndex);
-      }
-   }
-
 char *
 J9::ClassEnv::classNameToSignature(const char *name, int32_t &len, TR::Compilation *comp, TR_AllocationKind allocKind, TR_OpaqueClassBlock *clazz)
    {
@@ -1010,10 +1051,7 @@ J9::ClassEnv::classNameToSignature(const char *name, int32_t &len, TR::Compilati
       {
       len += 2;
       sig = (char *)comp->trMemory()->allocateMemory(len+1, allocKind);
-      if (clazz && TR::Compiler->om.areValueTypesEnabled() && self()->isPrimitiveValueTypeClass(clazz))
-         sig[0] = 'Q';
-      else
-         sig[0] = 'L';
+      sig[0] = 'L';
       memcpy(sig+1,name,len-2);
       sig[len-1]=';';
       }
@@ -1029,14 +1067,15 @@ J9::ClassEnv::flattenedArrayElementSize(TR::Compilation *comp, TR_OpaqueClassBlo
    if (auto stream = comp->getStream())
       {
       int32_t arrayElementSize = 0;
-      JITServerHelpers::getAndCacheRAMClassInfo((J9Class *)arrayClass, TR::compInfoPT->getClientData(), stream, JITServerHelpers::CLASSINFO_ARRAY_ELEMENT_SIZE, (void *)&arrayElementSize);
+      JITServerHelpers::getAndCacheRAMClassInfo((J9Class *)arrayClass, comp->getClientData(), stream,
+                                                JITServerHelpers::CLASSINFO_ARRAY_ELEMENT_SIZE, &arrayElementSize);
       return arrayElementSize;
       }
    else
 #endif /* defined(J9VM_OPT_JITSERVER) */
       {
       J9JavaVM *vm = comp->fej9()->getJ9JITConfig()->javaVM;
-      return vm->internalVMFunctions->arrayElementSize((J9ArrayClass*)self()->convertClassOffsetToClassPtr(arrayClass));
+      return vm->internalVMFunctions->arrayElementSize((J9ArrayClass *)self()->convertClassOffsetToClassPtr(arrayClass));
       }
    }
 

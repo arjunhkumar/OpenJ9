@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9port.h"
@@ -25,6 +25,8 @@
 #include <sys/mman.h>
 #include <errno.h>
 
+extern intptr_t _MPROT(uintptr_t address, uintptr_t length); /* j9mprotect.s */
+extern intptr_t _MUNPROT(uintptr_t address, uintptr_t length); /* j9munprotect.s */
 
 /**
  * @internal @file
@@ -40,8 +42,6 @@ intptr_t
 protect_memory(struct J9PortLibrary *portLibrary, void *address, uintptr_t length, uintptr_t flags)
 {
 	OMRPORT_ACCESS_FROM_J9PORT(portLibrary);
-	uintptr_t index;
-	intptr_t unixFlags = 0;
 	intptr_t rc = -1;
 
 	if ((flags & OMRPORT_PAGE_PROTECT_WRITE) == 0) {

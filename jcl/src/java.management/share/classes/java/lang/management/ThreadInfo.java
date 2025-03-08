@@ -1,6 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
 /*
- *******************************************************************************
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -19,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.management;
 
 import java.util.Arrays;
@@ -52,14 +51,13 @@ public class ThreadInfo {
 	static {
 		ManagementAccessControl.setThreadInfoAccess(new ThreadInfoAccessImpl());
 	}
-	
+
 	/**
 	 * Container for the actual data.
 	 */
 	private final ThreadInfoBase baseInfo;
 	private static final LockInfo[] EMPTY_LOCKINFO_ARRAY = new LockInfo[0];
 
-	
 	/**
 	 * Used by from().
 	 * @param threadIdVal
@@ -78,10 +76,10 @@ public class ThreadInfo {
 	 * @param lockInfo
 	 * @param lockedMonitors
 	 * @param lockedSynchronizers
-/*[IF Sidecar19-SE]
+/*[IF JAVA_SPEC_VERSION >= 9]
 	 * @param daemon
 	 * @param priority
-/*[ENDIF]
+/*[ENDIF] JAVA_SPEC_VERSION >= 9
 	 */
 	private ThreadInfo(long threadIdVal, String threadNameVal,
 			Thread.State threadStateVal, boolean suspendedVal,
@@ -90,16 +88,16 @@ public class ThreadInfo {
 			long lockOwnerIdVal, String lockOwnerNameVal,
 			StackTraceElement[] stackTraceVal, LockInfo lockInfo,
 			MonitorInfo[] lockedMonitors, LockInfo[] lockedSynchronizers
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 			, boolean daemon, int priority
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 	) {
 		MonitorInfoBase[] monInfoBases = null;
 		if (null != lockedMonitors) {
 			monInfoBases = Arrays.stream(lockedMonitors)
 					.map(MonitorInfo::getBaseInfo).toArray(MonitorInfoBase[]::new);
 		}
-		
+
 		LockInfoBase[] lockedSyncs = null;
 		if (null != lockedSynchronizers) {
 			lockedSyncs = Arrays.stream(lockedSynchronizers)
@@ -112,9 +110,9 @@ public class ThreadInfo {
 		baseInfo = new ThreadInfoBase(threadIdVal, threadNameVal, threadStateVal, suspendedVal, inNativeVal,
 				blockedCountVal, blockedTimeVal, waitedCountVal, waitedTimeVal, lockNameVal, lockOwnerIdVal,
 				lockOwnerNameVal, stackTraceVal, lckInfo, monInfoBases, lockedSyncs
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 				, daemon, priority
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 				);
 	}
 
@@ -130,7 +128,7 @@ public class ThreadInfo {
 	 * Returns the number of times that the thread represented by this
 	 * <code>ThreadInfo</code> has been blocked on any monitor objects. The
 	 * count is from the start of the thread's life.
-	 * 
+	 *
 	 * @return the number of times the corresponding thread has been blocked on
 	 *         a monitor.
 	 */
@@ -144,7 +142,7 @@ public class ThreadInfo {
 	 * <code>ThreadInfo</code> has spent blocked on any monitor objects. The
 	 * time is measured in milliseconds and will be measured over the time period
 	 * since thread contention was most recently enabled.
-	 * 
+	 *
 	 * @return if thread contention monitoring is currently enabled, the number
 	 *         of milliseconds that the thread associated with this
 	 *         <code>ThreadInfo</code> has spent blocked on any monitors. If
@@ -185,7 +183,7 @@ public class ThreadInfo {
 	 * If the thread represented by this <code>ThreadInfo</code> is currently
 	 * blocked on or waiting on a monitor object, returns the thread identifier
 	 * of the thread which owns the monitor.
-	 * 
+	 *
 	 * @return the thread identifier of the other thread which holds the monitor
 	 *         that the thread associated with this <code>ThreadInfo</code> is
 	 *         blocked or waiting on. If this <code>ThreadInfo</code>'s
@@ -200,7 +198,7 @@ public class ThreadInfo {
 	 * If the thread represented by this <code>ThreadInfo</code> is currently
 	 * blocked on or waiting on a monitor object, returns the name of the thread
 	 * which owns the monitor.
-	 * 
+	 *
 	 * @return the name of the other thread which holds the monitor that the
 	 *         thread associated with this <code>ThreadInfo</code> is blocked
 	 *         or waiting on. If this <code>ThreadInfo</code>'s associated
@@ -216,7 +214,7 @@ public class ThreadInfo {
 	 * If the thread corresponding to this <code>ThreadInfo</code> is blocked
 	 * then this method returns a {@link LockInfo} object that contains details
 	 * of the associated lock object.
-	 * 
+	 *
 	 * @return a <code>LockInfo</code> object if this <code>ThreadInfo</code>'s
 	 *         thread is currently blocked, else <code>null</code>.
 	 */
@@ -228,7 +226,7 @@ public class ThreadInfo {
 	/**
 	 * Returns the native thread identifier of the thread represented by this
 	 * <code>ThreadInfo</code>.
-	 * 
+	 *
 	 * @return the native identifier of the thread corresponding to this
 	 *         <code>ThreadInfo</code>.
 	 */
@@ -247,7 +245,7 @@ public class ThreadInfo {
 	 * information (e.g. by a call to {@link ThreadMXBean#getThreadInfo(long)})
 	 * then the returned array will have a length of zero.
 	 * </p>
-	 * 
+	 *
 	 * @return the stack trace for the thread represented by this
 	 *         <code>ThreadInfo</code>.
 	 */
@@ -258,7 +256,7 @@ public class ThreadInfo {
 	/**
 	 * Returns the thread identifier of the thread represented by this
 	 * <code>ThreadInfo</code>.
-	 * 
+	 *
 	 * @return the identifier of the thread corresponding to this
 	 *         <code>ThreadInfo</code>.
 	 */
@@ -269,7 +267,7 @@ public class ThreadInfo {
 	/**
 	 * Returns the name of the thread represented by this
 	 * <code>ThreadInfo</code>.
-	 * 
+	 *
 	 * @return the name of the thread corresponding to this
 	 *         <code>ThreadInfo</code>.
 	 */
@@ -280,7 +278,7 @@ public class ThreadInfo {
 	/**
 	 * Returns the thread state value of the thread represented by this
 	 * <code>ThreadInfo</code>.
-	 * 
+	 *
 	 * @return the thread state of the thread corresponding to this
 	 *         <code>ThreadInfo</code>.
 	 * @see Thread#getState()
@@ -293,7 +291,7 @@ public class ThreadInfo {
 	 * The number of times that the thread represented by this
 	 * <code>ThreadInfo</code> has gone to the &quot;wait&quot; or &quot;timed
 	 * wait&quot; state.
-	 * 
+	 *
 	 * @return the number of times the corresponding thread has been in the
 	 *         &quot;wait&quot; or &quot;timed wait&quot; state.
 	 */
@@ -307,7 +305,7 @@ public class ThreadInfo {
 	 * <code>ThreadInfo</code> has spent waiting for notifications. The time
 	 * is measured in milliseconds and will be measured over the time period
 	 * since thread contention was most recently enabled.
-	 * 
+	 *
 	 * @return if thread contention monitoring is currently enabled, the number
 	 *         of milliseconds that the thread associated with this
 	 *         <code>ThreadInfo</code> has spent waiting notifications. If
@@ -327,7 +325,7 @@ public class ThreadInfo {
 	 * Returns a <code>boolean</code> indication of whether or not the thread
 	 * represented by this <code>ThreadInfo</code> is currently in a native
 	 * method.
-	 * 
+	 *
 	 * @return if the corresponding thread <i>is </i> executing a native method
 	 *         then <code>true</code>, otherwise <code>false</code>.
 	 */
@@ -338,7 +336,7 @@ public class ThreadInfo {
 	/**
 	 * Returns a <code>boolean</code> indication of whether or not the thread
 	 * represented by this <code>ThreadInfo</code> is currently suspended.
-	 * 
+	 *
 	 * @return if the corresponding thread <i>is </i> suspended then
 	 *         <code>true</code>, otherwise <code>false</code>.
 	 */
@@ -350,7 +348,7 @@ public class ThreadInfo {
 	 * Returns an array of <code>MonitorInfo</code> objects, one for every
 	 * monitor object locked by the <code>Thread</code> corresponding to this
 	 * <code>ThreadInfo</code> when it was instantiated.
-	 * 
+	 *
 	 * @return an array whose elements comprise of <code>MonitorInfo</code>
 	 *         objects - one for each object monitor locked by this
 	 *         <code>ThreadInfo</code> object's corresponding thread. If no
@@ -373,7 +371,7 @@ public class ThreadInfo {
 	 * the <code>AbstractOwnableSynchronizer</code> type and which is
 	 * completely owned by a single thread) locked by the <code>Thread</code>
 	 * corresponding to this <code>ThreadInfo</code> when it was instantiated.
-	 * 
+	 *
 	 * @return an array whose elements comprise of <code>LockInfo</code>
 	 *         objects - one for each ownable synchronizer locked by this
 	 *         <code>ThreadInfo</code> object's corresponding thread. If no
@@ -392,7 +390,7 @@ public class ThreadInfo {
 	 * Receives a {@link CompositeData} representing a <code>ThreadInfo</code>
 	 * object and attempts to return the root <code>ThreadInfo</code>
 	 * instance.
-	 * 
+	 *
 	 * @param cd
 	 *            a <code>CompositeData</code> that represents a
 	 *            <code>ThreadInfo</code>.
@@ -416,30 +414,30 @@ public class ThreadInfo {
 	 *             <li><code>blockedTime</code>(<code>java.lang.Long</code>)
 	 *             <li><code>waitedCount</code>(<code>java.lang.Long</code>)
 	 *             <li><code>waitedTime</code> (<code>java.lang.Long</code>)
-/*[IF Sidecar19-SE]
+/*[IF JAVA_SPEC_VERSION >= 9]
 	 *             <li><code>daemon</code> (<code>java.lang.Boolean</code>)
 	 *             <li><code>priority</code> (<code>java.lang.Integer</code>)
-/*[ENDIF]
+/*[ENDIF] JAVA_SPEC_VERSION >= 9
 	 *             <li><code>lockInfo</code> (<code>javax.management.openmbean.CompositeData</code>)
 	 *             which holds the simple attributes <code>className</code>(<code>java.lang.String</code>),
-	 *             <code>identityHashCode</code>(<code>java.lang.Integer</code>).  
-	 *             In the event that the input <code>CompositeData</code> does not hold a 
+	 *             <code>identityHashCode</code>(<code>java.lang.Integer</code>).
+	 *             In the event that the input <code>CompositeData</code> does not hold a
 	 *             <code>lockInfo</code> attribute, the value of the <code>lockName</code>
-	 *             attribute is used for setting the returned object's 
-	 *             <code>LockInfo</code> state. 
+	 *             attribute is used for setting the returned object's
+	 *             <code>LockInfo</code> state.
 	 *             <li><code>lockName</code> (<code>java.lang.String</code>)
 	 *             <li><code>lockOwnerId</code> (<code>java.lang.Long</code>)
 	 *             <li><code>lockOwnerName</code> (<code>java.lang.String</code>)
 	 *             <li><code>stackTrace</code> (<code>javax.management.openmbean.CompositeData[]</code>)
 	 *             </ul>
-	 *             Each element of the <code>stackTrace</code> array must 
+	 *             Each element of the <code>stackTrace</code> array must
 	 *             correspond to a <code>java.lang.StackTraceElement</code>
 	 *             and have the following attributes :
 	 *             <ul>
-/*[IF Sidecar19-SE]             
+/*[IF JAVA_SPEC_VERSION >= 9]
 	 *             <li><code>moduleName</code>(<code>java.lang.String</code>)
 	 *             <li><code>moduleVersion</code>(<code>java.lang.String</code>)
-/*[ENDIF]     
+/*[ENDIF] JAVA_SPEC_VERSION >= 9
 	 *             <li><code>className</code> (<code>java.lang.String</code>)
 	 *             <li><code>methodName</code> (<code>java.lang.String</code>)
 	 *             <li><code>fileName</code> (<code>java.lang.String</code>)
@@ -475,11 +473,11 @@ public class ThreadInfo {
 			LockInfo lockInfoVal;
 			MonitorInfo[] lockedMonitorVals;
 			LockInfo[] lockedSynchronizerVals;
-			
-			/*[IF Sidecar19-SE]*/
+
+			/*[IF JAVA_SPEC_VERSION >= 9]*/
 			boolean daemonVal;
 			int priorityVal;
-			/*[ENDIF]*/
+			/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 			try {
 				// Set the mandatory attributes - if any of these are
@@ -508,11 +506,11 @@ public class ThreadInfo {
 				lockOwnerNameVal = (String) cd.get("lockOwnerName"); //$NON-NLS-1$
 				CompositeData[] stackTraceDataVal = (CompositeData[]) cd.get("stackTrace"); //$NON-NLS-1$
 				stackTraceVals = StackTraceElementUtil.fromArray(stackTraceDataVal);
-				
-				/*[IF Sidecar19-SE]*/
+
+				/*[IF JAVA_SPEC_VERSION >= 9]*/
 				daemonVal = ((Boolean) cd.get("daemon")).booleanValue(); //$NON-NLS-1$
 				priorityVal = ((Integer) cd.get("priority")).intValue(); //$NON-NLS-1$
-				/*[ENDIF]*/
+				/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 			} catch (NullPointerException | InvalidKeyException e) {
 				// throw an IllegalArgumentException as the CompositeData
 				// object does not contain an expected key
@@ -532,9 +530,9 @@ public class ThreadInfo {
 					waitedCountVal, waitedTimeVal, lockNameVal, lockOwnerIdVal,
 					lockOwnerNameVal, stackTraceVals, lockInfoVal,
 					lockedMonitorVals, lockedSynchronizerVals
-					/*[IF Sidecar19-SE]*/
+					/*[IF JAVA_SPEC_VERSION >= 9]*/
 					, daemonVal, priorityVal
-					/*[ENDIF]*/
+					/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 			);
 		}
 
@@ -544,7 +542,7 @@ public class ThreadInfo {
 	/**
 	 * Helper method to retrieve an array of <code>LockInfo</code> from the
 	 * supplied <code>CompositeData</code> object.
-	 * 
+	 *
 	 * @param cd
 	 *            a <code>CompositeData</code> that is expected to map to a
 	 *            <code>ThreadInfo</code> object
@@ -564,7 +562,7 @@ public class ThreadInfo {
 	/**
 	 * Helper method to retrieve an array of <code>MonitorInfo</code> from the
 	 * supplied <code>CompositeData</code> object.
-	 * 
+	 *
 	 * @param cd
 	 *            a <code>CompositeData</code> that is expected to map to a
 	 *            <code>ThreadInfo</code> object
@@ -585,7 +583,7 @@ public class ThreadInfo {
 	 * Helper method that retrieves a <code>LockInfo</code> value from the
 	 * supplied <code>CompositeData</code> that is expected to map to a
 	 * <code>ThreadInfo</code> instance.
-	 * 
+	 *
 	 * @param cd
 	 *            a <code>CompositeData</code> that maps to a
 	 *            <code>ThreadInfo</code>
@@ -624,29 +622,27 @@ public class ThreadInfo {
 		return result;
 	}
 
-	/*[IF Sidecar19-SE]*/
-	
+	/*[IF JAVA_SPEC_VERSION >= 9]*/
 	/**
 	 * Returns a <code>boolean</code> indication of whether or not the thread
 	 * represented by this <code>ThreadInfo</code> is currently a daemon thread.
-	 * 
+	 *
 	 * @return <code>true</code> if this thread is a daemon thread, otherwise <code>false</code> .
 	 */
 	public boolean isDaemon() {
 		return baseInfo.isDaemon();
 	}
-	
+
 	/**
 	 * Returns the thread priority of the thread represented by this <code>ThreadInfo</code>.
-	 * 
+	 *
 	 * @return The priority of the thread represented by this <code>ThreadInfo</code>.
 	 */
 	public int getPriority() {
 		return baseInfo.getPriority();
 	}
-	
-	/*[ENDIF]*/
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
+
 	/**
 	 * @return a text description of this thread.
 	 */
@@ -679,7 +675,7 @@ public class ThreadInfo {
 	 * Convenience method that attempts to create a new <code>LockInfo</code>
 	 * from the supplied string which is expected to be a valid representation
 	 * of a lock as described in {@link LockInfo#toString()}.
-	 * 
+	 *
 	 * @param lockString
 	 *            string value representing a lock
 	 * @return if possible, a new <code>LockInfo</code> object initialized

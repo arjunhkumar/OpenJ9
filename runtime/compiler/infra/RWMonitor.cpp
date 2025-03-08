@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "infra/RWMonitor.hpp"
@@ -62,7 +62,7 @@ J9::RWMonitor::destroy()
 
 
 bool
-J9::RWMonitor::init(char *name)
+J9::RWMonitor::init(const char *name)
    {
    return j9thread_rwmutex_init(&_monitor, 0, name) == 0 ? true : false;
    }
@@ -113,7 +113,7 @@ J9::RWMonitor::destroy()
 
 
 bool
-J9::RWMonitor::init(char *name)
+J9::RWMonitor::init(const char *name)
    {
    return j9thread_monitor_init_with_name((J9ThreadMonitor**)&_monitor, 0, name) == 0 ? true : false;
    }

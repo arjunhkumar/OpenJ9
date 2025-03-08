@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 
@@ -713,9 +713,41 @@ getNumberOfInjectedInterfaces(J9ROMClass *romClass) {
 
 	Assert_VMUtil_true(ptr != NULL);
 
-	return *SRP_PTR_GET(ptr, U_32*);
+	return *SRP_PTR_GET(ptr, U_32 *);
+}
+
+U_32 *
+getLoadableDescriptorsInfoPtr(J9ROMClass *romClass)
+{
+	U_32 *ptr = getSRPPtr(J9ROMCLASS_OPTIONALINFO(romClass), romClass->optionalFlags, J9_ROMCLASS_OPTINFO_LOADABLEDESCRIPTORS_ATTRIBUTE);
+
+	Assert_VMUtil_true(ptr != NULL);
+
+	return SRP_PTR_GET(ptr, U_32 *);
+}
+
+J9UTF8 *
+loadableDescriptorAtIndex(U_32 *loadableDescriptorsInfoPtr, U_32 index)
+{
+	/* SRPs to loadable descriptors constant pool entries start after the count. */
+	U_32 *loadableDescriptorsPtr = loadableDescriptorsInfoPtr + 1 + index;
+
+	return NNSRP_PTR_GET(loadableDescriptorsPtr, J9UTF8 *);
 }
 #endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+U_16
+getImplicitCreationFlags(J9ROMClass *romClass)
+{
+	U_32 *ptr = getSRPPtr(J9ROMCLASS_OPTIONALINFO(romClass), romClass->optionalFlags, J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE);
+	U_32* implicitCreationInfo = NULL;
+
+	Assert_VMUtil_true(ptr != NULL);
+	implicitCreationInfo = SRP_PTR_GET(ptr, U_32*);
+
+	return (U_16)*implicitCreationInfo;
+}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 BOOLEAN
 recordComponentHasSignature(J9ROMRecordComponentShape* recordComponent)

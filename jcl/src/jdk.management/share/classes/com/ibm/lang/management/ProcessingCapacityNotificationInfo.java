@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2005
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management;
 
 import javax.management.openmbean.CompositeData;
@@ -42,51 +42,51 @@ public class ProcessingCapacityNotificationInfo {
 
 	private final int newProcessingCapacity;
 
-    /**
-     * Constructs a new instance of this object.
-     * 
-     * @param newProcessingCapacity
-     *            the new processing capacity in units of 1% of a physical
-     *            processor's capacity
-     */
+	/**
+	 * Constructs a new instance of this object.
+	 *
+	 * @param newProcessingCapacity
+	 *            the new processing capacity in units of 1% of a physical
+	 *            processor's capacity
+	 */
 	public ProcessingCapacityNotificationInfo(int newProcessingCapacity) {
 		super();
 		this.newProcessingCapacity = newProcessingCapacity;
-    }
+	}
 
-    /**
-     * Returns the new processing capacity after the change that this
-     * notification corresponds to.
-     * 
-     * @return the new processing capacity in units of 1% of a physical
-     *         processor's capacity.
-     */
-    public int getNewProcessingCapacity() {
-        return this.newProcessingCapacity;
-    }
+	/**
+	 * Returns the new processing capacity after the change that this
+	 * notification corresponds to.
+	 *
+	 * @return the new processing capacity in units of 1% of a physical
+	 *         processor's capacity.
+	 */
+	public int getNewProcessingCapacity() {
+		return this.newProcessingCapacity;
+	}
 
-    /**
-     * Receives a {@link CompositeData} representing a
-     * <code>ProcessingCapacityNotificationInfo</code> object and attempts to
-     * return the root <code>ProcessingCapacityNotificationInfo</code>
-     * instance.
-     * 
-     * @param cd
-     *            a <code>CompositeDate</code> that represents a
-     *            <code>ProcessingCapacityNotificationInfo</code>.
-     * @return if <code>cd</code> is non- <code>null</code>, returns a new
-     *         instance of <code>ProcessingCapacityNotificationInfo</code>.
-     *         If <code>cd</code> is <code>null</code>, returns
-     *         <code>null</code>.
-     * @throws IllegalArgumentException
-     *             if argument <code>cd</code> does not correspond to a
-     *             <code>ProcessingCapacityNotificationInfo</code> with the
-     *             following attribute:
-     *             <ul>
-     *             <li><code>newProcessingCapacity</code>(
-     *             <code>java.lang.Integer</code>)
-     *             </ul>
-     */
+	/**
+	 * Receives a {@link CompositeData} representing a
+	 * <code>ProcessingCapacityNotificationInfo</code> object and attempts to
+	 * return the root <code>ProcessingCapacityNotificationInfo</code>
+	 * instance.
+	 *
+	 * @param cd
+	 *            a <code>CompositeDate</code> that represents a
+	 *            <code>ProcessingCapacityNotificationInfo</code>.
+	 * @return if <code>cd</code> is non- <code>null</code>, returns a new
+	 *         instance of <code>ProcessingCapacityNotificationInfo</code>.
+	 *         If <code>cd</code> is <code>null</code>, returns
+	 *         <code>null</code>.
+	 * @throws IllegalArgumentException
+	 *             if argument <code>cd</code> does not correspond to a
+	 *             <code>ProcessingCapacityNotificationInfo</code> with the
+	 *             following attribute:
+	 *             <ul>
+	 *             <li><code>newProcessingCapacity</code>(
+	 *             <code>java.lang.Integer</code>)
+	 *             </ul>
+	 */
 	public static ProcessingCapacityNotificationInfo from(CompositeData cd) {
 		ProcessingCapacityNotificationInfo result = null;
 
@@ -96,7 +96,7 @@ public class ProcessingCapacityNotificationInfo {
 			// following method invocations will exit on an
 			// IllegalArgumentException...
 			ManagementUtils.verifyFieldNumber(cd, 1);
-			String[] attributeNames = { "newProcessingCapacity" }; //$NON-NLS-1$ 
+			String[] attributeNames = { "newProcessingCapacity" }; //$NON-NLS-1$
 			ManagementUtils.verifyFieldNames(cd, attributeNames);
 			String[] attributeTypes = { "java.lang.Integer" }; //$NON-NLS-1$
 			ManagementUtils.verifyFieldTypes(cd, attributeNames, attributeTypes);

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands.showcommands;
 
 import java.io.PrintStream;
@@ -40,9 +40,9 @@ public class ShowHeapdumpCommand extends BaseJdmpviewCommand
 		+ "Use \"set heapdump\" to change settings\n";
 
 	{
-		addCommand(COMMAND_NAME, "", COMMAND_DESCRIPTION);	
+		addCommand(COMMAND_NAME, "", COMMAND_DESCRIPTION);
 	}
-	
+
 	public void run(String command, String[] args, IContext context, PrintStream out) throws CommandException {
 		if(initCommand(command, args, context, out)) {
 			return;		//processing already handled by super class
@@ -51,20 +51,19 @@ public class ShowHeapdumpCommand extends BaseJdmpviewCommand
 			out.println("\"show heapdump\" does not take any parameters.");
 			return;
 		}
-		
+
 		out.print("Heapdump Settings:\n\n");
-		
+
 		out.print("\tFormat: " + (HeapDumpSettings.areHeapDumpsPHD(ctx.getProperties()) ? "PHD" : "Classic (TXT)") + "\n");
 		out.print("\tFile Name: " + HeapDumpSettings.getFileName(ctx.getProperties()) + "\n");
-		out.print("\tMultiple heaps will be written to " 
-				+ (HeapDumpSettings.multipleHeapsInMultipleFiles(ctx.getProperties()) ? "multiple files":"a single file") 
+		out.print("\tMultiple heaps will be written to "
+				+ (HeapDumpSettings.multipleHeapsInMultipleFiles(ctx.getProperties()) ? "multiple files":"a single file")
 				+ "\n");
 	}
-
 
 	@Override
 	public void printDetailedHelp(PrintStream out) {
 		out.println(LONG_DESCRIPTION);
 	}
-	
+
 }

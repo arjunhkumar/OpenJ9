@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2006
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders.zos.le;
 
 import javax.imageio.stream.ImageInputStream;
@@ -29,28 +29,33 @@ import java.io.IOException;
 
 public final class Ceexrcb64Template implements CeexrcbTemplate {
 
-    public int length() {
-        return 256;
-    }
+	public int length() {
+		return 256;
+	}
 
-    public long getCeercb_ceeosigx(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 168);
-        return inputStream.readLong();
-    }
-    public int getCeercb_ceeosigx$offset() {
-        return 168;
-    }
-    public int getCeercb_ceeosigx$length() {
-        return 64;
-    }
-    public long getCeercb_ppa1tabl(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 176);
-        return inputStream.readLong();
-    }
-    public int getCeercb_ppa1tabl$offset() {
-        return 176;
-    }
-    public int getCeercb_ppa1tabl$length() {
-        return 64;
-    }
+	public long getCeercb_ceeosigx(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 168);
+		return inputStream.readLong();
+	}
+
+	public int getCeercb_ceeosigx$offset() {
+		return 168;
+	}
+
+	public int getCeercb_ceeosigx$length() {
+		return 64;
+	}
+
+	public long getCeercb_ppa1tabl(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 176);
+		return inputStream.readLong();
+	}
+
+	public int getCeercb_ppa1tabl$offset() {
+		return 176;
+	}
+
+	public int getCeercb_ppa1tabl$length() {
+		return 64;
+	}
 }

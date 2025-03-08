@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.platform;
 
 public interface IPlatformTypes {
@@ -33,7 +33,7 @@ public interface IPlatformTypes {
 	public static final String T_3XHNUMASUP = "3XHNUMASUP";
 	public static final String T_1XHEXCPCODE = "1XHEXCPCODE";
 	public static final String T_1XHERROR2 = "1XHERROR2";
-	
+
 	public static final String T_1XHEXCPMODULE = "1XHEXCPMODULE";
 
 	public static final String T_1XHREGISTERS = "1XHREGISTERS";
@@ -52,7 +52,7 @@ public interface IPlatformTypes {
 	public static final String PL_CPU_ARCH = "platform_cpu_arch";
 	public static final String PL_CPU_COUNT = "platform_cpu_count";
 	public static final String PL_SIGNAL = "platform_signal";
-	
+
 	public static final String PL_MODULE_NAME = "platform_module_name";
 	public static final String PL_MODULE_BASE = "platform_module_base";
 	public static final String PL_MODULE_OFFSET = "platform_module_offset";

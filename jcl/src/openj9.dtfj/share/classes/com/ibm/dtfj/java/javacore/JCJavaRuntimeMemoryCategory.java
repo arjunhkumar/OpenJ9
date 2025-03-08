@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.javacore;
 
 import java.util.Collections;
@@ -37,23 +37,23 @@ public class JCJavaRuntimeMemoryCategory implements JavaRuntimeMemoryCategory
 	private boolean shallowValuesSet = false;
 	private long shallowAllocations;
 	private long shallowBytes;
-	
+
 	private final List children = new LinkedList();
-	
+
 	private static final String nl = System.getProperty("line.separator");
-	
+
 	public JCJavaRuntimeMemoryCategory(String name, long deepBytes, long deepAllocations)
 	{
 		this.name = name;
 		this.deepAllocations = deepAllocations;
 		this.deepBytes = deepBytes;
 	}
-	
+
 	public Iterator getChildren()
 	{
 		return Collections.unmodifiableList(children).iterator();
 	}
-	
+
 	public void addChild(JavaRuntimeMemoryCategory child)
 	{
 		children.add(child);
@@ -85,7 +85,7 @@ public class JCJavaRuntimeMemoryCategory implements JavaRuntimeMemoryCategory
 		this.shallowAllocations = shallowAllocations;
 		this.shallowValuesSet = true;
 	}
-	
+
 	public long getShallowAllocations()
 	{
 		if (shallowValuesSet) {
@@ -111,12 +111,12 @@ public class JCJavaRuntimeMemoryCategory implements JavaRuntimeMemoryCategory
 	public String toString()
 	{
 		StringBuffer buffer = new StringBuffer();
-		
+
 		buildPrintTree(buffer, 1);
-		
+
 		return buffer.toString();
 	}
-	
+
 	private void buildPrintTree(StringBuffer buffer, int depth)
 	{
 		if (depth > 1) {
@@ -128,15 +128,15 @@ public class JCJavaRuntimeMemoryCategory implements JavaRuntimeMemoryCategory
 			}
 			buffer.append(nl);
 		}
-		
+
 		for (int i = 0; i < (depth - 2); i++) {
 			buffer.append("|    ");
 		}
-		
+
 		if (depth > 1) {
 			buffer.append("+--");
 		}
-		
+
 		buffer.append(name);
 		buffer.append(": ");
 		buffer.append(Long.toString(deepBytes));
@@ -146,16 +146,16 @@ public class JCJavaRuntimeMemoryCategory implements JavaRuntimeMemoryCategory
 		if (deepAllocations != 1) {
 			buffer.append("s");
 		}
-		
+
 		buffer.append(nl);
-		
+
 		Iterator childIt = children.iterator();
 		while (childIt.hasNext()) {
 			JCJavaRuntimeMemoryCategory child = (JCJavaRuntimeMemoryCategory) childIt.next();
-			
+
 			child.buildPrintTree(buffer, depth + 1);
 		}
-		
+
 		if (children.size() > 0 && getShallowBytes() > 0) {
 			//Print the magic "other" category for shallow values
 			JCJavaRuntimeMemoryCategory otherPseudoCategory = new JCJavaRuntimeMemoryCategory("Other", getShallowBytes(), getShallowAllocations());

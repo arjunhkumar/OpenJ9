@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2019
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package openj9.tools.attach.diagnostics.attacher;
 
@@ -43,16 +43,15 @@ public class AttacherDiagnosticsProvider {
 
 	private OpenJ9VirtualMachine vm;
 
-
 	/**
 	 * Request thread information, including stack traces, from a target VM.
-	 * 
+	 *
 	 * @param diagnosticCommand name of command to execute
 	 * @return properties object containing serialized thread information
 	 * @throws IOException in case of a communication error
 	 */
 	public Properties executeDiagnosticCommand(String diagnosticCommand) throws IOException {
-		IPC.logMessage("enter executeDiagnosticCommand ", diagnosticCommand); //$NON-NLS-1$
+		IPC.logMessage("AttacherDiagnosticsProvider enter executeDiagnosticCommand ", diagnosticCommand); //$NON-NLS-1$
 		checkAttached();
 		Properties info = vm.executeDiagnosticCommand(diagnosticCommand);
 		DiagnosticProperties.dumpPropertiesIfDebug("Properties from target:", info); //$NON-NLS-1$
@@ -62,7 +61,7 @@ public class AttacherDiagnosticsProvider {
 
 	/**
 	 * Call equivalent com.sun.tools.attach.VirtualMachine method.
-	 * 
+	 *
 	 * @param vmid ID of target
 	 * @throws IOException on communication error
 	 */
@@ -72,7 +71,7 @@ public class AttacherDiagnosticsProvider {
 		try {
 			vm = attachProv.attachVirtualMachine(vmid);
 		} catch (AttachNotSupportedException e) {
-			/*[MSG "K0809", "Exception connecting to {0}"] */
+			/*[MSG "K0809", "Exception connecting to {0}"]*/
 			throw new IOException(getString("K0809", vmid)); //$NON-NLS-1$
 		}
 		IPC.logMessage("DiagnosticsProviderImpl attached to ", vmid); //$NON-NLS-1$
@@ -80,7 +79,7 @@ public class AttacherDiagnosticsProvider {
 
 	/**
 	 * Call equivalent com.sun.tools.attach.VirtualMachine method.
-	 * 
+	 *
 	 * @throws IOException on communication error
 	 */
 	public void detach() throws IOException {
@@ -92,7 +91,7 @@ public class AttacherDiagnosticsProvider {
 
 	/**
 	 * Call equivalent com.sun.tools.attach.VirtualMachine method.
-	 * 
+	 *
 	 * @return properties from target VM
 	 * @throws IOException on communication error
 	 */
@@ -103,7 +102,7 @@ public class AttacherDiagnosticsProvider {
 
 	/**
 	 * Call equivalent com.sun.tools.attach.VirtualMachine method.
-	 * 
+	 *
 	 * @return properties from target VM
 	 * @throws IOException on communication error
 	 */
@@ -114,7 +113,7 @@ public class AttacherDiagnosticsProvider {
 
 	private void checkAttached() throws IOException {
 		if (null == vm) {
-			/*[MSG "K0544", "Target not attached"] */
+			/*[MSG "K0544", "Target not attached"]*/
 			throw new IOException(getString("K0554")); //$NON-NLS-1$
 		}
 	}

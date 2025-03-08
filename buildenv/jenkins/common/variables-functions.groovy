@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /*
@@ -106,7 +106,7 @@ class Buildspec {
         return field
     }
 
-    /* Get a list of values composed by concatinating the values of the
+    /* Get a list of values composed by concatenating the values of the
      * following fields in order:
      * - <parent>.getVectorField()
      * if <name> is a map:
@@ -208,14 +208,9 @@ pipelineFunctions = load 'buildenv/jenkins/common/pipeline-functions.groovy'
  * platforms.
  */
 def parse_variables_file() {
-    DEFAULT_VARIABLE_FILE = "buildenv/jenkins/variables/defaults.yml"
-
     // check if a variable file is passed as a Jenkins build parameter
     // if not use default configuration settings
     VARIABLE_FILE = get_variables_file()
-    if (!VARIABLE_FILE) {
-        VARIABLE_FILE = "${DEFAULT_VARIABLE_FILE}"
-    }
 
     if (!fileExists("${VARIABLE_FILE}")) {
         error("Missing variable file: ${VARIABLE_FILE}")
@@ -230,13 +225,13 @@ def parse_variables_file() {
  * Fetch the user provided variable file.
  */
 def get_variables_file() {
-    VARIABLE_FILE = (params.VARIABLE_FILE) ? params.VARIABLE_FILE : ""
+    VARIABLE_FILE = params.VARIABLE_FILE ?: "buildenv/jenkins/variables/defaults.yml"
     echo "VARIABLE_FILE:'${VARIABLE_FILE}'"
-    VENDOR_REPO = (params.VENDOR_REPO) ? params.VENDOR_REPO : ""
+    VENDOR_REPO = params.VENDOR_REPO ?: ""
     echo "VENDOR_REPO:'${VENDOR_REPO}'"
-    VENDOR_BRANCH = (params.VENDOR_BRANCH) ? params.VENDOR_BRANCH : ""
+    VENDOR_BRANCH = params.VENDOR_BRANCH ?: ""
     echo "VENDOR_BRANCH:'${VENDOR_BRANCH}'"
-    VENDOR_CREDENTIALS_ID = (params.VENDOR_CREDENTIALS_ID) ? params.VENDOR_CREDENTIALS_ID : ""
+    VENDOR_CREDENTIALS_ID = params.VENDOR_CREDENTIALS_ID ?: ""
     echo "VENDOR_CREDENTIALS_ID:'${VENDOR_CREDENTIALS_ID}'"
     if (VARIABLE_FILE && VENDOR_REPO && VENDOR_BRANCH) {
         if (VENDOR_CREDENTIALS_ID) {
@@ -717,7 +712,11 @@ def set_test_targets() {
     if (TESTS_TARGETS != 'none') {
         for (target in TESTS_TARGETS.replaceAll("\\s","").toLowerCase().tokenize(',')) {
             switch (target) {
-                case ["sanity", "extended"]:
+                case ["sanity"]:
+                    TESTS["${target}.functional"] = [:]
+                    TESTS["${target}.openjdk"] = [:]
+                    break
+                case ["extended"]:
                     TESTS["${target}.functional"] = [:]
                     break
                 default:
@@ -755,6 +754,9 @@ def set_test_misc() {
         // Only add extra test labels if the user has not specified a specific TEST_NODE
         TESTS.each { id, target ->
             target['extraTestLabels'] = buildspec.getVectorField("extra_test_labels", SDK_VERSION).join('&&') ?: ''
+            if (target['extraTestLabels'].endsWith('&&')){
+                target['extraTestLabels'] = target['extraTestLabels'].substring(0, target['extraTestLabels'].length() - 2)
+            }
         }
     } else {
         TESTS.each { id, target ->
@@ -863,6 +865,7 @@ def set_basic_artifactory_config(id="Nightly") {
             ARTIFACTORY_CONFIG[geo]['daysToKeepArtifacts'] = get_value(VARIABLES.artifactory.daysToKeepArtifacts, geo).toInteger()
             ARTIFACTORY_CONFIG[geo]['manualCleanup'] = get_value(VARIABLES.artifactory.manualCleanup, geo)
             ARTIFACTORY_CONFIG[geo]['vpn'] = get_value(VARIABLES.artifactory.vpn, geo)
+            ARTIFACTORY_CONFIG[geo]['buildNamePrefix'] = get_value(VARIABLES.artifactory.buildNamePrefix, geo)
         }
 
         /*
@@ -924,7 +927,7 @@ def get_node_platform(nodeLabels) {
         return ''
     }
     switch (baseOS) {
-        case ['aix', 'windows', 'osx', 'zos']:
+        case ['aix', 'windows', 'mac', 'zos']:
             return baseOS
             break
         case ['linux', 'ubuntu', 'rhel', 'cent', 'sles'] :
@@ -1002,13 +1005,6 @@ def add_string_params(PARAMETERS_TO_ADD) {
     }
 }
 
-def add_pr_to_description() {
-    if (params.ghprbPullId) {
-        def TMP_DESC = (currentBuild.description) ? currentBuild.description + "<br>" : ""
-        currentBuild.description = TMP_DESC + "<a href=https://github.com/${params.ghprbGhRepository}/pull/${params.ghprbPullId}>PR #${params.ghprbPullId}</a>"
-    }
-}
-
 def setup() {
     set_job_variables(params.JOB_TYPE)
 
@@ -1072,10 +1068,9 @@ def set_job_variables(job_type) {
             set_node(job_type)
             // set variables for a build job
             set_build_variables()
-            add_pr_to_description()
             break
         case "pipeline":
-            currentBuild.description = "<a href=\"${RUN_DISPLAY_URL}\">Blue Ocean</a>"
+            currentBuild.description += "<br><a href=\"${RUN_DISPLAY_URL}\">Blue Ocean</a>"
             // set variables for a pipeline job
             set_repos_variables()
             set_adoptopenjdk_tests_repository()
@@ -1085,7 +1080,6 @@ def set_job_variables(job_type) {
             set_test_misc()
             set_slack_channel()
             set_restart_timeout()
-            add_pr_to_description()
             break
         case "wrapper":
             //set variable for pipeline all/personal
@@ -1355,9 +1349,10 @@ def set_build_extra_options(build_specs=null) {
     if (!build_specs) {
         buildspec = buildspec_manager.getSpec(SPEC)
         // single release
-        EXTRA_GETSOURCE_OPTIONS = params.EXTRA_GETSOURCE_OPTIONS
-        if (!EXTRA_GETSOURCE_OPTIONS) {
-            EXTRA_GETSOURCE_OPTIONS = buildspec.getVectorField("extra_getsource_options", SDK_VERSION).join(" ")
+        EXTRA_GETSOURCE_OPTIONS = buildspec.getVectorField("extra_getsource_options", SDK_VERSION).join(" ")
+        if (params.EXTRA_GETSOURCE_OPTIONS) {
+            // append options from job configuration to those specified in variables file
+            EXTRA_GETSOURCE_OPTIONS = "${EXTRA_GETSOURCE_OPTIONS} ${params.EXTRA_GETSOURCE_OPTIONS}"
         }
 
         EXTRA_CONFIGURE_OPTIONS = params.EXTRA_CONFIGURE_OPTIONS
@@ -1416,13 +1411,25 @@ def set_build_extra_options(build_specs=null) {
                 if (releases.contains(release)) {
                     ['EXTRA_GETSOURCE_OPTIONS', 'EXTRA_CONFIGURE_OPTIONS', 'EXTRA_MAKE_OPTIONS'].each { it ->
                         buildspec = buildspec_manager.getSpec(spec)
-                        // look up extra options by release and spec/platform provided as build parameters:
-                        // e.g. EXTRA_GETSOURCE_OPTIONS_JDK<release>_<spec>
-                        //      EXTRA_CONFIGURE_OPTIONS_JDK<release>_<spec>
-                        //      EXTRA_MAKE_OPTIONS_JDK<release>_<spec>
+
+                        // lookup default options passed in from top-level Pipeline jobs
                         def extraOptions = params."${it}_JDK${release}_${spec}"
-                        if (!extraOptions && buildspec) {
-                            extraOptions = buildspec.getVectorField("${it.toLowerCase()}", release).join(" ")
+                        // use options from spec when no options have been provided
+                        // or join for EXTRA_GETSOURCE_OPTIONS
+                        if (buildspec) {
+                            def specOptions = ''
+                            if ((it == 'EXTRA_GETSOURCE_OPTIONS') || !extraOptions) {
+                                specOptions = buildspec.getVectorField("${it.toLowerCase()}", release).join(" ")
+                            }
+                            extraOptions = extraOptions ?: ''
+                            extraOptions = "${specOptions} ${extraOptions}"
+                            extraOptions = extraOptions.trim()
+                        }
+                        // look up extra options provided as build parameters from user and append to end
+                        def buildExtraOptions = params."${it}"
+                        if (buildExtraOptions) {
+                            extraOptions = "${extraOptions} ${buildExtraOptions}"
+                            echo "Using ${it} = ${extraOptions}"
                         }
 
                         if (extraOptions) {
@@ -1510,6 +1517,10 @@ def create_job(JOB_NAME, SDK_VERSION, SPEC, downstreamJobType, id) {
     // Configuring the build discarder in the downstream project
 
     DISCARDER_NUM_BUILDS = get_value(VARIABLES.build_discarder.logs, id)
+    if ("${DISCARDER_NUM_BUILDS}" == "") {
+        println "Warning: DISCARDER_NUM_BUILDS not set in Variable file. Defaulting to '10'"
+        DISCARDER_NUM_BUILDS = "10"
+    }
 
     def params = [:]
     params.put('JOB_NAME', JOB_NAME)
@@ -1618,7 +1629,7 @@ def download_boot_jdk(bootJDKVersion, bootJDK) {
         sh """
             curl -LJkO ${sdkUrl}
             mkdir -p ${bootJDK}
-            sdkFile=`ls | grep semeru`
+            sdkFile=`ls | grep 'tar\\|zip'`
             if [[ "\$sdkFile" == *zip ]]; then
                 unzip "\$sdkFile" -d .
                 sdkFolder=`ls -d */`

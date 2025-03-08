@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "ROMClassCreationContext.hpp"
@@ -77,12 +77,10 @@ ROMClassCreationContext::verbosePrintPhase(ROMClassCreationPhase phase, bool *pr
 		"ClassFileStackMapSlotsAnalysis",
 		"MethodIsFinalize",
 		"MethodIsEmpty",
-		"MethodIsForwarder",
 		"MethodIsGetter",
 		"MethodIsVirtual",
 		"MethodIsObjectConstructor",
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		"MethodIsConstructor",
 		"MethodIsNonStaticSynchronized",
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 		"ShouldConvertInvokeVirtualToInvokeSpecial",

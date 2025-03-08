@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2002
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.phd.util;
 
 /**
@@ -27,7 +27,7 @@ package com.ibm.dtfj.phd.util;
  */
 
 public final class BitStream {
-	
+
 	private int[] bits = new int[100];
 	private int wordOffset;
 	private int bitOffset;
@@ -104,7 +104,7 @@ public final class BitStream {
 	public void nextWord(boolean write) {
 		wordOffset++;
 		if (wordOffset >= bits.length) {
-            int[] tmp = new int[(bits.length * 3 + 1) / 2];
+			int[] tmp = new int[(bits.length * 3 + 1) / 2];
 			System.arraycopy(bits, 0, tmp, 0, bits.length);
 			bits = tmp;
 		} else if (write) {
@@ -139,7 +139,7 @@ public final class BitStream {
 	}
 
 	public int readIntBits(int len) {
-		if (len > 32 || len <= 0) { 
+		if (len > 32 || len <= 0) {
 			throw new Error("bad length: " + len);
 		}
 		if (len < (32 - bitOffset)) {

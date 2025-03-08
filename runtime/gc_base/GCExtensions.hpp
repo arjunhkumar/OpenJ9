@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -81,6 +81,12 @@ class MM_IdleGCManager;
 #define MINIMUM_SURVIVOR_MINIMUM_FREESIZE 	512
 #define MINIMUM_SURVIVOR_THRESHOLD 			512
 
+
+#define J9_MAXIMUM_TLH_SIZE (1024 * 1024)
+#if defined(J9VM_GC_BATCH_CLEAR_TLH)
+#define J9_MAXIMUM_TLH_SIZE_BATCH_CLEAR (128 * 1024)
+#endif /* defined(J9VM_GC_BATCH_CLEAR_TLH) */
+
 /**
  * @todo Provide class documentation
  * @ingroup GC_Base
@@ -98,8 +104,8 @@ public:
 	J9MemoryManagerVerboseInterface verboseFunctionTable;
 
 #if defined(J9VM_GC_FINALIZATION)
-	IDATA finalizeCycleInterval;
-	IDATA finalizeCycleLimit;
+	intptr_t finalizeCycleInterval;
+	intptr_t finalizeCycleLimit;
 #endif /* J9VM_GC_FINALIZATION */
 
 	MM_HookInterface hookInterface;
@@ -110,6 +116,7 @@ public:
 #if defined(J9VM_GC_MODRON_SCAVENGER)
 	MM_ScavengerJavaStats scavengerJavaStats;
 #endif /* J9VM_GC_MODRON_SCAVENGER */
+	MM_ContinuationStats continuationStats;
 
 #if defined(J9VM_GC_DYNAMIC_CLASS_UNLOADING)
 	enum DynamicClassUnloading {
@@ -121,11 +128,11 @@ public:
 
 	bool dynamicClassUnloadingSet; /**< is true if value for dynamicClassUnloading was specified in command line */
 
-	UDATA runtimeCheckDynamicClassUnloading;
+	uintptr_t runtimeCheckDynamicClassUnloading; /**< set to true if class unloading is to be performed for the current GC cycle */
 	bool dynamicClassUnloadingKickoffThresholdForced; /**< true if classUnloadingKickoffThreshold is specified in java options. */
 	bool dynamicClassUnloadingThresholdForced; /**< true if classUnloadingThresholdForced is specified in java options. */
-	UDATA dynamicClassUnloadingKickoffThreshold; /**< the threshold to kickoff a concurrent global GC from a scavenge */
-	UDATA dynamicClassUnloadingThreshold; /**< the threshold to trigger class unloading during a global GC */
+	uintptr_t dynamicClassUnloadingKickoffThreshold; /**< the threshold to kickoff a concurrent global GC from a scavenge */
+	uintptr_t dynamicClassUnloadingThreshold; /**< the threshold to trigger class unloading during a global GC */
 	double classUnloadingAnonymousClassWeight; /**< The weight factor to apply to anonymous classes for threshold comparisons */
 #endif /* J9VM_GC_DYNAMIC_CLASS_UNLOADING */
 
@@ -135,8 +142,8 @@ public:
 	bool fvtest_forceFinalizeClassLoaders;
 #endif /* J9VM_GC_DYNAMIC_CLASS_UNLOADING */
 
-	UDATA maxSoftReferenceAge; /**< The fixed age specified as the soft reference threshold which acts as our baseline for the dynamicMaxSoftReferenceAge */
-	UDATA dynamicMaxSoftReferenceAge; /**< The age which represents the clearing age of soft references for a globalGC cycle.  At the end of a GC cycle, it will be updated for the following cycle by taking the percentage of free heap in the oldest generation as a fraction of the maxSoftReferenceAge */
+	uintptr_t maxSoftReferenceAge; /**< The fixed age specified as the soft reference threshold which acts as our baseline for the dynamicMaxSoftReferenceAge */
+	uintptr_t dynamicMaxSoftReferenceAge; /**< The age which represents the clearing age of soft references for a globalGC cycle.  At the end of a GC cycle, it will be updated for the following cycle by taking the percentage of free heap in the oldest generation as a fraction of the maxSoftReferenceAge */
 #if defined(J9VM_GC_FINALIZATION)
 	GC_FinalizeListManager* finalizeListManager;
 #endif /* J9VM_GC_FINALIZATION */
@@ -149,27 +156,54 @@ public:
 	MM_ObjectAccessBarrier* accessBarrier;
 
 #if defined(J9VM_GC_FINALIZATION)
-	UDATA finalizeMainPriority; /**< cmd line option to set finalize main thread priority */
-	UDATA finalizeWorkerPriority; /**< cmd line option to set finalize worker thread priority */
+	uintptr_t finalizeMainPriority; /**< cmd line option to set finalize main thread priority */
+	uintptr_t finalizeWorkerPriority; /**< cmd line option to set finalize worker thread priority */
 #endif /* J9VM_GC_FINALIZATION */
 
 	MM_ClassLoaderManager* classLoaderManager; /**< Pointer to the gc's classloader manager to process classloaders/classes */
 #if defined(J9VM_GC_DYNAMIC_CLASS_UNLOADING)
-	UDATA deadClassLoaderCacheSize;
+	uintptr_t deadClassLoaderCacheSize; /**< threshold after which we flush class segments (not done for every class unloading, since it requires heap walk) */
 #endif /*defined(J9VM_GC_DYNAMIC_CLASS_UNLOADING) */
 
 	MM_UnfinalizedObjectList* unfinalizedObjectLists; /**< The global linked list of unfinalized object lists. */
 	
-	UDATA objectListFragmentCount; /**< the size of Local Object Buffer(per gc thread), used by referenceObjectBuffer, UnfinalizedObjectBuffer and OwnableSynchronizerObjectBuffer */
+	uintptr_t objectListFragmentCount; /**< the size of Local Object Buffer(per gc thread), used by referenceObjectBuffer, UnfinalizedObjectBuffer and OwnableSynchronizerObjectBuffer */
 
 	MM_Wildcard* numaCommonThreadClassNamePatterns; /**< A linked list of thread class names which should be associated with the common context */
 
-	struct {
+	class UserSpecifiedParameters {
+	private:
+	protected:
+	public:
 		MM_UserSpecifiedParameterUDATA _Xmn; /**< Initial value of -Xmn specified by the user */
 		MM_UserSpecifiedParameterUDATA _Xmns; /**< Initial value of -Xmns specified by the user */
 		MM_UserSpecifiedParameterUDATA _Xmnx; /**< Initial value of -Xmnx specified by the user */
-	} userSpecifiedParameters;
+		MM_UserSpecifiedParameterUDATA _Xmx; /**< Initial value of -Xmx specified by the user */
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+		MM_UserSpecifiedParameterUDATA _checkpointGCThreads; /**< Initial value of -XX:CheckpointGCThreads specified by the user */
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+	private:
+	protected:
+	public:
+		UserSpecifiedParameters()
+			: _Xmn()
+			, _Xmns()
+			, _Xmnx()
+			, _Xmx()
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+			, _checkpointGCThreads()
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+		{
+		}
+	};
 
+	UserSpecifiedParameters userSpecifiedParameters; /**< A collection of user-speicifed parameters */
+
+	bool tlhMaximumSizeSpecified; /**< true, if tlhMaximumSize specified by a command line option */
+
+	MM_UserSpecifiedParameterBool virtualLargeObjectHeap; /**< off heap option */
+
+	bool dynamicHeapAdjustmentForRestore; /**< If set to true, the default heuristic-calculated softmx is prioritized over the user-specified values. */
 	/**
 	 * Values for com.ibm.oti.vm.VM.J9_JIT_STRING_DEDUP_POLICY
 	 * must hava the same values as J9_JIT_STRING_DEDUP_POLICY_DISABLED, J9_JIT_STRING_DEDUP_POLICY_FAVOUR_LOWER and J9_JIT_STRING_DEDUP_POLICY_FAVOUR_HIGHER.
@@ -182,8 +216,8 @@ public:
 	};
 	JitStringDeDupPolicy stringDedupPolicy;
 
-	IDATA _asyncCallbackKey;
-	IDATA _TLHAsyncCallbackKey;
+	intptr_t _asyncCallbackKey; /**< the key for async callback used in Concurrent Marking for threads to scan their own stacks */
+	intptr_t _TLHAsyncCallbackKey; /**< the key for async callback used to support instrumentable allocations */
 
 	bool _HeapManagementMXBeanBackCompatibilityEnabled;
 
@@ -193,9 +227,12 @@ public:
 
 	double maxRAMPercent; /**< Value of -XX:MaxRAMPercentage specified by the user */
 	double initialRAMPercent; /**< Value of -XX:InitialRAMPercentage specified by the user */
-	UDATA minimumFreeSizeForSurvivor; /**< minimum free size can be reused by collector as survivor, for balanced GC only */
-	UDATA freeSizeThresholdForSurvivor; /**< if average freeSize(freeSize/freeCount) of the region is smaller than the Threshold, the region would not be reused by collector as survivor, for balanced GC only */
+	uintptr_t minimumFreeSizeForSurvivor; /**< minimum free size can be reused by collector as survivor, for balanced GC only */
+	uintptr_t freeSizeThresholdForSurvivor; /**< if average freeSize(freeSize/freeCount) of the region is smaller than the Threshold, the region would not be reused by collector as survivor, for balanced GC only */
 	bool recycleRemainders; /**< true if need to recycle TLHRemainders at the end of PGC, for balanced GC only */
+
+	bool forceGPFOnHeapInitializationError; /**< if set causes GPF generation on heap initialization error */
+	bool isRegionSizeWithOverrideSpecified; /**< set true if -XXgc:regionSizeWithOverride is specified */
 
 	enum ContinuationListOption {
 		disable_continuation_list = 0,
@@ -204,6 +241,13 @@ public:
 	};
 	ContinuationListOption continuationListOption;
 
+	enum TimingAddContinuationInList {
+		onCreated = 0,
+		onStarted = 1,
+	};
+	TimingAddContinuationInList timingAddContinuationInList;
+	bool testContainerMemLimit; /**< if set simulates a container with memory limit set - for GC testing only*/
+	double testRAMSizePercentage; /**< a percentage to increase/decrease usablePhysicalMemory - for GC testing only, only applies to CRIU restore VM */
 protected:
 private:
 protected:
@@ -213,8 +257,16 @@ protected:
 public:
 	static MM_GCExtensions* newInstance(MM_EnvironmentBase* env);
 	virtual void kill(MM_EnvironmentBase* env);
-
-	void computeDefaultMaxHeapForJava(bool enableOriginalJDK8HeapSizeCompatibilityOption);
+	/**
+	 * Compute the default max heap size for java based on physical memory and other metrics.
+	 * Note this function is used to adjust the max heap size during gc initialization,
+	 * and to adjust the soft max value during the gc restore initialization in case the
+	 * available memory in the environment reduces
+	 * @param[in] enableOriginalJDK8HeapSizeCompatibilityOption Boolean value indicates if
+	 * we enable original heap size compatibility option for JDK under JDK8
+	 * @return Computed max heap size
+	 */
+	uintptr_t computeDefaultMaxHeapForJava(bool enableOriginalJDK8HeapSizeCompatibilityOption);
 
 	MMINLINE J9HookInterface** getHookInterface() { return J9_HOOK_INTERFACE(hookInterface); };
 
@@ -224,27 +276,27 @@ public:
 	 */
 	MMINLINE MM_StringTable* getStringTable() { return stringTable; }
 
-	MMINLINE UDATA getDynamicMaxSoftReferenceAge()
+	MMINLINE uintptr_t getDynamicMaxSoftReferenceAge()
 	{
 		return dynamicMaxSoftReferenceAge;
 	}
 
-	MMINLINE UDATA getMaxSoftReferenceAge()
+	MMINLINE uintptr_t getMaxSoftReferenceAge()
 	{
 		return maxSoftReferenceAge;
 	}
 
-	virtual void identityHashDataAddRange(MM_EnvironmentBase* env, MM_MemorySubSpace* subspace, UDATA size, void* lowAddress, void* highAddress);
-	virtual void identityHashDataRemoveRange(MM_EnvironmentBase* env, MM_MemorySubSpace* subspace, UDATA size, void* lowAddress, void* highAddress);
+	virtual void identityHashDataAddRange(MM_EnvironmentBase* env, MM_MemorySubSpace* subspace, uintptr_t size, void* lowAddress, void* highAddress);
+	virtual void identityHashDataRemoveRange(MM_EnvironmentBase* env, MM_MemorySubSpace* subspace, uintptr_t size, void* lowAddress, void* highAddress);
 
-	void updateIdentityHashDataForSaltIndex(UDATA index);
+	void updateIdentityHashDataForSaltIndex(uintptr_t index);
 
 	/**
 	 * Set Tenure address range
 	 * @param base low address of Old subspace range
 	 * @param size size of Old subspace in bytes
 	 */
-	virtual void setTenureAddressRange(void* base, UDATA size)
+	virtual void setTenureAddressRange(void* base, uintptr_t size)
 	{
 		_tenureBase = base;
 		_tenureSize = size;
@@ -257,7 +309,7 @@ public:
 		GC_OMRVMThreadListIterator omrVMThreadListIterator(_omrVM);
 		while (OMR_VMThread* walkThread = omrVMThreadListIterator.nextOMRVMThread()) {
 			walkThread->lowTenureAddress = heapBaseForBarrierRange0;
-			walkThread->highTenureAddress = (void*)((UDATA)heapBaseForBarrierRange0 + heapSizeForBarrierRange0);
+			walkThread->highTenureAddress = (void*)((uintptr_t)heapBaseForBarrierRange0 + heapSizeForBarrierRange0);
 			walkThread->heapBaseForBarrierRange0 = heapBaseForBarrierRange0;
 			walkThread->heapSizeForBarrierRange0 = heapSizeForBarrierRange0;
 		}
@@ -265,7 +317,7 @@ public:
 		GC_VMThreadListIterator vmThreadListIterator((J9JavaVM*)_omrVM->_language_vm);
 		while (J9VMThread* walkThread = vmThreadListIterator.nextVMThread()) {
 			walkThread->lowTenureAddress = heapBaseForBarrierRange0;
-			walkThread->highTenureAddress = (void*)((UDATA)heapBaseForBarrierRange0 + heapSizeForBarrierRange0);
+			walkThread->highTenureAddress = (void*)((uintptr_t)heapBaseForBarrierRange0 + heapSizeForBarrierRange0);
 			walkThread->heapBaseForBarrierRange0 = heapBaseForBarrierRange0;
 			walkThread->heapSizeForBarrierRange0 = heapSizeForBarrierRange0;
 		}
@@ -298,6 +350,13 @@ public:
 	void releaseNativesForContinuationObject(MM_EnvironmentBase* env, j9object_t objectPtr);
 
 	/**
+	 * Prints error message and forces GPF if -XXgc:forceGPFOnHeapInitializationError is provided
+	 * @param[in] vm the current J9JavaVM
+	 * @param[in] errorMessage error message set by GC heap initialization if available
+	 */
+	void handleInitializeHeapError(J9JavaVM *vm, const char *errorMessage);
+
+	/**
 	 * Check if we need to scan the java stack for the Continuation Object
 	 * Used during main scan phase of GC (object graph traversal) or heap object iteration (in sliding compact).
 	 * Not meant to be used during root scanning (neither strong roots nor weak roots)!
@@ -308,6 +367,26 @@ public:
 	 * @return true if we need to scan the java stack
 	 */
 	static bool needScanStacksForContinuationObject(J9VMThread *vmThread, j9object_t objectPtr, bool isConcurrentGC, bool isGlobalGC, bool beingMounted);
+	/*
+	 *
+	 * param[in] checkConcurrentState can be J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_LOCAL or J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_GLOBAL
+	 *
+	 *  There is no need scanning before continuation is started or after continuation is finished.
+	 *  If WinningConcurrentGCScan set J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_LOCAL or J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_GLOBAL in the state base on checkConcurrentState
+	 *	If low tagging(CONCURRENT_SCAN_LOCAL or CONCURRENT_SCAN_GLOBAL) failed due to either
+	 *
+	 *   a carrier thread winning to mount, we don't need to do anything, since it will be compensated by pre/post mount actions
+	 *   another GC thread winning to scan(CONCURRENT_SCAN_LOCAL and CONCURRENT_SCAN_GLOBAL are irrelevant and independent), again don't do anything, and let the winning thread do the work, instead
+	 */
+	static bool tryWinningConcurrentGCScan(ContinuationState volatile *continuationStatePtr, bool isGlobalGC, bool beingMounted);
+
+	/**
+	 * clear CONCURRENTSCANNING flag for LocalConcurrentScanning or for GlobalConcurrentScanning base on isGlobalGC,
+	 * if all CONCURRENTSCANNING bits are cleared and the continuation mounting is blocked by concurrent scanning, notify it.
+	 */
+	MMINLINE static void exitConcurrentGCScan(ContinuationState volatile *continuationStatePtr, bool isGlobalGC);
+
+	static void exitContinuationConcurrentGCScan(J9VMThread *vmThread, j9object_t continuationObject, bool isGlobalGC);
 
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 	MMINLINE virtual bool reinitializationInProgress() { return (NULL != ((J9JavaVM*)_omrVM->_language_vm)->checkpointState.checkpointThread); }
@@ -348,6 +427,10 @@ public:
 		, unfinalizedObjectLists(NULL)
 		, objectListFragmentCount(0)
 		, numaCommonThreadClassNamePatterns(NULL)
+		, userSpecifiedParameters()
+		, tlhMaximumSizeSpecified(false)
+		, virtualLargeObjectHeap()
+		, dynamicHeapAdjustmentForRestore(false)
 		, stringDedupPolicy(J9_JIT_STRING_DEDUP_POLICY_UNDEFINED)
 		, _asyncCallbackKey(-1)
 		, _TLHAsyncCallbackKey(-1)
@@ -355,12 +438,17 @@ public:
 #if defined(OMR_GC_IDLE_HEAP_MANAGER)
 		, idleGCManager(NULL)
 #endif
-		, maxRAMPercent(0.0) /* this would get overwritten by user specified value */
+		, maxRAMPercent(-1.0) /* this would get overwritten by user specified value */
 		, initialRAMPercent(0.0) /* this would get overwritten by user specified value */
 		, minimumFreeSizeForSurvivor(DEFAULT_SURVIVOR_MINIMUM_FREESIZE)
 		, freeSizeThresholdForSurvivor(DEFAULT_SURVIVOR_THRESHOLD)
 		, recycleRemainders(true)
+		, forceGPFOnHeapInitializationError(false)
+		, isRegionSizeWithOverrideSpecified(false)
 		, continuationListOption(enable_continuation_list)
+		, timingAddContinuationInList(onCreated)
+		, testContainerMemLimit(false)
+		, testRAMSizePercentage(-1.0)
 	{
 		_typeId = __FUNCTION__;
 	}

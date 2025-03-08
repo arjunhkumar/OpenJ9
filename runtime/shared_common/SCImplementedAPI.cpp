@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #ifdef __cplusplus
 extern "C"
@@ -853,12 +853,14 @@ j9shr_classStoreTransaction_nextSharedClassForCompare(void * tobj)
 	const char *stringBytes = (const char*)obj->classnameData;
 	U_16 stringLength = obj->classnameLength;
 
+#if JAVA_SPEC_VERSION < 21
 	char *end = getLastDollarSignOfLambdaClassName(stringBytes, obj->classnameLength);
 	if (NULL != end) {
 		stringLength = (U_16)(end - stringBytes + 1);
 	}
+#endif /* JAVA_SPEC_VERSION < 21 */
 
-	obj->findNextRomClass = (J9ROMClass *) cachemap->findNextROMClass(currentThread, obj->findNextIterator, obj->firstFound, stringLength, (const char*)obj->classnameData);
+	obj->findNextRomClass = (J9ROMClass *)cachemap->findNextROMClass(currentThread, obj->findNextIterator, obj->firstFound, stringLength, stringBytes);
 
 	Trc_SHR_API_j9shr_nextSharedClassForCompare_Exit(currentThread);
 	return (J9ROMClass *)(obj->findNextRomClass);

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders;
 
 import java.util.Iterator;
@@ -35,27 +35,27 @@ public interface ICoreFileReader extends ResourceReleaser
 	/**
 	 * Used to extract OS-specific data.  Called with a builder which is a sort of factory which will create
 	 * the required implementation-specific data structures exist solely above the layer of this project.
-	 * 
+	 *
 	 * @param builder
 	 */
 	public void extract(Builder builder);
-	
+
 	/**
 	 * @return An iterator of String object specifying names of additional files needed by the Dump
-	 * 
+	 *
 	 * @see java.lang.String
 	 */
 	public Iterator getAdditionalFileNames();
-	
+
 	/**
 	 * Creates a representation of the address space capable of reading data from memory as a flat address
 	 * space even though it may be fragmented across regions of several files or transport media.
-	 * 
+	 *
 	 * Note that this method is expected to be called several times and should always return the same instance.
 	 * @return
 	 */
 	public IAbstractAddressSpace getAddressSpace();
-	
+
 	/**
 	 * @return true if the core file is truncated, false otherwise
 	 */

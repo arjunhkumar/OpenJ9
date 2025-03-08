@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
  
 /**
@@ -641,6 +641,7 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 				returnValue = JNI_EINVAL;
 				break;
 			}
+			extensions->packetListSplitForced = true;
 			continue;
 		}
 		
@@ -655,6 +656,7 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 				returnValue = JNI_EINVAL;
 				break;
 			}
+			extensions->cacheListSplitForced = true;
 			continue;
 		}
 #endif /* J9VM_GC_MODRON_SCAVENGER */
@@ -698,6 +700,7 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 				break;
 			}
 			extensions->enableHybridMemoryPool = true;
+			extensions->splitFreeListAmountForced = true;
 			continue;
 		}
 
@@ -712,6 +715,7 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 				returnValue = JNI_EINVAL;
 				break;
 			}
+			extensions->splitFreeListAmountForced = true;
 			continue;
 		}
 
@@ -998,6 +1002,29 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 			extensions->concurrentScavengeExhaustiveTermination = false;
 			continue;
 		}
+
+		if (try_scan(&scan_start, "concurrentScavengeAllocAverageBoost=")) {
+			UDATA value = 0;
+			if (!scan_udata_helper(vm, &scan_start, &value, "concurrentScavengeAllocAverageBoost=")) {
+				returnValue = JNI_EINVAL;
+				break;
+			}
+
+			extensions->concurrentScavengerAllocAverageBoost = value / 100.0f;
+			continue;
+		}
+
+		if (try_scan(&scan_start, "concurrentScavengeAllocDeviationBoost=")) {
+			UDATA value = 0;
+			if (!scan_udata_helper(vm, &scan_start, &value, "concurrentScavengeAllocDeviationBoost=")) {
+				returnValue = JNI_EINVAL;
+				break;
+			}
+
+			extensions->concurrentScavengerAllocDeviationBoost = value / 100.0f;
+			continue;
+		}
+
 #endif /* defined(OMR_GC_CONCURRENT_SCAVENGER) */
 
 #endif /* defined(J9VM_GC_MODRON_SCAVENGER) */
@@ -1042,6 +1069,20 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 			extensions->doFrequentObjectAllocationSampling = true;
 			continue;
 		}
+
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+		if (try_scan(&scan_start, "enableVirtualLargeObjectHeap")) {
+			extensions->virtualLargeObjectHeap._wasSpecified = true;
+			extensions->virtualLargeObjectHeap._valueSpecified = true;
+			continue;
+		}
+
+		if (try_scan(&scan_start, "disableVirtualLargeObjectHeap")) {
+			extensions->virtualLargeObjectHeap._wasSpecified = true;
+			extensions->virtualLargeObjectHeap._valueSpecified = false;
+			continue;
+		}
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 
 		if (try_scan(&scan_start, "largeObjectAllocationProfilingThreshold=")) {
 			if (!scan_udata_helper(vm, &scan_start, &extensions->largeObjectAllocationProfilingThreshold, "largeObjectAllocationProfilingThreshold=")) {
@@ -1541,6 +1582,31 @@ gcParseXXgcArguments(J9JavaVM *vm, char *optArg)
 			extensions->continuationListOption = MM_GCExtensions::verify_continuation_list;
 			continue;
 		}
+
+		if (try_scan(&scan_start, "AddContinuationInListOnStarted")) {
+			extensions->timingAddContinuationInList = MM_GCExtensions::onStarted;
+			continue;
+		}
+
+		if (try_scan(&scan_start, "AddContinuationInListOnCreated")) {
+			extensions->timingAddContinuationInList = MM_GCExtensions::onCreated;
+			continue;
+		}
+
+		if (try_scan(&scan_start, "forceGPFOnHeapInitializationError")) {
+			extensions->forceGPFOnHeapInitializationError = true;
+			continue;
+		}
+
+		if (try_scan(&scan_start, "regionSizeWithOverride=")) {
+			if(!scan_udata_memory_size_helper(vm, &scan_start, &extensions->regionSize, "regionSizeWithOverride=")) {
+				returnValue = JNI_EINVAL;
+				break;
+			}
+			extensions->isRegionSizeWithOverrideSpecified = true;
+			continue;
+		}
+
 
 		/* Couldn't find a match for arguments */
 		j9nls_printf(PORTLIB, J9NLS_ERROR, J9NLS_GC_OPTION_UNKNOWN, error_scan);

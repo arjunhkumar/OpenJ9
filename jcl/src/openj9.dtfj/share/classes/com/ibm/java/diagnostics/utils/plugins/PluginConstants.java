@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,13 +18,13 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.diagnostics.utils.plugins;
 
 /**
  * Shared constants between plugin classes
- * 
+ *
  * @author adam
  *
  */
@@ -32,22 +32,22 @@ public interface PluginConstants {
 	/**
 	 * The system property which defines the search path to use for plugins.
 	 * This is a list of directories or jars separated by the path separator
-	 * on which this is being run i.e. : or ; 
+	 * on which this is being run i.e. : or ;
 	 */
 	public static final String PLUGIN_SYSTEM_PROPERTY = "com.ibm.java.diagnostics.plugins";
-	
+
 	/**
 	 * The name of the logger used by plugins
 	 */
 	public static final String LOGGER_NAME = "com.ibm.java.diagnostics.plugins";
-	
+
 	/**
 	 * If set it specifies the name of a class to be instantiated from which additional
 	 * plugin listeners will be created. These listeners will be notified when class files
 	 * are scanned and so can determine if they represent a plugin or not.
 	 */
 	public static final String PLUGIN_LISTENER_FACTORY="com.ibm.java.diagnostics.plugins.listener";
-	
+
 	/**
 	 * Setting this property to any value will cause the package filtering classloading of ASM and DTFJ used
 	 * by the plugin scanner to be disabled. This will typically be done when these files are already on the

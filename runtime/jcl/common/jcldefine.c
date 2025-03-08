@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -25,6 +25,7 @@
 #include "jclprots.h"
 #include "j9protos.h"
 #include "j9jclnls.h"
+#include "j9vmnls.h"
 
 jclass 
 defineClassCommon(JNIEnv *env, jobject classLoaderObject,
@@ -100,10 +101,25 @@ defineClassCommon(JNIEnv *env, jobject classLoaderObject,
 			stringFlags |= J9_STR_XLAT;
 		}
 
+		/* Perform maximum length check to avoid copy in extreme cases. */
+		if (J9VMJAVALANGSTRING_LENGTH(currentThread, classNameObject) > J9VM_MAX_CLASS_NAME_LENGTH) {
+			vmFuncs->setCurrentExceptionNLS(currentThread,
+				J9VMCONSTANTPOOL_JAVALANGCLASSNOTFOUNDEXCEPTION,
+				J9NLS_VM_CLASS_NAME_EXCEEDS_MAX_LENGTH);
+			goto done;
+		}
+
 		utf8Name = (U_8*)vmFuncs->copyStringToUTF8WithMemAlloc(currentThread, classNameObject, stringFlags, "", 0, utf8NameStackBuffer, J9VM_PACKAGE_NAME_BUFFER_LENGTH, &utf8Length);
 
 		if (NULL == utf8Name) {
 			vmFuncs->setNativeOutOfMemoryError(currentThread, 0, 0);
+			goto done;
+		}
+
+		if (utf8Length > J9VM_MAX_CLASS_NAME_LENGTH) {
+			vmFuncs->setCurrentExceptionNLS(currentThread,
+				J9VMCONSTANTPOOL_JAVALANGCLASSNOTFOUNDEXCEPTION,
+				J9NLS_VM_CLASS_NAME_EXCEEDS_MAX_LENGTH);
 			goto done;
 		}
 
@@ -113,21 +129,6 @@ defineClassCommon(JNIEnv *env, jobject classLoaderObject,
 			 * is distinguished by returning NULL with no exception pending.
 			 */
 			*options |= J9_FINDCLASS_FLAG_NAME_IS_INVALID;
-		}
-
-		if (J9_ARE_ANY_BITS_SET(*options, J9_FINDCLASS_FLAG_HIDDEN | J9_FINDCLASS_FLAG_UNSAFE)) {
-			/*
-			 * Prevent generated LambdaForm classes from MethodHandles to be stored to the shared cache.
-			 * When there are a large number of such classes in the shared cache, they trigger a lot of class comparisons.
-			 * Performance can be much worse (compared to shared cache turned off).
-			 */
-#define J9NON_SHARING_CLASS_NAME "java/lang/invoke/LambdaForm$"
-			if ((utf8Length > LITERAL_STRLEN(J9NON_SHARING_CLASS_NAME))
-				&& J9UTF8_LITERAL_EQUALS(utf8Name, LITERAL_STRLEN(J9NON_SHARING_CLASS_NAME), J9NON_SHARING_CLASS_NAME)
-			) {
-				*options |= J9_FINDCLASS_FLAG_DO_NOT_SHARE;
-			}
-#undef J9NON_SHARING_CLASS_NAME
 		}
 	}
 
@@ -159,7 +160,34 @@ retry:
 			/* Bad, we have already defined this class - fail */
 			omrthread_monitor_exit(vm->classTableMutex);
 			if (J9_ARE_NO_BITS_SET(*options, J9_FINDCLASS_FLAG_NAME_IS_INVALID)) {
-				vmFuncs->setCurrentExceptionNLSWithArgs(currentThread, J9NLS_JCL_DUPLICATE_CLASS_DEFINITION, J9VMCONSTANTPOOL_JAVALANGLINKAGEERROR, utf8Length, utf8Name);
+				/* TODO: This path is taken if Classloader.findClass is called on a persisted class.
+				 * Once class objects are persisted, reaching this point is an error.
+				 */
+#if defined(J9VM_OPT_SNAPSHOTS)
+				if (IS_RESTORE_RUN(vm)) {
+					clazz = vmFuncs->hashClassTableAt(classLoader, utf8Name, utf8Length);
+
+					if (!vmFuncs->loadWarmClassFromSnapshot(currentThread, classLoader, clazz)) {
+						clazz = NULL;
+					}
+
+					clazz = vmFuncs->initializeSnapshotClassObject(vm, classLoader, clazz);
+					if (NULL != protectionDomain) {
+						J9VMJAVALANGCLASS_SET_PROTECTIONDOMAIN(
+							currentThread,
+							clazz->classObject,
+							J9_JNI_UNWRAP_REFERENCE(protectionDomain));
+					}
+				} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+				{
+					vmFuncs->setCurrentExceptionNLSWithArgs(
+						currentThread,
+						J9NLS_JCL_DUPLICATE_CLASS_DEFINITION,
+						J9VMCONSTANTPOOL_JAVALANGLINKAGEERROR,
+						utf8Length,
+						utf8Name);
+				}
 			}
 			goto done;
 		}
@@ -202,11 +230,10 @@ retry:
 						NULL,
 						hostClass);
 				/* Done if a class was found or and exception is pending, otherwise try to define the bytes */
-				if ((clazz != NULL) || (currentThread->currentException != NULL)) {
+				if ((NULL != clazz) || (NULL != currentThread->currentException)) {
 					goto done;
-				} else {
-					loadedClass = NULL;
 				}
+				loadedClass = NULL;
 			} else {
 				tempClassBytes = J9ROMCLASS_INTERMEDIATECLASSDATA(loadedClass);
 				tempLength = loadedClass->intermediateClassDataLength;

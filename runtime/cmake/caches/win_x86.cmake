@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 set(J9VM_ARCH_X86 ON CACHE BOOL "")
@@ -49,7 +49,6 @@ set(J9VM_THR_ASYNC_NAME_UPDATE OFF CACHE BOOL "")
 set(OMR_ENV_DATA32 ON CACHE BOOL "")
 set(OMR_ENV_DATA64 OFF CACHE BOOL "")
 
-set(OMR_GC_TLH_PREFETCH_FTA ON CACHE BOOL "")
 set(OMR_PORT_ALLOCATE_TOP_DOWN ON CACHE BOOL "")
 
 # CMake forces a CMAKE_BUILD_TYPE when using msvc, which defaults to Debug

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.diagnostics.utils.plugins;
 
 import java.util.Set;
@@ -27,24 +27,24 @@ import java.util.Set;
 /**
  * A subset of the ASM ClassVisitor and AnnotationVisitor methods on a
  * single interface to allow specific visitor actions to be carried out.
- * 
+ *
  * @author adam
  *
  */
 public interface ClassListener {
-	
+
 	public void visit(int version, int access, String name, String signature, String superName, String[] interfaces);
-	
+
 	public void visitAnnotation(String classname, boolean visible);
-	
+
 	public void visitAnnotationValue(String name, Object value);
-	
+
 	public void scanComplete(Entry entry);
-	
+
 	/**
-	 * List the plugins that have been found by this listener for inclusion into the 
+	 * List the plugins that have been found by this listener for inclusion into the
 	 * context to be returned to the user.
-	 * 
+	 *
 	 * @return list of plugins found, an empty list or null if there are none
 	 */
 	public Set<PluginConfig> getPluginList();

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_X86_CPU_INCL
@@ -52,7 +52,7 @@ protected:
 
 public:
 
-   /** 
+   /**
     * @brief A factory method used to construct a CPU object for portable AOT compilations
     * @param[in] omrPortLib : the port library
     * @return TR::CPU
@@ -73,7 +73,6 @@ public:
    uint32_t getProcessorSignature();
 
    bool testOSForSSESupport() { return true; } // VM guarantees SSE/SSE2 are available
-   bool hasPopulationCountInstruction();
 
    bool isCompatible(const OMRProcessorDesc& processorDescription);
 

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_SYMBOLREFERENCETABLE_INCL
@@ -136,7 +136,6 @@ class SymbolReferenceTable : public OMR::SymbolReferenceTableConnector
    TR::SymbolReference * methodSymRefWithSignature(TR::SymbolReference *original, char *effectiveSignature, int32_t effectiveSignatureLength);
    TR::SymbolReference * findOrCreateTypeCheckArrayStoreSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol);
    TR::SymbolReference * findOrCreateArrayClassRomPtrSymbolRef();
-   TR::SymbolReference * findOrCreateJavaLangReferenceReferentShadowSymbol(TR::ResolvedMethodSymbol *, bool , TR::DataType, uint32_t, bool);
    TR::SymbolReference * findOrCreateWriteBarrierStoreGenerationalAndConcurrentMarkSymbolRef(TR::ResolvedMethodSymbol *owningMethodSymbol = 0);
    TR::SymbolReference * findOrCreateWriteBarrierStoreRealTimeGCSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol = 0);
    TR::SymbolReference * findOrCreateWriteBarrierClassStoreRealTimeGCSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol = 0);
@@ -159,20 +158,24 @@ class SymbolReferenceTable : public OMR::SymbolReferenceTableConnector
 
    // This helper walks the iTables to find the VFT offset for an interface
    // method that is not known until runtime (and therefore does not have an
-   // IPIC data snippet). The parameters are the receiver class, interface
-   // class, and iTable index (though in the trees they must appear as
-   // children in the opposite order), and the return value is the VFT offset.
+   // IPIC data snippet). The parameters are the receiver class and MemberName
+   // (though in the trees they must appear as children in the opposite order),
+   // and the return value is the VFT offset.
    //
    // The given receiver class must implement the given interface class.
+   // IllegalAccessError is thrown if the dispatched callee is not public.
    //
-   TR::SymbolReference * findOrCreateLookupDynamicInterfaceMethodSymbolRef();
-
-   // This helper is a variant of jitLookupDynamicInterfaceMethod that requires
-   // the dispatched callee to be public, otherwise throwing IllegalAccessError.
    TR::SymbolReference * findOrCreateLookupDynamicPublicInterfaceMethodSymbolRef();
 
-   TR::SymbolReference * findOrCreateShadowSymbol(TR::ResolvedMethodSymbol * owningMethodSymbol, int32_t cpIndex, bool isStore);
-   TR::SymbolReference * findOrFabricateShadowSymbol(TR::ResolvedMethodSymbol * owningMethodSymbol, TR::Symbol::RecognizedField recognizedField, TR::DataType type, uint32_t offset, bool isVolatile, bool isPrivate, bool isFinal, char* name = NULL);
+   // "Non-helper" that takes the callee J9Method as an extra (first) argument.
+   //
+   // This uses JIT private linkage with a small tweak so that the call will
+   // match the expected linkage for the actual callee.
+   //
+   TR::SymbolReference * findOrCreateDispatchJ9MethodSymbolRef();
+
+   TR::SymbolReference * findOrCreateShadowSymbol(TR::ResolvedMethodSymbol *owningMethodSymbol, int32_t cpIndex, bool isStore);
+   TR::SymbolReference * findOrFabricateShadowSymbol(TR::ResolvedMethodSymbol *owningMethodSymbol, TR::Symbol::RecognizedField recognizedField, TR::DataType type, uint32_t offset, bool isVolatile, bool isPrivate, bool isFinal, const char *name = NULL);
 
    /** \brief
     *     Returns a symbol reference for an entity not present in the constant pool.
@@ -200,6 +203,11 @@ class SymbolReferenceTable : public OMR::SymbolReferenceTableConnector
     *     Returns a symbol reference fabricated for the field.
     */
    TR::SymbolReference * findOrFabricateShadowSymbol(TR_OpaqueClassBlock *containingClass, TR::DataType type, uint32_t offset, bool isVolatile, bool isPrivate, bool isFinal,  const char *name, const char *signature);
+
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   /// Find or fabricate the shadow symref for MemberName.vmtarget
+   TR::SymbolReference * findOrFabricateMemberNameVmTargetShadow();
+#endif
 
    /** \brief
     *     Returns an array shadow symbol reference fabricated for the field of a flattened array element.
@@ -234,10 +242,22 @@ class SymbolReferenceTable : public OMR::SymbolReferenceTableConnector
    TR::SymbolReference * findOrCreateInstanceDescriptionSymbolRef();
    TR::SymbolReference * findOrCreateDescriptionWordFromPtrSymbolRef();
    TR::SymbolReference * findOrCreateClassFlagsSymbolRef();
-   TR::SymbolReference * findOrCreateClassAndDepthFlagsSymbolRef();
+   TR::SymbolReference * findOrCreateClassDepthAndFlagsSymbolRef();
    TR::SymbolReference * findOrCreateArrayComponentTypeAsPrimitiveSymbolRef();
    TR::SymbolReference * findOrCreateMethodTypeCheckSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol);
    TR::SymbolReference * findOrCreateIncompatibleReceiverSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol);
+
+   /**
+    * Used to find the symbol reference for \c java/lang/IdentityException.  If it does not already exist,
+    * it will be created.
+    *
+    * \param owningMethodSymbol
+    *     The method in which the IdentityException symbol reference needs to be created.
+    *
+    * \returns
+    *     A symbol reference for \c java/lang/IdentityException
+    */
+   TR::SymbolReference * findOrCreateIdentityExceptionSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol);
    TR::SymbolReference * findOrCreateIncompatibleClassChangeErrorSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol);
    TR::SymbolReference * findOrCreateReportStaticMethodEnterSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol);
    TR::SymbolReference * findOrCreateReportMethodExitSymbolRef(TR::ResolvedMethodSymbol * owningMethodSymbol);
@@ -389,6 +409,38 @@ class SymbolReferenceTable : public OMR::SymbolReferenceTableConnector
 
    /**
     * \brief
+    *    Finds the <loadFlattenableArrayElementNonHelper> "nonhelper" symbol
+    *    reference, creating it if necessary.
+    *
+    *  \return
+    *     The <loadFlattenableArrayElementNonHelper> symbol reference.
+    */
+   TR::SymbolReference *findOrCreateLoadFlattenableArrayElementNonHelperSymbolRef();
+
+   /**
+    * \brief
+    *    Finds the <storeFlattenableArrayElementNonHelper> "nonhelper" symbol
+    *    reference, creating it if necessary.
+    *
+    *  \return
+    *     The <storeFlattenableArrayElementNonHelper> symbol reference.
+    */
+   TR::SymbolReference *findOrCreateStoreFlattenableArrayElementNonHelperSymbolRef();
+
+   /**
+    * \brief
+    *    Finds the <isIdentityObject> "non-helper" symbol reference, creating it if
+    *    necessary.  The non-helper is used to test whether an object is an instance
+    *    of an identity class, in which case it returns the value one, or a value type
+    *    class, in which case it returns the value zero.
+    *
+    * \return
+    *    The <isIdentityObject> symbol reference
+    */
+   TR::SymbolReference *findOrCreateIsIdentityObjectNonHelperSymbolRef();
+
+   /**
+    * \brief
     *    Creates a new symbol for a parameter within the supplied owning method of the
     *    specified type and slot index.
     *
@@ -414,7 +466,9 @@ class SymbolReferenceTable : public OMR::SymbolReferenceTableConnector
    List<TR::SymbolReference> *dynamicMethodSymrefsByCallSiteIndex(int32_t index);
    bool isFieldClassObject(TR::SymbolReference *symRef);
    bool isFieldTypeBool(TR::SymbolReference *symRef);
+   bool isFieldTypeChar(TR::SymbolReference *symRef);
    bool isStaticTypeBool(TR::SymbolReference *symRef);
+   bool isStaticTypeChar(TR::SymbolReference *symRef);
    bool isReturnTypeBool(TR::SymbolReference *symRef);
 
    /*

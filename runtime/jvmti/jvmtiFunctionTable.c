@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jvmtiHelpers.h"
@@ -40,6 +40,12 @@
 #else /* JAVA_SPEC_VERSION >= 19 */
 #define JVMTI_19_ENTRY(name) NULL
 #endif /* JAVA_SPEC_VERSION >= 19 */
+
+#if JAVA_SPEC_VERSION >= 25
+#define JVMTI_25_ENTRY(name) name
+#else /* JAVA_SPEC_VERSION >= 25 */
+#define JVMTI_25_ENTRY(name) NULL
+#endif /* JAVA_SPEC_VERSION >= 25 */
 
 jvmtiNativeInterface jvmtiFunctionTable = {
 	NULL,
@@ -108,7 +114,7 @@ jvmtiNativeInterface jvmtiFunctionTable = {
 	jvmtiGetMethodName,
 	jvmtiGetMethodDeclaringClass,
 	jvmtiGetMethodModifiers,
-	NULL,
+	JVMTI_25_ENTRY(jvmtiClearAllFramePops),
 	jvmtiGetMaxLocals,
 	jvmtiGetArgumentsSize,
 	jvmtiGetLineNumberTable,

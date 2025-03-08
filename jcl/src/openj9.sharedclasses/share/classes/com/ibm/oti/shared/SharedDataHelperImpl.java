@@ -1,7 +1,7 @@
 /*[INCLUDE-IF SharedClasses]*/
 package com.ibm.oti.shared;
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -20,24 +20,30 @@ package com.ibm.oti.shared;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 import java.nio.ByteBuffer;
 
 import com.ibm.oti.util.Msg;
 
 /**
- * Implementation of SharedDataHelper. 
+ * Implementation of SharedDataHelper.
  * <p>
  * @see SharedDataHelper
  * @see SharedAbstractHelper
  */
 final class SharedDataHelperImpl extends SharedAbstractHelper implements SharedDataHelper {
 	/* Not public - should only be created by factory */
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+	SharedDataHelperImpl(ClassLoader loader, int id) {
+		initialize(loader, id);
+	}
+	/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 	SharedDataHelperImpl(ClassLoader loader, int id, boolean canFind, boolean canStore) {
 		initialize(loader, id, canFind, canStore);
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
 	private native ByteBuffer findSharedDataImpl(int loaderId, String token);
 
@@ -51,6 +57,7 @@ final class SharedDataHelperImpl extends SharedAbstractHelper implements SharedD
 			printVerboseInfo(Msg.getString("K059f")); //$NON-NLS-1$
 			return null;
 		}
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (!canFind) {
 			return null;
 		}
@@ -59,6 +66,7 @@ final class SharedDataHelperImpl extends SharedAbstractHelper implements SharedD
 			printVerboseError(Msg.getString("K05b5")); //$NON-NLS-1$
 			return null;
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		if (token==null) {
 			/*[MSG "K05b6", "Cannot call findSharedData with null token. Returning null."]*/
 			printVerboseError(Msg.getString("K05b6")); //$NON-NLS-1$
@@ -75,6 +83,7 @@ final class SharedDataHelperImpl extends SharedAbstractHelper implements SharedD
 			printVerboseInfo(Msg.getString("K059f")); //$NON-NLS-1$
 			return null;
 		}
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (!canStore) {
 			return null;
 		}
@@ -83,6 +92,7 @@ final class SharedDataHelperImpl extends SharedAbstractHelper implements SharedD
 			printVerboseError(Msg.getString("K05b7")); //$NON-NLS-1$
 			return null;
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		if (token==null) {
 			/*[MSG "K05b8", "Cannot call storeSharedData with null token. Returning null."]*/
 			printVerboseError(Msg.getString("K05b8")); //$NON-NLS-1$

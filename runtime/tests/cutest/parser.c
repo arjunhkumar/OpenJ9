@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include "j9.h"
 #include "j9port.h"
@@ -40,7 +40,7 @@ cutest_parseCmdLine( J9PortLibrary *portLibrary, UDATA lastLegalArg , char **arg
 		/* new style -Xcheck:memory options */
 		if (0 == strcmp("-verbose", argv[i])) {
 			verbose = 1;
-			j9tty_err_printf(PORTLIB, "cutest: verbose output enabled.\n");
+			j9tty_err_printf("cutest: verbose output enabled.\n");
 			return i;
 		}
 	}

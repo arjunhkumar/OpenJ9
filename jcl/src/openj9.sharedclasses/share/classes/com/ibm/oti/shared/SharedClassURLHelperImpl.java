@@ -1,7 +1,7 @@
 /*[INCLUDE-IF SharedClasses]*/
 package com.ibm.oti.shared;
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -20,8 +20,8 @@ package com.ibm.oti.shared;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 import java.net.URL;
 import java.util.Set;
@@ -39,27 +39,34 @@ import com.ibm.oti.util.Msg;
 final class SharedClassURLHelperImpl extends SharedClassAbstractHelper implements SharedClassURLHelper {
 	/* Not public - should only be created by factory */
 	private boolean minimizeUpdateChecks;
-	
+
 	/* Used to keep track of new jar files */
 	private Set<String> jarFileNameCache = null;
-	
+
 	/*[PR VMDESIGN 1080] set to "true" in builds in which VMDESIGN 1080 is finished. */
 	// This field is examined using the CDS adaptor
 	public static final boolean MINIMIZE_ENABLED = true;
 
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+	SharedClassURLHelperImpl(ClassLoader loader, int id) {
+		initialize(loader, id);
+		initializeShareableClassloader(loader);
+	}
+	/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 	SharedClassURLHelperImpl(ClassLoader loader, int id, boolean canFind, boolean canStore) {
 		initialize(loader, id, canFind, canStore);
 		initializeShareableClassloader(loader);
 	}
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
+
 	private static native void init();
-	
+
 	/* The passed-in URL path contains a jar file */
 	private boolean newJarFileCheck(URL convertedJarPath) {
 		String protocol = convertedJarPath.getProtocol();
 		String jarFile = convertedJarPath.getFile();
 		boolean isJarType = false;
-		
+
 		if (protocol.equalsIgnoreCase("jar")) { //$NON-NLS-1$
 			isJarType = true;
 		} else if (protocol.equalsIgnoreCase("file")) { //$NON-NLS-1$
@@ -69,33 +76,33 @@ final class SharedClassURLHelperImpl extends SharedClassAbstractHelper implement
 				isJarType = true;
 			}
 		}
-		
+
 		if (null == jarFileNameCache) {
 			jarFileNameCache = ConcurrentHashMap.newKeySet();
 		}
-		
+
 		if (isJarType) {
 			return jarFileNameCache.add(jarFile);
 		}
-		
+
 		return false;
 	}
 
-	private native boolean findSharedClassImpl3(int loaderId, String partition, String className, ClassLoader loader, URL url, 
+	private native boolean findSharedClassImpl3(int loaderId, String partition, String className, ClassLoader loader, URL url,
 			boolean doFind, boolean doStore, byte[] romClassCookie, boolean newJarFile, boolean minUpdateChecks);
 
 	private native boolean storeSharedClassImpl3(int idloaderId, String partition, ClassLoader loader, URL url, Class<?> clazz, boolean newJarFile, boolean minUpdateChecks, byte[] flags);
-	
+
 	static {
 		init();
 	}
-	
+
 	@Override
 	public boolean setMinimizeUpdateChecks() {
 		minimizeUpdateChecks = true;
 		return true;
 	}
-	
+
 	@Override
 	public byte[] findSharedClass(URL path, String className) {
 		return findSharedClass(null, path, className);
@@ -109,9 +116,11 @@ final class SharedClassURLHelperImpl extends SharedClassAbstractHelper implement
 			printVerboseInfo(Msg.getString("K059f")); //$NON-NLS-1$
 			return null;
 		}
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (!canFind) {
 			return null;
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		if (path==null) {
 			/*[MSG "K05b3", "Cannot call findSharedClass with null URL. Returning null."]*/
 			printVerboseError(Msg.getString("K05b3")); //$NON-NLS-1$
@@ -143,7 +152,7 @@ final class SharedClassURLHelperImpl extends SharedClassAbstractHelper implement
 		if (!validateURL(convertedPath, false)) {
 			return null;
 		}
-		
+
 		byte[] romClassCookie = new byte[ROMCLASS_COOKIE_SIZE];
 		boolean newJarFile = minimizeUpdateChecks ? false : newJarFileCheck(convertedPath);
 		boolean found = findSharedClassImpl3(this.id, partition, className, loader, convertedPath, doFind, doStore, romClassCookie, newJarFile, minimizeUpdateChecks);
@@ -160,9 +169,11 @@ final class SharedClassURLHelperImpl extends SharedClassAbstractHelper implement
 
 	@Override
 	public boolean storeSharedClass(String partition, URL path, Class<?> clazz) {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (!canStore) {
 			return false;
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		if (path==null) {
 			/*[MSG "K05b4", "Cannot call storeSharedClass with null URL. Returning false."]*/
 			printVerboseError(Msg.getString("K05b4")); //$NON-NLS-1$
@@ -178,7 +189,7 @@ final class SharedClassURLHelperImpl extends SharedClassAbstractHelper implement
 		if (!validateURL(convertedPath, false)) {
 			return false;
 		}
-		
+
 		ClassLoader actualLoader = getClassLoader();
 		if (!validateClassLoader(actualLoader, clazz)) {
 			/* Attempt to call storeSharedClass with class defined by a different classloader */

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.heapdump;
 
 import java.io.IOException;
@@ -27,18 +27,18 @@ import java.io.IOException;
 /**
  * Abstract class to decouple the formatting of heapdumps from the walking of
  * the internal data structures that hold the source data.
- * 
+ *
  * @author andhall
- * 
+ *
  */
 public abstract class HeapDumpFormatter
 {
-	protected final String _version;   
+	protected final String _version;
 	protected final boolean _is64Bit;
 
 	/**
 	 * Constructor
-	 * 
+	 *
 	 * @param version JVM version information to be included in heapdump header
 	 * @param is64Bit True if we are dumping a 64 bit image, false otherwise
 	 */
@@ -50,7 +50,7 @@ public abstract class HeapDumpFormatter
 
 	/**
 	 * Adds a class to the heapdump.
-	 * 
+	 *
 	 * @param address
 	 *            Address of class
 	 * @param name
@@ -73,7 +73,7 @@ public abstract class HeapDumpFormatter
 
 	/**
 	 * Adds an object to the heapdump.
-	 * 
+	 *
 	 * @param address
 	 *            Address of object
 	 * @param classAddress
@@ -94,10 +94,10 @@ public abstract class HeapDumpFormatter
 
 	/**
 	 * Adds a primitive array object to the heapdump
-	 * 
+	 *
 	 * Type code is: 0 - bool, 1 - char, 2 - float, 3 - double, 4 - byte, 5 - short, 6 -
 	 * int, 7 - long
-	 * 
+	 *
 	 * @param address
 	 *            Address of object
 	 * @param arrayClassAddress
@@ -121,7 +121,7 @@ public abstract class HeapDumpFormatter
 
 	/**
 	 * Adds an object array to the heapdump.
-	 * 
+	 *
 	 * @param address
 	 *            Address of object
 	 * @param arrayClassAddress
@@ -147,10 +147,10 @@ public abstract class HeapDumpFormatter
 			String arrayClassName, long elementClassAddress,
 			String elementClassName, long size, int numberOfElements,
 			int hashCode, ReferenceIterator references) throws IOException;
-	
+
 	/**
 	 * Closes the heapdump
-	 * 
+	 *
 	 * @throws IOException
 	 */
 	public abstract void close() throws IOException;

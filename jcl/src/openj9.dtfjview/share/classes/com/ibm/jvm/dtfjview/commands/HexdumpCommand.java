@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands;
 
 import java.io.PrintStream;
@@ -39,7 +39,7 @@ import com.ibm.jvm.dtfjview.commands.helpers.Utils;
 public class HexdumpCommand extends BaseJdmpviewCommand {
 
 	{
-		addCommand("hexdump", "<hex address> [<bytes_to_print>]", "outputs a section of memory in hexadecimal, ASCII and EBCDIC");	
+		addCommand("hexdump", "<hex address> [<bytes_to_print>]", "outputs a section of memory in hexadecimal, ASCII and EBCDIC");
 	}
 
 	@Override
@@ -182,8 +182,8 @@ public class HexdumpCommand extends BaseJdmpviewCommand {
 	@Override
 	public void printDetailedHelp(PrintStream out) {
 		out.format("outputs a section of memory in hexadecimal, ASCII and EBCDIC%n"
-				+ "%n" 
-				+ "parameters: <hex_address> [<bytes_to_print>]%n" 
+				+ "%n"
+				+ "parameters: <hex_address> [<bytes_to_print>]%n"
 				+ "%n"
 				+ "outputs <bytes_to_print> (default 256) bytes of memory contents starting from <hex_address>%n"
 				+ "EBCDIC output is also provided for z/OS dumps%n");

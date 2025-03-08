@@ -17,12 +17,13 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <assert.h>
 #include "jcl.h"
 #include "jcl_internal.h"
+#include "jclprots.h"
 
 /*
  * This is the minimum implementation of sun.misc.Perf natives to
@@ -40,7 +41,7 @@ Java_sun_misc_Perf_registerNatives(JNIEnv *env, jclass klass)
 jobject JNICALL
 Java_sun_misc_Perf_attach(JNIEnv *env, jobject perf, jstring user, jint lvmid, jint mode)
 {
-	assert(!"Java_sun_misc_Perf_attach unimplemented");
+	throwNewUnsupportedOperationException(env);
 	return NULL;
 }
 
@@ -98,7 +99,7 @@ Java_sun_misc_Perf_highResFrequency(JNIEnv *env, jobject perf)
 jobject JNICALL
 Java_jdk_internal_perf_Perf_attach0(JNIEnv *env, jobject perf, jint lvmid)
 {
-	assert(!"Java_jdk_internal_perf_Perf_attach0 unimplemented");
+	throwNewUnsupportedOperationException(env);
 	return NULL;
 }
 #endif /* JAVA_SPEC_VERSION >= 19 */

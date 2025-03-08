@@ -18,7 +18,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <spec xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.ibm.com/j9/builder/spec" xsi:schemaLocation="http://www.ibm.com/j9/builder/spec spec-v1.xsd" id="win_x86-64">
 	<name>Win64 Hammer</name>
@@ -70,7 +70,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<property name="graph_req.os.perf" value="{$spec.property.graph_req.os$}"/>
 		<property name="graph_se_classlib.java5" value="jcl_se.zip"/>
 		<property name="graph_se_classlib.java6" value="jcl_se.zip"/>
-		<property name="graph_tool_script.build" value="msvc140_amd64"/>
+		<property name="graph_tool_script.build" value="msvc2022_amd64"/>
 		<property name="graph_tool_script.test" value="msvc100_amd64"/>
 		<property name="graph_variant.testing_suffix" value=""/>
 		<property name="graph_variant.trailingID" value=""/>
@@ -147,6 +147,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="gc_debugAsserts" value="true"/>
 		<flag id="gc_inlinedAllocFields" value="true"/>
 		<flag id="gc_minimumObjectSize" value="true"/>
+		<flag id="gc_sparseHeapAllocation" value="true"/>
 		<flag id="gc_tlhPrefetchFTA" value="true"/>
 		<flag id="graph_cmdLineTester" value="true"/>
 		<flag id="graph_compile" value="true"/>
@@ -233,7 +234,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="opt_jxeLoadSupport" value="true"/>
 		<flag id="opt_memoryCheckSupport" value="true"/>
 		<flag id="opt_multiVm" value="true"/>
-		<flag id="opt_panama" value="false"/>
 		<flag id="opt_nativeCharacterConverter" value="true"/>
 		<flag id="opt_reflect" value="true"/>
 		<flag id="opt_sharedClasses" value="true"/>
@@ -244,6 +244,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="opt_useFfi" value="true"/>
 		<flag id="opt_useFfiOnly" value="true"/>
 		<flag id="opt_valhallaValueTypes" value="false"/>
+		<flag id="opt_valhallaFlattenableValueTypes" value="false"/>
 		<flag id="opt_zipSupport" value="true"/>
 		<flag id="opt_zlibCompression" value="true"/>
 		<flag id="opt_zlibSupport" value="true"/>

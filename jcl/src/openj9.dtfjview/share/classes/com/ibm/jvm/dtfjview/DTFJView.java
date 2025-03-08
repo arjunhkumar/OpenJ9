@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview;
 
 import java.io.File;
@@ -46,13 +46,13 @@ public class DTFJView {
 		DTFJView dtfjView = new DTFJView();
 		dtfjView.launch(args);
 	}
-	
+
 	public void launch(String[] args) {
 		setPluginsPath();
 		session = Session.getInstance(args);
 		((Session)session).run();
 	}
-	
+
 	/*
 	 * There is no longer a hard coded list of in-built jdmpview commands, instead the dynamic discovery mechanism
 	 * introduced by the introduction of support for DTFJ plugins is used. In order to do this the current class path
@@ -61,7 +61,7 @@ public class DTFJView {
 	 * set of commands. Prepending this path ensures that in the event of a namespace clash with a subsequently developed
 	 * plugin, the in-built command will take precedence.
 	 */
-	
+
 	private void setPluginsPath() {
 		ClassLoader loader = getClass().getClassLoader();
 		if(loader instanceof URLClassLoader) {
@@ -80,7 +80,7 @@ public class DTFJView {
 			}
 		}
 	}
-	
+
 	private void addSelfToPath(File jar) throws IOException {
 		String prop = System.getProperty(PluginConstants.PLUGIN_SYSTEM_PROPERTY);
 		if(prop == null) {

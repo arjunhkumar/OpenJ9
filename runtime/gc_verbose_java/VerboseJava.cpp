@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include "j9.h"
 #include "j9cfg.h"
@@ -209,7 +209,7 @@ gcDumpQualifiedSize(J9PortLibrary* portLib, UDATA byteSize, const char* optionNa
 		NULL);
 
 	/* Format output String */
-	paramSize = j9str_printf(PORTLIB, buffer, 16, "%zu%s", size, qualifier);
+	paramSize = j9str_printf(buffer, 16, "%zu%s", size, qualifier);
 	paramSize = 15 - paramSize;
 	paramSize += strlen(optionDescription);
 	paramSize -= strlen(optionName);
@@ -294,7 +294,7 @@ gcDumpMemorySizes(J9JavaVM *javaVM)
 			NULL);
 
 		if (J9PORT_VMEM_PAGE_FLAG_NOT_USED != extensions->requestedPageFlags) {
-			j9str_printf(PORTLIB, postOption, 16, ",%s", getPageTypeString(extensions->requestedPageFlags));
+			j9str_printf(postOption, 16, ",%s", getPageTypeString(extensions->requestedPageFlags));
 		}
 
 		j9tty_printf(PORTLIB, "  %s%zu%s%s\t %s\n", optionName, size, qualifier, postOption, optionDescription);

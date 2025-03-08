@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.tools.ddrinteractive.commands;
 
 import java.io.PrintStream;
@@ -32,7 +32,7 @@ import com.ibm.j9ddr.vm29.pointer.generated.J9BuildFlags;
 import com.ibm.j9ddr.vm29.pointer.generated.J9JavaVMPointer;
 import com.ibm.j9ddr.vm29.pointer.helper.J9RASHelper;
 
-public class DumpAllSegmentsCommand extends Command 
+public class DumpAllSegmentsCommand extends Command
 {
 	private static final String nl = System.getProperty("line.separator");
 
@@ -40,8 +40,8 @@ public class DumpAllSegmentsCommand extends Command
 	{
 		addCommand("dumpallsegments", "", "dump all segments in the VM");
 	}
-	
-	public void run(String command, String[] args, Context context, PrintStream out) throws DDRInteractiveCommandException 
+
+	public void run(String command, String[] args, Context context, PrintStream out) throws DDRInteractiveCommandException
 	{
 		try {
 			J9JavaVMPointer vm = J9RASHelper.getVM(DataType.getJ9RASPointer());
@@ -50,7 +50,7 @@ public class DumpAllSegmentsCommand extends Command
 			out.append(String.format("classMemorySegments - !j9memorysegmentlist 0x%s\n", Long.toHexString(vm.classMemorySegments().getAddress())));
 			SegmentsUtil.dbgDumpSegmentList(out, vm.classMemorySegments());
 
-			if (J9BuildFlags.interp_nativeSupport) {
+			if (J9BuildFlags.J9VM_INTERP_NATIVE_SUPPORT) {
 				/* readJavaVM also reads converts the JITConfig pointer. */
 				if (!vm.jitConfig().isNull()) {
 					out.append(String.format("jit code segments - !j9memorysegmentlist 0x%s\n", Long.toHexString(vm.jitConfig().codeCacheList().getAddress())));

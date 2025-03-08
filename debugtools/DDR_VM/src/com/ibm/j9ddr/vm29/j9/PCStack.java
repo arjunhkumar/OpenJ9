@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.j9;
 
 /**
@@ -497,8 +497,8 @@ public class PCStack
 		0x25 /* JBgotow = 200 */,
 		0x00 /* JBunimplemented = 201 */,
 		0x71 /* JBbreakpoint = 202 */,
-		0x03 /* JBaconst_init = 203 */,
-		0x03 /* JBwithfield = 204 */,
+		0x00 /* JBunimplemented = 203 */,
+		0x00 /* JBunimplemented = 204 */,
 		0x00 /* JBunimplemented = 205 */,
 		0x00 /* JBunimplemented = 206 */,
 		0x00 /* JBunimplemented = 207 */,
@@ -1017,8 +1017,8 @@ public class PCStack
 		0x00 /* JBgotow = 200  -- pops: 0 pushes: 0*/ ,
 		0x00 /* JBunimplemented = 201  -- pops: 0 pushes: 0*/ ,
 		0x00 /* JBbreakpoint = 202  -- pops: 0 pushes: 0*/ ,
-		0x50 /* JBaconst_init = 203 -- pops: 0 pushes: 1*/ ,
-		0x80 /* JBwithfield = 204  -- pops: 2 pushes: 1*/ ,
+		0x00 /* JBunimplemented = 203 -- pops: 0 pushes: 0*/ ,
+		0x00 /* JBunimplemented = 204  -- pops: 0 pushes: 0*/ ,
 		0x00 /* JBunimplemented = 205  -- pops: 0 pushes: 0*/ ,
 		0x00 /* JBunimplemented = 206  -- pops: 0 pushes: 0*/ ,
 		0x00 /* JBunimplemented = 207  -- pops: 0 pushes: 0*/ ,
@@ -1537,8 +1537,8 @@ public class PCStack
 		0x0 /* JBgotow (16rC8) */,
 		0x0 /* JBunimplemented (16rC9) */,
 		0x0 /* JBbreakpoint (16rCA) */,
-		0x0 /* JBaconst_init (16rCB) */ ,
-		0x0 /* JBwithfield (16rCC) */ ,
+		0x0 /* JBunimplemented (16rCB) */ ,
+		0x0 /* JBunimplemented (16rCC) */ ,
 		0x0 /* JBunimplemented (16rCD) */,
 		0x0 /* JBunimplemented (16rCE) */,
 		0x0 /* JBunimplemented (16rCF) */,

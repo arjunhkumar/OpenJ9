@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(J9SC_SCQUERYFUNCTIONS_H)
@@ -129,6 +129,18 @@ j9shr_Query_PopulatePreinitConfigDefaults(J9JavaVM *vm, J9SharedClassPreinitConf
 	}
 }
 #endif
+
+typedef struct RomToRamEntry {
+	J9Class *ramClass;
+} RomToRamEntry;
+
+typedef struct RomToRamQueryEntry {
+	/* J9ROMClass address | ROM_TO_RAM_QUERY_TAG */
+	J9ROMClass *romClass;
+} RomToRamQueryEntry;
+
+/* Used to tell RomToRamQueryEntry apart from RomToRamEntry. */
+#define ROM_TO_RAM_QUERY_TAG 0x1
 
 #ifdef __cplusplus
 }/*extern "C"*/

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2014
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package com.ibm.lang.management.internal;
 
@@ -38,7 +38,7 @@ import com.ibm.lang.management.JvmCpuMonitorMXBean;
 public class JvmCpuMonitor implements JvmCpuMonitorMXBean {
 
 	/**
-	 * This is the default thread category of every application thread 
+	 * This is the default thread category of every application thread
 	 */
 	private enum Category {
 		THREAD_CATEGORY_INVALID(-1, "Invalid"),							//$NON-NLS-1$
@@ -112,10 +112,10 @@ public class JvmCpuMonitor implements JvmCpuMonitorMXBean {
 	};
 
 	private static JvmCpuMonitor instance = new JvmCpuMonitor();
-	
+
 	/**
 	 * Singleton accessor method. Returns an instance of {@link JvmCpuMonitor}
-	 * 
+	 *
 	 * @return a static instance of {@link JvmCpuMonitor}
 	 */
 	public static JvmCpuMonitor getInstance() {
@@ -124,7 +124,7 @@ public class JvmCpuMonitor implements JvmCpuMonitorMXBean {
 
 	/**
 	 * Returns the object name of the MXBean
-	 * 
+	 *
 	 * @return objectName representing the MXBean
 	 */
 	public ObjectName getObjectName() {
@@ -135,7 +135,7 @@ public class JvmCpuMonitor implements JvmCpuMonitorMXBean {
 			return null;
 		}
 	}
-	
+
 	/**
 	 * {@inheritDoc}
 	 */
@@ -175,7 +175,7 @@ public class JvmCpuMonitor implements JvmCpuMonitorMXBean {
 		default:
 			throw new IllegalArgumentException();
 		}
-		
+
 		return setThreadCategoryImpl(id, catId.categoryValue());
 	}
 

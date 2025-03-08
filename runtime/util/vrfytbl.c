@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -226,8 +226,8 @@ const U_16 J9JavaBytecodeVerificationTable[] = {
 		0x0E85 /* JBgotow - 200 */,
 		0x1700 /* JBunimplemented - 201 */,
 		0x1700 /* JBbreakpoint - 202 */,
-		0x1200 /* JBaconst_init = 203 */,
-		0x1000 /* JBwithfield = 204 */,
+		0x1700 /* JBunimplemented = 203 */,
+		0x1700 /* JBunimplemented = 204 */,
 		0x1700 /* JBunimplemented - 205 */,
 		0x1700 /* JBunimplemented - 206 */,
 		0x1700 /* JBunimplemented - 207 */,

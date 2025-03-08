@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2005
  *
  * This program and the accompanying materials are made available under
@@ -18,23 +18,22 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management;
 
 /**
- * OpenJ9 platform management extension interface for the Operating System on which the Java Virtual Machine is running.
+ * <p>OpenJ9 platform management extension interface for the Operating System on which the Java Virtual Machine is running.</p>
  * <br>
- * <table border="1">
- * <caption><b>Usage example for the {@link com.ibm.lang.management.OperatingSystemMXBean}</b></caption>
- * <tr> <td> <pre>
+ * <b>Usage example for the {@link com.ibm.lang.management.OperatingSystemMXBean}</b>
+ * <pre>
  * {@code
  * ...
  * com.ibm.lang.management.OperatingSystemMXBean osmxbean = null;
  * osmxbean = (com.ibm.lang.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
  * ...
  * }
- * </pre></td></tr></table>
+ * </pre>
  * <br>
  *
  * The following methods depend on certain information that is not available on z/OS;
@@ -46,33 +45,33 @@ package com.ibm.lang.management;
  * <th style="text-align:left">Return Value</th>
  * </tr>
  * <tr>
- * <td>{@link getCommittedVirtualMemorySize()}</td>
+ * <td>{@link #getCommittedVirtualMemorySize()}</td>
  * <td>{@code -1}</td>
  * </tr>
 /*[IF JAVA_SPEC_VERSION >= 14]
  * <tr>
- * <td>{@link getCpuLoad()}</td>
+ * <td>{@link #getCpuLoad()}</td>
  * <td>{@code -3.0} ({@link com.ibm.lang.management.CpuLoadCalculationConstants#UNSUPPORTED_VALUE CpuLoadCalculationConstants.UNSUPPORTED_VALUE})</td>
  * </tr>
  * <tr>
- * <td>{@link getFreeMemorySize()}</td>
+ * <td>{@link #getFreeMemorySize()}</td>
  * <td>{@code -1}</td>
  * </tr>
 /*[ENDIF] JAVA_SPEC_VERSION >= 14
  * <tr>
- * <td>{@link getFreePhysicalMemorySize()}</td>
+ * <td>{@link #getFreePhysicalMemorySize()}</td>
  * <td>{@code -1}</td>
  * </tr>
  * <tr>
- * <td>{@link getProcessPhysicalMemorySize()}</td>
+ * <td>{@link #getProcessPhysicalMemorySize()}</td>
  * <td>{@code -1}</td>
  * </tr>
  * <tr>
- * <td>{@link getProcessPrivateMemorySize()}</td>
+ * <td>{@link #getProcessPrivateMemorySize()}</td>
  * <td>{@code -1}</td>
  * </tr>
  * <tr>
- * <td>{@link getSystemCpuLoad()}</td>
+ * <td>{@link #getSystemCpuLoad()}</td>
  * <td>{@code -3.0} ({@link com.ibm.lang.management.CpuLoadCalculationConstants#UNSUPPORTED_VALUE CpuLoadCalculationConstants.UNSUPPORTED_VALUE})</td>
  * </tr>
  * </table>
@@ -129,11 +128,11 @@ public interface OperatingSystemMXBean extends com.sun.management.OperatingSyste
 	/**
 	 * Deprecated. Use getProcessCpuTime()
 	 */
-	/*[IF Sidecar19-SE]
+	/*[IF JAVA_SPEC_VERSION >= 9]
 	@Deprecated(forRemoval = true, since = "1.8")
-	/*[ELSE]*/
+	/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 	@Deprecated
-	/*[ENDIF]*/
+	/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 	public long getProcessCpuTimeByNS();
 /*[ENDIF] JAVA_SPEC_VERSION < 19 */
 
@@ -155,11 +154,11 @@ public interface OperatingSystemMXBean extends com.sun.management.OperatingSyste
 	/**
 	 * Deprecated.  Use getCommittedVirtualMemorySize()
 	 */
-	/*[IF Sidecar19-SE]
+	/*[IF JAVA_SPEC_VERSION >= 9]
 	@Deprecated(forRemoval = true, since = "1.8")
-	/*[ELSE]*/
+	/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 	@Deprecated
-	/*[ENDIF]*/
+	/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 	public long getProcessVirtualMemorySize();
 /*[ENDIF] JAVA_SPEC_VERSION < 19 */
 

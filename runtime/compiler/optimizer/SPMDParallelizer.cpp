@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "optimizer/SPMDParallelizer.hpp"
@@ -38,7 +38,6 @@
 #include "control/Options_inlines.hpp"
 #include "cs2/allocator.h"
 #include "cs2/arrayof.h"
-#include "cs2/bitvectr.h"
 #include "cs2/sparsrbit.h"
 #include "env/StackMemoryRegion.hpp"
 #include "env/TRMemory.hpp"
@@ -1504,9 +1503,6 @@ bool TR_SPMDKernelParallelizer::processSPMDKernelLoopForSIMDize(TR::Compilation 
    // need scalar loop for handling residual iterations
    // piggybacking on loop unroller implementation
 
-   //void *stackMark = trMemory()->markStack();
-   TR::StackMemoryRegion stackMemoryRegion(*trMemory());
-
    unroller.unroll(loop, branchNode);
 
 #if 0
@@ -1516,11 +1512,14 @@ bool TR_SPMDKernelParallelizer::processSPMDKernelLoopForSIMDize(TR::Compilation 
    unroller._optimizer->setEnableOptimization(inductionVariableAnalysis, true, NULL);
 #endif
 
-   //trMemory()->releaseStack(stackMark);
-
    TR_ScratchList<TR::Block> blocksInLoop(trMemory());
    loop->getBlocks(&blocksInLoop);
    ListIterator<TR::Block> blocksIt1(&blocksInLoop);
+
+   {
+   // Narrow scope of StackMemoryRegion for manipulation of TR_HashTab pointed to by entries
+   //
+   TR::StackMemoryRegion stackMemoryRegion(*trMemory());
 
    TR_HashTab* entries = new (comp->trStackMemory()) TR_HashTab(comp->trMemory(), stackAlloc);
 
@@ -1625,6 +1624,7 @@ bool TR_SPMDKernelParallelizer::processSPMDKernelLoopForSIMDize(TR::Compilation 
          }
          entries->clear();
       }
+   }
 
    ListIterator<TR::Block> blocksIt(&blocksInLoop);
 

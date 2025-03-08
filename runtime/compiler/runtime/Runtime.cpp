@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifdef TR_HOST_X86
@@ -320,7 +320,6 @@ JIT_HELPER(jitMethodMonitorExitPreservingReservation);
 JIT_HELPER(jitMethodMonitorExitReservedPrimitive);
 JIT_HELPER(jitMethodMonitorExitReserved);
 JIT_HELPER(prefetchTLH);
-JIT_HELPER(newPrefetchTLH);
 
 JIT_HELPER(arrayTranslateTRTO);
 JIT_HELPER(arrayTranslateTROTNoBreak);
@@ -343,11 +342,6 @@ JIT_HELPER(icallVMprJavaSendVirtualL);
 JIT_HELPER(icallVMprJavaSendVirtualF);
 JIT_HELPER(icallVMprJavaSendVirtualD);
 
-JIT_HELPER(compressString);
-JIT_HELPER(compressStringNoCheck);
-JIT_HELPER(compressStringJ);
-JIT_HELPER(compressStringNoCheckJ);
-JIT_HELPER(andORString);
 JIT_HELPER(encodeUTF16Big);
 JIT_HELPER(encodeUTF16Little);
 
@@ -375,11 +369,6 @@ JIT_HELPER(SSEfloatRemainderIA32Thunk);
 JIT_HELPER(SSEdoubleRemainderIA32Thunk);
 JIT_HELPER(SSEdouble2LongIA32);
 
-JIT_HELPER(compressString);
-JIT_HELPER(compressStringNoCheck);
-JIT_HELPER(compressStringJ);
-JIT_HELPER(compressStringNoCheckJ);
-JIT_HELPER(andORString);
 JIT_HELPER(encodeUTF16Big);
 JIT_HELPER(encodeUTF16Little);
 
@@ -458,6 +447,8 @@ JIT_HELPER(__forwardQuadWordArrayCopy_vsx);
 JIT_HELPER(__postP10ForwardCopy);
 JIT_HELPER(__postP10GenericCopy);
 JIT_HELPER(crc32_vpmsum);
+JIT_HELPER(crc32_no_vpmsum);
+JIT_HELPER(crc32_oneByte);
 
 #ifdef J9VM_OPT_JAVA_CRYPTO_ACCELERATION
 #if defined(OMR_GC_FULL_POINTERS)
@@ -474,13 +465,6 @@ JIT_HELPER(ECP256subNoMod_PPC_compressed);
 #endif /* defined(OMR_GC_COMPRESSED_POINTERS) */
 #endif
 
-#ifndef LINUX
-JIT_HELPER(__compressString);
-JIT_HELPER(__compressStringNoCheck);
-JIT_HELPER(__compressStringJ);
-JIT_HELPER(__compressStringNoCheckJ);
-JIT_HELPER(__andORString);
-#endif
 JIT_HELPER(__arrayTranslateTRTO);
 JIT_HELPER(__arrayTranslateTRTO255);
 JIT_HELPER(__arrayTranslateTROT255);
@@ -610,16 +594,11 @@ JIT_HELPER(_nativeStaticHelper);
 JIT_HELPER(__arrayCopy);
 JIT_HELPER(__forwardArrayCopy);
 JIT_HELPER(__backwardArrayCopy);
-JIT_HELPER(__fwHalfWordArrayCopy);
-JIT_HELPER(__fwWordArrayCopy);
-JIT_HELPER(__fwDoubleWordArrayCopy);
-JIT_HELPER(__fwQuadWordArrayCopy);
-JIT_HELPER(__bwHalfWordArrayCopy);
-JIT_HELPER(__bwWordArrayCopy);
-JIT_HELPER(__bwDoubleWordArrayCopy);
-JIT_HELPER(__bwQuadWordArrayCopy);
 JIT_HELPER(_patchGCRHelper);
 JIT_HELPER(_fieldWatchHelper);
+JIT_HELPER(__arrayTranslateTRTO);
+JIT_HELPER(__arrayTranslateTRTO255);
+JIT_HELPER(__arrayTranslateTROTNoBreak);
 
 #elif defined(TR_HOST_S390)
 JIT_HELPER(__double2Long);
@@ -660,8 +639,9 @@ JIT_HELPER(_jitResolveConstantDynamic);
 JIT_HELPER(_nativeStaticHelper);
 JIT_HELPER(_interpreterStaticSpecialCallGlue);
 JIT_HELPER(jitLookupInterfaceMethod);
-JIT_HELPER(jitLookupDynamicInterfaceMethod);
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 JIT_HELPER(jitLookupDynamicPublicInterfaceMethod);
+#endif
 JIT_HELPER(jitMethodIsNative);
 JIT_HELPER(jitMethodIsSync);
 JIT_HELPER(jitPreJNICallOffloadCheck);
@@ -1072,20 +1052,21 @@ void initializeCodeRuntimeHelperTable(J9JITConfig *jitConfig, char isSMP)
    SET(TR_newValueNoZeroInit,         (void *)jitNewValueNoZeroInit,     TR_CHelper);
 
    SET(TR_getFlattenableField,        (void *)jitGetFlattenableField, TR_Helper);
-   SET(TR_withFlattenableField,        (void *)jitWithFlattenableField, TR_Helper);
+   SET(TR_withFlattenableField,       (void *)jitWithFlattenableField, TR_Helper);
    SET(TR_putFlattenableField,        (void *)jitPutFlattenableField, TR_Helper);
-   SET(TR_getFlattenableStaticField,        (void *)jitGetFlattenableStaticField, TR_Helper);
-   SET(TR_putFlattenableStaticField,        (void *)jitPutFlattenableStaticField, TR_Helper);
-   SET(TR_ldFlattenableArrayElement,        (void *)jitLoadFlattenableArrayElement, TR_Helper);
-   SET(TR_strFlattenableArrayElement,        (void *)jitStoreFlattenableArrayElement, TR_Helper);
+   SET(TR_getFlattenableStaticField,  (void *)jitGetFlattenableStaticField, TR_Helper);
+   SET(TR_putFlattenableStaticField,  (void *)jitPutFlattenableStaticField, TR_Helper);
+   SET(TR_ldFlattenableArrayElement,  (void *)jitLoadFlattenableArrayElement, TR_Helper);
+   SET(TR_strFlattenableArrayElement, (void *)jitStoreFlattenableArrayElement, TR_Helper);
 
    SET(TR_acmpeqHelper,               (void *)jitAcmpeqHelper, TR_Helper);
    SET(TR_acmpneHelper,               (void *)jitAcmpneHelper, TR_Helper);
    SET(TR_multiANewArray,             (void *)jitAMultiNewArray, TR_Helper);
    SET(TR_aThrow,                     (void *)jitThrowException, TR_Helper);
 
-   SET(TR_jitLookupDynamicInterfaceMethod, (void *)jitLookupDynamicInterfaceMethod, TR_Helper);
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
    SET(TR_jitLookupDynamicPublicInterfaceMethod, (void *)jitLookupDynamicPublicInterfaceMethod, TR_Helper);
+#endif
 
    SET(TR_nullCheck,                  (void *)jitThrowNullPointerException,          TR_Helper);
    SET(TR_methodTypeCheck,            (void *)jitThrowWrongMethodTypeException,      TR_Helper);
@@ -1099,6 +1080,8 @@ void initializeCodeRuntimeHelperTable(J9JITConfig *jitConfig, char isSMP)
 #else
    SET(TR_typeCheckArrayStore,        (void *)jitTypeCheckArrayStoreWithNullCheck,   TR_Helper);
 #endif
+
+   SET(TR_identityException,          (void *)jitThrowIdentityException, TR_Helper);
 
 #if defined(TR_HOST_X86) || defined(TR_HOST_POWER) || defined(TR_HOST_S390) || defined(TR_HOST_ARM64)
    SET(TR_softwareReadBarrier,                              (void *)jitSoftwareReadBarrier,                         TR_Helper);
@@ -1225,7 +1208,6 @@ void initializeCodeRuntimeHelperTable(J9JITConfig *jitConfig, char isSMP)
    SET(TR_X86interpreterStaticAndSpecialGlue,               (void *)interpreterStaticAndSpecialGlue,               TR_Helper);
 
    SET(TR_X86prefetchTLH,                (void *)prefetchTLH,                 TR_Helper);
-   SET(TR_X86newPrefetchTLH,             (void *)newPrefetchTLH,              TR_Helper);
    SET(TR_X86CodeCachePrefetchHelper,    (void *)prefetchTLH,                 TR_Helper); // needs to be set while compiling
 
 #ifdef TR_HOST_64BIT
@@ -1243,11 +1225,6 @@ void initializeCodeRuntimeHelperTable(J9JITConfig *jitConfig, char isSMP)
    SET(TR_AMD64icallVMprJavaSendVirtualD,             (void *)icallVMprJavaSendVirtualD, TR_Helper);
 
    SET(TR_AMD64jitCollapseJNIReferenceFrame,          (void *)jitCollapseJNIReferenceFrame,   TR_Helper);
-   SET(TR_AMD64compressString,                        (void *)compressString,            TR_Helper);
-   SET(TR_AMD64compressStringNoCheck,                 (void *)compressStringNoCheck,     TR_Helper);
-   SET(TR_AMD64compressStringJ,                       (void *)compressStringJ,           TR_Helper);
-   SET(TR_AMD64compressStringNoCheckJ,                (void *)compressStringNoCheckJ,    TR_Helper);
-   SET(TR_AMD64andORString,                           (void *)andORString,               TR_Helper);
    SET(TR_AMD64arrayTranslateTRTO,                    (void *)arrayTranslateTRTO,        TR_Helper);
    SET(TR_AMD64arrayTranslateTROTNoBreak,             (void *)arrayTranslateTROTNoBreak, TR_Helper);
    SET(TR_AMD64arrayTranslateTROT,                    (void *)arrayTranslateTROT,        TR_Helper);
@@ -1296,11 +1273,6 @@ void initializeCodeRuntimeHelperTable(J9JITConfig *jitConfig, char isSMP)
    SET(TR_IA32floatToLong,                            (void *)floatToLong,  TR_Helper);
    SET(TR_IA32floatToInt,                             (void *)floatToInt,   TR_Helper);
 
-   SET(TR_IA32compressString,                         (void *)compressString,            TR_Helper);
-   SET(TR_IA32compressStringNoCheck,                  (void *)compressStringNoCheck,     TR_Helper);
-   SET(TR_IA32compressStringJ,                        (void *)compressStringJ,           TR_Helper);
-   SET(TR_IA32compressStringNoCheckJ,                 (void *)compressStringNoCheckJ,    TR_Helper);
-   SET(TR_IA32andORString,                            (void *)andORString,               TR_Helper);
    SET(TR_IA32arrayTranslateTRTO,                     (void *)arrayTranslateTRTO,        TR_Helper);
    SET(TR_IA32arrayTranslateTROTNoBreak,              (void *)arrayTranslateTROTNoBreak, TR_Helper);
    SET(TR_IA32arrayTranslateTROT,                     (void *)arrayTranslateTROT,        TR_Helper);
@@ -1391,6 +1363,8 @@ void initializeCodeRuntimeHelperTable(J9JITConfig *jitConfig, char isSMP)
    SET(TR_PPCpostP10ForwardCopy,           (void *) __postP10ForwardCopy,           TR_Helper);
    SET(TR_PPCpostP10GenericCopy,           (void *) __postP10GenericCopy,           TR_Helper);
    SET(TR_PPCcrc32_vpmsum,                 (void *) crc32_vpmsum,                   TR_CHelper);
+   SET(TR_PPCcrc32_no_vpmsum,              (void *) crc32_no_vpmsum,                TR_CHelper);
+   SET(TR_PPCcrc32_oneByte,                (void *) crc32_oneByte,                  TR_CHelper);
 
 #ifdef J9VM_OPT_JAVA_CRYPTO_ACCELERATION
 #if defined(OMR_GC_COMPRESSED_POINTERS)
@@ -1413,13 +1387,6 @@ void initializeCodeRuntimeHelperTable(J9JITConfig *jitConfig, char isSMP)
       }
 #endif
 
-#ifndef LINUX
-   SET(TR_PPCcompressString,               (void *) __compressString,               TR_Helper);
-   SET(TR_PPCcompressStringNoCheck,        (void *) __compressStringNoCheck,        TR_Helper);
-   SET(TR_PPCcompressStringJ,              (void *) __compressStringJ,              TR_Helper);
-   SET(TR_PPCcompressStringNoCheckJ,       (void *) __compressStringNoCheckJ,       TR_Helper);
-   SET(TR_PPCandORString,                  (void *) __andORString,                  TR_Helper);
-#endif
    SET(TR_PPCreferenceArrayCopy,           (void *) __referenceArrayCopy,           TR_Helper);
    SET(TR_PPCgeneralArrayCopy,             (void *) __generalArrayCopy,             TR_Helper);
    SET(TR_PPCarrayTranslateTRTO,       (void *) __arrayTranslateTRTO,    TR_Helper);
@@ -1612,20 +1579,15 @@ void initializeCodeRuntimeHelperTable(J9JITConfig *jitConfig, char isSMP)
    SET(TR_ARM64arrayCopy,                         (void *) __arrayCopy,                      TR_Helper);
    SET(TR_ARM64forwardArrayCopy,                  (void *) __forwardArrayCopy,               TR_Helper);
    SET(TR_ARM64backwardArrayCopy,                 (void *) __backwardArrayCopy,              TR_Helper);
-   SET(TR_ARM64forwardQuadWordArrayCopy,          (void *) __fwQuadWordArrayCopy,            TR_Helper);
-   SET(TR_ARM64forwardDoubleWordArrayCopy,        (void *) __fwDoubleWordArrayCopy,          TR_Helper);
-   SET(TR_ARM64forwardWordArrayCopy,              (void *) __fwWordArrayCopy,                TR_Helper);
-   SET(TR_ARM64forwardHalfWordArrayCopy,          (void *) __fwHalfWordArrayCopy,            TR_Helper);
-   SET(TR_ARM64backwardQuadWordArrayCopy,         (void *) __bwQuadWordArrayCopy,            TR_Helper);
-   SET(TR_ARM64backwardDoubleWordArrayCopy,       (void *) __bwDoubleWordArrayCopy,          TR_Helper);
-   SET(TR_ARM64backwardWordArrayCopy,             (void *) __bwWordArrayCopy,                TR_Helper);
-   SET(TR_ARM64backwardHalfWordArrayCopy,         (void *) __bwHalfWordArrayCopy,            TR_Helper);
    SET(TR_ARM64PatchGCRHelper,                    (void *) _patchGCRHelper,                  TR_Helper);
 #if defined(OSX)
    SET(TR_ARM64fieldWatchHelper,                  (void *) _fieldWatchHelper,                TR_Helper);
 #else
    SET(TR_ARM64fieldWatchHelper,                  (void *) 0,                                TR_Helper);
 #endif
+   SET(TR_ARM64arrayTranslateTRTO,                (void *) __arrayTranslateTRTO,             TR_Helper);
+   SET(TR_ARM64arrayTranslateTRTO255,             (void *) __arrayTranslateTRTO255,          TR_Helper);
+   SET(TR_ARM64arrayTranslateTROTNoBreak,         (void *) __arrayTranslateTROTNoBreak,      TR_Helper);
 
 #elif defined(TR_HOST_S390)
    SET(TR_S390double2Long,                                (void *) 0,                                              TR_Helper);
@@ -1686,6 +1648,7 @@ void initializeCodeRuntimeHelperTable(J9JITConfig *jitConfig, char isSMP)
    SET(TR_S390jitResolveVirtualMethod,                    (void *) jitResolveVirtualMethod,                        TR_Helper);
    SET(TR_S390jitResolveSpecialMethod,                    (void *) jitResolveSpecialMethod,                        TR_Helper);
    SET(TR_S390jitResolveStaticMethod,                     (void *) jitResolveStaticMethod,                         TR_Helper);
+   SET(TR_S390jitResolvedFieldIsVolatile,                 (void *) jitResolvedFieldIsVolatile,                     TR_Helper);
 
    SET(TR_S390interpreterStaticSpecialCallGlue,       (void *) _interpreterStaticSpecialCallGlue,TR_Helper);
    SET(TR_S390nativeStaticHelper,                     (void *) _nativeStaticHelper,              TR_Helper);
@@ -2138,8 +2101,13 @@ bool isOrderedPair(U_8 recordType)
       case TR_GlobalValue:
       case TR_RamMethodSequence:
       case TR_BodyInfoAddressLoad:
+      case TR_CatchBlockCounter:
+      case TR_StartPC:
       case TR_DataAddress:
       case TR_DebugCounter:
+      case TR_MethodEnterExitHookAddress:
+      case TR_CallsiteTableEntryAddress:
+      case TR_MethodTypeTableEntryAddress:
 #endif
          isOrderedPair = true;
          break;

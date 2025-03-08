@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.tools.ddrinteractive.gccheck;
 
 import static com.ibm.j9ddr.vm29.tools.ddrinteractive.gccheck.CheckBase.J9MODRON_SLOT_ITERATOR_OK;
@@ -37,22 +37,21 @@ class CheckRememberedSet extends Check
 	{
 		try {
 			/* no point checking if the scavenger wasn't turned on */
-			if(!J9BuildFlags.gc_modronScavenger || !_extensions.scavengerEnabled()) {
+			if (!J9BuildFlags.J9VM_GC_MODRON_SCAVENGER || !_extensions.scavengerEnabled()) {
 				return;
 			}
-			
+
 			GCRememberedSetIterator remSetIterator = GCRememberedSetIterator.from();
-			while(remSetIterator.hasNext()) {
+			while (remSetIterator.hasNext()) {
 				MM_SublistPuddlePointer puddle = remSetIterator.next();
 				GCRememberedSetSlotIterator remSetSlotIterator = GCRememberedSetSlotIterator.fromSublistPuddle(puddle);
-				while(remSetSlotIterator.hasNext()) {
+				while (remSetSlotIterator.hasNext()) {
 					PointerPointer objectIndirect = PointerPointer.cast(remSetSlotIterator.nextAddress());
-					if(_engine.checkSlotRememberedSet(objectIndirect, puddle)  != J9MODRON_SLOT_ITERATOR_OK) {
+					if (_engine.checkSlotRememberedSet(objectIndirect, puddle) != J9MODRON_SLOT_ITERATOR_OK) {
 						return;
 					}
 				}
 			}
-			
 		} catch (CorruptDataException e) {
 			// TODO: handle exception
 		}
@@ -70,11 +69,11 @@ class CheckRememberedSet extends Check
 		try {
 			GCRememberedSetIterator remSetIterator = GCRememberedSetIterator.from();
 			ScanFormatter formatter = new ScanFormatter(this, "RememberedSet Sublist", getGCExtensions().rememberedSetEA());
-			while(remSetIterator.hasNext()) {
+			while (remSetIterator.hasNext()) {
 				MM_SublistPuddlePointer puddle = remSetIterator.next();
-				formatter.section("puddle", puddle);		
+				formatter.section("puddle", puddle);
 				GCRememberedSetSlotIterator remSetSlotIterator = GCRememberedSetSlotIterator.fromSublistPuddle(puddle);
-				while(remSetSlotIterator.hasNext()) {
+				while (remSetSlotIterator.hasNext()) {
 					formatter.entry(remSetSlotIterator.next());
 				}
 				formatter.endSection();

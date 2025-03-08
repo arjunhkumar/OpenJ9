@@ -17,7 +17,7 @@
 // [1] https://www.gnu.org/software/classpath/license.html
 // [2] https://openjdk.org/legal/assembly-exception.html
 //
-// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 //******************************************************************************
 
 Executable=j9bcu
@@ -76,7 +76,7 @@ TraceException=Trc_BCU_createRomClassEndian_CopyMethodsError Noenv Overhead=1 Le
 TraceException=Trc_BCU_createRomClassEndian_CopyCPShapeError Noenv Overhead=1 Level=3 Template="BCU j9bcutil_createROMClassEndian: error occurred during copyCPShapeAndPreinitDataToROM. error=%d"
 TraceException=Trc_BCU_createRomClassEndian_AnnotationError2 Noenv Overhead=1 Level=3 Template="BCU j9bcutil_createROMClassEndian: error occurred during buildAnnotationInfo. error=%d"
 TraceException=Trc_BCU_createRomClassEndian_DebugInfoError2 Noenv Overhead=1 Level=3 Template="BCU j9bcutil_createROMClassEndian: error occurred during buildDebugInfo. error=%d"
-TraceEvent=Trc_BCU_createRomClassEndian_Synthetic Noenv Overhead=1 Level=3 Template="BCU j9bcutil_createROMClassEndian: Setting J9AccSynthetic flag on ROMClass %p"
+TraceEvent=Trc_BCU_createRomClassEndian_Synthetic Obsolete Noenv Overhead=1 Level=3 Template="BCU j9bcutil_createROMClassEndian: Setting J9AccSynthetic flag on ROMClass %p"
 TraceException=Trc_BCU_createRomClassEndian_StoreOptionalError Noenv Overhead=1 Level=3 Template="BCU j9bcutil_createROMClassEndian: error occurred during storeOptionalData. error=%d"
 
 TraceEntry=Trc_BCU_allocTranslationBuffers_Entry Noenv Overhead=1 Level=3 Template="BCU j9bcutil_allocTranslationBuffers: entering with maxInternTreeSize=%d"
@@ -261,7 +261,7 @@ TraceException=Trc_BCU_ClassFileOracle_walkMethodCodeAttributeAttributes_Duplica
 TraceAssert=Trc_BCU_Assert_SupportedByteCode NoEnv Overhead=1 Level=1 Assert="(0 != sunJavaInstructionSizeTable[P1])"
 TraceEntry=Trc_BCU_avl_intern_verify_EntryV2 Noenv Overhead=1 Level=3 Template="BCU avl_intern_verify Entry: tree=%p sharedPool=%p localPool=%p"
 
-TraceAssert=Trc_Assert_BCU_mustHaveExclusiveVMAccess NoEnv overhead=1 Level=1 Assert="(P1)->publicFlags & (J9_PUBLIC_FLAGS_VM_ACCESS | J9_PUBLIC_FLAGS_HALT_THREAD_EXCLUSIVE)"
+TraceAssert=Trc_Assert_BCU_mustHaveExclusiveVMAccess NoEnv overhead=1 Level=1 Assert="(0 != (P1)->omrVMThread->exclusiveCount)"
 
 TraceAssert=Trc_BCU_Assert_InternVerificationFailure NoEnv Overhead=1 Level=1 Assert="(0)"
 
@@ -381,3 +381,6 @@ TraceEvent=Trc_BCU_ClassFileOracle_walkRecordComponents_UnknownAttribute Noenv O
 TraceExit=Trc_BCU_j9bcutil_readClassFileBytes_Basic_Check_Exit NoEnv Overhead=1 Level=3 Template="BCU j9bcutil_readClassFileBytes: exiting with result=%d" 
 
 TraceException=Trc_BCU_j9bcutil_readClassFileBytes_NoClassDefFoundError_Exception NoEnv Overhead=1 Level=3 Template="BCU j9bcutil_readClassFileBytes: NoClassDefFoundError %d - %s"
+
+TraceEvent=Trc_BCU_isROMClassShareable_TRUE Noenv Overhead=1 Level=6 Template="BCU ROMClass is sharable [classname=%.*s]"
+TraceEvent=Trc_BCU_isROMClassShareable_FALSE Noenv Overhead=1 Level=6 Template="BCU ROMClass is not sharable [classname=%.*s], shared class enabled %d, loader shared enabled %d, enablebci %d, replaced %d, intermediate %d, location %zu"

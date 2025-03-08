@@ -17,9 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
-
 
 /*
  * $RCSfile: si.c,v $
@@ -213,7 +212,7 @@ int j9sysinfo_test1 (J9PortLibrary* portLibrary) {
 		return reportTestExit(portLibrary, testName);
 	} else {
 		char msg[256]= "";
-		j9str_printf(PORTLIB, msg, sizeof(msg), "User name returned = \"%s\"\n", username);
+		j9str_printf(msg, sizeof(msg), "User name returned = \"%s\"\n", username);
 		outputComment(PORTLIB, msg);
 	}
 	
@@ -244,7 +243,7 @@ int j9sysinfo_test2 (J9PortLibrary* portLibrary) {
 		return reportTestExit(portLibrary, testName);
 	} else {
 		char msg[256]= "";
-		j9str_printf(PORTLIB, msg, sizeof(msg), "Group name returned = \"%s\"\n", groupname);
+		j9str_printf(msg, sizeof(msg), "Group name returned = \"%s\"\n", groupname);
 		outputComment(PORTLIB, msg);
 	}
 	
@@ -274,7 +273,7 @@ int j9sysinfo_get_OS_type_test (J9PortLibrary* portLibrary) {
 		return reportTestExit(portLibrary, testName);
 	} else {
 		char msg[256];
-		j9str_printf(PORTLIB, msg, sizeof(msg), "j9sysinfo_get_OS_type returned : \"%s\"\n", osName);
+		j9str_printf(msg, sizeof(msg), "j9sysinfo_get_OS_type returned : \"%s\"\n", osName);
 		outputComment(PORTLIB, msg);
 	}
 	
@@ -284,7 +283,7 @@ int j9sysinfo_get_OS_type_test (J9PortLibrary* portLibrary) {
 		return reportTestExit(portLibrary, testName);
 	} else {
 		char msg[256];
-		j9str_printf(PORTLIB, msg, sizeof(msg), "j9sysinfo_get_OS_version returned : \"%s\"\n", osVersion);
+		j9str_printf(msg, sizeof(msg), "j9sysinfo_get_OS_version returned : \"%s\"\n", osVersion);
 		outputComment(PORTLIB, msg);
 	}
 
@@ -929,58 +928,6 @@ int j9sysinfo_test_sysinfo_get_limit_FILE_DESCRIPTORS(J9PortLibrary* portLibrary
 	return reportTestExit(portLibrary, testName);
 }
 #endif /* !(defined(WIN32) || defined(WIN64)) */
-
-/**
- *
- * Test j9sysinfo_test_sysinfo_get_processor_description
- *
- */
-int j9sysinfo_test_sysinfo_get_processor_description(J9PortLibrary* portLibrary)
-{
-	PORT_ACCESS_FROM_PORT(portLibrary);
-	const char* testName = "j9sysinfo_test_sysinfo_get_processor_description";
-	IDATA rc = 0;
-	int i = 0;
-
-	J9ProcessorDesc desc;
-
-	rc = j9sysinfo_get_processor_description(&desc);
-
-#if (defined(J9X86) || defined(J9HAMMER))
-	if (desc.processor < PROCESSOR_X86_UNKNOWN) {
-		outputErrorMessage(PORTTEST_ERROR_ARGS, "j9sysinfo_test_sysinfo_get_processor_description() processor detection failed.\n");
-	}
-	if (desc.physicalProcessor < PROCESSOR_X86_UNKNOWN) {
-		outputErrorMessage(PORTTEST_ERROR_ARGS, "j9sysinfo_test_sysinfo_get_processor_description() physical processor detection failed.\n");
-	}
-#elif (defined(AIXPPC) || defined(LINUXPPC))
-	if ((desc.processor < PROCESSOR_PPC_UNKNOWN) || (desc.processor >= PROCESSOR_X86_UNKNOWN)) {
-		outputErrorMessage(PORTTEST_ERROR_ARGS, "j9sysinfo_test_sysinfo_get_processor_description() processor detection failed.\n");
-	}
-	if ((desc.physicalProcessor < PROCESSOR_PPC_UNKNOWN) || (desc.physicalProcessor >= PROCESSOR_X86_UNKNOWN)) {
-		outputErrorMessage(PORTTEST_ERROR_ARGS, "j9sysinfo_test_sysinfo_get_processor_description() physical processor detection failed.\n");
-	}
-#elif (defined(S390) || defined(J9ZOS390))
-	if (desc.processor >= (PROCESSOR_PPC_UNKNOWN)) {
-		outputErrorMessage(PORTTEST_ERROR_ARGS, "j9sysinfo_test_sysinfo_get_processor_description() processor detection failed.\n");
-	}
-	if (desc.physicalProcessor >= (PROCESSOR_PPC_UNKNOWN)) {
-		outputErrorMessage(PORTTEST_ERROR_ARGS, "j9sysinfo_test_sysinfo_get_processor_description() physical processor detection failed.\n");
-	}
-#endif
-	
-	for (i = 0; i < J9PORT_SYSINFO_FEATURES_SIZE * 32; i++) {
-		BOOLEAN feature = j9sysinfo_processor_has_feature(&desc, i);
-		if ((TRUE != feature)
-		&& (FALSE != feature)) {
-			outputErrorMessage(PORTTEST_ERROR_ARGS, "j9sysinfo_test_sysinfo_get_processor_description() feature %d detection failed: %d\n", i, feature);
-		}
-	}
-
-	return reportTestExit(portLibrary, testName);
-}
-
-
 
 /* Since the processor and memory usage port library APIs are not available on zOS (neither
  * 31-bit not 64-bit) yet, so we exclude these tests from running on zOS. When the zOS
@@ -2280,6 +2227,27 @@ j9sysinfo_test_get_l1dcache_line_size(struct J9PortLibrary *portLibrary)
 	return reportTestExit(portLibrary, testName);
 }
 
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+I_32
+j9sysinfo_test_get_process_start_time(struct J9PortLibrary *portLibrary)
+{
+	PORT_ACCESS_FROM_PORT(portLibrary);
+	const char *testName = "j9sysinfo_test_get_process_start_time";
+	UDATA pid = j9sysinfo_get_pid();
+	U_64 processStartTimeInNanoseconds = 0;
+	I_32 rc = j9sysinfo_get_process_start_time(pid, &processStartTimeInNanoseconds);
+	if ((0 != rc) || (0 == processStartTimeInNanoseconds)) {
+		outputErrorMessage(
+			PORTTEST_ERROR_ARGS,
+			"j9sysinfo_get_process_start_time, pid=%zu, processStartTimeInNanoseconds=%llu, rc=%d.\n",
+			pid,
+			processStartTimeInNanoseconds,
+			rc);
+	}
+	return reportTestExit(portLibrary, testName);
+}
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+
 /*
  * pass in the port library to do sysinfo tests
  */
@@ -2298,7 +2266,6 @@ j9sysinfo_runTests(struct J9PortLibrary *portLibrary, char *argv0)
 	rc |= j9sysinfo_get_OS_type_test(portLibrary);
 	rc |= j9sysinfo_test_sysinfo_ulimit_iterator(portLibrary);
 	rc |= j9sysinfo_test_sysinfo_env_iterator(portLibrary);
-	rc |= j9sysinfo_test_sysinfo_get_processor_description(portLibrary);
 #if !(defined(WIN32) || defined(WIN64))
 #if !(defined(AIXPPC) || defined(J9ZOS390) || defined(OSX))
 	/* unable to set RLIMIT_AS on AIX, z/OS, OSX */
@@ -2350,10 +2317,13 @@ j9sysinfo_runTests(struct J9PortLibrary *portLibrary, char *argv0)
 	/* Not supported on Z & OSX (and Windows, of course).  Enable, when available. */
 	rc |= j9sysinfo_test_get_open_file_count(portLibrary);
 #endif /* defined(LINUX) || defined(AIXPPC) */
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+	rc |= j9sysinfo_test_get_process_start_time(portLibrary);
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 	/* Output results */
 	j9tty_printf(PORTLIB, "\nSysinfo test done%s\n\n", rc == TEST_PASS ? "." : ", failures detected.");
 	return TEST_PASS == rc ? 0 : -1;
-	
+
 	return 0;
 }

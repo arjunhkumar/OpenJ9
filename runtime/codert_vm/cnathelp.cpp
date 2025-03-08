@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -114,7 +114,7 @@ convertITableOffsetToVTableOffset(J9VMThread *currentThread, J9Class *receiverCl
 	if (interfaceClass == iTable->interfaceClass) {
 		goto foundITable;
 	}
-	
+
 	iTable = (J9ITable*)receiverClass->iTable;
 	while (NULL != iTable) {
 		if (interfaceClass == iTable->interfaceClass) {
@@ -467,7 +467,7 @@ buildJITResolveFrameForRuntimeCheck(J9VMThread *currentThread)
 	void *oldPC = currentThread->jitReturnAddress;
 #if defined(J9VM_ARCH_X86)
 	U_8 *pc = (U_8*)oldPC;
-	U_32 offset = *(U_32*)pc;
+	I_32 offset = *(I_32*)pc;
 	pc -= offset; /* compute addr of throwing instruction */
 	pc += 1; /* move forward by a byte as codegen uses the beginning of instructions */
 	oldPC = (void*)pc;
@@ -1001,7 +1001,7 @@ old_fast_jitLoadFlattenableArrayElement(J9VMThread *currentThread)
 	value = (j9object_t) currentThread->javaVM->internalVMFunctions->loadFlattenableArrayElement(currentThread, arrayObject, index, true);
 	if (NULL == value) {
 		J9ArrayClass *arrayObjectClass = (J9ArrayClass *)J9OBJECT_CLAZZ(currentThread, arrayObject);
-		if (J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(arrayObjectClass->componentType)) {
+		if (J9_IS_J9ARRAYCLASS_NULL_RESTRICTED(arrayObjectClass)) {
 			goto slow;
 		}
 	}
@@ -1065,10 +1065,6 @@ old_fast_jitStoreFlattenableArrayElement(J9VMThread *currentThread)
 		goto slow;
 	}
 	if (false == VM_VMHelpers::objectArrayStoreAllowed(currentThread, arrayref, value)) {
-		goto slow;
-	}
-	arrayrefClass = (J9ArrayClass *) J9OBJECT_CLAZZ(currentThread, arrayref);
-	if ((J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(arrayrefClass->componentType)) && (NULL == value)) {
 		goto slow;
 	}
 	currentThread->javaVM->internalVMFunctions->storeFlattenableArrayElement(currentThread, arrayref, index, value);
@@ -1474,11 +1470,10 @@ old_fast_jitCheckCast(J9VMThread *currentThread)
 			slowPath = (void*)old_slow_jitCheckCast;
 		}
 	}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	else if (J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(castClass)) {
-		slowPath = (void*)old_slow_jitThrowNullPointerException;
-	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+	/* In the future, Valhalla checkcast must throw an exception on
+	 * null-restricted checkedType if object is null.
+	 * See issue https://github.com/eclipse-openj9/openj9/issues/19764.
+	 */
 	return slowPath;
 }
 
@@ -1504,11 +1499,11 @@ old_fast_jitCheckCastForArrayStore(J9VMThread *currentThread)
 			slowPath = (void*)old_slow_jitCheckCastForArrayStore;
 		}
 	}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	else if (J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(castClass)) {
 		slowPath = (void*)old_slow_jitThrowNullPointerException;
 	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	return slowPath;
 }
 
@@ -1623,19 +1618,7 @@ old_fast_jitLookupInterfaceMethod(J9VMThread *currentThread)
 	return slowPath;
 }
 
-void J9FASTCALL
-old_fast_jitLookupDynamicInterfaceMethod(J9VMThread *currentThread)
-{
-	OLD_JIT_HELPER_PROLOGUE(3);
-	DECLARE_JIT_CLASS_PARM(receiverClass, 1);
-	DECLARE_JIT_CLASS_PARM(interfaceClass, 2);
-	DECLARE_JIT_PARM(UDATA, iTableIndex, 3);
-	UDATA iTableOffset = sizeof(struct J9ITable) + (iTableIndex * sizeof(UDATA));
-	UDATA vTableOffset = convertITableOffsetToVTableOffset(currentThread, receiverClass, interfaceClass, iTableOffset);
-	Assert_CodertVM_false(0 == vTableOffset);
-	JIT_RETURN_UDATA(vTableOffset);
-}
-
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 void* J9FASTCALL
 old_slow_jitLookupDynamicPublicInterfaceMethod(J9VMThread *currentThread)
 {
@@ -1651,10 +1634,13 @@ void* J9FASTCALL
 old_fast_jitLookupDynamicPublicInterfaceMethod(J9VMThread *currentThread)
 {
 	void *slowPath = (void*)old_slow_jitLookupDynamicPublicInterfaceMethod;
-	OLD_JIT_HELPER_PROLOGUE(3);
+	OLD_JIT_HELPER_PROLOGUE(2);
 	DECLARE_JIT_CLASS_PARM(receiverClass, 1);
-	DECLARE_JIT_CLASS_PARM(interfaceClass, 2);
-	DECLARE_JIT_PARM(UDATA, iTableIndex, 3);
+	DECLARE_JIT_PARM(j9object_t, memberName, 2);
+	J9JavaVM *vm = currentThread->javaVM;
+	J9Method *interfaceMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(currentThread, memberName, vm->vmtargetOffset);
+	J9Class *interfaceClass = J9_CLASS_FROM_METHOD(interfaceMethod);
+	UDATA iTableIndex = (UDATA)J9OBJECT_U64_LOAD(currentThread, memberName, vm->vmindexOffset);
 	UDATA iTableOffset = sizeof(struct J9ITable) + (iTableIndex * sizeof(UDATA));
 	UDATA vTableOffset = convertITableOffsetToVTableOffset(currentThread, receiverClass, interfaceClass, iTableOffset);
 	Assert_CodertVM_false(0 == vTableOffset);
@@ -1668,6 +1654,7 @@ old_fast_jitLookupDynamicPublicInterfaceMethod(J9VMThread *currentThread)
 	}
 	return slowPath;
 }
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 
 void J9FASTCALL
 old_fast_jitMethodIsNative(J9VMThread *currentThread)
@@ -1740,13 +1727,13 @@ slow_jitMonitorEnterImpl(J9VMThread *currentThread, bool forMethod)
 			TIDY_BEFORE_THROW();
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 			if (J9_IS_J9CLASS_VALUETYPE(badClass)) {
-				currentThread->javaVM->internalVMFunctions->setCurrentExceptionNLSWithArgs(currentThread, J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE, 
-					J9VMCONSTANTPOOL_JAVALANGILLEGALMONITORSTATEEXCEPTION, J9UTF8_LENGTH(className), J9UTF8_DATA(className));
-			} else 
+				currentThread->javaVM->internalVMFunctions->setCurrentExceptionNLSWithArgs(currentThread, J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE,
+					J9VMCONSTANTPOOL_JAVALANGIDENTITYEXCEPTION, J9UTF8_LENGTH(className), J9UTF8_DATA(className));
+			} else
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 			{
 				Assert_CodertVM_true(J9_ARE_ALL_BITS_SET(currentThread->javaVM->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_VALUE_BASED_EXCEPTION));
-				currentThread->javaVM->internalVMFunctions->setCurrentExceptionNLSWithArgs(currentThread, J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_BASED, 
+				currentThread->javaVM->internalVMFunctions->setCurrentExceptionNLSWithArgs(currentThread, J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_BASED,
 					J9VMCONSTANTPOOL_JAVALANGVIRTUALMACHINEERROR, J9UTF8_LENGTH(className), J9UTF8_DATA(className));
 			}
 			addr = J9_JITHELPER_ACTION_THROW;
@@ -1826,7 +1813,7 @@ fast_jitMonitorExitImpl(J9VMThread *currentThread, j9object_t syncObject, bool f
 		if (0 == monstatus) {
 			slowPathRequired = false;
 		} else {
-			currentThread->floatTemp2 = (void*)J9THREAD_ILLEGAL_MONITOR_STATE;			
+			currentThread->floatTemp2 = (void*)J9THREAD_ILLEGAL_MONITOR_STATE;
 		}
 	}
 	return slowPathRequired;
@@ -2245,7 +2232,7 @@ retry:
 			/* Direct method - methodIndex is an index into the method list of either Object or interfaceClass */
 			J9Class *methodClass = interfaceClass;
 			if (J9_ARE_ANY_BITS_SET(methodIndexAndArgCount, J9_ITABLE_INDEX_OBJECT)) {
-				methodClass = J9VMJAVALANGOBJECT_OR_NULL(currentThread->javaVM);	
+				methodClass = J9VMJAVALANGOBJECT_OR_NULL(currentThread->javaVM);
 			}
 			iTableOffset = ((UDATA)(methodClass->ramMethods + methodIndex)) | J9_ITABLE_OFFSET_DIRECT;
 		} else if (J9_ARE_ANY_BITS_SET(methodIndexAndArgCount, J9_ITABLE_INDEX_OBJECT)) {
@@ -2544,7 +2531,7 @@ old_slow_jitResolveFlattenableField(J9VMThread *currentThread)
 {
 	void *addr = NULL;
 
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	OLD_SLOW_ONLY_JIT_HELPER_PROLOGUE(3);
 	DECLARE_JIT_PARM(J9Method*, method, 1);
 	DECLARE_JIT_INT_PARM(cpIndex, 2);
@@ -2560,9 +2547,6 @@ old_slow_jitResolveFlattenableField(J9VMThread *currentThread)
 	if (!resolved) {
 		UDATA resolveFlags = J9_RESOLVE_FLAG_RUNTIME_RESOLVE;
 		switch(resolveType) {
-		case J9TR_FLAT_RESOLVE_WITHFIELD:
-			resolveFlags |= J9_RESOLVE_FLAG_WITH_FIELD;
-			break;
 		case J9TR_FLAT_RESOLVE_GETFIELD:
 			break;
 		case J9TR_FLAT_RESOLVE_PUTFIELD:
@@ -2577,7 +2561,7 @@ old_slow_jitResolveFlattenableField(J9VMThread *currentThread)
 		addr = restoreJITResolveFrame(currentThread, oldPC);
 	}
 	SLOW_JIT_HELPER_EPILOGUE();
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 	return addr;
 }
@@ -2745,6 +2729,20 @@ old_slow_jitThrowArrayIndexOutOfBounds(J9VMThread *currentThread)
 	OLD_JIT_HELPER_PROLOGUE(0);
 	buildJITResolveFrameForRuntimeCheck(currentThread);
 	return setCurrentExceptionFromJIT(currentThread, J9VMCONSTANTPOOL_JAVALANGARRAYINDEXOUTOFBOUNDSEXCEPTION, NULL);
+}
+
+void* J9FASTCALL
+old_slow_jitThrowIdentityException(J9VMThread *currentThread)
+{
+	void *exception = NULL;
+#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+	OLD_JIT_HELPER_PROLOGUE(0);
+	buildJITResolveFrameForRuntimeCheck(currentThread);
+	exception = setCurrentExceptionFromJIT(currentThread, J9VMCONSTANTPOOL_JAVALANGIDENTITYEXCEPTION, NULL);
+#else /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+	exception = (void *)-1;
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+	return exception;
 }
 
 void* J9FASTCALL
@@ -3204,6 +3202,8 @@ old_slow_jitNewInstanceImplAccessCheck(J9VMThread *currentThread)
  	J9InternalVMFunctions *vmFuncs = currentThread->javaVM->internalVMFunctions;
 	void *oldPC = buildJITResolveFrame(currentThread, J9_SSF_JIT_RESOLVE_RUNTIME_HELPER, parmCount);
 	IDATA checkResult = vmFuncs->checkVisibility(currentThread, callerClass, thisClass, thisClass->romClass->modifiers, J9_LOOK_REFLECT_CALL);
+	thisClass = VM_VMHelpers::currentClass(thisClass);
+	callerClass = VM_VMHelpers::currentClass(callerClass);
 	if (checkResult < J9_VISIBILITY_ALLOWED) {
 illegalAccess:
 		if (VM_VMHelpers::immediateAsyncPending(currentThread)) {
@@ -3240,17 +3240,20 @@ illegalAccess:
 			 * unless the two classes are in the same nest (JDK11 and beyond).
 			 */
 #if JAVA_SPEC_VERSION >= 11
-			if (NULL == thisClass->nestHost) {
-				if (J9_VISIBILITY_ALLOWED != vmFuncs->loadAndVerifyNestHost(currentThread, thisClass, 0)) {
+			J9Class *thisClassNestHost = thisClass->nestHost;
+			J9Class *callerClassNestHost = NULL;
+			if (NULL == thisClassNestHost) {
+				if (J9_VISIBILITY_ALLOWED != vmFuncs->loadAndVerifyNestHost(currentThread, thisClass, 0, &thisClassNestHost)) {
 					goto illegalAccess;
 				}
 			}
-			if (NULL == callerClass->nestHost) {
-				if (J9_VISIBILITY_ALLOWED != vmFuncs->loadAndVerifyNestHost(currentThread, callerClass, 0)) {
+			callerClassNestHost = callerClass->nestHost;
+			if (NULL == callerClassNestHost) {
+				if (J9_VISIBILITY_ALLOWED != vmFuncs->loadAndVerifyNestHost(currentThread, callerClass, 0, &callerClassNestHost)) {
 					goto illegalAccess;
 				}
 			}
-			if (thisClass->nestHost != callerClass->nestHost)
+			if (thisClassNestHost != callerClassNestHost)
 #endif /* JAVA_SPEC_VERSION >= 11 */
 			{
 				if (thisClass != callerClass) {
@@ -3616,11 +3619,10 @@ fast_jitCheckCast(J9VMThread *currentThread, J9Class *castClass, j9object_t obje
 			slowPath = (void*)old_slow_jitCheckCast;
 		}
 	}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	else if (J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(castClass)) {
-		slowPath = (void*)old_slow_jitThrowNullPointerException;
-	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+	/* In the future, Valhalla checkcast must throw an exception on
+	 * null-restricted checkedType if object is null.
+	 * See issue https://github.com/eclipse-openj9/openj9/issues/19764.
+	 */
 	return slowPath;
 }
 
@@ -3643,11 +3645,11 @@ fast_jitCheckCastForArrayStore(J9VMThread *currentThread, J9Class *castClass, j9
 			slowPath = (void*)old_slow_jitCheckCastForArrayStore;
 		}
 	}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	else if (J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(castClass)) {
 		slowPath = (void*)old_slow_jitThrowNullPointerException;
 	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	return slowPath;
 }
 
@@ -3956,9 +3958,10 @@ initPureCFunctionTable(J9JavaVM *vm)
 	jitConfig->old_fast_jitInstanceOf = (void*)old_fast_jitInstanceOf;
 	jitConfig->old_fast_jitLookupInterfaceMethod = (void*)old_fast_jitLookupInterfaceMethod;
 	jitConfig->old_slow_jitLookupInterfaceMethod = (void*)old_slow_jitLookupInterfaceMethod;
-	jitConfig->old_fast_jitLookupDynamicInterfaceMethod = (void*)old_fast_jitLookupDynamicInterfaceMethod;
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
 	jitConfig->old_fast_jitLookupDynamicPublicInterfaceMethod = (void*)old_fast_jitLookupDynamicPublicInterfaceMethod;
 	jitConfig->old_slow_jitLookupDynamicPublicInterfaceMethod = (void*)old_slow_jitLookupDynamicPublicInterfaceMethod;
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 	jitConfig->old_fast_jitMethodIsNative = (void*)old_fast_jitMethodIsNative;
 	jitConfig->old_fast_jitMethodIsSync = (void*)old_fast_jitMethodIsSync;
 	jitConfig->old_fast_jitMethodMonitorEntry = (void*)old_fast_jitMethodMonitorEntry;
@@ -4011,6 +4014,7 @@ initPureCFunctionTable(J9JavaVM *vm)
 	jitConfig->old_slow_jitThrowInstantiationException = (void*)old_slow_jitThrowInstantiationException;
 	jitConfig->old_slow_jitThrowNullPointerException = (void*)old_slow_jitThrowNullPointerException;
 	jitConfig->old_slow_jitThrowWrongMethodTypeException = (void*)old_slow_jitThrowWrongMethodTypeException;
+	jitConfig->old_slow_jitThrowIdentityException = (void*)old_slow_jitThrowIdentityException;
 	jitConfig->old_fast_jitTypeCheckArrayStoreWithNullCheck = (void*)old_fast_jitTypeCheckArrayStoreWithNullCheck;
 	jitConfig->old_slow_jitTypeCheckArrayStoreWithNullCheck = (void*)old_slow_jitTypeCheckArrayStoreWithNullCheck;
 	jitConfig->old_fast_jitTypeCheckArrayStore = (void*)old_fast_jitTypeCheckArrayStore;

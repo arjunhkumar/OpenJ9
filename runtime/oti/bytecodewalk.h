@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef bytecodewalk_h
@@ -61,10 +61,10 @@
 32bit type => [8 bits arity] [ 19 bits class index] [5 tag bits]
 
 tag bits:
-	special (new / init / ret)
-	base / object
-	base type array / regular object, array
-	null
+	base type or top of stack (clear bit means object or array)
+	base type array or null
+	special init object ("this" for <init>)
+	special new object (PC offset in upper 28 bits)
 
 base types: (in the 19bit class index field)
 	int
@@ -102,9 +102,6 @@ base types: (in the 19bit class index field)
 #define BCV_TAG_BASE_ARRAY_OR_NULL			2		/* set bit means base type array */
 #define BCV_SPECIAL_INIT					4		/* set bit means special init object ("this" for <init>) */
 #define BCV_SPECIAL_NEW						8		/* set bit means special new object (PC offset in upper 28 bits) */
-#define BCV_PRIMITIVE_VALUETYPE				16		/* set bit means primitive class */
-
-#define BCV_GET_TYPE_FROM_CHAR(char) (IS_QTYPE((char)) ? BCV_PRIMITIVE_VALUETYPE : BCV_OBJECT_OR_ARRAY)
 
 #define	BCV_TAG_MASK						(BCV_TAG_BASE_TYPE_OR_TOP | BCV_TAG_BASE_ARRAY_OR_NULL | BCV_SPECIAL_INIT | BCV_SPECIAL_NEW)
 

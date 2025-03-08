@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.diagnostics.utils.plugins;
 
 import java.net.URL;
@@ -29,12 +29,12 @@ import java.net.URLClassLoader;
  * Classloader to search for classes locally first before delegating to the parent classloader.
  * This 'me first' approach is required so that when classes are 'refreshed' and this loader
  * discarded the old versions on the plugin search path are also discarded.
- * 
+ *
  * @author adam
  *
  */
 public class LocalPriorityClassloader extends URLClassLoader {
-	
+
 	public LocalPriorityClassloader(URL[] urls, ClassLoader parent) {
 		super(urls, parent);
 	}
@@ -45,7 +45,7 @@ public class LocalPriorityClassloader extends URLClassLoader {
 
 	/* (non-Javadoc)
 	 * @see java.lang.ClassLoader#loadClass(java.lang.String, boolean)
-	 * 
+	 *
 	 * Override the delegating model normally provided by this classloader.
 	 */
 	@Override

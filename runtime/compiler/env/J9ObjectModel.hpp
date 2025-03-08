@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_OBJECTMODEL_INCL
@@ -62,18 +62,29 @@ public:
 
    bool mayRequireSpineChecks();
 
+   /**
+    * @brief Whether or not value object is enabled
+    */
    bool areValueTypesEnabled();
+
+   /**
+    * @brief Whether or not flattenable value object (aka null-restricted) type is enabled
+    */
+   bool areFlattenableValueTypesEnabled();
+
    /**
    * @brief Whether the check is enabled on monitor object being value based class type
    */
    bool areValueBasedMonitorChecksEnabled();
+
    /**
-   * @brief Whether the array flattening is enabled for value types
-   */
+    * @brief Whether the array flattening is enabled for value types
+    */
    bool isValueTypeArrayFlatteningEnabled();
 
    int32_t sizeofReferenceField();
    bool isHotReferenceFieldRequired();
+   bool isOffHeapAllocationEnabled();
    uintptr_t elementSizeOfBooleanArray();
    uint32_t getSizeOfArrayElement(TR::Node *node);
    int64_t maxArraySizeInElementsForAllocation(TR::Node *newArray, TR::Compilation *comp);
@@ -103,6 +114,8 @@ public:
    bool useHybridArraylets() { return usesDiscontiguousArraylets(); }
    int32_t arrayletLeafSize();
    int32_t arrayletLeafLogSize();
+
+   bool isIndexableDataAddrPresent();
 
    int32_t compressedReferenceShiftOffset();
    int32_t compressedReferenceShift();

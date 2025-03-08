@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -72,12 +72,12 @@ class MM_RootScanner : public MM_BaseVirtual
 	 * Data members
 	 */
 private:
-
+	bool _isContinuationListEmpty;
 protected:
 	MM_EnvironmentBase *_env;
 	MM_GCExtensions *_extensions;
 	MM_CollectorLanguageInterfaceImpl *_clij;
-	OMR_VM *_omrVM;
+	J9JavaVM *_javaVM;
 
 	bool _stringTableAsRoot;  /**< Treat the string table as a hard root */
 	bool _jniWeakGlobalReferencesTableAsRoot;	/**< Treat JNI Weak References Table as a hard root */
@@ -91,6 +91,9 @@ protected:
 #endif /* J9VM_GC_MODRON_SCAVENGER */	 	
 	bool _classDataAsRoots; /**< Should all classes (and class loaders) be treated as roots. Default true, should set to false when class unloading */
 	bool _includeJVMTIObjectTagTables; /**< Should the iterator include the JVMTIObjectTagTables. Default true, should set to false when doing JVMTI object walks */
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	bool _includeVirtualLargeObjectHeap; /**< Enables scanning of objects that has been allocated at sparse heap. Default is false */
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 #if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
 	bool _includeDoubleMap; /**< Enables doublemap should the GC policy be balanced. Default is false. */
 #endif /* J9VM_GC_ENABLE_DOUBLE_MAP */
@@ -120,6 +123,15 @@ private:
 	 * @param memoryType memory type
 	 */
 	void scanArrayObject(MM_EnvironmentBase *env, J9Object *objectPtr, MM_MemoryPool *memoryPool, MM_HeapRegionManager *manager, uintptr_t memoryType);
+
+	bool isContinuationListEmpty(MM_EnvironmentBase *env);
+
+	/**
+	 * Scan all objects from class loader.
+	 * @param env thread GC environment
+	 * @param classLoader class loader address
+	 */
+	void scanClassloader(MM_EnvironmentBase *env, J9ClassLoader *classLoader);
 
 protected:
 	/* Family of yielding methods to be overridden by incremental scanners such
@@ -189,7 +201,7 @@ protected:
 		_scanningEntity = scanningEntity;
 		
 		if (_extensions->rootScannerStatsEnabled) {
-			OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
+			OMRPORT_ACCESS_FROM_OMRVM(_javaVM->omrVM);
 			_entityStartScanTime = omrtime_hires_clock();	
 			_entityIncrementStartTime = _entityStartScanTime;
 		}
@@ -222,7 +234,7 @@ protected:
 		Assert_MM_true(_scanningEntity == scannedEntity);
 		
 		if (_extensions->rootScannerStatsEnabled) {
- 			OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
+			OMRPORT_ACCESS_FROM_OMRVM(_javaVM->omrVM);
  			uint64_t entityEndScanTime = omrtime_hires_clock();
 			
 			_env->_rootScannerStats._statsUsed = true;
@@ -269,7 +281,7 @@ public:
 	reportScanningSuspended()
 	{
 		if (_extensions->rootScannerStatsEnabled) {
-			OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
+			OMRPORT_ACCESS_FROM_OMRVM(_javaVM->omrVM);
 			_entityIncrementEndTime = omrtime_hires_clock();
 			
 			updateScanStats(_entityIncrementEndTime);
@@ -283,7 +295,7 @@ public:
 	reportScanningResumed()
 	{
 		if (_extensions->rootScannerStatsEnabled) {
-			OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
+			OMRPORT_ACCESS_FROM_OMRVM(_javaVM->omrVM);
 			_entityIncrementStartTime = omrtime_hires_clock();
 			_entityIncrementEndTime = 0;	
 		}
@@ -291,10 +303,11 @@ public:
 
 	MM_RootScanner(MM_EnvironmentBase *env, bool singleThread = false)
 		: MM_BaseVirtual()
+		, _isContinuationListEmpty(false)
 		, _env(env)
 		, _extensions(MM_GCExtensions::getExtensions(env))
 		, _clij((MM_CollectorLanguageInterfaceImpl *)_extensions->collectorLanguageInterface)
-		, _omrVM(env->getOmrVM())
+		, _javaVM((J9JavaVM *)env->getOmrVM()->_language_vm)
 		, _stringTableAsRoot(true)
 		, _jniWeakGlobalReferencesTableAsRoot(false)
 		, _singleThread(singleThread)
@@ -306,6 +319,9 @@ public:
 #endif /* J9VM_GC_MODRON_SCAVENGER */
 		, _classDataAsRoots(true)
 		, _includeJVMTIObjectTagTables(true)
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+		, _includeVirtualLargeObjectHeap(_extensions->indexableObjectModel.isVirtualLargeObjectHeapEnabled())
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 #if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
 		, _includeDoubleMap(_extensions->indexableObjectModel.isDoubleMappingEnabled())
 #endif /* J9VM_GC_ENABLE_DOUBLE_MAP */
@@ -318,7 +334,7 @@ public:
 	{
 		_typeId = __FUNCTION__;
 		
-		OMRPORT_ACCESS_FROM_OMRVM(_omrVM);
+		OMRPORT_ACCESS_FROM_ENVIRONMENT(env);
 		_entityIncrementStartTime = omrtime_hires_clock();
 
 	}
@@ -385,7 +401,7 @@ public:
 	}
 
 	/** General object slot handler to be reimplemented by specializing class. This handler is called for every reference to a J9Object. */
-	virtual void doSlot(J9Object** slotPtr) = 0;
+	virtual void doSlot(J9Object **slotPtr) = 0;
 
 	/** General class slot handler to be reimplemented by specializing class. This handler is called for every reference to a J9Class. */
 	virtual void doClassSlot(J9Class *classPtr);
@@ -397,7 +413,7 @@ public:
 	 * Scan object field
 	 * @param slotObject for field
 	 */
-	virtual void doFieldSlot(GC_SlotObject * slotObject);
+	virtual void doFieldSlot(GC_SlotObject *slotObject);
 	
 	virtual void scanRoots(MM_EnvironmentBase *env);
 	virtual void scanClearable(MM_EnvironmentBase *env);
@@ -415,11 +431,11 @@ public:
 #endif /* J9VM_GC_DYNAMIC_CLASS_UNLOADING */
 	virtual CompletePhaseCode scanClassesComplete(MM_EnvironmentBase *env);
 
- 	virtual bool scanOneThread(MM_EnvironmentBase *env, J9VMThread* walkThread, void* localData);
+	virtual bool scanOneThread(MM_EnvironmentBase *env, J9VMThread *walkThread, void *localData);
 	
 	virtual void scanClassLoaders(MM_EnvironmentBase *env);
 	virtual void scanThreads(MM_EnvironmentBase *env);
- 	virtual void scanSingleThread(MM_EnvironmentBase *env, J9VMThread* walkThread);
+	virtual void scanSingleThread(MM_EnvironmentBase *env, J9VMThread *walkThread);
 #if defined(J9VM_GC_FINALIZATION)
 	virtual void scanFinalizableObjects(MM_EnvironmentBase *env);
 	virtual void scanUnfinalizedObjects(MM_EnvironmentBase *env);
@@ -434,7 +450,16 @@ public:
 	 * which modifies elements within the list.
 	 */
 	virtual void scanOwnableSynchronizerObjects(MM_EnvironmentBase *env);
+	/**
+	 * scanContinuationObjects() is for removing continuation objects, which are dead or last unmounted,
+	 * from the continuation lists within a scope of current GC(for example just for Nursery in Scavenge).
+	 */
 	virtual void scanContinuationObjects(MM_EnvironmentBase *env);
+	/**
+	 * iterateAllContinuationObjects() is for iterating all live continuation objects in the heap and doing any processing
+	 * that other parties may register through a hook [J9HOOK_MM_WALKCONTINUATION].
+	 */
+	virtual void iterateAllContinuationObjects(MM_EnvironmentBase *env) {}
 
 	virtual void scanStringTable(MM_EnvironmentBase *env);
 	void scanJNIGlobalReferences(MM_EnvironmentBase *env);
@@ -448,6 +473,19 @@ public:
 	void scanJVMTIObjectTagTables(MM_EnvironmentBase *env);
 #endif /* J9VM_OPT_JVMTI */
 
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	/**
+	 * Scans each heap region for arraylet leaves that contains a non-NULL
+	 * contiguous address due to off-heap allocation. This address points to the contiguous representation
+	 * of the arraylet associated with this leaf. Only arraylets that have been off-heap
+	 * allocated or double-mapped will contain such a contiguous address, otherwise the
+	 * address will be NULL.
+	 *
+	 * @param env thread GC Environment
+	 */
+	void scanObjectsInVirtualLargeObjectHeap(MM_EnvironmentBase *env);
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
+
 #if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
 	/**
 	 * Scans each heap region for arraylet leaves that contains a not NULL
@@ -455,7 +493,7 @@ public:
 	 * of the arraylet associated with this leaf. Only arraylets that has been
 	 * double mapped will contain such contiguous address, otherwise the
 	 * address will be NULL
-	 * 
+	 *
 	 * @param env thread GC Environment
 	 */
 	void scanDoubleMappedObjects(MM_EnvironmentBase *env);
@@ -487,6 +525,11 @@ public:
 #endif /* J9VM_GC_FINALIZATION */
 
 	/**
+	 * During clearabble processing, invoke specific processing/checks after last known phase that scans (and copies) objects.
+	 */
+	virtual void completedObjectScanPhasesCheckpoint() {}
+
+	/**
 	 * @todo Provide function documentation
 	 */
 	virtual void doOwnableSynchronizerObject(J9Object *objectPtr, MM_OwnableSynchronizerObjectList *list);
@@ -516,6 +559,40 @@ public:
 	virtual void doStringCacheTableSlot(J9Object **slotPtr);
 	virtual void doVMClassSlot(J9Class *classPtr);
 	virtual void doVMThreadSlot(J9Object **slotPtr, GC_VMThreadIterator *vmThreadIterator);
+
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	/**
+	 * Frees the region used for off-heap allocation associated to the objectPtr (arraylet spine) if the objectPtr
+	 * is not live.
+	 *
+	 * @param objectPtr[in] indexable object's spine
+	 */
+	virtual void doObjectInVirtualLargeObjectHeap(J9Object *objectPtr, bool *sparseHeapAllocation);
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
+	
+#if defined(J9VM_ENV_DATA64)
+	/**
+	 * Check if data is adjacent to array header, based on dataAddr value.
+	 * This is used during stack slots scanning, when object can move.
+	 * It is called after the object movement (stack slot has been fixed,
+	 * although copying operation may not be necessarily completed yet).
+	 * Specific RootScanner that can move objects will use either src or dst to perform adjacency check,
+	 * whichever is safe. Scanners that not move objects should not be calling it, otherwise will assert.
+	 * Should really be called only for Offheap and only for contiguous arrays (non-zero sized objects),
+	 * although that is not asserted.
+	 *
+	 * @param src array address before movement
+	 * @param dst array address after movement
+	 *
+	 * @return true if data is next to the header, and false if its in Offheap
+	 */
+
+	virtual bool isDataAdjacentToHeader(J9IndexableObject *src, J9IndexableObject *dst) {
+		Assert_MM_unreachable();
+		return true;
+	}
+#endif /* defined(J9VM_ENV_DATA64) */
+
 #if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
 	/**
 	 * Frees double mapped region associated to objectPtr (arraylet spine) if objectPtr
@@ -527,7 +604,7 @@ public:
 	 */
 	virtual void doDoubleMappedObjectSlot(J9Object *objectPtr, struct J9PortVmemIdentifier *identifier);
 #endif /* J9VM_GC_ENABLE_DOUBLE_MAP */
-	
+
 	/**
 	 * Called for each object stack slot. Subclasses may override.
 	 * 

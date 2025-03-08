@@ -17,14 +17,10 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #ifndef OPTIONS_POST_RESTORE_HPP
 #define OPTIONS_POST_RESTORE_HPP
-
-#include "j9cfg.h"
-
-#if defined(J9VM_OPT_CRIU_SUPPORT)
 
 struct J9JITConfig;
 struct J9VMThread;
@@ -123,8 +119,11 @@ class OptionsPostRestore
 
    /**
     * \brief Helper method to disable further AOT compilation.
+    *
+    * \param disabledPreCheckpoint bool to indicate whther AOT was disable post
+    *                              restore or pre checkpoint.
     */
-   void disableAOTCompilation();
+   void disableAOTCompilation(bool disabledPreCheckpoint = false);
 
    /**
     * \brief Helper method to perform tasks prior to processing
@@ -168,6 +167,7 @@ class OptionsPostRestore
    bool _asyncCompilationPreCheckpoint;
    bool _disableTrapsPreCheckpoint;
    bool _disableAOTPostRestore;
+   bool _enableCodeCacheDisclaimingPreCheckpoint;
 
    int32_t _argIndexXjit;
    int32_t _argIndexXjitcolon;
@@ -183,10 +183,10 @@ class OptionsPostRestore
    int32_t _argIndexDisableUseJITServer;
    int32_t _argIndexJITServerAddress;
    int32_t _argIndexJITServerAOTCacheName;
+   int32_t _argIndexIProfileDuringStartupPhase;
+   int32_t _argIndexDisableIProfileDuringStartupPhase;
    };
 
 }
-
-#endif // J9VM_OPT_CRIU_SUPPORT
 
 #endif // OPTIONS_POST_RESTORE_HPP

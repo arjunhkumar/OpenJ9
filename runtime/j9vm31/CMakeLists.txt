@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 set(OMR_ENHANCED_WARNINGS OFF)
@@ -58,12 +58,27 @@ set(compile_flags_to_remove
 	"\"-Wa,SYSPARM(BIT64)\""
 	"-DJ9ZOS39064"
 	"-qxplink=noback"
+	"-m64"
 )
+
+if(OMR_TOOLCONFIG STREQUAL "openxl")
+	set(compile_flags_to_append
+		"-m32n"
+		"-mzos-float-kind=ieee"
+		"-Wno-c++11-narrowing"
+	)
+endif()
 
 foreach(flag IN LISTS compile_flags_to_remove)
 	omr_remove_flags(CMAKE_C_FLAGS "${flag}")
 	omr_remove_flags(CMAKE_CXX_FLAGS "${flag}")
 	omr_remove_flags(CMAKE_ASM_FLAGS "${flag}")
+endforeach()
+
+foreach(flag IN LISTS compile_flags_to_append)
+	omr_append_flags(CMAKE_C_FLAGS "${flag}")
+	omr_append_flags(CMAKE_CXX_FLAGS "${flag}")
+	omr_append_flags(CMAKE_ASM_FLAGS "${flag}")
 endforeach()
 
 # Flags to be removed when linking.

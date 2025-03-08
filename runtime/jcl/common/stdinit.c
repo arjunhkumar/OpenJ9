@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -56,6 +56,12 @@ static char * addEndorsedPath(J9PortLibrary *portLib, char *endorsedPath, char *
 
 static J9Class jclFakeClass;
 
+/* initializeBootstrapClassPath return values. */
+#define INIT_BOOTSTRAP_CLASS_PATH_SUCCESS 0
+#define INIT_BOOTSTRAP_CLASS_PATH_RESTORED 1
+#define INIT_BOOTSTRAP_CLASS_PATH_ALREADY_SET -2
+#define INIT_BOOTSTRAP_CLASS_PATH_FAILED -1
+
 /**
  * Compute the JCL runtime flags to be used during the initialization of
  * known classes.
@@ -74,10 +80,6 @@ computeJCLRuntimeFlags(J9JavaVM *vm)
 #ifdef J9VM_OPT_METHOD_HANDLE
 	flags |= JCL_RTFLAG_OPT_METHOD_HANDLE;
 #endif /* J9VM_OPT_METHOD_HANDLE */
-
-#ifdef J9VM_OPT_PANAMA
-	flags |= JCL_RTFLAG_OPT_PANAMA;
-#endif /* J9VM_OPT_PANAMA */
 
 #ifdef J9VM_OPT_REFLECT
 	flags |= JCL_RTFLAG_OPT_REFLECT;
@@ -127,7 +129,13 @@ standardInit(J9JavaVM *vm, char *dllName)
 		}
 	}
 	/* Now create the classPathEntries */
-	if (initializeBootstrapClassPath(vm)) {
+	switch (initializeBootstrapClassPath(vm)) {
+	case INIT_BOOTSTRAP_CLASS_PATH_SUCCESS:
+		break;
+	case INIT_BOOTSTRAP_CLASS_PATH_RESTORED:
+		Assert_JCL_true(IS_RESTORE_RUN(vm));
+		break;
+	default:
 		goto _fail;
 	}
 #endif
@@ -231,14 +239,6 @@ standardInit(J9JavaVM *vm, char *dllName)
 		goto _fail;
 	}
 
-	if (J2SE_VERSION(vm) >= J2SE_V11) {
-		result = registerJdkInternalReflectConstantPoolNatives((JNIEnv*)vmThread);
-		if (JNI_OK != result) {
-			fprintf(stderr, "Failed to register natives for jdk.internal.reflect.ConstantPool\n");
-			goto _fail;
-		}
-	}
-
 #ifdef J9VM_OPT_REFLECT
 	if (NULL != vm->reflectFunctions.idToReflectMethod) {
 		jmethodID invokeMethod = NULL;
@@ -312,6 +312,16 @@ standardInit(J9JavaVM *vm, char *dllName)
 			}
 		} else {
 			goto _fail;
+		}
+
+		{
+			PORT_ACCESS_FROM_JAVAVM(vm);
+			UDATA cacheSize = sizeof(J9VMContinuation*) * vm->continuationT2Size;
+			vm->continuationT2Cache = (J9VMContinuation**)j9mem_allocate_memory(cacheSize, J9MEM_CATEGORY_VM);
+			if (NULL == vm->continuationT2Cache) {
+				goto _fail;
+			}
+			memset(vm->continuationT2Cache, 0, cacheSize);
 		}
 #endif /* JAVA_SPEC_VERSION >= 19 */
 #endif /* !J9VM_IVE_RAW_BUILD */
@@ -455,24 +465,33 @@ internalInitializeJavaLangClassLoader(JNIEnv * env)
 
 	vmFuncs->internalEnterVMFromJNI(vmThread);
 
-	vm->applicationClassLoader = J9VMJAVALANGCLASSLOADER_VMREF(vmThread, J9_JNI_UNWRAP_REFERENCE(appClassLoader));
+#if defined(J9VM_OPT_SNAPSHOT)
+	/* Always use the persisted applicationClassLoader in restore runs. */
+	if (IS_RESTORE_RUN(vm)) {
+		vmFuncs->initializeSnapshotClassLoaderObject(vm, vm->applicationClassLoader, J9_JNI_UNWRAP_REFERENCE(appClassLoader));
+	} else
+#endif /* defined(J9VM_OPT_SNAPSHOT) */
+	{
+		vm->applicationClassLoader = J9VMJAVALANGCLASSLOADER_VMREF(vmThread, J9_JNI_UNWRAP_REFERENCE(appClassLoader));
 
-	if (NULL == vm->applicationClassLoader) {
-		/* CMVC 201518
-		 * applicationClassLoader may be null due to lazy classloader initialization. Initialize
-		 * the applicationClassLoader now or vm will start throwing NoClassDefFoundException.
-		 */
-		vm->applicationClassLoader = (void*) (UDATA)(vmFuncs->internalAllocateClassLoader(vm, J9_JNI_UNWRAP_REFERENCE(appClassLoader)));
-		if (NULL != vmThread->currentException) {
-			/* while this exception check and return statement seem un-necessary, it is added to prevent
-			 * oversights if anybody adds more code in the future.
+		if (NULL == vm->applicationClassLoader) {
+			/* CMVC 201518
+			 * applicationClassLoader may be null due to lazy classloader initialization. Initialize
+			 * the applicationClassLoader now or vm will start throwing NoClassDefFoundException.
 			 */
-			goto exitVM;
+			vm->applicationClassLoader = (void *)(UDATA)(vmFuncs->internalAllocateClassLoader(vm, J9_JNI_UNWRAP_REFERENCE(appClassLoader)));
+
+			if (NULL != vmThread->currentException) {
+				/* While this exception check and return statement seem un-necessary, it is added to prevent
+				 * oversights if anybody adds more code in the future.
+				 */
+				goto exitVM;
+			}
 		}
 	}
 
 	/* Set up extension class loader in VM */
-	if (NULL == vm->extensionClassLoader) {
+	if (NULL != vm->applicationClassLoader) {
 		j9object_t classLoaderObject = vm->applicationClassLoader->classLoaderObject;
 		j9object_t classLoaderParentObject = classLoaderObject;
 
@@ -481,15 +500,24 @@ internalInitializeJavaLangClassLoader(JNIEnv * env)
 			classLoaderParentObject = J9VMJAVALANGCLASSLOADER_PARENT(vmThread, classLoaderObject);
 		}
 
-		vm->extensionClassLoader = J9VMJAVALANGCLASSLOADER_VMREF(vmThread, classLoaderObject);
-
+#if defined(J9VM_OPT_SNAPSHOTS)
+		/* Always use the persisted extensionClassLoader in restore runs. */
+		if (IS_RESTORE_RUN(vm)) {
+			vmFuncs->initializeSnapshotClassLoaderObject(vm, vm->extensionClassLoader, classLoaderObject);
+		} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
 		if (NULL == vm->extensionClassLoader) {
-			vm->extensionClassLoader = (void*) (UDATA)(vmFuncs->internalAllocateClassLoader(vm, classLoaderObject));
-			if (NULL != vmThread->currentException) {
-				/* while this exception check and return statement seem un-necessary, it is added to prevent
-				 * oversights if anybody adds more code in the future.
-				 */
-				goto exitVM;
+			vm->extensionClassLoader = J9VMJAVALANGCLASSLOADER_VMREF(vmThread, classLoaderObject);
+
+			if (NULL == vm->extensionClassLoader) {
+				vm->extensionClassLoader = (void *)(UDATA)(vmFuncs->internalAllocateClassLoader(vm, classLoaderObject));
+
+				if (NULL != vmThread->currentException) {
+					/* While this exception check and return statement seem un-necessary, it is added to prevent
+					 * oversights if anybody adds more code in the future.
+					 */
+					goto exitVM;
+				}
 			}
 		}
 	}
@@ -602,9 +630,14 @@ initializeBootstrapClassPath(J9JavaVM *vm)
 	}
 	(*VMI)->GetSystemProperty(VMI, BOOT_PATH_SEPARATOR_SYS_PROP, &classpathSeparator);
 
-	/* Fail if the classpath has already been set */
+	if (IS_RESTORE_RUN(vm)) {
+		Assert_JCL_true(J9_ARE_ALL_BITS_SET(loader->flags, J9CLASSLOADER_CLASSPATH_SET));
+		return INIT_BOOTSTRAP_CLASS_PATH_RESTORED;
+	}
+
+	/* Fail if the classpath has already been set. */
 	if (J9_ARE_ALL_BITS_SET(loader->flags, J9CLASSLOADER_CLASSPATH_SET)) {
-		return -2;
+		return INIT_BOOTSTRAP_CLASS_PATH_ALREADY_SET;
 	}
 
 #if defined(J9VM_OPT_SHARED_CLASSES)
@@ -619,7 +652,7 @@ initializeBootstrapClassPath(J9JavaVM *vm)
 	loader->classPathEntryCount = vmFuncs->initializeClassPath(vm, path, classpathSeparator[0], CPE_FLAG_BOOTSTRAP, initClassPathEntry, &loader->classPathEntries);
 
 	if (-1 == (IDATA)loader->classPathEntryCount) {
-		return -1;
+		return INIT_BOOTSTRAP_CLASS_PATH_FAILED;
 	} else {
 		omrthread_rwmutex_init(&loader->cpEntriesMutex, 0, "classPathEntries Mutex");
 		loader->initClassPathEntryCount = loader->classPathEntryCount;
@@ -629,7 +662,7 @@ initializeBootstrapClassPath(J9JavaVM *vm)
 		TRIGGER_J9HOOK_VM_CLASS_LOADER_CLASSPATH_ENTRIES_INITIALIZED(vm->hookInterface, vm, loader);
 	}
 
-	return 0;
+	return INIT_BOOTSTRAP_CLASS_PATH_SUCCESS;
 }
 
 static UDATA
@@ -1014,20 +1047,17 @@ computeFinalBootstrapClassPath(J9JavaVM *vm)
 
 #endif /* OPT_DYNAMIC_LOAD_SUPPORT */
 
-/* Prototype properties helper */
-jobject getPropertyList(JNIEnv *env);
-
 jint
 completeInitialization(J9JavaVM * vm)
 {
 	jint result = JNI_OK;
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 	J9VMThread *currentThread = vm->mainThread;
-	
+
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 	vmFuncs->sendCompleteInitialization(currentThread);
 	vmFuncs->internalReleaseVMAccess(currentThread);
-	
+
 	if (NULL == currentThread->currentException) {
 		/* ensure ClassLoader.applicationClassLoader updated via system property java.system.class.loader is updated in VM as well */
 		internalInitializeJavaLangClassLoader((JNIEnv*)currentThread);

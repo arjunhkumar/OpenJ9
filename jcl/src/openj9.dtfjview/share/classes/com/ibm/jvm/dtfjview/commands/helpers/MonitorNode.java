@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands.helpers;
 
 import java.util.Iterator;
@@ -36,13 +36,13 @@ public class MonitorNode {
 	public static final int NO_DEADLOCK = 1;
 	public static final int LOOP_DEADLOCK = 2;
 	public static final int BRANCH_DEADLOCK = 3;
-	
+
 	private JavaMonitor monitor;
 	public int visit;
 	public MonitorNode waitingOn;
 	public int deadlock;
 	public NodeList inList;
-	
+
 	// For subclasses to call.
 	protected MonitorNode() {
 		visit = 0;
@@ -50,7 +50,7 @@ public class MonitorNode {
 		deadlock = UNKNOWN;
 		inList = null;
 	}
-	
+
 	public MonitorNode(JavaMonitor _monitor)
 	{
 		monitor = _monitor;
@@ -88,9 +88,9 @@ public class MonitorNode {
 			return "monitor";
 		}
 	}
-	
+
 	public long getMonitorAddress() {
 		return monitor.getID().getAddress();
 	}
-	
+
 }

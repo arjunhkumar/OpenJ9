@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef ibmjvmti_h
@@ -105,6 +105,13 @@
 
 #define COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_MOUNT "com.sun.hotspot.events.VirtualThreadMount"
 #define COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_UNMOUNT "com.sun.hotspot.events.VirtualThreadUnmount"
+#define COM_SUN_HOTSPOT_EVENTS_VIRTUAL_THREAD_DESTROY "com.sun.hotspot.events.VirtualThreadDestroy"
+
+#define OPENJ9_EVENT_VM_CHECKPOINT "openj9.event.VMCheckpoint"
+#define OPENJ9_EVENT_VM_RESTORE "openj9.event.VMRestore"
+
+#define OPENJ9_FUNCTION_ADD_DEBUG_THREAD "openj9.function.AddDebugThreadToCheckpointState"
+#define OPENJ9_FUNCTION_REMOVE_DEBUG_THREAD "openj9.function.RemoveDebugThreadFromCheckpointState"
 
 #define COM_IBM_SHARED_CACHE_MODLEVEL_JAVA5 1
 #define COM_IBM_SHARED_CACHE_MODLEVEL_JAVA6 2

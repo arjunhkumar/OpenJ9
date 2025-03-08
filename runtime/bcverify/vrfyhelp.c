@@ -17,9 +17,10 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
+#include "bcnames.h"
 #include "bcvcfr.h"
 #include "bcverify.h"
 #include "bcverify_internal.h"
@@ -48,6 +49,7 @@ static IDATA findFieldFromRamClass (J9Class ** ramClass, J9ROMFieldRef * field, 
 static IDATA findMethodFromRamClass (J9BytecodeVerificationData * verifyData, J9Class ** ramClass, J9ROMNameAndSignature * method, UDATA firstSearch);
 static VMINLINE UDATA * pushType (J9BytecodeVerificationData *verifyData, U_8 * signature, UDATA * stackTop);
 static IDATA isRAMClassCompatible(J9BytecodeVerificationData *verifyData, U_8* parentClass, UDATA parentLength, U_8* childClass, UDATA childLength, IDATA *reasonCode);
+static J9ROMFieldShape *findFieldFromCurrentRomClass(J9ROMClass *romClass, J9ROMFieldRef *field);
 
 J9_DECLARE_CONSTANT_UTF8(j9_vrfy_Object, "java/lang/Object");
 J9_DECLARE_CONSTANT_UTF8(j9_vrfy_String, "java/lang/String");
@@ -255,22 +257,9 @@ buildStackFromMethodSignature( J9BytecodeVerificationData *verifyData, UDATA **s
 
 		/* In the <init> method of Object the type of this is Object.  In other <init> methods, the type of this is uninitializedThis */
 		if ((classIndex != BCV_JAVA_LANG_OBJECT_INDEX)
-			&& (J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(utf8string), J9UTF8_LENGTH(utf8string), "<init>")
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-				|| J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(utf8string), J9UTF8_LENGTH(utf8string), "<vnew>")
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
-			)
+			&& J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(utf8string), J9UTF8_LENGTH(utf8string), "<init>")
 		) {
-			/* This is <init>, not java/lang/Object */
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-			/* This is temporary and will have to be changed when <vnew> is introduced (along with all other code that references J9VM_OPT_VALHALLA_NEW_FACTORY_METHOD) */
-			if (J9ROMCLASS_IS_PRIMITIVE_VALUE_TYPE(romClass)) {
-				PUSH(BCV_PRIMITIVE_VALUETYPE | BCV_SPECIAL_INIT | (classIndex << BCV_CLASS_INDEX_SHIFT));
-			} else
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
-			{
-				PUSH(BCV_SPECIAL_INIT | (classIndex << BCV_CLASS_INDEX_SHIFT));
-			}
+			PUSH(BCV_SPECIAL_INIT | (classIndex << BCV_CLASS_INDEX_SHIFT));
 			isUninitializedThis = TRUE;
 		} else {
 			PUSH(BCV_GENERIC_OBJECT | (classIndex << BCV_CLASS_INDEX_SHIFT));
@@ -293,10 +282,9 @@ buildStackFromMethodSignature( J9BytecodeVerificationData *verifyData, UDATA **s
 			arity++;
 		}
 
-		if (IS_REF_OR_VAL_SIGNATURE(args[i])) {
+		if (IS_CLASS_SIGNATURE(args[i])) {
 			U_8 *string;
 			U_16 length = 0;
-			UDATA type = BCV_GET_TYPE_FROM_CHAR(args[i]);
 
 			i++;
 			string = &args[i];	/* remember the start of the string */
@@ -304,7 +292,7 @@ buildStackFromMethodSignature( J9BytecodeVerificationData *verifyData, UDATA **s
 				i++;
 				length++;
 			}
-			classIndex = convertClassNameToStackMapType(verifyData, string, length, type, arity);
+			classIndex = convertClassNameToStackMapType(verifyData, string, length, 0, arity);
 			PUSH(classIndex | (arity << BCV_ARITY_SHIFT));
 		} else {
 			if (arity) {
@@ -370,8 +358,7 @@ pushClassType(J9BytecodeVerificationData * verifyData, J9UTF8 * utf8string, UDAT
 		UDATA arrayType = parseObjectOrArrayName(verifyData, J9UTF8_DATA(utf8string));
 		PUSH(arrayType);
 	} else {
-		UDATA type = BCV_GET_TYPE_FROM_CHAR(firstChar);
-		PUSH(convertClassNameToStackMapType(verifyData, J9UTF8_DATA(utf8string),J9UTF8_LENGTH(utf8string), type, 0));
+		PUSH(convertClassNameToStackMapType(verifyData, J9UTF8_DATA(utf8string),J9UTF8_LENGTH(utf8string), BCV_OBJECT_OR_ARRAY, 0));
 	}
 
 	return stackTop;
@@ -483,13 +470,8 @@ isClassCompatible(J9BytecodeVerificationData *verifyData, UDATA sourceClass, UDA
 		return (IDATA) TRUE;
 	}
 
-	/* NULL is compatible with all non primitive classes */
+	/* NULL is compatible with all classes */
 	if( sourceClass == BCV_BASE_TYPE_NULL ) {
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		if (J9_ARE_ALL_BITS_SET(targetClass, BCV_PRIMITIVE_VALUETYPE)) {
-			return (IDATA) FALSE;
-		}
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
 		return (IDATA) TRUE;
 	}
 
@@ -702,7 +684,7 @@ static UDATA *
 pushType(J9BytecodeVerificationData *verifyData, U_8 * signature, UDATA * stackTop)
 {
 	if (*signature != 'V') {
-		if ((*signature == '[') || IS_REF_OR_VAL_SIGNATURE(*signature)) {
+		if ((*signature == '[') || IS_CLASS_SIGNATURE(*signature)) {
 			PUSH(parseObjectOrArrayName(verifyData, signature));
 		} else {
 			UDATA baseType = (UDATA) argTypeCharConversion[*signature - 'A'];
@@ -770,11 +752,6 @@ isClassCompatibleByName(J9BytecodeVerificationData *verifyData, UDATA sourceClas
 
 	*reasonCode = 0;
 
-	/* NULL is compatible with non Q type classes */
-	if(sourceClass == BCV_BASE_TYPE_NULL) {
-		return (IDATA) !IS_QTYPE(*targetClassName);
-	}
-
 	/* If the source is special, or a base type -- fail */
 	if( sourceClass & BCV_BASE_OR_SPECIAL ) 
 		return (IDATA) FALSE;
@@ -782,8 +759,7 @@ isClassCompatibleByName(J9BytecodeVerificationData *verifyData, UDATA sourceClas
 	if (*targetClassName == '[') {
 		index = parseObjectOrArrayName(verifyData, targetClassName);
 	} else {
-		UDATA type = BCV_GET_TYPE_FROM_CHAR(*targetClassName);
-		index = convertClassNameToStackMapType(verifyData, targetClassName, (U_16)targetClassNameLength, type, 0);
+		index = convertClassNameToStackMapType(verifyData, targetClassName, (U_16)targetClassNameLength, 0, 0);
 	}
 
 	return isClassCompatible(verifyData, sourceClass, index, reasonCode);
@@ -874,14 +850,14 @@ j9bcv_createVerifyErrorString(J9PortLibrary * portLib, J9BytecodeVerificationDat
 		J9UTF8 * romMethodSignatureString = J9ROMMETHOD_SIGNATURE(error->romMethod);
 
 		if (NULL == error->errorSignatureString) {
-			errStrLength = j9str_printf(PORTLIB, (char*) verifyError, stringLength, formatString, errorString,
+			errStrLength = j9str_printf((char *)verifyError, stringLength, formatString, errorString,
 					(U_32) J9UTF8_LENGTH(romClassName), J9UTF8_DATA(romClassName),
 					(U_32) J9UTF8_LENGTH(romMethodName), J9UTF8_DATA(romMethodName),
 					(U_32) J9UTF8_LENGTH(romMethodSignatureString), J9UTF8_DATA(romMethodSignatureString),
 					error->errorPC);
 		} else {
 			/* Jazz 82615: Print the corresponding NLS message to buffer for type mismatch error */
-			errStrLength = j9str_printf(PORTLIB, (char*) verifyError, stringLength, formatString, errorString,
+			errStrLength = j9str_printf((char *)verifyError, stringLength, formatString, errorString,
 					(U_32) J9UTF8_LENGTH(romClassName), J9UTF8_DATA(romClassName),
 					(U_32) J9UTF8_LENGTH(romMethodName), J9UTF8_DATA(romMethodName),
 					(U_32) J9UTF8_LENGTH(romMethodSignatureString), J9UTF8_DATA(romMethodSignatureString),
@@ -894,7 +870,7 @@ j9bcv_createVerifyErrorString(J9PortLibrary * portLib, J9BytecodeVerificationDat
 
 		/* Jazz 82615: Print the error message framework to the existing error buffer */
 		if (detailedErrMsgLength > 0) {
-			j9str_printf(PORTLIB, (char*)&verifyError[errStrLength], stringLength - errStrLength, "%.*s", detailedErrMsgLength, detailedErrMsg);
+			j9str_printf((char *)&verifyError[errStrLength], stringLength - errStrLength, "%.*s", detailedErrMsgLength, detailedErrMsg);
 		}
 	}
 
@@ -918,16 +894,27 @@ j9bcv_createVerifyErrorString(J9PortLibrary * portLib, J9BytecodeVerificationDat
  *			BCV_ERR_INSUFFICIENT_MEMORY :in OOM error case
  */
 IDATA 
-isFieldAccessCompatible(J9BytecodeVerificationData * verifyData, J9ROMFieldRef * fieldRef, UDATA bytecode, UDATA receiver, IDATA *reasonCode)
+isFieldAccessCompatible(J9BytecodeVerificationData *verifyData, J9ROMFieldRef *fieldRef, UDATA bytecode, UDATA receiver, IDATA *reasonCode)
 {
-	J9ROMClass * romClass = verifyData->romClass;
-	J9ROMConstantPoolItem * constantPool = (J9ROMConstantPoolItem *) (romClass + 1);
-	J9UTF8 * utf8string = J9ROMCLASSREF_NAME((J9ROMClassRef *) &constantPool[fieldRef->classRefCPIndex]);
+	J9ROMClass *romClass = verifyData->romClass;
+	J9ROMConstantPoolItem *constantPool = (J9ROMConstantPoolItem *)(romClass + 1);
+	J9UTF8 *utf8string = J9ROMCLASSREF_NAME((J9ROMClassRef *)&constantPool[fieldRef->classRefCPIndex]);
 
 	*reasonCode = 0;
 
-	if (bytecode == 181) {/* JBputfield */
-		if ((receiver & BCV_SPECIAL_INIT) == (UDATA) BCV_SPECIAL_INIT) {
+	if (JBputfield == bytecode) {
+		J9BranchTargetStack *liveStack = (J9BranchTargetStack *)verifyData->liveStack;
+		J9ROMFieldShape *field = findFieldFromCurrentRomClass(romClass, fieldRef);
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		IDATA isStrictField = (NULL != field) && J9ROMFIELD_IS_STRICT(romClass, field->modifiers);
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
+		if (J9_ARE_ALL_BITS_SET(receiver, BCV_SPECIAL_INIT)) {
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+			if (FALSE == liveStack->uninitializedThis && isStrictField) {
+				/* ACC_STRICT field must be assigned before instance initialization method. */
+				return (IDATA)FALSE;
+			}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 			J9UTF8 *classString = ((J9UTF8 *) J9ROMCLASS_CLASSNAME(romClass));
 			if (utf8string != classString) {
 				/* The following test is not necessary if the class name is uniquely referenced in a class */
@@ -935,21 +922,35 @@ isFieldAccessCompatible(J9BytecodeVerificationData * verifyData, J9ROMFieldRef *
 					IDATA i;
 
 					/* Reversed scan typically faster for inequality - most classes share common prefixes */
-					for (i = (IDATA) (J9UTF8_LENGTH(utf8string) - 1); i >= 0; i--) {
+					for (i = (IDATA)(J9UTF8_LENGTH(utf8string) - 1); i >= 0; i--) {
 						if (J9UTF8_DATA(utf8string)[i] != J9UTF8_DATA(classString)[i]) {
 							break;
 						}
 					}
 					/* check for comparison success */
 					if (i < 0) {
-						return (IDATA) TRUE;
+						return (IDATA)TRUE;
 					}
 				}
-				return (IDATA) FALSE;
+				return (IDATA)FALSE;
 			} else {
-				return (IDATA) TRUE;
+				/* According to the explanation at https://bugs.openjdk.org/browse/JDK-8300585,
+				 * the specified field must exist in the current class rather than its superclass
+				 * to avoid allowing a hostile subclass C to modify its superclass's fields before
+				 * the superclass constructor; otherwise, the access to the superclass's field must
+				 * be delayed till the the superclass finishes doing initialization. That being said,
+				 * the field is accessible only when it exists in the subclass or the superclass's
+				 * initialization is completed in which case uninitializedThis is set to FALSE.
+				 */
+				return (NULL != field) || !liveStack->uninitializedThis;
 			}
 		}
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		else if (isStrictField) {
+			/* putfield is not allowed outside of initialization for strict fields. */
+			return (IDATA)FALSE;
+		}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	}
 	return isClassCompatibleByName(verifyData, receiver, J9UTF8_DATA(utf8string), J9UTF8_LENGTH(utf8string), reasonCode);
 }
@@ -1104,15 +1105,6 @@ static void getNameAndLengthFromClassNameList (J9BytecodeVerificationData *verif
 		J9ROMClass * romClass = verifyData->romClass;
 		*name = (U_8 *) ((UDATA) offset[0] + (UDATA) romClass);
 	}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	if (IS_QTYPE(*(char *)*name)
-		&& (';' == *(char *)(*name + (*length - 1)))
-	) {
-		/* we are dealing with signature envelope, extract the name from it */
-		*name += 1;
-		*length -= 2;
-	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 }
 
 /* return BCV_SUCCESS if field is found
@@ -1205,7 +1197,7 @@ parseObjectOrArrayName(J9BytecodeVerificationData *verifyData, U_8 *signature)
 		signature++;
 	}
 	arity = (UDATA) (signature - string);
-	if (IS_REF_OR_VAL_SIGNATURE(*signature)) {
+	if (IS_CLASS_SIGNATURE(*signature)) {
 		U_16 length = 0;
 		UDATA classIndex = 0;
 
@@ -1239,4 +1231,35 @@ storeVerifyErrorData (J9BytecodeVerificationData * verifyData, I_16 errorDetailC
 	 * info of the detailed error message.
 	 */
 	liveStack->pc =  (UDATA)currentPC;
+}
+
+/**
+ * @brief Determine whether the specified field belongs to the current ROM class.
+ *
+ * @param romClass a pointer to J9ROMClass
+ * @param field a pointer to J9ROMFieldRef
+ * @return J9ROMFieldShape* if it exists in the current ROM class
+ *         or NULL when the field doesn't exist
+ */
+static J9ROMFieldShape *
+findFieldFromCurrentRomClass(J9ROMClass *romClass, J9ROMFieldRef *field)
+{
+	J9UTF8 *searchName = J9ROMNAMEANDSIGNATURE_NAME(J9ROMFIELDREF_NAMEANDSIGNATURE(field));
+	J9UTF8 *searchSignature = J9ROMNAMEANDSIGNATURE_SIGNATURE(J9ROMFIELDREF_NAMEANDSIGNATURE(field));
+	J9ROMFieldShape *currentField = NULL;
+	J9ROMFieldWalkState state;
+	IDATA isFieldFound = (IDATA)FALSE;
+
+	currentField = romFieldsStartDo(romClass, &state);
+	while (NULL != currentField) {
+		if (J9_ARE_NO_BITS_SET(currentField->modifiers, J9AccStatic)
+			&& compareTwoUTF8s(searchName, J9ROMFIELDSHAPE_NAME(currentField))
+			&& compareTwoUTF8s(searchSignature, J9ROMFIELDSHAPE_SIGNATURE(currentField))
+		) {
+			break;
+		}
+		currentField = romFieldsNextDo(&state);
+	}
+
+	return currentField;
 }

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "bcutil_api.h"
@@ -194,8 +194,8 @@ initJImageIntf(J9JImageIntf **jimageIntf, J9JavaVM *vm, J9PortLibrary *portLibra
 	Trc_BCU_Assert_True(NULL != jimageIntf);
 
 	/* Check for -XX:+UseJ9JImageReader and -XX:-UseJ9JImageReader; whichever comes later wins. */
-	argIndex1 = FIND_ARG_IN_VMARGS(EXACT_MATCH, VMOPT_XXUSEJ9JIMAGEREADER, NULL);
-	argIndex2 = FIND_ARG_IN_VMARGS(EXACT_MATCH, VMOPT_XXNOUSEJ9JIMAGEREADER, NULL);
+	argIndex1 = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXUSEJ9JIMAGEREADER, NULL);
+	argIndex2 = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXNOUSEJ9JIMAGEREADER, NULL);
 
 	if (argIndex1 > argIndex2) {
 		vm->extendedRuntimeFlags |= (UDATA)J9_EXTENDED_RUNTIME_USE_J9JIMAGE_READER;
@@ -339,7 +339,7 @@ jimageFindResource(J9JImageIntf *jimageIntf, UDATA handle, const char *moduleNam
 		IDATA resourceNameLen = 1 + strlen(moduleName) + 1 + strlen(name) + 1; /* +1 for preceding '/' and, +1 for '/' between module and resource name, and +1 for \0 character */
 		char *resourceName = j9mem_allocate_memory(resourceNameLen, J9MEM_CATEGORY_CLASSES);
 		if ((NULL != j9jimageLocation) && (NULL != resourceName)) {
-			j9str_printf(PORTLIB, resourceName, resourceNameLen, "/%s/%s", moduleName, name);
+			j9str_printf(resourceName, resourceNameLen, "/%s/%s", moduleName, name);
 			rc = j9bcutil_lookupJImageResource(PORTLIB, jimage, j9jimageLocation, resourceName);
 			j9mem_free_memory(resourceName);
 			if (J9JIMAGE_NO_ERROR == rc) {

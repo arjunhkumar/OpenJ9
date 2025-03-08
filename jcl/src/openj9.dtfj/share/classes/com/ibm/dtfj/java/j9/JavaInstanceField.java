@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.j9;
 
 import com.ibm.dtfj.image.CorruptDataException;
@@ -34,7 +34,7 @@ import com.ibm.dtfj.java.JavaObject;
 public class JavaInstanceField extends JavaField
 {
 	private int _offset;
-	
+
 	public JavaInstanceField(JavaRuntime vm, String name, String signature, int modifiers, int offset, long classID)
 	{
 		super(vm, name, signature, modifiers, classID);
@@ -43,21 +43,21 @@ public class JavaInstanceField extends JavaField
 		}
 		_offset = offset;
 	}
-	
+
 	private void checkDeclaringClass(JavaObject object) throws CorruptDataException {
 		com.ibm.dtfj.java.j9.JavaClass declaringClass = (com.ibm.dtfj.java.j9.JavaClass)getDeclaringClass();
 		if (!(declaringClass.isAncestorOf(object.getJavaClass()))) {
 			throw new IllegalArgumentException("The class for the JavaObject specified as a parameter does not match with the declaring class of this JavaField.");
 		}
 	}
-	
+
 	public Object getReferenceType(JavaObject object) throws CorruptDataException, MemoryAccessException
 	{
 		//sanity check
 		if (_isSafeToAccess(object)) {
 			checkDeclaringClass(object);
 			String sigPrefix = getSignature();
-			
+
 			if (sigPrefix.startsWith(OBJECT_PREFIX_SIGNATURE) || sigPrefix.startsWith(ARRAY_PREFIX_SIGNATURE)) {
 				ImagePointer value = ((com.ibm.dtfj.java.j9.JavaObject)object).getFObjectAtOffset(_offset);
 				//CMVC 173262 - return null if the reference object is null
@@ -198,7 +198,7 @@ public class JavaInstanceField extends JavaField
 			throw new NullPointerException();
 		}
 	}
-	
+
 	private boolean _isSafeToAccess(JavaObject object)
 	{
 		return ((null != object) && (0 != object.getID().getAddress()));

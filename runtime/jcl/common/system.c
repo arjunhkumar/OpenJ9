@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include <string.h>
 #include <stdlib.h>
@@ -36,6 +36,7 @@
 #include "jclprots.h"
 
 #include "ut_j9jcl.h"
+#include "j9jclnls.h"
 
 #if defined(J9ZOS390)
 #include "atoe.h"
@@ -81,7 +82,7 @@ Java_java_lang_System_initJCLPlatformEncoding(JNIEnv *env, jclass clazz)
 	encoding = getPlatformFileEncoding(env, property, sizeof(property), 1); /* platform encoding */
 #endif /* defined(OSX) */
 	/* libjava.[so|dylib] is in the jdk/lib/ directory, one level up from the default/ & compressedrefs/ directories */
-	written = j9str_printf(PORTLIB, dllPath, sizeof(dllPath), "%s/../java", vm->j2seRootDirectory);
+	written = j9str_printf(dllPath, sizeof(dllPath), "%s/../java", vm->j2seRootDirectory);
 	/* Assert the number of characters written (not including the null) fit within the dllPath buffer */
 	Assert_JCL_true(written < (sizeof(dllPath) - 1));
 	if (0 == j9sl_open_shared_library(dllPath, &handle, J9PORT_SLOPEN_DECORATE)) {
@@ -100,10 +101,12 @@ Java_java_lang_System_initJCLPlatformEncoding(JNIEnv *env, jclass clazz)
  *    1 - platform encoding
  *    2 - file.encoding
  *    3 - os.encoding
+ *    4 - default value of java.io.tmpDir before any -D options
  */
 jstring JNICALL
 Java_java_lang_System_getSysPropBeforePropertiesInitialized(JNIEnv *env, jclass clazz, jint sysPropID)
 {
+	char *envSpace = NULL;
 	const char *sysPropValue = NULL;
 	/* The sysPropValue points to following property which has to be declared at top level. */
 	char property[128] = {0};
@@ -169,11 +172,32 @@ Java_java_lang_System_getSysPropBeforePropertiesInitialized(JNIEnv *env, jclass 
 		}
 		break;
 
+	case 4: /* default value of java.io.tmpDir before any -D options */
+		sysPropValue = getTmpDir(env, &envSpace);
+		break;
+
+#if defined(J9ZOS390) && (JAVA_SPEC_VERSION >= 21)
+	case 5: /* com.ibm.autocvt setting on z/OS */
+		sysPropValue = getDefinedArgumentFromJavaVMInitArgs(vmInitArgs, "com.ibm.autocvt");
+		if (NULL == sysPropValue) {
+			/* As part of better handling of JEP400 constraints on z/OS, the com.ibm.autocvt property
+			 * determines whether file I/O considers file tagging. If not explicitly specified,
+			 * the property defaults to true, unless file.encoding is set.
+			 */
+			const char *fileEncodingValue = getDefinedArgumentFromJavaVMInitArgs(vmInitArgs, "file.encoding");
+			sysPropValue = (NULL == fileEncodingValue) ? "true" : "false";
+		}
+		break;
+#endif /* defined(J9ZOS390) && (JAVA_SPEC_VERSION >= 21) */
+
 	default:
 		break;
 	}
 	if (NULL != sysPropValue) {
 		result = (*env)->NewStringUTF(env, sysPropValue);
+	}
+	if (NULL != envSpace) {
+		jclmem_free_memory(env, envSpace);
 	}
 
 	return result;
@@ -440,7 +464,7 @@ jobject getPropertyList(JNIEnv *env)
 	 * https://github.com/eclipse-openj9/openj9/issues/15800
 	 */
 	result = -1;
-	if (!vmFuncs->isCheckpointAllowed(currentThread))
+	if (!vmFuncs->isCheckpointAllowed(javaVM))
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 	{
 		result = j9sysinfo_get_username(username, USERNAME_LENGTH);
@@ -507,7 +531,7 @@ jobject getPropertyList(JNIEnv *env)
 		if ((~(UDATA)0) == javaVM->directByteBufferMemoryMax) {
 			strcpy(maxDirectMemBuff, "-1");
 		} else {
-			j9str_printf(PORTLIB, maxDirectMemBuff, sizeof(maxDirectMemBuff), "%zu", javaVM->directByteBufferMemoryMax);
+			j9str_printf(maxDirectMemBuff, sizeof(maxDirectMemBuff), "%zu", javaVM->directByteBufferMemoryMax);
 		}
 		strings[propIndex] = maxDirectMemBuff;
 		propIndex += 1;
@@ -542,6 +566,17 @@ systemPropertyIterator(char* key, char* value, void* userData)
 		return;
 	}
 
+#if JAVA_SPEC_VERSION >= 21
+	if (0 == strcmp("java.compiler", key)) {
+		PORT_ACCESS_FROM_ENV(env);
+		if ((0 == strcmp("jitc", value)) || (0 == strcmp(J9_JIT_DLL_NAME, value))) {
+			j9nls_printf(PORTLIB, J9NLS_WARNING, J9NLS_JCL_JAVA_COMPILER_WARNING_XJIT);
+		} else {
+			j9nls_printf(PORTLIB, J9NLS_WARNING, J9NLS_JCL_JAVA_COMPILER_WARNING_XINT);
+		}
+		return;
+	}
+#endif /* JAVA_SPEC_VERSION >= 21 */
 
 	/* check for overridden system properties, use linear scan for now */
 	for (i=0; i < defaultCount; i+=2) {

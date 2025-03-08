@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +43,15 @@ extern "C" {
 #define WAITING 3
 #define TIMED_WAITING 4
 #define TERMINATED 5
+
+#if JAVA_SPEC_VERSION >= 20
+typedef struct J9ScopedValueBindingsWalkClasses {
+	J9Class *threadClass;
+	J9Class *virtualThreadClass;
+	J9Class *scopedValueCarrierClass;
+	J9Class *scopedValueSnapshotClass;
+} J9ScopedValueBindingsWalkClasses;
+#endif /* JAVA_SPEC_VERSION >= 20 */
 
 jint
 getJclThreadState(UDATA vmstate, jboolean started)
@@ -197,7 +206,15 @@ Java_java_lang_Thread_resumeImpl(JNIEnv *env, jobject rcv)
 	Trc_JCL_threadResume(currentThread, targetThread);
 	if (J9VMJAVALANGTHREAD_STARTED(currentThread, receiverObject)) {
 		if (NULL != targetThread) {
-			vmFuncs->clearHaltFlag(targetThread, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND);
+#if JAVA_SPEC_VERSION >= 19
+			if (receiverObject == targetThread->threadObject)
+#endif /* JAVA_SPEC_VERSION >= 19 */
+			{
+				vmFuncs->clearHaltFlag(targetThread, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND);
+			}
+#if JAVA_SPEC_VERSION >= 19
+			J9OBJECT_U64_STORE(currentThread, receiverObject, vm->internalSuspendStateOffset, J9_VIRTUALTHREAD_INTERNAL_STATE_NONE);
+#endif /* JAVA_SPEC_VERSION >= 19 */
 		}
 	}
 	vmFuncs->internalExitVMToJNI(currentThread);
@@ -216,22 +233,28 @@ Java_java_lang_Thread_suspendImpl(JNIEnv *env, jobject rcv)
 	Trc_JCL_threadSuspend(currentThread, targetThread);
 	if (J9VMJAVALANGTHREAD_STARTED(currentThread, receiverObject)) {
 		if (NULL != targetThread) {
-			if (currentThread == targetThread) {
+#if JAVA_SPEC_VERSION >= 19
+			J9OBJECT_U64_STORE(currentThread, receiverObject, vm->internalSuspendStateOffset, J9_VIRTUALTHREAD_INTERNAL_STATE_SUSPENDED);
+			if (receiverObject == targetThread->threadObject)
+#endif /* JAVA_SPEC_VERSION >= 19 */
+			{
+				if (currentThread == targetThread) {
 				/* Suspending the current thread will take place upon re-entering the VM after returning from
 				 * this native.
 				 */
-				vmFuncs->setHaltFlag(targetThread, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND);
-			} else {
-				vmFuncs->internalExitVMToJNI(currentThread);
-				omrthread_monitor_enter(targetThread->publicFlagsMutex);
-				VM_VMAccess::setHaltFlagForVMAccessRelease(targetThread, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND);
-				if (VM_VMAccess::mustWaitForVMAccessRelease(targetThread)) {
-					while (J9_ARE_ALL_BITS_SET(targetThread->publicFlags, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND | J9_PUBLIC_FLAGS_VM_ACCESS)) {
-						omrthread_monitor_wait(targetThread->publicFlagsMutex);
+					vmFuncs->setHaltFlag(targetThread, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND);
+				} else {
+					vmFuncs->internalExitVMToJNI(currentThread);
+					omrthread_monitor_enter(targetThread->publicFlagsMutex);
+					VM_VMAccess::setHaltFlagForVMAccessRelease(targetThread, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND);
+					if (VM_VMAccess::mustWaitForVMAccessRelease(targetThread)) {
+						while (J9_ARE_ALL_BITS_SET(targetThread->publicFlags, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND | J9_PUBLIC_FLAGS_VM_ACCESS)) {
+							omrthread_monitor_wait(targetThread->publicFlagsMutex);
+						}
 					}
+					omrthread_monitor_exit(targetThread->publicFlagsMutex);
+					goto vmAccessReleased;
 				}
-				omrthread_monitor_exit(targetThread->publicFlagsMutex);
-				goto vmAccessReleased;
 			}
 		}
 	}
@@ -336,45 +359,14 @@ Java_java_lang_Thread_getStackTraceImpl(JNIEnv *env, jobject rcv)
 	/* Assume the thread is alive (guaranteed by java caller). */
 	J9VMThread *targetThread = J9VMJAVALANGTHREAD_THREADREF(currentThread, receiverObject);
 
-#if JAVA_SPEC_VERSION >= 19
-	BOOLEAN releaseInspector = FALSE;
-	if (IS_JAVA_LANG_VIRTUALTHREAD(currentThread, receiverObject)) {
-		/* Do not spin when acquiring access, if acquire failed, return NULL.
-		 * The caller of getStackTraceImpl will handle if should retry or get stack using unmounted path.
-		 */
-		if (!vmFuncs->acquireVThreadInspector(currentThread, rcv, FALSE)) {
-			goto done;
-		}
-		j9object_t carrierThread = (j9object_t)J9VMJAVALANGVIRTUALTHREAD_CARRIERTHREAD(currentThread, receiverObject);
-		/* Ensure virtual thread is mounted and not during transition. */
-		if (NULL != carrierThread) {
-			releaseInspector = TRUE;
-		} else {
-			vmFuncs->releaseVThreadInspector(currentThread, rcv);
-			goto done;
-		}
-		/* Gets targetThread from the carrierThread object. */
-		targetThread = J9VMJAVALANGTHREAD_THREADREF(currentThread, carrierThread);
-		Assert_JCL_notNull(targetThread);
-	}
-	{
-#endif /* JAVA_SPEC_VERSION >= 19 */
+	/* If calling getStackTrace on the current Thread, drop the first element, which is this method. */
+	UDATA skipCount = (currentThread == targetThread) ? 1 : 0;
 
-		/* If calling getStackTrace on the current Thread, drop the first element, which is this method. */
-		UDATA skipCount = (currentThread == targetThread) ? 1 : 0;
+	j9object_t resultObject = getStackTraceForThread(currentThread, targetThread, skipCount, receiverObject);
 
-		j9object_t resultObject = getStackTraceForThread(currentThread, targetThread, skipCount, receiverObject);
+	if (NULL != resultObject) {
 		result = vmFuncs->j9jni_createLocalRef(env, resultObject);
-
-#if JAVA_SPEC_VERSION >= 19
 	}
-	if (releaseInspector) {
-		receiverObject = J9_JNI_UNWRAP_REFERENCE(rcv);
-		/* Release the virtual thread (allow it to die) now that we are no longer inspecting it. */
-		vmFuncs->releaseVThreadInspector(currentThread, rcv);
-	}
-done:
-#endif /* JAVA_SPEC_VERSION >= 19 */
 
 	vmFuncs->internalExitVMToJNI(currentThread);
 	return result;
@@ -621,20 +613,130 @@ Java_java_lang_Thread_setExtentLocalCache(JNIEnv *env, jclass unusedClass, jobje
 
 #if JAVA_SPEC_VERSION >= 20
 /**
+ * Frame walk iterator to find the most recent scoped value bindings on the stack.
+ *
+ * @param currentThread the current thread
+ * @param walkState the stack walk state
+ * @return J9_STACKWALK_KEEP_ITERATING or J9_STACKWALK_STOP_ITERATING
+ */
+static UDATA
+findScopedValueBindingsWalkFunction(J9VMThread *currentThread, J9StackWalkState *walkState)
+{
+	UDATA rc = J9_STACKWALK_KEEP_ITERATING;
+
+	if (NULL != walkState->userData1) {
+		J9Method *method = walkState->method;
+		J9Class *methodClass = J9_CLASS_FROM_METHOD(method);
+		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(method);
+		J9UTF8 *methodName = J9ROMMETHOD_NAME(romMethod);
+		J9ScopedValueBindingsWalkClasses *classes = (J9ScopedValueBindingsWalkClasses *)walkState->userData3;
+
+		if (((classes->threadClass == methodClass)
+				|| (classes->virtualThreadClass == methodClass)
+				|| (classes->scopedValueCarrierClass == methodClass))
+			&& J9UTF8_LITERAL_EQUALS(J9UTF8_DATA(methodName), J9UTF8_LENGTH(methodName), "runWith")
+		) {
+			UDATA count = (UDATA)walkState->userData2;
+			rc = J9_STACKWALK_STOP_ITERATING;
+			/* runWith method should only have one instance of java.lang.ScopedValue$Snapshot. */
+			Assert_JCL_true(1 == count);
+		} else if (0 == walkState->inlineDepth) {
+			/* Reset userData1 and userData2 after iterating all O-slots of a method. */
+			walkState->userData1 = NULL;
+			walkState->userData2 = (void *)0;
+		}
+	}
+
+	return rc;
+}
+
+/**
+ * O-slot iterator to find the most recent scoped value bindings in the object slots.
+ *
+ * @param currentThread the current thread
+ * @param walkState the stack walk state
+ * @param slot pointer to slot containing an object pointer
+ * @param stackLocation pointer to the slot in the stack containing possibly compressed object pointer
+ */
+static void
+findScopedValueBindingsOSlotWalkFunction(J9VMThread *currentThread, J9StackWalkState *walkState, j9object_t *slot, const void *stackLocation)
+{
+	j9object_t slotObject = *slot;
+	J9Class *clazz = J9OBJECT_CLAZZ(currentThread, slotObject);
+	J9ScopedValueBindingsWalkClasses *classes = (J9ScopedValueBindingsWalkClasses *)walkState->userData3;
+	J9Class *snapshotClass = (J9Class *)classes->scopedValueSnapshotClass;
+
+	if (0 != isSameOrSuperClassOf(snapshotClass, clazz)) {
+		UDATA count = (UDATA)walkState->userData2;
+		walkState->userData1 = (void *)slotObject;
+		walkState->userData2 = (void *)(count + 1);
+	}
+}
+
+/**
  * static native Object findScopedValueBindings();
  *
- * Find the most recent scoped value bindings in the stack.
- * TODO: Complete the function description.
+ * Find the most recent scoped value bindings on the stack.
  *
  * @param env instance of JNIEnv
  * @param unusedClass
- * @return jobject
+ * @return jobject the found scoped value bindings, or null if there are no
+ * scoped value bindings on the stack
  */
 jobject JNICALL
 Java_java_lang_Thread_findScopedValueBindings(JNIEnv *env, jclass unusedClass)
 {
-	/* TODO: Implement. See https://github.com/eclipse-openj9/openj9/issues/16677. */
-	return NULL;
+	J9VMThread *currentThread = (J9VMThread *)env;
+	J9JavaVM *vm = currentThread->javaVM;
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+	J9StackWalkState walkState = {0};
+	J9ScopedValueBindingsWalkClasses classes = {0};
+	jobject bindings = NULL;
+
+	/* The goal is to find the first argument of the runWith method, which is an
+	 * instance of java.lang.ScopedValue$Snapshot. The first argument cannot be
+	 * reliably retrieved for compiled methods. There is supposed to be only one
+	 * argument, which is an instance of java.lang.ScopedValue$Snapshot.
+	 *
+	 * The O-slot iterator is invoked before the frame iterator. So, all O-slots
+	 * are looked at until the runWith method is reached. For the runWith method,
+	 * there is an assertion which checks that only a single instance of
+	 * java.lang.ScopedValue$Snapshot is found. If the assertion triggers, it
+	 * will indicate that the Java implementation of the runWith method has been
+	 * modified.
+	 */
+	walkState.walkThread = currentThread;
+	walkState.skipCount = 0;
+	walkState.userData1 = NULL;
+	/* Counter to keep track of the java.lang.ScopedValue$Snapshot instances
+	 * encountered for a method.
+	 */
+	walkState.userData2 = (void *)0;
+	walkState.frameWalkFunction = findScopedValueBindingsWalkFunction;
+	walkState.objectSlotWalkFunction = findScopedValueBindingsOSlotWalkFunction;
+	walkState.flags = J9_STACKWALK_ITERATE_FRAMES | J9_STACKWALK_MAINTAIN_REGISTER_MAP
+					| J9_STACKWALK_ITERATE_O_SLOTS | J9_STACKWALK_VISIBLE_ONLY;
+
+	vmFuncs->internalEnterVMFromJNI(currentThread);
+
+	/* Preload classes once, before walking the stack. Better for performance in
+	 * comparison to loading them multiple times within the stackwalk callbacks.
+	 */
+	classes.threadClass = J9VMJAVALANGTHREAD(vm);
+	classes.virtualThreadClass = J9VMJAVALANGVIRTUALTHREAD(vm);
+	classes.scopedValueCarrierClass = J9VMJAVALANGSCOPEDVALUECARRIER(vm);
+	classes.scopedValueSnapshotClass = J9VMJAVALANGSCOPEDVALUESNAPSHOT(vm);
+
+	walkState.userData3 = (void *)&classes;
+
+	vm->walkStackFrames(currentThread, &walkState);
+
+	if (NULL != walkState.userData1) {
+		bindings = VM_VMHelpers::createLocalRef(env, (j9object_t)walkState.userData1);
+	}
+	vmFuncs->internalExitVMToJNI(currentThread);
+
+	return bindings;
 }
 
 /**

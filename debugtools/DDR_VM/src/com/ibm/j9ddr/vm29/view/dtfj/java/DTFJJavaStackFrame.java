@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.view.dtfj.java;
 
 import java.lang.reflect.Modifier;
@@ -43,7 +43,7 @@ import static com.ibm.j9ddr.vm29.j9.OptInfo.getLineNumberForROMClass;
 
 /**
  * Combined JavaStackFrame & JavaLocation
- * 
+ *
  * @author andhall
  *
  */
@@ -58,9 +58,9 @@ public class DTFJJavaStackFrame implements JavaStackFrame, JavaLocation
 	private final J9MethodPointer j9method;
 	@SuppressWarnings("unused")
 	private final DTFJJavaThread thread;
-	
-	private List<Object> roots = new LinkedList<Object>();
-	
+
+	private List<Object> roots = new LinkedList<>();
+
 	public DTFJJavaStackFrame(DTFJJavaThread dtfjJavaThread, DTFJJavaMethod dtfjMethod, J9MethodPointer method, ImagePointer pc, ImagePointer basePointer, U8Pointer bytecodePCOffset, boolean jitted) {
 		this.dtfjMethod = dtfjMethod;
 		this.basePointer = basePointer;
@@ -100,7 +100,7 @@ public class DTFJJavaStackFrame implements JavaStackFrame, JavaLocation
 	{
 		roots.add(object);
 	}
-	
+
 	boolean isJitMethod()
 	{
 		return jitMethod;
@@ -121,21 +121,20 @@ public class DTFJJavaStackFrame implements JavaStackFrame, JavaLocation
 	{
 		return dtfjMethod.getFilename();
 	}
-	
+
 	public int getLineNumber() throws DataUnavailable, CorruptDataException
 	{
-		if (J9BuildFlags.opt_debugInfoServer) {
+		if (J9BuildFlags.J9VM_OPT_DEBUG_INFO_SERVER) {
 			int toReturn = 0;
 			try {
-				 toReturn = getLineNumberForROMClass(j9method, UDATA.cast(bytecodePCOffset));
-				
+				toReturn = getLineNumberForROMClass(j9method, UDATA.cast(bytecodePCOffset));
 			} catch (Throwable t) {
 				throw J9DDRDTFJUtils.handleAsCorruptDataException(DTFJContext.getProcess(), t);
 			}
 			if (toReturn < 0) {
 				throw new DataUnavailable();
 			}
-			
+
 			return toReturn;
 		} else {
 			throw new DataUnavailable();
@@ -151,30 +150,30 @@ public class DTFJJavaStackFrame implements JavaStackFrame, JavaLocation
 	public boolean equals(Object obj)
 	{
 		if (obj instanceof DTFJJavaStackFrame) {
-			DTFJJavaStackFrame other = (DTFJJavaStackFrame)obj;
-			
-			if (! other.basePointer.equals(this.basePointer)) {
+			DTFJJavaStackFrame other = (DTFJJavaStackFrame) obj;
+
+			if (!other.basePointer.equals(this.basePointer)) {
 				return false;
 			}
-			
-			if (! other.bytecodePCOffset.equals(this.bytecodePCOffset)) {
+
+			if (!other.bytecodePCOffset.equals(this.bytecodePCOffset)) {
 				return false;
 			}
-			
-			if (! other.j9method.equals(this.j9method)) {
+
+			if (!other.j9method.equals(this.j9method)) {
 				return false;
 			}
-			
-			if (! other.pc.equals(this.pc)) {
+
+			if (!other.pc.equals(this.pc)) {
 				return false;
 			}
-			
+
 			if (other.jitMethod != this.jitMethod) {
 				return false;
 			}
-			
+
 			return true;
-			
+
 		} else {
 			return false;
 		}
@@ -191,35 +190,34 @@ public class DTFJJavaStackFrame implements JavaStackFrame, JavaLocation
 	{
 		try {
 			String className = "";
-			
+
 			try {
 				className = dtfjMethod.getDeclaringClass().getName();
 				className = className.replace("/", ".");
 			} catch (DataUnavailable e) {
 				className = "<class name unavailable>";
 			}
-			
+
 			String methodName = dtfjMethod.getName();
-			
-			if(Modifier.isNative(dtfjMethod.getModifiers())) {
+
+			if (Modifier.isNative(dtfjMethod.getModifiers())) {
 				return className + "." + methodName + "()";
 			} else {
 				String fileName = dtfjMethod.getFilename();
 				int lineNumber = -1;
-				
+
 				try {
 					lineNumber = getLineNumber();
 				} catch (DataUnavailable e) {
 					//Do nothing
 				}
-				
+
 				if (lineNumber != -1) {
 					return className + "." + methodName + "(" + fileName + ":" + lineNumber + ")";
 				} else {
 					return className + "." + methodName + "(" + fileName + ")";
 				}
 			}
-			
 		} catch (Throwable t) {
 			J9DDRDTFJUtils.handleAsCorruptDataException(DTFJContext.getProcess(), t);
 			return super.toString();

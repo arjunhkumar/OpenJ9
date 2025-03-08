@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -169,6 +169,7 @@ allocateClassLoader(J9JavaVM *javaVM)
 		classLoader->moduleHashTable = hashModuleNameTableNew(javaVM, INITIAL_MODULE_HASHTABLE_SIZE);
 		classLoader->packageHashTable = hashPackageTableNew(javaVM, INITIAL_PACKAGE_HASHTABLE_SIZE);
 #endif /* JAVA_SPEC_VERSION > 8 */
+
 		/* Allocate classLocationHashTable only for bootloader which is the first classloader to be allocated.
 		 * The classLoader being allocated must be the bootloader if javaVM->systemClassLoader is NULL.
 		 */
@@ -190,6 +191,14 @@ allocateClassLoader(J9JavaVM *javaVM)
 			freeClassLoader(classLoader, javaVM, NULL, TRUE);
 			classLoader = NULL;
 		} else {
+			BOOLEAN cacheClassFromAllLoaders = FALSE;
+			if (NULL != javaVM->sharedClassConfig) {
+				cacheClassFromAllLoaders = (J9SharedClassCacheClassesAllLoaders == javaVM->sharedClassConfig->getSharedClassCacheMode(javaVM));
+			}
+			if (cacheClassFromAllLoaders) {
+				classLoader->flags |= J9CLASSLOADER_SHARED_CLASSES_ENABLED;
+				Trc_VM_allocateClassLoader_SetFlag(classLoader);
+			}
 			TRIGGER_J9HOOK_VM_CLASS_LOADER_CREATED(javaVM->hookInterface, javaVM, classLoader);
 		}
 	}
@@ -200,7 +209,7 @@ allocateClassLoader(J9JavaVM *javaVM)
 }
 
 
-void  
+void
 freeClassLoader(J9ClassLoader *classLoader, J9JavaVM *javaVM, J9VMThread *vmThread, UDATA needsFrameBuild)
 {
 #ifdef J9VM_GC_DYNAMIC_CLASS_UNLOADING
@@ -208,6 +217,9 @@ freeClassLoader(J9ClassLoader *classLoader, J9JavaVM *javaVM, J9VMThread *vmThre
 #endif /* J9VM_GC_DYNAMIC_CLASS_UNLOADING */
 
 	PORT_ACCESS_FROM_JAVAVM(javaVM);
+#if defined(J9VM_OPT_SNAPSHOTS)
+	VMSNAPSHOTIMPLPORT_ACCESS_FROM_JAVAVM(javaVM);
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
 
 	Trc_VM_freeClassLoader_Entry(classLoader);
 
@@ -251,12 +263,19 @@ freeClassLoader(J9ClassLoader *classLoader, J9JavaVM *javaVM, J9VMThread *vmThre
 			classLoader->hotFieldPoolMutex = NULL;
 		}
 	}
-	
+
 	/* free the class path entries allocated for system and non-system class loaders */
 	if (javaVM->systemClassLoader == classLoader) {
 		if (NULL != classLoader->classPathEntries) {
 			freeClassLoaderEntries(vmThread, classLoader->classPathEntries, classLoader->classPathEntryCount, classLoader->initClassPathEntryCount);
-			j9mem_free_memory(classLoader->classPathEntries);
+#if defined(J9VM_OPT_SNAPSHOTS)
+			if (IS_SNAPSHOTTING_ENABLED(javaVM)) {
+				vmsnapshot_free_memory(classLoader->classPathEntries);
+			} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+			{
+				j9mem_free_memory(classLoader->classPathEntries);
+			}
 			classLoader->classPathEntryCount = 0;
 			classLoader->classPathEntries = NULL;
 		}
@@ -292,7 +311,7 @@ freeClassLoader(J9ClassLoader *classLoader, J9JavaVM *javaVM, J9VMThread *vmThre
 		if (NULL != nativeLibrary) {
 			Assert_VM_mustHaveVMAccess(vmThread);
 		}
-		
+
 		while (NULL != nativeLibrary) {
 			BOOLEAN unloadPerformed = FALSE;
 
@@ -321,7 +340,7 @@ freeClassLoader(J9ClassLoader *classLoader, J9JavaVM *javaVM, J9VMThread *vmThre
 					/* Prevent call to JNI_OnUnload; can't invoke JNI_OnUnload based on VM oom. */
 					unloadPerformed = TRUE;
 				} else {
-					j9str_printf(PORTLIB, onUnloadRtnName, nameLength, "%s%s", J9STATIC_ONUNLOAD, nativeLibrary->logicalName);
+					j9str_printf(onUnloadRtnName, nameLength, "%s%s", J9STATIC_ONUNLOAD, nativeLibrary->logicalName);
 
 					/* Invoke the JNI_OnUnLoad_L routine, if present. */
 					rc = (*nativeLibrary->send_lifecycle_event)(vmThread, nativeLibrary, onUnloadRtnName, (UDATA) -1);
@@ -376,8 +395,19 @@ freeClassLoader(J9ClassLoader *classLoader, J9JavaVM *javaVM, J9VMThread *vmThre
 		RELEASE_CLASS_LOADER_BLOCKS_MUTEX(javaVM);
 	}
 
-	if (classLoader->jniIDs != NULL) {
-		pool_kill(classLoader->jniIDs);
+	if (NULL != classLoader->jniIDs) {
+		if (J9VM_SHOULD_CLEAR_JNIIDS_FOR_ASGCT(javaVM, classLoader)) {
+			pool_state idWalkState;
+			J9GenericJNIID *jniID = pool_startDo(classLoader->jniIDs, &idWalkState);
+
+			while (NULL != jniID) {
+				memset(jniID, -1, sizeof(J9GenericJNIID));
+				jniID = pool_nextDo(&idWalkState);
+			}
+		} else {
+			pool_kill(classLoader->jniIDs);
+		}
+		classLoader->jniIDs = NULL;
 	}
 
 	if (NULL != classLoader->classHashTable) {
@@ -389,16 +419,30 @@ freeClassLoader(J9ClassLoader *classLoader, J9JavaVM *javaVM, J9VMThread *vmThre
 		J9ModuleExtraInfo *moduleExtraInfoPtr = (J9ModuleExtraInfo *)hashTableStartDo(classLoader->moduleExtraInfoHashTable, &moduleExtraInfoWalkState);
 		while (NULL != moduleExtraInfoPtr) {
 			freeClassLoaderEntries(vmThread, moduleExtraInfoPtr->patchPathEntries, moduleExtraInfoPtr->patchPathCount, moduleExtraInfoPtr->patchPathCount);
-			j9mem_free_memory(moduleExtraInfoPtr->patchPathEntries);
+#if defined(J9VM_OPT_SNAPSHOTS)
+			if (IS_SNAPSHOTTING_ENABLED(javaVM)) {
+				vmsnapshot_free_memory(moduleExtraInfoPtr->patchPathEntries);
+			} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+			{
+				j9mem_free_memory(moduleExtraInfoPtr->patchPathEntries);
+			}
 			moduleExtraInfoPtr->patchPathEntries = NULL;
 			moduleExtraInfoPtr->patchPathCount = 0;
 			if (NULL != moduleExtraInfoPtr->jrtURL) {
-				j9mem_free_memory(moduleExtraInfoPtr->jrtURL);
+#if defined(J9VM_OPT_SNAPSHOTS)
+				if (IS_SNAPSHOTTING_ENABLED(javaVM)) {
+					vmsnapshot_free_memory(moduleExtraInfoPtr->jrtURL);
+				} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+				{
+					j9mem_free_memory(moduleExtraInfoPtr->jrtURL);
+				}
 			}
 			moduleExtraInfoPtr = (J9ModuleExtraInfo *)hashTableNextDo(&moduleExtraInfoWalkState);
 		}
 		hashTableFree(classLoader->moduleExtraInfoHashTable);
-		classLoader->moduleExtraInfoHashTable = NULL;	
+		classLoader->moduleExtraInfoHashTable = NULL;
 	}
 	if (NULL != classLoader->classLocationHashTable) {
 		hashTableFree(classLoader->classLocationHashTable);
@@ -426,7 +470,14 @@ freeClassLoader(J9ClassLoader *classLoader, J9JavaVM *javaVM, J9VMThread *vmThre
 			packagePtr = (J9Package**)hashTableNextDo(&packageWalkState);
 			cleanPackage(packageDel);
 			hashTableFree(packageDel->exportsHashTable);
-			j9mem_free_memory(packageDel->packageName);
+#if defined(J9VM_OPT_SNAPSHOTS)
+			if (IS_SNAPSHOTTING_ENABLED(javaVM)) {
+				vmsnapshot_free_memory(packageDel->packageName);
+			} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+			{
+				j9mem_free_memory(packageDel->packageName);
+			}
 			pool_removeElement(javaVM->modularityPool, packageDel);
 		}
 
@@ -476,4 +527,3 @@ freeClassLoader(J9ClassLoader *classLoader, J9JavaVM *javaVM, J9VMThread *vmThre
 
 	Trc_VM_freeClassLoader_Exit();
 }
-

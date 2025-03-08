@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "compile/AliasBuilder.hpp"
@@ -162,7 +162,6 @@ J9::AliasBuilder::createAliasInfo()
    nonIntPrimitiveStaticSymRefs().pack();
    methodSymRefs().pack();
    unsafeSymRefNumbers().pack();
-   unsafeArrayElementSymRefs().pack();
    gcSafePointSymRefNumbers().pack();
 
    self()->tenantDataMetaSymRefs().pack();
@@ -202,6 +201,13 @@ J9::AliasBuilder::createAliasInfo()
    defaultMethodDefAliases() |= gcSafePointSymRefNumbers();
 
    defaultMethodDefAliases() |= self()->tenantDataMetaSymRefs();
+
+   TR::SymbolReference *currentThreadSymRef = symRefTab()->element(TR::SymbolReferenceTable::currentThreadSymbol);
+   if (currentThreadSymRef && !comp()->fej9()->isJ9VMThreadCurrentThreadImmutable())
+      {
+      // "CurrentThread" could be modified by any method calls
+      defaultMethodDefAliases().set(currentThreadSymRef->getReferenceNumber());
+      }
 
    defaultMethodDefAliasesWithoutImmutable().init(symRefTab()->getNumSymRefs(), comp()->trMemory(), heapAlloc, growable);
    defaultMethodDefAliasesWithoutUserField().init(symRefTab()->getNumSymRefs(), comp()->trMemory(), heapAlloc, growable);
@@ -287,7 +293,8 @@ J9::AliasBuilder::createAliasInfo()
       TR_methodTypeCheck,
       TR_incompatibleReceiver,
       TR_IncompatibleClassChangeError,
-      TR_multiANewArray
+      TR_multiANewArray,
+      TR_identityException
       };
 
    for (i = 0; i < (sizeof(helpersThatMayThrow) / 4); ++i)

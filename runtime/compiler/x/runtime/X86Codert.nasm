@@ -16,7 +16,7 @@
 ; [1] https://www.gnu.org/software/classpath/license.html
 ; [2] https://openjdk.org/legal/assembly-exception.html
 ;
-; SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+; SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 %include "jilconsts.inc"
 
@@ -489,6 +489,7 @@ _dblRemain:
         push _rcx
         sub _rsp, 48                              ; _rsp = _rsp - 48(bytes)
         movq QWORD  [_rsp+16], xmm2               ; preserve xmm2
+        movq QWORD  [_rsp+24], xmm4               ; preserve xmm4
         ; Prolog End
         andpd xmm1, [_rel ABSMASK]                ; xmm1 = |divisor|
         movq QWORD  [_rsp], xmm0                  ; store dividend on stack
@@ -581,6 +582,7 @@ L258:
 
         ; Epilog Start
         movq xmm2, QWORD  [_rsp+16]               ; restore xmm2
+        movq xmm4, QWORD  [_rsp+24]               ; restore xmm4
         add _rsp, 48
         pop _rcx
         pop _rbx
@@ -593,6 +595,7 @@ L280:
 
         ; Epilog Start
         movq xmm2, QWORD  [_rsp+16]               ; restore xmm2
+        movq xmm4, QWORD  [_rsp+24]               ; restore xmm4
         add _rsp, 48
         pop _rcx
         pop _rbx
@@ -613,6 +616,7 @@ SMALL_NUMS:
 
         ; Epilog Start
         movq xmm2, QWORD  [_rsp+16]                      ; restore xmm2
+        movq xmm4, QWORD  [_rsp+24]                      ; restore xmm4
         add _rsp, 48
         pop _rcx
         pop _rbx
@@ -789,7 +793,6 @@ eq_J9VMThread_heapTop        equ J9TR_VMThread_heapTop
 eq_J9VMThread_PrefetchCursor equ J9TR_VMThread_tlhPrefetchFTA
 
         DECLARE_GLOBAL prefetchTLH
-        DECLARE_GLOBAL newPrefetchTLH
 
 %ifdef ASM_J9VM_GC_TLH_PREFETCH_FTA
 
@@ -821,132 +824,10 @@ prefetch_done:
         pop   _rcx
         ret
 
-
-; Linkage:
-;
-; rax = start of object just allocated
-;
-; Variable definitions:
-;
-; O = TLH allocation pointer before the current object was allocated
-; S = size of current object + padding
-; A = allocation pointer (A = O+S)
-; B = current prefetch trigger boundary
-
-eq_initialPrefetchWindow    equ 64*10
-eq_prefetchWindow           equ 64*4
-eq_prefetchTriggerDistance  equ 64*8
-
-        align 16
-newPrefetchTLH:
-
-        push        _rcx        ; preserve
-        push        _rdx        ; preserve
-        push        _rsi        ; preserve
-
-%ifdef TR_HOST_64BIT
-        mov         rdx, qword [rbp + eq_J9VMThread_heapAlloc]       ; rdx = O+S
-        mov         ecx, dword  [rbp + eq_J9VMThread_PrefetchCursor]  ; rcx = current trigger boundary (B)
-%else
-        mov         edx, dword [ebp + eq_J9VMThread_heapAlloc]       ; edx = O+S
-        mov         ecx, dword [ebp + eq_J9VMThread_PrefetchCursor]  ; ecx = current trigger boundary (B)
-%endif
-
-        ; A zero value for the trigger boundary indicates that this is a new TLH
-        ; that we haven't prefetched from yet.
-        ;
-        test        _rcx, _rcx
-        jz prefetchFromNewTLH
-
-        lea         _rcx, [_rcx + eq_prefetchTriggerDistance]     ; _rcx = derive prefetch frontier (F)
-                                                                ;    where F = B + prefetchTriggerDistance
-        lea         _rsi, [_rcx +64]                              ; _rsi = prefetch frontier (F) + 1 cache line
-                                                                ;    +1 = start at the next cache line after the frontier
-
-        ; Push the new frontier out even further if we're allocating a large object that
-        ; exceeds the current frontier.
-        ;
-        cmp         _rcx, _rdx
-        cmovl       _rcx, _rdx                                    ; _rcx = max(F, O+S)
-        add         _rcx, eq_prefetchWindow                      ; _rcx = F' = F+eq_prefetchWindow = new prefetch frontier (F')
-
-%ifdef TR_HOST_64BIT
-        mov         rdx, qword [rbp + eq_J9VMThread_heapTop]
-%else
-        mov         edx, dword [ebp + eq_J9VMThread_heapTop]
-%endif
-
-        cmp         _rcx, _rdx                                    ; F' >= heapTop?
-        jae prefetchFinalFrontier
-
-mergePrefetchTLHRoundDown:
-        and         _rcx, -64                                    ; round down to cache line
-
-mergePrefetchTLH:
-      ; Prefetch all lines between the last prefetch frontier (F) and the new one (F').
-      ; Prefetch forward to give the data a greater chance of being there when we need it.
-      ;
-      ; rsi = last frontier (F)
-      ; rcx = next frontier (F')
-
-      ; Since interpreter allocations do not advance the prefetch frontier the last frontier
-      ; might be behind the allocation pointer, in which case we want to move it forward so
-      ; that we don't prefetch data that has already been allocated.
-      ;
-        cmp         _rsi, _rax
-        cmovl       _rsi, _rax                                    ; _rsi = max(F+64, O)
-
-        sub         _rsi, _rcx
-doPrefetch:
-        prefetchnta [_rcx+_rsi]
-        add         _rsi, 64
-        jle short doPrefetch
-
-        sub         _rcx, eq_prefetchTriggerDistance             ; _rcx = new trigger boundary (B)
-
-        mov         dword [_rbp + eq_J9VMThread_PrefetchCursor], ecx
-
-        pop         _rsi
-        pop         _rdx
-        pop         _rcx
-        ret
-
-prefetchFinalFrontier:
-        mov         _rcx, _rdx
-        jmp mergePrefetchTLH
-
-
-prefetchFromNewTLH:
-      ; We have a new TLH that has not been prefetched.  Assume that the object
-      ; just allocated will have already been pulled into the cache.  Begin
-      ;
-      ; Prefetch from O through O+initialPrefetchWindow
-      ; if (O+i <= O+s) prefetch to
-      ;
-        mov         _rsi, _rdx                                   ; _rsi = A
-        lea         _rcx, [_rdx + eq_initialPrefetchWindow]      ; _rcx = A + Wi
-
-%ifdef TR_HOST_64BIT
-        mov         rdx, qword [rbp + eq_J9VMThread_heapTop]
-%else
-        mov         edx, dword [ebp + eq_J9VMThread_heapTop]
-%endif
-        cmp         _rcx, _rdx
-        jae mergePrefetchTLH
-
-        jmp mergePrefetchTLHRoundDown
-
-ret
-
-
 %else  ; ASM_J9VM_GC_TLH_PREFETCH_FTA
 
       align 16
 prefetchTLH:
-        ret
-
-      align 16
-newPrefetchTLH:
         ret
 
 %endif  ; REALTIME

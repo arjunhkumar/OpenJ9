@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -192,7 +192,7 @@ vmi_getPortLibrary(VMInterface* vmi)
  * <TABLE>
  * <TR><TD><B>Property Name</B></TD>			<TD><B>Example Value or Description</B></TD></TR>
  * <TR><TD>java.vendor</TD>			<TD>"Eclipse OpenJ9"</TD></TR>
- * <TR><TD>java.vendor.url</TD>			<TD>"http://www.eclipse.org/openj9"</TD></TR>
+ * <TR><TD>java.vendor.url</TD>			<TD>"https://www.eclipse.org/openj9"</TD></TR>
  * <TR><TD>java.specification.version</TD>	<TD>"1.8"</TD></TR>
  * <TR><TD>java.vm.specification.version</TD>	<TD>"1.8"</TD></TR>
  * <TR><TD>java.vm.specification.vendor</TD>	<TD>"Oracle Corporation"</TD></TR>
@@ -204,7 +204,7 @@ vmi_getPortLibrary(VMInterface* vmi)
 <BR>OpenJ9   - 1ca0ab98
 <BR>OMR      - 05d2b8a2
 <BR>JCL      - c2aa0348 based on jdk8u172-b11"</TD></TR>
- * <TR><TD>java.compiler</TD>			<TD>"j9jit29"</TD></TR>
+ * <TR><TD>java.compiler</TD>			<TD>"j9jit29" - not supported from jdk21</TD></TR>
  * <TR><TD>java.class.version</TD>		<TD>"52.0"</TD></TR>
  * <TR><TD>java.home</TD>			<TD>the absolute path of the parent directory of the directory containing the vm
 <BR>i.e. for a vm /clear/bin/vm.exe, java.home is /clear</TD></TR>

@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 omr_add_tracegen(j9jvmti.tdf)
@@ -32,24 +32,24 @@ j9vm_add_library(j9jvmti SHARED
 	jvmtiEventManagement.c
 	jvmtiExtensionMechanism.c
 	jvmtiField.c
-	jvmtiForceEarlyReturn.c
+	jvmtiForceEarlyReturn.cpp
 	jvmtiFunctionTable.c
 	jvmtiGeneral.c
 	jvmtiHeap.c
 	jvmtiHeap10.c
-	jvmtiHelpers.c
+	jvmtiHelpers.cpp
 	jvmtiHook.c
 	jvmtiJNIFunctionInterception.c
-	jvmtiLocalVariable.c
+	jvmtiLocalVariable.cpp
 	jvmtiMemory.c
 	jvmtiMethod.c
 	jvmtiModules.c
 	jvmtiObject.c
 	jvmtiRawMonitor.c
-	jvmtiStackFrame.c
+	jvmtiStackFrame.cpp
 	jvmtiStartup.c
 	jvmtiSystemProperties.c
-	jvmtiThread.c
+	jvmtiThread.cpp
 	jvmtiThreadGroup.c
 	jvmtiTimers.c
 	jvmtiWatchedField.c

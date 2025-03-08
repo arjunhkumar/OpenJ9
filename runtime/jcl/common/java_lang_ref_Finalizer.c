@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -40,4 +40,8 @@ Java_java_lang_ref_Finalizer_runFinalizationImpl(JNIEnv *env, jclass recv)
 	vmFuncs->internalReleaseVMAccess(currentThread);
 #endif /* J9VM_INTERP_ATOMIC_FREE_JNI */
 	mmFuncs->runFinalization(currentThread);
+#if defined(J9VM_INTERP_ATOMIC_FREE_JNI)
+	vmFuncs->internalAcquireVMAccess(currentThread);
+	vmFuncs->internalExitVMToJNI(currentThread);
+#endif /* J9VM_INTERP_ATOMIC_FREE_JNI */
 }

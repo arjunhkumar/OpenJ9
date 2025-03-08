@@ -18,7 +18,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <spec xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.ibm.com/j9/builder/spec" xsi:schemaLocation="http://www.ibm.com/j9/builder/spec spec-v1.xsd" id="linux_ppc-64_le">
 	<name>Linux PPC LE 64bit</name>
@@ -38,10 +38,10 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<property name="complianceTestingJavaLibraryPath" value="linux_ppcle-64"/>
 		<property name="directoryDelimiter" value="/"/>
 		<property name="graph_arch.cpu" value="{$spec.arch.cpuISA$}"/>
-		<property name="graph_commands.chroot" value=""/>
+		<property name="graph_commands.chroot" value="{$commands.docker.rhel7.ppc_64$}"/>
 		<property name="graph_commands.unix.remote_host" value=""/>
 		<property name="graph_datamines" value="commands.unix.datamine,site-ottawa.datamine,use.local.datamine"/>
-		<property name="graph_enable_compiler_cmd" value="source {$buildinfo.fsroot.unixBin$}/platform/linuxppcle/set_gcc7.5_env &amp;&amp;"/>
+		<property name="graph_enable_compiler_cmd" value=""/>
 		<property name="graph_label.classlib" value="150"/>
 		<property name="graph_label.java5" value="j9vmxp64le24"/>
 		<property name="graph_label.java6" value="pxp64le60"/>
@@ -56,7 +56,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<property name="graph_make_parallel_arg" value="-j `numberOfCPUs`"/>
 		<property name="graph_req.arch0" value="arch:ppcle"/>
 		<property name="graph_req.arch1" value=""/>
-		<property name="graph_req.aux0" value="{$common.req.build.cuda$}"/>
+		<property name="graph_req.aux0" value="docker"/>
 		<property name="graph_req.aux1" value=""/>
 		<property name="graph_req.build" value="{$common.req.build.java9$}"/>
 		<property name="graph_req.build2" value="{$common.req.build.java8$}"/>
@@ -138,9 +138,10 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="env_sharedLibsUseGlobalTable" value="true"/>
 		<flag id="gc_batchClearTLH" value="true"/>
 		<flag id="gc_debugAsserts" value="true"/>
-		<flag id="gc_inlinedAllocFields" value="true"/>
 		<flag id="gc_enableDoubleMap" value="true"/>
+		<flag id="gc_inlinedAllocFields" value="true"/>
 		<flag id="gc_minimumObjectSize" value="true"/>
+		<flag id="gc_sparseHeapAllocation" value="true"/>
 		<flag id="gc_subpoolsAlias" value="true"/>
 		<flag id="graph_cmdLineTester" value="true"/>
 		<flag id="graph_compile" value="true"/>
@@ -232,7 +233,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="opt_jxeLoadSupport" value="true"/>
 		<flag id="opt_memoryCheckSupport" value="true"/>
 		<flag id="opt_multiVm" value="true"/>
-		<flag id="opt_panama" value="false"/>
 		<flag id="opt_reflect" value="true"/>
 		<flag id="opt_sharedClasses" value="true"/>
 		<flag id="opt_sidecar" value="true"/>
@@ -241,6 +241,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<flag id="opt_useFfi" value="true"/>
 		<flag id="opt_useFfiOnly" value="true"/>
 		<flag id="opt_valhallaValueTypes" value="false"/>
+		<flag id="opt_valhallaFlattenableValueTypes" value="false"/>
 		<flag id="opt_zipSupport" value="true"/>
 		<flag id="opt_zlibCompression" value="true"/>
 		<flag id="opt_zlibSupport" value="true"/>

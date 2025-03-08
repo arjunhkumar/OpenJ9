@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /* #define J9VM_DBG */
@@ -91,7 +91,7 @@ static void printCustomSpinOptions(void *element, void *userData);
 #endif /* J9VM_INTERP_CUSTOM_SPIN_OPTIONS */
 
 J9VMThread *
-allocateVMThread(J9JavaVM * vm, omrthread_t osThread, UDATA privateFlags, void * memorySpace, J9Object * threadObject)
+allocateVMThread(J9JavaVM *vm, omrthread_t osThread, UDATA privateFlags, void *memorySpace, J9Object *threadObject)
 {
 	PORT_ACCESS_FROM_PORT(vm->portLibrary);
 	J9JavaStack *stack = NULL;
@@ -194,8 +194,9 @@ allocateVMThread(J9JavaVM * vm, omrthread_t osThread, UDATA privateFlags, void *
 
 	newThread->contiguousIndexableHeaderSize = vm->contiguousIndexableHeaderSize;
 	newThread->discontiguousIndexableHeaderSize = vm->discontiguousIndexableHeaderSize;
+	newThread->unsafeIndexableHeaderSize = vm->unsafeIndexableHeaderSize;
 #if defined(J9VM_ENV_DATA64)
-	newThread->isIndexableDataAddrPresent = vm->isIndexableDataAddrPresent;
+	newThread->indexableObjectLayout = vm->indexableObjectLayout;
 #endif /* defined(J9VM_ENV_DATA64) */
 
 	newThread->privateFlags = privateFlags;
@@ -205,6 +206,22 @@ allocateVMThread(J9JavaVM * vm, omrthread_t osThread, UDATA privateFlags, void *
 	newThread->stackObject = stack;
 	newThread->stackOverflowMark = newThread->stackOverflowMark2 = J9JAVASTACK_STACKOVERFLOWMARK(stack);
 	newThread->osThread = osThread;
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+	/* JDWP threads need to remain live while checkpoint/restore hooks run, so add
+	 * J9_PRIVATE_FLAGS2_DELAY_HALT_FOR_CHECKPOINT to the new J9VMThread created from a
+	 * JDWP java thread object.
+	 */
+	if (J9_ARE_ANY_BITS_SET(vm->checkpointState.flags, J9VM_CRIU_IS_JDWP_ENABLED)) {
+		for (UDATA i = 0; i < vm->checkpointState.javaDebugThreadCount; i++) {
+			j9object_t jdwpThreadObject = J9_JNI_UNWRAP_REFERENCE(vm->checkpointState.javaDebugThreads[i]);
+			if (jdwpThreadObject == threadObject) {
+				Trc_VM_criu_allocateVMThread_set_delayflag(i);
+				newThread->privateFlags2 |= J9_PRIVATE_FLAGS2_DELAY_HALT_FOR_CHECKPOINT;
+				break;
+			}
+		}
+	}
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 
 #ifdef J9VM_OPT_JAVA_OFFLOAD_SUPPORT
 	newThread->javaOffloadState = 0;
@@ -267,6 +284,9 @@ allocateVMThread(J9JavaVM * vm, omrthread_t osThread, UDATA privateFlags, void *
 	newThread->ffiArgCount = 0;
 	newThread->jmpBufEnvPtr = NULL;
 #endif /* JAVA_SPEC_VERSION >= 16 */
+#if JAVA_SPEC_VERSION >= 21
+	newThread->isInCriticalDownCall = FALSE;
+#endif /* JAVA_SPEC_VERSION >= 21 */
 
 #if JAVA_SPEC_VERSION >= 19
 	newThread->currentContinuation = NULL;
@@ -276,6 +296,10 @@ allocateVMThread(J9JavaVM * vm, omrthread_t osThread, UDATA privateFlags, void *
 	newThread->carrierThreadObject = threadObject;
 	newThread->scopedValueCache = NULL;
 #endif /* JAVA_SPEC_VERSION >= 19 */
+
+#if defined(J9VM_OPT_JFR)
+	newThread->threadJfrState.prevTimestamp = -1;
+#endif /* defined(J9VM_OPT_JFR) */
 
 	/* If an exclusive access request is in progress, mark this thread */
 
@@ -292,7 +316,12 @@ allocateVMThread(J9JavaVM * vm, omrthread_t osThread, UDATA privateFlags, void *
 	}
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 	if (VM_CRIUHelpers::isJVMInSingleThreadMode(vm) && VM_VMHelpers::threadCanRunJavaCode(newThread)) {
-		setHaltFlag(newThread, J9_PUBLIC_FLAGS_HALT_THREAD_FOR_CHECKPOINT);
+		/* New threads with the delay halt flag should not be halted here. */
+		Trc_VM_criu_allocateVMThread_check_delayflag(newThread);
+		if (J9_ARE_NO_BITS_SET(newThread->privateFlags2, J9_PRIVATE_FLAGS2_DELAY_HALT_FOR_CHECKPOINT)) {
+			Trc_VM_criu_allocateVMThread_set_haltflag(newThread);
+			setHaltFlag(newThread, J9_PUBLIC_FLAGS_HALT_THREAD_FOR_CHECKPOINT);
+		}
 	}
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 	omrthread_monitor_exit(vm->exclusiveAccessMutex);
@@ -318,6 +347,11 @@ allocateVMThread(J9JavaVM * vm, omrthread_t osThread, UDATA privateFlags, void *
 	/* Update counters for total # of threads and daemon threads and notify anyone waiting */
 
 	++(vm->totalThreadCount);
+	++(vm->accumulatedThreadCount);
+	if (vm->totalThreadCount > vm->peakThreadCount) {
+		vm->peakThreadCount = vm->totalThreadCount;
+	}
+
 	if (privateFlags & J9_PRIVATE_FLAGS_DAEMON_THREAD) {
 		++(vm->daemonThreadCount);
 	}
@@ -533,7 +567,7 @@ threadParseArguments(J9JavaVM *vm, char *optArg)
 #endif /* J9VM_INTERP_CUSTOM_SPIN_OPTIONS */
 	PORT_ACCESS_FROM_JAVAVM(vm);
 
-	cpus = j9sysinfo_get_number_CPUs_by_type(J9PORT_CPU_ONLINE);
+	cpus = j9sysinfo_get_number_CPUs_by_type(J9PORT_CPU_TARGET);
 
 	/* initialize defaults, first */
 	vm->thrMaxYieldsBeforeBlocking = 45;
@@ -1511,11 +1545,11 @@ static UDATA printMethodInfo(J9VMThread *currentThread , J9StackWalkState *state
 	char *end = buf + sizeof(buf);
 	PORT_ACCESS_FROM_VMC(currentThread);
 
-	cursor += j9str_printf(PORTLIB, cursor, end - cursor, "\tat %.*s.%.*s%.*s", J9UTF8_LENGTH(className), J9UTF8_DATA(className), J9UTF8_LENGTH(methodName), J9UTF8_DATA(methodName), J9UTF8_LENGTH(sig), J9UTF8_DATA(sig));
+	cursor += j9str_printf(cursor, end - cursor, "\tat %.*s.%.*s%.*s", J9UTF8_LENGTH(className), J9UTF8_DATA(className), J9UTF8_LENGTH(methodName), J9UTF8_DATA(methodName), J9UTF8_LENGTH(sig), J9UTF8_DATA(sig));
 
 	if (romMethod->modifiers & J9AccNative) {
 	/*increment cursor here by the return of j9str_printf if it needs to be used further*/
-		j9str_printf(PORTLIB, cursor, end - cursor, " (Native Method)");
+		j9str_printf(cursor, end - cursor, " (Native Method)");
 	} else {
 		UDATA offsetPC = state->bytecodePCOffset;
 #ifdef J9VM_OPT_DEBUG_INFO_SERVER
@@ -1524,21 +1558,21 @@ static UDATA printMethodInfo(J9VMThread *currentThread , J9StackWalkState *state
 		if (sourceFile) {
 			IDATA lineNumber = getLineNumberForROMClass(vm, method, offsetPC);
 
-			cursor += j9str_printf(PORTLIB, cursor, end - cursor, " (%.*s", J9UTF8_LENGTH(sourceFile), J9UTF8_DATA(sourceFile));
+			cursor += j9str_printf(cursor, end - cursor, " (%.*s", J9UTF8_LENGTH(sourceFile), J9UTF8_DATA(sourceFile));
 			if (lineNumber != -1) {
-				cursor += j9str_printf(PORTLIB, cursor, end - cursor, ":%zu", lineNumber);
+				cursor += j9str_printf(cursor, end - cursor, ":%zu", lineNumber);
 			}
-			cursor += j9str_printf(PORTLIB, cursor, end - cursor, ")");
+			cursor += j9str_printf(cursor, end - cursor, ")");
 		} else
 #endif
 		{
-			cursor += j9str_printf(PORTLIB, cursor, end - cursor, " (Bytecode PC: %zu)", offsetPC);
+			cursor += j9str_printf(cursor, end - cursor, " (Bytecode PC: %zu)", offsetPC);
 		}
 
 #ifdef J9VM_INTERP_NATIVE_SUPPORT
 		if (state->jitInfo != NULL) {
 		/*increment cursor here by the return of j9str_printf if it needs to be used further*/
-			j9str_printf(PORTLIB, cursor, end - cursor, " (Compiled Code)");
+			j9str_printf(cursor, end - cursor, " (Compiled Code)");
 		}
 #endif
 	}
@@ -1562,7 +1596,7 @@ void printThreadInfo(J9JavaVM *vm, J9VMThread *self, char *toFile, BOOLEAN allTh
 
 	if ( !vm->mainThread ) {
 		/* No main thread, so not much we can do here */
-		j9tty_err_printf(PORTLIB, "Thread info not available\n");
+		j9tty_err_printf("Thread info not available\n");
 		return;
 	}
 
@@ -1590,13 +1624,13 @@ void printThreadInfo(J9JavaVM *vm, J9VMThread *self, char *toFile, BOOLEAN allTh
 	if (toFile != NULL) {
 		strcpy(fileName, toFile);
 		if ((tracefd = j9file_open(fileName, EsOpenWrite | EsOpenCreate | EsOpenTruncate, 0666))==-1) {
-			j9tty_err_printf(PORTLIB, "Error: Failed to open dump file %s.\nWill output to stderr instead:\n", fileName);
+			j9tty_err_printf("Error: Failed to open dump file %s.\nWill output to stderr instead:\n", fileName);
 		}
 	} else if (vm->sigquitToFileDir != NULL) {
-		j9str_printf(PORTLIB, fileName, EsMaxPath, "%s%s%s%d%s",
-							vm->sigquitToFileDir, DIR_SEPARATOR_STR, SIGQUIT_FILE_NAME, j9time_usec_clock(), SIGQUIT_FILE_EXT);
+		j9str_printf(fileName, EsMaxPath, "%s%s%s%d%s",
+				vm->sigquitToFileDir, DIR_SEPARATOR_STR, SIGQUIT_FILE_NAME, j9time_usec_clock(), SIGQUIT_FILE_EXT);
 		if ((tracefd = j9file_open(fileName, EsOpenWrite | EsOpenCreate | EsOpenTruncate, 0666))==-1) {
-			j9tty_err_printf(PORTLIB, "Error: Failed to open trace file %s.\nWill output to stderr instead:\n", fileName);
+			j9tty_err_printf("Error: Failed to open trace file %s.\nWill output to stderr instead:\n", fileName);
 		}
 	}
 
@@ -1634,7 +1668,7 @@ void printThreadInfo(J9JavaVM *vm, J9VMThread *self, char *toFile, BOOLEAN allTh
 
 	if (tracefd != -1) {
 		j9file_close(tracefd);
-		j9tty_err_printf(PORTLIB, "Thread info written to: %s\n", fileName);
+		j9tty_err_printf("Thread info written to: %s\n", fileName);
 	}
 
 	if(exclusiveRequestedLocally) {
@@ -1753,7 +1787,7 @@ static void trace_printf(struct J9PortLibrary *portLib, IDATA tracefd, char * fo
 	if (tracefd != -1)
 		wroteToFile = (j9file_write_text(tracefd, buffer, strlen(buffer)) != -1);
 	if (!wroteToFile)
-		j9tty_err_printf(PORTLIB, buffer);
+		j9tty_err_printf(buffer);
 }
 
 j9object_t
@@ -1987,6 +2021,8 @@ startJavaThreadInternal(J9VMThread * currentThread, UDATA privateFlags, UDATA os
 
 	omrthread_resume(osThread);
 
+	TRIGGER_J9HOOK_VM_THREAD_STARTING(vm->hookInterface, currentThread, newThread);
+
 	return J9_THREAD_START_NO_ERROR;
 }
 
@@ -2015,12 +2051,12 @@ setFailedToForkThreadException(J9VMThread *currentThread, IDATA retVal, omrthrea
 			J9NLS_VM_THREAD_CREATE_FAILED_WITH_32BIT_ERRNO2, NULL);
 
 	if (errorMessage) {
-		bufLen = j9str_printf(PORTLIB, NULL, 0, errorMessage, retVal, os_errno, os_errno, (U_32)(UDATA)os_errno2);
+		bufLen = j9str_printf(NULL, 0, errorMessage, retVal, os_errno, os_errno, (U_32)(UDATA)os_errno2);
 		if (bufLen > 0) {
 			buf = (char*)j9mem_allocate_memory(bufLen, OMRMEM_CATEGORY_VM);
 			if (buf) {
 				/* j9str_printf return value doesn't include the NUL terminator */
-				if ((bufLen - 1) == j9str_printf(PORTLIB, buf, bufLen, errorMessage, retVal, os_errno, os_errno, os_errno2, os_errno2)) {
+				if ((bufLen - 1) == j9str_printf(buf, bufLen, errorMessage, retVal, os_errno, os_errno, os_errno2, os_errno2)) {
 					setCurrentExceptionUTF(currentThread, J9_EX_OOM_THREAD | J9VMCONSTANTPOOL_JAVALANGOUTOFMEMORYERROR, buf);
 					rc = 0;
 				}
@@ -2054,12 +2090,12 @@ setFailedToForkThreadException(J9VMThread *currentThread, IDATA retVal, omrthrea
 		J9NLS_VM_THREAD_CREATE_FAILED_WITH_ERRNO, NULL);
 
 	if (errorMessage) {
-		bufLen = j9str_printf(PORTLIB, NULL, 0, errorMessage, retVal, os_errno);
+		bufLen = j9str_printf(NULL, 0, errorMessage, retVal, os_errno);
 		if (bufLen > 0) {
 			buf = (char*)j9mem_allocate_memory(bufLen, OMRMEM_CATEGORY_VM);
 			if (buf) {
 				/* j9str_printf return value doesn't include the NUL terminator */
-				if ((bufLen - 1) == j9str_printf(PORTLIB, buf, bufLen, errorMessage, retVal, os_errno)) {
+				if ((bufLen - 1) == j9str_printf(buf, bufLen, errorMessage, retVal, os_errno)) {
 					setCurrentExceptionUTF(currentThread, J9_EX_OOM_THREAD | J9VMCONSTANTPOOL_JAVALANGOUTOFMEMORYERROR, buf);
 					rc = 0;
 				}

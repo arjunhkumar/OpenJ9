@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.thread;
 
 import com.ibm.dtfj.javacore.parser.framework.scanner.IParserToken;
@@ -32,7 +32,7 @@ public class ThreadInfoLineRule extends LineRule {
 	 * Most VMs list hexadecimal values with the 0x prefix, but
 	 * at least one older Sovereign VM does not, therefore check for both
 	 * patterns.
-	 * 
+	 *
 	 * 7.0
 	   3XMTHREADINFO      "main" J9VMThread:0x000CC100, j9thread_t:0x003D5600, java/lang/Thread:0x00A72440, state:R, prio=5
 	   3XMTHREADINFO1            (native thread ID:0x1A58, native priority:0x5, native policy:UNKNOWN)
@@ -59,21 +59,21 @@ public class ThreadInfoLineRule extends LineRule {
 		 * JAVA_THREAD_NAME
 		 */
 		addToken(IThreadTypes.JAVA_THREAD_NAME, CommonPatternMatchers.quoted_stringvalue);
-		
+
 		/*
 		 * VM_THREAD_ID
 		 */
 		boolean ret = consumeUntilFirstMatch(CommonPatternMatchers.colon);
-		// Give up if no thread ID 
+		// Give up if no thread ID
 		if (!ret) return;
 		addHexValue(IThreadTypes.VM_THREAD_ID);
-		
+
 		/*
 		 * ABSTRACT_THREAD_ID
 		 */
 		consumeUntilFirstMatch(CommonPatternMatchers.colon);
 		addHexValue(IThreadTypes.ABSTRACT_THREAD_ID);
-		
+
 		/*
 		 * optional Java thread object
 		 */
@@ -81,34 +81,33 @@ public class ThreadInfoLineRule extends LineRule {
 			consumeUntilFirstMatch(CommonPatternMatchers.colon);
 			addHexValue(IThreadTypes.JAVA_THREAD_OBJ);
 		}
-		
+
 		/*
 		 * Java thread state. Note this state field was actually the internal VM thread state until corrected under LIR 14327. The
 		 * DTFJ implementation for javacore exposed it via JavaThread.getState() so we continue to do that with corrected value.
 		 */
 		consumeUntilFirstMatch(CommonPatternMatchers.colon);
 		addToken(IThreadTypes.JAVA_STATE, CommonPatternMatchers.lettervalue);
-	
+
 		/*
-		 * NATIVE_THREAD_ID (SOV 1.4.2 only).  
+		 * NATIVE_THREAD_ID (SOV 1.4.2 only).
 		 */
 		if (consumeUntilFirstMatch(CommonPatternMatchers.colon)) {
 			addHexValue(IThreadTypes.NATIVE_THREAD_ID);
 		}
-		
+
 		/*
 		 * VM_THREAD_PRIORITY
 		 */
 		consumeUntilFirstMatch(CommonPatternMatchers.equals);
 		addToken(IThreadTypes.VM_THREAD_PRIORITY, CommonPatternMatchers.dec);
-		
+
 	}
-	
-	
+
 	/**
-	 * 
+	 *
 	 * @param attribute
-	 * 
+	 *
 	 */
 	private IParserToken addHexValue(String attribute) {
 		IParserToken token = null;

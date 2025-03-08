@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands.infocommands;
 
 import java.io.PrintStream;
@@ -56,7 +56,7 @@ public class InfoSymCommand extends BaseJdmpviewCommand {
 		addCommand("info sym", "", "an alias for 'mod'");				//this is kept for backwards compatibility
 		addCommand("info mod", "", "outputs module information");
 	}
-	
+
 	public void run(String command, String[] args, IContext context, PrintStream out) throws CommandException {
 		if(initCommand(command, args, context, out)) {
 			return;		//processing already handled by super class
@@ -109,7 +109,7 @@ public class InfoSymCommand extends BaseJdmpviewCommand {
 			iLibs = null;
 			out.println(Exceptions.getCorruptDataExceptionString());
 		}
-				
+
 		// iterate through the libraries
 		while (null != iLibs && iLibs.hasNext()) {
 			Object next = iLibs.next();
@@ -147,7 +147,7 @@ public class InfoSymCommand extends BaseJdmpviewCommand {
 		} catch (CorruptDataException cde) {
 			out.print("\t  " + Exceptions.getCorruptDataExceptionString());
 		}
-		
+
 		try {
 			String addressInHex = String.format("0x%x",imageModule.getLoadAddress());
 			out.print(" @ " + addressInHex);
@@ -158,9 +158,9 @@ public class InfoSymCommand extends BaseJdmpviewCommand {
 		}
 
 		Iterator<?> itSection = imageModule.getSections();
-		
+
 		if (itSection.hasNext()) {
-			out.print(", sections:\n");		
+			out.print(", sections:\n");
 		} else {
 			out.print(", <no section information>\n");
 		}
@@ -217,7 +217,7 @@ public class InfoSymCommand extends BaseJdmpviewCommand {
 			String moduleName) {
 		boolean wildCardStart = false;
 		boolean wildCardEnd = false;
-		
+
 		moduleName = moduleName.trim();
 		if (moduleName.startsWith("*")) {
 			wildCardStart = true;
@@ -245,10 +245,9 @@ public class InfoSymCommand extends BaseJdmpviewCommand {
 		}
 		return false;
 	}
-	
+
 	@Override
 	public void printDetailedHelp(PrintStream out) {
 		out.println(longDesc);
-		
 	}
 }

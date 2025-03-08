@@ -16,7 +16,7 @@
 // [1] https://www.gnu.org/software/classpath/license.html
 // [2] https://openjdk.org/legal/assembly-exception.html
 //
-// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 Executable=j9scar
 Submodules=j9vmutil,j9util,pool,module
@@ -105,8 +105,8 @@ TraceExit=Trc_SC_CurrentLoadedClass_Exit Overhead=1 Level=1 Template="JVM_Curren
 TraceEntry=Trc_SC_CurrentTimeMillis_Entry Overhead=1 Level=1 Template="JVM_CurrentTimeMillis(unused=%d)"
 TraceExit=Trc_SC_CurrentTimeMillis_Exit Overhead=1 Level=1 Template="JVM_CurrentTimeMillis -- return %lld"
 
-TraceEntry=Trc_SC_CX8Field_Entry Overhead=1 Level=1 Template="JVM_CX8Field(obj=%p, field=%p, oldval=%llx, newval=%llx)"
-TraceExit=Trc_SC_CX8Field_Exit Overhead=1 Level=1 Template="JVM_CX8Field -- return %d"
+TraceEntry=Trc_SC_CX8Field_Entry Obsolete Overhead=1 Level=1 Template="JVM_CX8Field(obj=%p, field=%p, oldval=%llx, newval=%llx)"
+TraceExit=Trc_SC_CX8Field_Exit Obsolete Overhead=1 Level=1 Template="JVM_CX8Field -- return %d"
 
 TraceException=Trc_SC_DefineClassWithSource Overhead=1 Level=1 Template="JVM_DefineClassWithSource not implemented"
 TraceException=Trc_SC_DumpThreads Overhead=1 Level=1 Template="JVM_DumpThreads not implemented"
@@ -250,7 +250,7 @@ TraceEntry=Trc_SC_RecvFrom_Entry NoEnv Overhead=1 Level=1 Template="JVM_RecvFrom
 TraceExit=Trc_SC_RecvFrom_Exit NoEnv Overhead=1 Level=1 Template="JVM_RecvFrom -- return %d, *length=%d"
 
 TraceEvent=Trc_SC_RegisterSignal NoEnv Overhead=1 Level=1 Template="JVM_RegisterSignal (not implemented -- returning -1)"
-TraceEvent=Trc_SC_RegisterUnsafeMethods Overhead=1 Level=1 Template="JVM_RegisterUnsafeMethods (not implemented -- returning)"
+TraceEvent=Trc_SC_RegisterUnsafeMethods Obsolete Overhead=1 Level=1 Template="JVM_RegisterUnsafeMethods (not implemented -- returning)"
 
 TraceEntry=Trc_SC_Send_Entry NoEnv Overhead=1 Level=1 Template="JVM_Send(descriptor=%d, buffer=%p, length=%d, flags=%d)"
 TraceExit=Trc_SC_Send_Exit NoEnv Overhead=1 Level=1 Template="JVM_Send -- return %d"
@@ -339,10 +339,10 @@ TraceEntry=Trc_SC_RegisterSignal_Entry Overhead=1 Level=1 Template="JVM_Register
 TraceExit=Trc_SC_RegisterSignal_Exit Overhead=1 Level=1 Template="JVM_RegisterSignal -- return old OS handler = %p"
 TraceException=Trc_SC_RegisterSignal_FailedToRegisterHandler Overhead=1 Level=1 Template="Failed to register handler: OS signal value = %d, new signal handler = %p, old signal handler = %p"
 
-TraceEntry=Trc_SC_GetExtendedNPEMessage_Entry Overhead=1 Level=3 Template="JVM_GetExtendedNPEMessage - throwableObj(0x%p)"
-TraceEntry=Trc_SC_GetExtendedNPEMessage_Entry2 Overhead=1 Level=1 Template="JVM_GetExtendedNPEMessage - throwableObj(0x%p)"
-TraceEvent=Trc_SC_GetExtendedNPEMessage_Null_NPE_MSG Overhead=1 Level=1 Template="JVM_GetExtendedNPEMessage - returns a NULL NPE message : romClass (0x%p) && romMethod (0x%p) bytecodeOffset (%d)"
-TraceExit=Trc_SC_GetExtendedNPEMessage_Exit Overhead=1 Level=3 Template="JVM_GetExtendedNPEMessage - returns msgObjectRef(0x%p)"
+TraceEntry=Trc_SC_GetExtendedNPEMessage_Entry Overhead=1 Level=3 Template="JVM_GetExtendedNPEMessage - throwableObj(%p)"
+TraceEntry=Trc_SC_GetExtendedNPEMessage_Entry2 Overhead=1 Level=1 Template="JVM_GetExtendedNPEMessage - throwableObj(%p)"
+TraceEvent=Trc_SC_GetExtendedNPEMessage_Null_NPE_MSG Overhead=1 Level=1 Template="JVM_GetExtendedNPEMessage - returns a NULL NPE message : romClass (%p) && romMethod (%p) bytecodeOffset (%d)"
+TraceExit=Trc_SC_GetExtendedNPEMessage_Exit Overhead=1 Level=3 Template="JVM_GetExtendedNPEMessage - returns msgObjectRef(%p)"
 
 TraceEntry=Trc_SC_UnloadLibrary_Entry NoEnv Overhead=1 Level=2 Template="JVM_UnloadLibrary(handle=%p)"
 TraceEvent=Trc_SC_LoadLibrary_BootStrap NoEnv Overhead=1 Level=3 Template="JVM_LoadLibrary(name=%s) Bootstrap library"
@@ -351,18 +351,43 @@ TraceEvent=Trc_SC_LoadLibrary_OpenShared_Decorate NoEnv Overhead=1 Level=3 Templ
 
 TraceExit=Trc_SC_LoadLibrary_Exit NoEnv Overhead=1 Level=2 Template="JVM_LoadLibrary -- return 0x%zx"
 
-TraceEntry=Trc_SC_VirtualThreadMountBegin_Entry Overhead=1 Level=3 Template="thread = 0x%p, firstMount = %d"
-TraceExit=Trc_SC_VirtualThreadMountBegin_Exit Overhead=1 Level=3 Template="thread = 0x%p, firstMount = %d"
+TraceEntry=Trc_SC_VirtualThreadMountBegin_Entry Obsolete Overhead=1 Level=3 Template="thread = %p, firstMount = %d"
+TraceExit=Trc_SC_VirtualThreadMountBegin_Exit Obsolete Overhead=1 Level=3 Template="thread = %p, firstMount = %d"
 
-TraceEntry=Trc_SC_VirtualThreadMountEnd_Entry Overhead=1 Level=3 Template="thread = 0x%p, firstMount = %d"
-TraceExit=Trc_SC_VirtualThreadMountEnd_Exit Overhead=1 Level=3 Template="thread = 0x%p, firstMount = %d"
+TraceEntry=Trc_SC_VirtualThreadMountEnd_Entry Obsolete Overhead=1 Level=3 Template="thread = %p, firstMount = %d"
+TraceExit=Trc_SC_VirtualThreadMountEnd_Exit Obsolete Overhead=1 Level=3 Template="thread = %p, firstMount = %d"
 
-TraceEntry=Trc_SC_VirtualThreadUnmountBegin_Entry Overhead=1 Level=3 Template="thread = 0x%p, lastUnmount = %d"
-TraceExit=Trc_SC_VirtualThreadUnmountBegin_Exit Overhead=1 Level=3 Template="thread = 0x%p, lastUnmount = %d"
+TraceEntry=Trc_SC_VirtualThreadUnmountBegin_Entry Obsolete Overhead=1 Level=3 Template="thread = %p, lastUnmount = %d"
+TraceExit=Trc_SC_VirtualThreadUnmountBegin_Exit Obsolete Overhead=1 Level=3 Template="thread = %p, lastUnmount = %d"
 
-TraceEntry=Trc_SC_VirtualThreadUnmountEnd_Entry Overhead=1 Level=3 Template="thread = 0x%p, lastUnmount = %d"
-TraceExit=Trc_SC_VirtualThreadUnmountEnd_Exit Overhead=1 Level=3 Template="thread = 0x%p, lastUnmount = %d"
+TraceEntry=Trc_SC_VirtualThreadUnmountEnd_Entry Obsolete Overhead=1 Level=3 Template="thread = %p, lastUnmount = %d"
+TraceExit=Trc_SC_VirtualThreadUnmountEnd_Exit Obsolete Overhead=1 Level=3 Template="thread = %p, lastUnmount = %d"
 
-TraceEvent=Trc_SC_VirtualThread_Info Overhead=1 Level=3 Test Template="virtualThreadObj = 0x%p, virtualThreadState = 0x%p, virtualThreadInspectorCount = %lld, carrierThreadObj = 0x%p, continuationObj = 0x%p, J9VMContinuation = 0x%p"
+TraceEvent=Trc_SC_VirtualThread_Info Overhead=1 Level=3 Test Template="virtualThreadObj = %p, virtualThreadState = %p, virtualThreadInspectorCount = %lld, carrierThreadObj = %p, continuationObj = %p, J9VMContinuation = %p"
 
-TraceEvent=Trc_SC_VirtualThread_RootNodeSet Overhead=1 Level=1 Test Template="Virtual threadlist root node set, global ref = 0x%p"
+TraceEvent=Trc_SC_VirtualThread_RootNodeSet Overhead=1 Level=1 Test Template="Virtual threadlist root node set, global ref = %p"
+
+TraceEntry=Trc_SC_ValidateJNILibrary_Entry NoEnv Overhead=1 Level=1 Template="JVM_ValidateJNILibrary(name=%s, handle=%p, isStatic=%d)"
+TraceExit=Trc_SC_ValidateJNILibrary_Exit NoEnv Overhead=1 Level=1 Template="JVM_ValidateJNILibrary -- return %p"
+
+TraceExit=Trc_SC_UnloadLibrary_Exit NoEnv Overhead=1 Level=2 Template="JVM_UnloadLibrary()"
+
+// z/OS only
+TraceEntry=Trc_SC_Invoke31BitJNI_OnXLoad_Entry NoEnv Overhead=1 Level=3 Template="JVM_Invoke31BitJNI_OnXLoad(vm=%p, handle=%p, isOnLoad=%d, reserved=%p)"
+TraceExit=Trc_SC_Invoke31BitJNI_OnXLoad_Exit NoEnv Overhead=1 Level=3 Template="JVM_Invoke31BitJNI_OnXLoad -- return %d"
+
+TraceEntry=Trc_SC_VirtualThreadMount_Entry Overhead=1 Level=3 Template="thread = %p, hide = %d"
+TraceExit=Trc_SC_VirtualThreadMount_Exit Overhead=1 Level=3 Template="thread = %p, hide = %d"
+
+TraceEntry=Trc_SC_VirtualThreadUnmount_Entry Overhead=1 Level=3 Template="thread = %p, hide = %d"
+TraceExit=Trc_SC_VirtualThreadUnmount_Exit Overhead=1 Level=3 Template="thread = %p, hide = %d"
+
+TraceEntry=Trc_SC_VirtualThreadStart_Entry Overhead=1 Level=3 Template="thread = %p"
+TraceExit=Trc_SC_VirtualThreadStart_Exit Overhead=1 Level=3 Template="thread = %p"
+
+TraceEntry=Trc_SC_VirtualThreadEnd_Entry Overhead=1 Level=3 Template="thread = %p"
+TraceExit=Trc_SC_VirtualThreadEnd_Exit Overhead=1 Level=3 Template="thread = %p"
+
+TraceEvent=Trc_SC_libName_no_prefix NoEnv Overhead=1 Level=3 Test Template="Skip JDK17+ libName(%s) without a lib prefix"
+TraceEvent=Trc_SC_libName_no_extension NoEnv Overhead=1 Level=3 Test Template="Skip JDK17+ libName(%s) without a file extension"
+TraceEvent=Trc_SC_allocate_memory_failed NoEnv Overhead=1 Level=2 Test Template="j9mem_allocate_memory(%zu) for libNameNotDecorated failed"

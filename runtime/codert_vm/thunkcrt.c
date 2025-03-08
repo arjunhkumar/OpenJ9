@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -361,9 +361,7 @@ j9ThunkIterateAndEncode(char ** signatureDataPtr, U_8 ** encodedTypesPtr, U_8 * 
 				while ((c = *signatureData++) == '[') ;
 				/* intentional fall-through */
 			case 'L':
-				/* intentional fall-through */
-			case 'Q':
-				if ((c == 'L') || (c == 'Q')) {
+				if (c == 'L') {
 					while (*signatureData++ != ';') ;
 				}
 #if defined(J9VM_ENV_DATA64)
@@ -503,8 +501,6 @@ j9ThunkVMHelperFromSignature(void * jitConfig, UDATA signatureLength, char *sign
 		case '[':
 			/* intentional fall-through */
 		case 'L':
-			/* intentional fall-through */
-		case 'Q':
 #if defined(J9VM_ENV_DATA64)
 			helper = J9_BUILDER_SYMBOL(icallVMprJavaSendVirtualL);
 			break;
@@ -540,8 +536,6 @@ j9ThunkInvokeExactHelperFromSignature(void * jitConfig, UDATA signatureLength, c
 		case '[':
 			/* intentional fall-through */
 		case 'L':
-			/* intentional fall-through */
-		case 'Q':
 			helper = J9_BUILDER_SYMBOL(icallVMprJavaSendInvokeExactL);
 			break;
 		default:

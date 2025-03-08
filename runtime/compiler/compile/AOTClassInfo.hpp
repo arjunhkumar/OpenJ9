@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef TR_AOTCLASSINFO_INCL
@@ -56,14 +56,14 @@ public:
    AOTClassInfo(
          TR_FrontEnd *fe,
          TR_OpaqueClassBlock *clazz,
-         void *classChain,
+         uintptr_t classChainOffset,
          TR_OpaqueMethodBlock *method,
          uint32_t cpIndex,
          TR_ExternalRelocationTargetKind reloKind,
          const AOTCacheClassChainRecord *aotCacheClassChainRecord = NULL
    ) :
       _clazz(clazz),
-      _classChain(classChain),
+      _classChainOffset(classChainOffset),
       _method(method),
       _constantPool((void *) ((TR_J9VMBase *)fe)->getConstantPoolFromMethod(method)),
       _cpIndex(cpIndex),
@@ -77,9 +77,9 @@ public:
       }
 
 #if defined(J9VM_OPT_JITSERVER)
-   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() { return _aotCacheClassChainRecord; }
+   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() const { return _aotCacheClassChainRecord; }
 #else /* defined(J9VM_OPT_JITSERVER) */
-   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() { return NULL; }
+   const AOTCacheClassChainRecord *getAOTCacheClassChainRecord() const { return NULL; }
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
    TR_ExternalRelocationTargetKind _reloKind;   // identifies validation needed (instance field, static field, class, arbitrary class)
@@ -88,8 +88,8 @@ public:
                                                 // _method must be compiled method or some method in the inlined site table
    void *_constantPool;                         // constant pool owning the cp entry, initialized based on _method
    TR_OpaqueClassBlock *_clazz;                 // class on which assumption is formed
-   void *_classChain;                           // class chain for clazz: captures the assumption
-                                                // == NULL for TR_ValidateStaticField validations
+   uintptr_t _classChainOffset;                 // class chain offset for clazz: captures the assumption
+                                                // == TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET for TR_ValidateStaticField validations
 #if defined(J9VM_OPT_JITSERVER)
    const AOTCacheClassChainRecord *_aotCacheClassChainRecord; // NULL at JITServer if compiled method won't be cached
                                                               // Always NULL at JIT client

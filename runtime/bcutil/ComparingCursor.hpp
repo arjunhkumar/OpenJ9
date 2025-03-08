@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /*
@@ -38,7 +38,7 @@ class ComparingCursor : public Cursor
 {
 public:
 	ComparingCursor(J9JavaVM *javaVM, SRPOffsetTable *srpOffsetTable, SRPKeyProducer *srpKeyProducer,
-		ClassFileOracle *classFileOracle, U_8 *romClass, bool romClassIsShared, ROMClassCreationContext * context, bool isComparingLambdaFromSCC);
+		ClassFileOracle *classFileOracle, U_8 *romClass, bool romClassIsShared, ROMClassCreationContext *context);
 	~ComparingCursor();
 
 	UDATA getCount();
@@ -57,11 +57,10 @@ public:
 	U_32 peekU32(DataType dataType);
 	void skip(UDATA byteCount, DataType dataType = Cursor::GENERIC);
 	bool isEqual() const { return _isEqual; }
-	bool isComparingLambdaFromSCC() const { return _isComparingLambdaFromSCC; }
 
 private:
 	J9JavaVM *_javaVM;
-	bool _checkRangeInSharedCache;
+	bool _romClassIsShared;
 	ClassFileOracle *_classFileOracle;
 	SRPKeyProducer *_srpKeyProducer;
 	U_8 *_romClass;
@@ -72,7 +71,6 @@ private:
 	ComparingCursorHelper _lineNumberHelper;
 	ComparingCursorHelper _varInfoHelper;
 	bool _isEqual;
-	bool _isComparingLambdaFromSCC;
 	void markUnEqual() { _isEqual = false; }
 	bool isRangeValidForPtr(U_8 *ptr, UDATA length);
 	UDATA getMaximumValidLengthForPtrInSegment(U_8 *ptr);

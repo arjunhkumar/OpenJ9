@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -43,10 +43,9 @@ char* catPaths(J9PortLibrary* portLib, char* path1, char* path2) {
 	newPathLength = strlen(path1) + strlen(path2) + 2;
 	newPath = j9mem_allocate_memory(newPathLength, J9MEM_CATEGORY_VM_JCL);
 	if (newPath) {
-		j9str_printf(PORTLIB, newPath, (U_32)newPathLength, "%s%c%s", path1, (char) j9sysinfo_get_classpathSeparator(), path2);
+		j9str_printf(newPath, (U_32)newPathLength, "%s%c%s", path1, (char) j9sysinfo_get_classpathSeparator(), path2);
 	}
 	return newPath;
 }
 
 #endif /* J9VM_OPT_DYNAMIC_LOAD_SUPPORT */
-

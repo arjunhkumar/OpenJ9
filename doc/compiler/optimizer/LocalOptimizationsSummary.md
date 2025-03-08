@@ -17,7 +17,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 # Local Optimizations
@@ -38,7 +38,7 @@ evaluated and the resulting register is used at each use of the stored value).
 Commoning is done on syntactic equivalence.
 
 ## Local Value Propagation
-Local [Value Propagation](https://github.com/eclipse/omr/blob/master/doc/compiler/optimizer/ValuePropagation.md)
+Local [Value Propagation](https://github.com/eclipse-omr/omr/blob/master/doc/compiler/optimizer/ValuePropagation.md)
 performs constant, type and relational propagation within a block.
 It propagates constants and types based on assignments and performs removal
 of subsumed checks and compares. It also performs devirtualization

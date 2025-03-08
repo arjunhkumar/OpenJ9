@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdlib.h>
@@ -461,15 +461,14 @@ int main_runJavaMain(JNIEnv * env, char *mainClassName, int nameIsUTF, int java_
 
 char * main_vmVersionString(void)
 {
-	U_32 minorVersion;
-	char *native = "";
+	U_32 minorVersion = EsVersionMinor;
 	char *versionStringPtr = GLOBAL_DATA(versionString);
-	minorVersion = EsVersionMinor;
 
-	if ((minorVersion % 10) == 0)
+	if (0 == (minorVersion % 10)) {
 		minorVersion /= 10;
-	sprintf (versionStringPtr, "%d.%d%s,%s %s", 
-		EsVersionMajor, minorVersion, EsExtraVersionString, native, EsBuildVersionString);
+	}
+	snprintf(versionStringPtr, sizeof(versionString), "%d.%d%s, %s",
+		EsVersionMajor, minorVersion, EsExtraVersionString, EsBuildVersionString);
 	return versionStringPtr;
 }
 
@@ -514,7 +513,7 @@ char * vmDetailString( J9PortLibrary *portLib, char *detailString, UDATA detailS
 	osversion = j9sysinfo_get_OS_version();
 	osarch = j9sysinfo_get_CPU_architecture();
 
-	j9str_printf (PORTLIB, detailString, detailStringLength, "%s (%s %s %s)", EsBuildVersionString, ostype ? ostype : "unknown", osversion ? osversion : "unknown", osarch ? osarch : "unknown");
+	j9str_printf(detailString, detailStringLength, "%s (%s %s %s)", EsBuildVersionString, ostype ? ostype : "unknown", osversion ? osversion : "unknown", osarch ? osarch : "unknown");
 	return detailString;
 }
 

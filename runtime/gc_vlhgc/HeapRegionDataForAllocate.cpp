@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -180,7 +180,7 @@ MM_HeapRegionDataForAllocate::taskAsArrayletLeaf(MM_EnvironmentBase *env)
  * or assigned to a new list immediately.
  */
 void 
-MM_HeapRegionDataForAllocate::removeFromArrayletLeafList()
+MM_HeapRegionDataForAllocate::removeFromArrayletLeafList(MM_EnvironmentVLHGC *env)
 {
 	Assert_MM_true(_region->isArrayletLeaf());
 	
@@ -188,7 +188,15 @@ MM_HeapRegionDataForAllocate::removeFromArrayletLeafList()
 	MM_HeapRegionDescriptorVLHGC *previous = _previousArrayletLeafRegion;
 	
 	Assert_MM_true(NULL != previous);
-	
+	MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env);
+
+	if (extensions->isVirtualLargeObjectHeapEnabled) {
+		/* Restore/Recommit arraylet leaves that have been previously decommitted. */
+		const UDATA arrayletLeafSize = env->getOmrVM()->_arrayletLeafSize;
+		void *leafAddress = _region->getLowAddress();
+		extensions->heap->commitMemory(leafAddress, arrayletLeafSize);
+	}
+
 	previous->_allocateData._nextArrayletLeafRegion = next;
 	if (NULL != next) {
 		Assert_MM_true(next->isArrayletLeaf());

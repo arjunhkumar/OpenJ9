@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.j9;
 
 import java.util.Iterator;
@@ -100,32 +100,32 @@ public class JavaLocation implements com.ibm.dtfj.java.JavaLocation
 	{
 		/* we can't get accurate information from the JIT, so we will
 		 * consider any JIT section to be 1, and any non-JIT section to
-		 * be 0. 
+		 * be 0.
 		 */
 		long pointer = getAddress().getAddress();
-		
+
 		Iterator iter = getMethod().getBytecodeSections();
 		while (iter.hasNext()) {
-			ImageSection section = (ImageSection)iter.next(); 
+			ImageSection section = (ImageSection)iter.next();
 			if ( pointer >= section.getBaseAddress().getAddress() &&
-				 pointer < section.getBaseAddress().getAddress() + section.getSize()) 
+				 pointer < section.getBaseAddress().getAddress() + section.getSize())
 			{
 				/* the PC is within an interpreted section */
 				return 0;
-			} 
+			}
 		}
 
 		iter = getMethod().getCompiledSections();
 		while (iter.hasNext()) {
-			ImageSection section = (ImageSection)iter.next(); 
+			ImageSection section = (ImageSection)iter.next();
 			if ( pointer >= section.getBaseAddress().getAddress() &&
-				 pointer < section.getBaseAddress().getAddress() + section.getSize()) 
+				 pointer < section.getBaseAddress().getAddress() + section.getSize())
 			{
 				/* the PC is within a compiled section */
 				return 1;
-			} 
+			}
 		}
-		
+
 		//we couldn't find the PC. This should probably be an error:
 		//throw new CorruptDataException(new CorruptData("PC is not within a known method section", getAddress()));
 		//but let's play it safe, since J9 uses some magic PCs which jextract doesn't hide
@@ -147,7 +147,7 @@ public class JavaLocation implements com.ibm.dtfj.java.JavaLocation
 	public String toString()
 	{
 		String output = null;
-		
+
 		try {
 			//TODO: it would be nice if we could get the currently receiving class type but that will require some help from JExtract
 			String className = getMethod().getDeclaringClass().getName();
@@ -173,14 +173,14 @@ public class JavaLocation implements com.ibm.dtfj.java.JavaLocation
 	public boolean equals(Object obj)
 	{
 		boolean isEqual = false;
-		
+
 		if (obj instanceof JavaLocation) {
 			JavaLocation local = (JavaLocation) obj;
 			isEqual = equals(_method, local._method) && _pc.equals(local._pc) && equals(_methodID, local._methodID);
 		}
 		return isEqual;
 	}
-	
+
 	private static boolean equals(Object o1, Object o2)
 	{
 		return o1 == o2 || o1 != null && o1.equals(o2);
@@ -190,7 +190,7 @@ public class JavaLocation implements com.ibm.dtfj.java.JavaLocation
 	{
 		return hashCode(_method) ^ _pc.hashCode() ^ hashCode(_methodID);
 	}
-	
+
 	private static int hashCode(Object o1)
 	{
 		return o1 == null ? 0 : o1.hashCode();

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -490,7 +490,7 @@ static const char* getOpCodeName(TR::ILOpCodes opcode) {
 }
 
 
-char *nvvmTypeNames[TR::NumOMRTypes] =
+const char *nvvmTypeNames[TR::NumOMRTypes] =
    {
    "void",    // TR::NoType
    "i8",      // TR::Int8
@@ -515,7 +515,7 @@ static const char* getTypeName(TR::DataType type) {
        }
 }
 
-char *nvvmVarTypeNames[TR::NumOMRTypes] =
+const char *nvvmVarTypeNames[TR::NumOMRTypes] =
    {
    "void",    // TR::NoType
    "i8",      // TR::Int8
@@ -572,7 +572,7 @@ class NVVMIRBuffer
       buffer = (char*)m->allocateHeapMemory(size);
       s = buffer;
       }
-   void print(char *format, ...)
+   void print(const char *format, ...)
       {
       va_list args;
       va_start (args, format);
@@ -671,7 +671,7 @@ static void getNodeName(TR::Node* node, char * s, TR::Compilation *comp)
       }
    }
 
-char* getNVVMMathFunctionName(TR::Node *node)
+const char* getNVVMMathFunctionName(TR::Node *node)
    {
    switch (((TR::MethodSymbol*)node->getSymbolReference()->getSymbol())->getRecognizedMethod())
       {
@@ -1121,7 +1121,7 @@ bool isThisPointer(TR::SymbolReference * symRef)
           ((TR::ParameterSymbol *)symRef->getSymbol())->getSlot() == 0;
    }
 
-char * getTypeNameFromSignature(char* sig, int32_t sigLength)
+const char *getTypeNameFromSignature(char* sig, int32_t sigLength)
    {
    TR_ASSERT(sigLength == 2 && sig[0] == '[', "only handling static shared arrays");
    switch (sig[1])
@@ -2082,7 +2082,7 @@ J9::CodeGenerator::findExtraParms(
                    "can only access a field of this object\n");
 
          // TODO: handle duplicate names from different classes
-         TR_SharedMemoryField field = sharedMemory->find(TR::comp(), node->getSymbolReference());
+         TR_SharedMemoryField field = sharedMemory->find(self()->comp(), node->getSymbolReference());
 
          if (field.getSize() == 0)
             numExtraParms++;
@@ -2296,13 +2296,13 @@ J9::CodeGenerator::dumpNVVMIR(
 
    ir.print("\ndefine %s @test%d(", getTypeName(_gpuReturnType), gpuPtxCount);
 
-   CS2::ArrayOf<gpuParameter, TR::Allocator> gpuParameterMap(TR::comp()->allocator());
+   CS2::ArrayOf<gpuParameter, TR::Allocator> gpuParameterMap(self()->comp()->allocator());
    CS2::ArrayOf<TR::CodeGenerator::gpuMapElement, TR::Allocator>::Cursor ait(_gpuSymbolMap);
 
    for (ait.SetToFirst(); ait.Valid(); ait.SetToNext())
       {
       if (!ait->_hostSymRef) continue;
-      traceMsg(TR::comp(), "hostSymRef #%d parmSlot %d\n", (int)ait, ait->_parmSlot);
+      traceMsg(self()->comp(), "hostSymRef #%d parmSlot %d\n", (int)ait, ait->_parmSlot);
 
       if (ait->_parmSlot != -1)
          {

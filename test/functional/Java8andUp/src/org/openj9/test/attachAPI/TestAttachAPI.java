@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.openj9.test.attachAPI;
 
 import static org.testng.AssertJUnit.assertTrue;
@@ -37,6 +37,7 @@ import java.util.Properties;
 
 import org.openj9.test.util.PlatformInfo;
 import org.openj9.test.util.StringPrintStream;
+import org.openj9.test.util.VersionCheck;
 import org.testng.AssertJUnit;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -1104,8 +1105,15 @@ public class TestAttachAPI extends AttachApiTest {
 		try {
 			ap.checkGuard(this);
 		} catch (SecurityException unwantedException) {
-			fail("attachperm04: checkGuard: unexpected exception: "
-					+ unwantedException.getMessage());
+			String m = unwantedException.getMessage();
+			if (VersionCheck.major() >= 24
+				&& m.contains("checking permissions is not supported")
+			) {
+				return;
+			} else {
+				fail("attachperm04: checkGuard: unexpected exception: "
+						+ unwantedException.getMessage());
+			}
 		}
 		String testString = ap.toString();
 		assertTrue(

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -89,10 +89,10 @@ char* getDefaultBootstrapClassPath(J9JavaVM * vm, char* javaHome)
 			lastEntry = *entry;
 
 			if ('!' == lastEntry[0]) {
-				j9str_printf(PORTLIB, subPath, (U_32)pathLength, "%s", lastEntry + 1);
+				j9str_printf(subPath, (U_32)pathLength, "%s", lastEntry + 1);
 				j9mem_free_memory(*entry);
 			} else {
-				j9str_printf(PORTLIB, subPath, (U_32)pathLength,
+				j9str_printf(subPath, (U_32)pathLength,
 								"%s" DIR_SEPARATOR_STR "lib" DIR_SEPARATOR_STR "%s",
 								/* classes.zip */ javaHome, *entry);
 				/* if this entry was allocated then free it as we will not use it

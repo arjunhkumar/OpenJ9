@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package com.ibm.java.diagnostics.utils.plugins;
 
@@ -40,12 +40,12 @@ public interface PluginManager {
 	public Container getCache();
 	/**
 	 * Add a listener to the manager. If the listener already
-	 * exists as determined by a call to equals() then the 
+	 * exists as determined by a call to equals() then the
 	 * existing instance is replace by the new one. This allows
 	 * clients to install a single type of handler but update
 	 * the configuration or it's methods of operation without retaining
 	 * a handle to original listener.
-	 * 
+	 *
 	 * @param listener listener to add
 	 * @return result from the standard Set.add() method
 	 */

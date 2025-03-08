@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "gc_internal.h"
@@ -82,6 +82,7 @@ J9MemoryManagerFunctions MemoryManagerFunctions = {
 	j9gc_concurrent_scavenger_enabled,
 	j9gc_software_read_barrier_enabled,
 	j9gc_hot_reference_field_required,
+	j9gc_off_heap_allocation_enabled,
 	j9gc_max_hot_field_list_length,
 #if defined(J9VM_GC_HEAP_CARD_TABLE)
 	j9gc_concurrent_getCardSize,
@@ -117,6 +118,8 @@ J9MemoryManagerFunctions MemoryManagerFunctions = {
 	j9gc_get_softmx,
 	j9gc_get_initial_heap_size,
 	j9gc_get_maximum_heap_size,
+	j9gc_get_minimum_young_generation_size,
+	j9gc_get_maximum_young_generation_size,
 	j9gc_objaccess_checkClassLive,
 #if defined(J9VM_GC_OBJECT_ACCESS_BARRIER)
 	j9gc_objaccess_indexableReadI8,
@@ -142,6 +145,7 @@ J9MemoryManagerFunctions MemoryManagerFunctions = {
 #endif /* !J9VM_ENV_DATA64 */
 	j9gc_objaccess_indexableStoreObject,
 	j9gc_objaccess_indexableStoreAddress,
+	j9gc_objaccess_indexableDataDisplacement,
 	j9gc_objaccess_mixedObjectReadI32,
 	j9gc_objaccess_mixedObjectReadU32,
 	j9gc_objaccess_mixedObjectReadI64,
@@ -202,6 +206,7 @@ J9MemoryManagerFunctions MemoryManagerFunctions = {
 	j9gc_get_gcmodestring,
 	j9gc_get_object_size_in_bytes,
 	j9gc_get_object_total_footprint_in_bytes,
+	j9gc_get_explicit_GC_disabled,
 	j9gc_modron_global_collect,
 	j9gc_modron_global_collect_with_overrides,
 	j9gc_modron_local_collect,
@@ -249,10 +254,14 @@ J9MemoryManagerFunctions MemoryManagerFunctions = {
 #endif /* !J9VM_ENV_DATA64 */
 #endif /* J9VM_GC_OBJECT_ACCESS_BARRIER */
 	j9gc_get_bytes_allocated_by_thread,
+	j9gc_get_cumulative_bytes_allocated_by_thread,
+	j9gc_get_cumulative_class_unloading_stats,
 	j9mm_iterate_all_ownable_synchronizer_objects,
 	j9mm_iterate_all_continuation_objects,
 	ownableSynchronizerObjectCreated,
 	continuationObjectCreated,
+	continuationObjectStarted,
+	continuationObjectFinished,
 	j9gc_notifyGCOfClassReplacement,
 	j9gc_get_jit_string_dedup_policy,
 	j9gc_stringHashFn,
@@ -261,6 +270,5 @@ J9MemoryManagerFunctions MemoryManagerFunctions = {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 	j9gc_prepare_for_checkpoint,
 	j9gc_reinitialize_for_restore,
-	j9gc_reinitializeDefaults
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 };

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -140,7 +140,7 @@ I_32 initZipLibrary(J9PortLibrary* portLib, char* dir)
 				return ZIP_ERR_OUT_OF_MEMORY;
 			}
 		}
-		j9str_printf(portLib, correctPathPtr, expectedPathLength, "%s/%s", dir, J9_ZIP_DLL_NAME);
+		j9str_printf(correctPathPtr, expectedPathLength, "%s/%s", dir, J9_ZIP_DLL_NAME);
 		if(j9sl_open_shared_library(correctPathPtr, &zipDLLDescriptor, TRUE)) goto openFailed;
 	} else {
 		/* dir is NULL. It shouldn't happen, but in case, revert back to original dlopen that

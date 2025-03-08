@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 omr_add_tracegen(j9vm.tdf)
@@ -38,7 +38,10 @@ set(interp_new_flags) # flags to be added when compiling the interpreter
 # Note: the uma makefiles also specify this for pLinux, however it appears we no longer
 # support building the interpreter with xlc on linux
 if(OMR_ARCH_POWER AND OMR_OS_AIX)
-	if(OMR_TOOLCONFIG STREQUAL "xlc")
+	if(CMAKE_C_COMPILER_IS_OPENXL)
+		# Fixes a performance defect related to PPC's handling of branch tables/indirect branch prediction
+		list(APPEND interp_new_flags "-mllvm" "-ppc-min-jump-table-entries=512")
+	elseif(OMR_TOOLCONFIG STREQUAL "xlc")
 		list(APPEND interp_flags_to_remove "-O3" "-g")
 		list(APPEND interp_new_flags "-O2" "-qdebug=lincomm:ptranl:tfbagg")
 		# Note: the following code is specified in the UMA builds, however,
@@ -52,15 +55,23 @@ if(OMR_ARCH_POWER AND OMR_OS_AIX)
 		]]
 	endif()
 elseif(OMR_OS_ZOS)
-	# TODO need to handle optimized debug info
-	list(APPEND interp_flags_to_remove "-O3" "-g" "-qdebug=nohook")
+	if(OMR_TOOLCONFIG STREQUAL "openxl")
+		# Hooks are not implemented in Open XL. The default debug compiles in Open XL will be NOHOOK
+		# equivalent.
+		list(APPEND interp_flags_to_remove "-O3" "-g")
 
-	list(APPEND interp_new_flags
-		-O2
-		"\"-Wc,TBYDBG(-qdebug=MRABIG)\""
-		"\"-Wc,TBYDBG(-qdebug=lincomm:ptranl:tfbagg)\""
-		"\"-Wc,FEDBG(-qxflag=InlineDespiteVolatileInArgs)\""
-	)
+		list(APPEND interp_new_flags -O2)
+	else()
+		# TODO need to handle optimized debug info
+		list(APPEND interp_flags_to_remove "-O3" "-g" "-qdebug=nohook")
+
+		list(APPEND interp_new_flags
+			-O2
+			"\"-Wc,TBYDBG(-qdebug=MRABIG)\""
+			"\"-Wc,TBYDBG(-qdebug=lincomm:ptranl:tfbagg)\""
+			"\"-Wc,FEDBG(-qxflag=InlineDespiteVolatileInArgs)\""
+		)
+	endif()
 endif()
 
 if(interp_flags_to_remove)
@@ -80,6 +91,7 @@ endif()
 
 set(main_sources
 	annsup.c
+	ArrayCopyHelpers.cpp
 	AsyncMessageHandler.cpp
 	bchelper.c
 	bindnatv.cpp
@@ -94,6 +106,7 @@ set(main_sources
 	description.c
 	dllsup.c
 	drophelp.c
+	EnsureHashedConfig.cpp
 	exceptiondescribe.c
 	exceptionsupport.c
 	extendedMessageNPE.cpp
@@ -134,6 +147,7 @@ set(main_sources
 	jvmrisup.c
 	KeyHashTable.c
 	LayoutFFITypeHelpers.cpp
+	LayoutFFITypeTable.cpp
 	leconditionexceptionsup.c
 	linearswalk.c
 	lockwordconfig.c
@@ -147,7 +161,6 @@ set(main_sources
 	ObjectFieldInfo.cpp
 	ObjectMonitor.cpp
 	OutOfLineINL_com_ibm_jit_JITHelpers.cpp
-	OutOfLineINL_java_lang_invoke_NativeMethodHandle.cpp
 	OutOfLineINL_jdk_internal_misc_Unsafe.cpp
 	OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler.cpp
 	OutOfLineINL_openj9_internal_foreign_abi_InternalUpcallHandler.cpp
@@ -166,7 +179,7 @@ set(main_sources
 	stringhelpers.cpp
 	swalk.c
 	threadhelp.cpp
-	threadpark.c
+	threadpark.cpp
 	throwexception.c
 	UpcallExceptionHandler.cpp
 	UpcallThunkMem.cpp
@@ -181,6 +194,7 @@ set(main_sources
 	vmphases.c
 	vmprops.c
 	vmruntimestate.c
+	VMSnapshotImpl.cpp
 	vmthinit.c
 	vmthread.cpp
 	xcheck.c
@@ -191,6 +205,14 @@ set(main_sources
 if(J9VM_OPT_CRIU_SUPPORT)
 	list(APPEND main_sources
 		CRIUHelpers.cpp
+	)
+endif()
+
+if(J9VM_OPT_JFR)
+	list(APPEND main_sources
+		jfr.cpp
+		JFRConstantPoolTypes.cpp
+		JFRChunkWriter.cpp
 	)
 endif()
 

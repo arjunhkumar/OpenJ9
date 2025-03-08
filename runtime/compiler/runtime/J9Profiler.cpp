@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "runtime/J9Profiler.hpp"
@@ -729,9 +729,9 @@ TR_ValueProfiler::addListOrArrayProfilingTrees(
          _bdClass = comp()->fe()->getClassFromSignature("Ljava/math/BigDecimal;", 22, owningMethod);
          }
       TR_OpaqueClassBlock * bdClass = _bdClass;
-      char *fieldName = "scale";
+      const char *fieldName = "scale";
       int32_t fieldNameLen = 5;
-      char *fieldSig = "I";
+      const char *fieldSig = "I";
       int32_t fieldSigLen = 1;
 
       scaleOffset = comp()->fej9()->getInstanceFieldOffset(bdClass, fieldName, fieldNameLen, fieldSig, fieldSigLen);
@@ -766,9 +766,9 @@ TR_ValueProfiler::addListOrArrayProfilingTrees(
          }
 
       TR_OpaqueClassBlock * stringClass = _stringClass;
-      char *fieldName = "count";
+      const char *fieldName = "count";
       int32_t fieldNameLen = 5;
-      char *fieldSig = "I";
+      const char *fieldSig = "I";
       int32_t fieldSigLen = 1;
 
       lengthOffset = comp()->fej9()->getInstanceFieldOffset(stringClass, fieldName, fieldNameLen, fieldSig, fieldSigLen);
@@ -2373,8 +2373,6 @@ TR_BlockFrequencyInfo * TR_BlockFrequencyInfo::deserialize(uint8_t * &buffer, TR
    buffer += sizeof(SerializedBFI);
    return new (PERSISTENT_NEW) TR_BlockFrequencyInfo(serializedData, buffer, currentProfileInfo);
    }
-
-const uint32_t TR_CatchBlockProfileInfo::EDOThreshold = 50;
 
 TR_CallSiteInfo::TR_CallSiteInfo(TR::Compilation * comp, TR_AllocationKind allocKind) :
    _numCallSites(comp->getNumInlinedCallSites()),

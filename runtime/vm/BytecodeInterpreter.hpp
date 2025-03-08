@@ -17,32 +17,44 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(BYTECODEINTERPRETER_HPP_)
 #define BYTECODEINTERPRETER_HPP_
 
-#include "j9.h"
-#include "j9cfg.h"
-#include "j9protos.h"
-#include "j9consts.h"
-#include "j9vmnls.h"
-#include "j9jclnls.h"
-#include "j9bcvnls.h"
+#if JAVA_SPEC_VERSION >= 21
+#include <errno.h>
+#if defined(WIN32)
+/* Ignore the definition of UDATA as it is defined in <windows.h>. */
+#define UDATA UDATA_win32_
+#include <windows.h>
+#undef UDATA /* This is safe because our UDATA is a typedef rather than a macro. */
+#include <winsock2.h>
+#endif /* defined(WIN32) */
+#endif /* JAVA_SPEC_VERSION >= 21 */
+
 #include "bcnames.h"
+#define FFI_BUILDING /* Needed on Windows to link libffi statically */
+#include "ffi.h"
+#include "j2sever.h"
+#include "j9.h"
+#include "j9bcvnls.h"
+#include "j9cfg.h"
+#include "j9consts.h"
+#include "j9jclnls.h"
+#include "j9protos.h"
+#include "j9vmnls.h"
+#include "jitregmap.h"
+#include "jni.h"
+#include "jvminit.h"
+#include "objhelp.h"
 #include "rommeth.h"
 #include "stackwalk.h"
 #include "ut_j9vm.h"
 #include "util_api.h"
 #include "vm_internal.h"
-#include "jni.h"
-#define FFI_BUILDING /* Needed on Windows to link libffi statically */ 
-#include "ffi.h"
-#include "jitregmap.h"
-#include "j2sever.h"
 #include "vmaccess.h"
-#include "objhelp.h"
 
 #include "ArrayCopyHelpers.hpp"
 #include "AtomicSupport.hpp"
@@ -66,6 +78,12 @@
 #if JAVA_SPEC_VERSION >= 16
 #include "LayoutFFITypeHelpers.hpp"
 #endif /* JAVA_SPEC_VERSION >= 16 */
+#if JAVA_SPEC_VERSION >= 21
+#include "ContinuationHelpers.hpp"
+#endif /* JAVA_SPEC_VERSION >= 21 */
+#if JAVA_SPEC_VERSION >= 24
+#include "thrtypes.h"
+#endif /* JAVA_SPEC_VERSION >= 24 */
 
 #if 0
 #define DEBUG_MUST_HAVE_VM_ACCESS(vmThread) Assert_VM_mustHaveVMAccess(vmThread)
@@ -177,6 +195,25 @@ public:
  * Function members
  */
 private:
+
+	VMINLINE bool
+	interpreterReentryRequested()
+	{
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+		return VM_VMHelpers::interpreterReentryRequested(_currentThread);
+#else /* J9VM_OPT_CRIU_SUPPORT */
+		return false;
+#endif /* J9VM_OPT_CRIU_SUPPORT */
+	}
+
+	VMINLINE VM_BytecodeAction
+	reenterInterpreter(UDATA reentryAction)
+	{
+		_currentThread->returnValue = reentryAction;
+		_nextAction = J9_BCLOOP_REENTER_INTERPRETER;
+		return GOTO_DONE;
+	}
+
 #if defined(J9VM_OPT_METHOD_HANDLE)
 	/**
 	 * Run a methodHandle using the MethodHandle interpreter/
@@ -463,7 +500,6 @@ retry:
 	restoreInternalNativeStackFrame(REGISTER_ARGS_LIST)
 	{
 		J9SFNativeMethodFrame *nativeMethodFrame = (J9SFNativeMethodFrame*)_sp;
-		_currentThread->jitStackFrameFlags = nativeMethodFrame->specialFrameFlags & J9_SSF_JIT_NATIVE_TRANSITION_FRAME;
 		restoreSpecialStackFrameLeavingArgs(REGISTER_ARGS, ((UDATA*)(nativeMethodFrame + 1)) - 1);
 	}
 
@@ -547,7 +583,6 @@ retry:
 			}
 			/* If we got here straight from JIT, jump directly to the method - do not follow the interpreter path */
 			if (0 != _currentThread->jitStackFrameFlags) {
-				_currentThread->jitStackFrameFlags = 0;
 				rc = promotedMethodOnTransitionFromJIT(REGISTER_ARGS, (void*)_literals, jitStartAddress);
 				goto done;
 			}
@@ -580,8 +615,12 @@ done:
 	}
 
 	VMINLINE VM_BytecodeAction
-	j2iTransition(REGISTER_ARGS_LIST)
-	{
+	j2iTransition(
+		REGISTER_ARGS_LIST
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+		, bool immediatelyRunCompiledMethod = false
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+	) {
 		VM_JITInterface::disableRuntimeInstrumentation(_currentThread);
 		VM_BytecodeAction rc = GOTO_RUN_METHOD;
 		void* const jitReturnAddress = VM_JITInterface::fetchJITReturnAddress(_currentThread, _sp);
@@ -616,15 +655,22 @@ done:
 			UDATA result = 0;
 			do {
 				preCount = (UDATA)_sendMethod->extra;
-				postCount = preCount - _currentThread->jitCountDelta;
 				if (J9_ARE_NO_BITS_SET(preCount, J9_STARTPC_NOT_TRANSLATED)) {
-					/* Already compiled */
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+					if (immediatelyRunCompiledMethod) {
+						if (methodCanBeRunCompiled(_sendMethod)) {
+							rc = promotedMethodOnTransitionFromJIT(REGISTER_ARGS, (void*)_pc, (void*)preCount);
+							goto done;
+						}
+					}
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 					break;
 				}
 				if ((IDATA)preCount < 0) {
 					/* This method should not be translated (already enqueued, already failed, etc) */
 					break;
 				}
+				postCount = preCount - _currentThread->jitCountDelta;
 				if ((IDATA)postCount < 0) {
 					/* Attempt to compile the method */
 					_arg0EA = _sp;
@@ -662,7 +708,6 @@ done:
 				/* If count updates, run method interpreted, else loop around and try again */
 			} while (result != preCount);
 			/* Run the method interpreted */
-			_currentThread->jitStackFrameFlags = 0;
 			{
 				UDATA stackUse = VM_VMHelpers::calculateStackUse(romMethod, sizeof(J9SFJ2IFrame));
 				UDATA *checkSP = _sp - stackUse;
@@ -766,7 +811,6 @@ done:
 		/* Fixed frame - reset sp to it's value when the call occurred */
 		_sp = _arg0EA;
 #endif /* J9SW_NEEDS_JIT_2_INTERP_CALLEE_ARG_POP */
-		_currentThread->jitStackFrameFlags = 0;
 		_currentThread->floatTemp1 = (void*)_literals;
 		_currentThread->tempSlot = (UDATA)jitReturn;
 		_nextAction = J9_BCLOOP_LOAD_PRESERVED_AND_BRANCH;
@@ -796,7 +840,6 @@ done:
 		_literals= i2jState->literals;
 		_pc = i2jState->pc + 3;
 		memmove(_sp, &_currentThread->floatTemp1, sizeof(UDATA) * slotCount);
-		_currentThread->jitStackFrameFlags = 0;
 #if defined(TRACE_TRANSITIONS)
 		char currentMethodName[1024];
 		PORT_ACCESS_FROM_JAVAVM(_vm);
@@ -940,7 +983,6 @@ obj:
 		J9SFJ2IFrame* const j2iFrame = ((J9SFJ2IFrame*)(_currentThread->j2iFrame + 1)) - 1;
 		restoreJ2IValues(j2iFrame);
 		_sp = UNTAG2(j2iFrame->taggedReturnSP, UDATA*);
-		_currentThread->jitStackFrameFlags = 0;
 		_currentThread->floatTemp1 = (void*)j2iFrame->returnAddress;
 		_currentThread->tempSlot = (UDATA)j2iFrame->exitPoint;
 		_nextAction = J9_BCLOOP_LOAD_PRESERVED_AND_BRANCH;
@@ -1006,7 +1048,6 @@ obj:
 		_arg0EA = _currentThread->j2iFrame;
 		_pc = (U_8*)bcReturnFromJ2I;
 		_literals = NULL;
-		_currentThread->jitStackFrameFlags = 0;
 		/* Protect the pending args to the MH */
 		UDATA *spPriorToMethodTypeFrame = _sp;
 		updateVMStruct(REGISTER_ARGS);
@@ -1067,9 +1108,9 @@ obj:
 	allocateObject(REGISTER_ARGS_LIST, J9Class *clazz, bool initializeSlots = true, bool memoryBarrier = true, bool skipUnflattenedFlattenableCheck = false)
 	{
 		j9object_t instance = NULL;
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 		if (skipUnflattenedFlattenableCheck || J9_ARE_NO_BITS_SET(clazz->classFlags, J9ClassContainsUnflattenedFlattenables))
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#endif /* J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES */
 		{
 			instance = _objectAllocate.inlineAllocateObject(_currentThread, clazz, initializeSlots, memoryBarrier);
 		}
@@ -1099,9 +1140,9 @@ obj:
 	allocateIndexableObject(REGISTER_ARGS_LIST, J9Class *arrayClass, U_32 size, bool initializeSlots = true, bool memoryBarrier = true, bool sizeCheck = true)
 	{
 		j9object_t instance = NULL;
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		if (J9_ARE_NO_BITS_SET(arrayClass->classFlags, J9ClassContainsUnflattenedFlattenables)) 
-#endif
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		if (J9_ARE_NO_BITS_SET(arrayClass->classFlags, J9ClassContainsUnflattenedFlattenables))
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		{
 			instance = VM_VMHelpers::inlineAllocateIndexableObject(_currentThread, &_objectAllocate, arrayClass, size, initializeSlots, memoryBarrier, sizeCheck);
 		}
@@ -1147,9 +1188,17 @@ obj:
 		if (!VM_ObjectMonitor::inlineFastObjectMonitorEnter(_currentThread, obj)) {
 			rc = objectMonitorEnterNonBlocking(_currentThread, obj);
 			if (J9_OBJECT_MONITOR_BLOCKING == rc) {
-				updateVMStruct(REGISTER_ARGS);
-				rc = objectMonitorEnterBlocking(_currentThread);
-				VMStructHasBeenUpdated(REGISTER_ARGS);
+#if JAVA_SPEC_VERSION >= 24
+				if (VM_ContinuationHelpers::isYieldableVirtualThread(_currentThread)) {
+					/* Try to yield the virtual thread if it will be blocked. */
+					rc = preparePinnedVirtualThreadForUnmount(_currentThread, obj, false);
+				} else
+#endif /* JAVA_SPEC_VERSION >= 24 */
+				{
+					updateVMStruct(REGISTER_ARGS);
+					rc = objectMonitorEnterBlocking(_currentThread);
+					VMStructHasBeenUpdated(REGISTER_ARGS);
+				}
 			}
 		}
 		return rc;
@@ -1171,25 +1220,57 @@ obj:
 		VM_BytecodeAction rc = EXECUTE_BYTECODE;
 
 		if (elementCount < 0) {
-			buildInternalNativeStackFrame(REGISTER_ARGS);
 			_currentThread->tempSlot = (UDATA)elementCount;
 			rc = THROW_AIOB;
 		} else {
 			I_32 invalidIndex = 0;
 			if (!VM_ArrayCopyHelpers::rangeCheck(_currentThread, srcObject, srcStart, elementCount, &invalidIndex)) {
-				buildInternalNativeStackFrame(REGISTER_ARGS);
 				_currentThread->tempSlot = (UDATA)invalidIndex;
 				rc = THROW_AIOB;
 			} else {
 				if (!VM_ArrayCopyHelpers::rangeCheck(_currentThread, destObject, destStart, elementCount, &invalidIndex)) {
-					buildInternalNativeStackFrame(REGISTER_ARGS);
 					_currentThread->tempSlot = (UDATA)invalidIndex;
 					rc = THROW_AIOB;
 				} else {
-					I_32 value = VM_ArrayCopyHelpers::referenceArrayCopy(_currentThread, srcObject, srcStart, destObject, destStart, elementCount);
-					if (-1 != value) {
-						buildInternalNativeStackFrame(REGISTER_ARGS);
-						rc = THROW_ARRAY_STORE;
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+					J9Class *srcClazz = J9OBJECT_CLAZZ(_currentThread, srcObject);
+					J9Class *destClazz = J9OBJECT_CLAZZ(_currentThread, destObject);
+					J9Class *srcComponentClass = ((J9ArrayClass *)srcClazz)->componentType;
+					J9Class *destComponentClass = ((J9ArrayClass *)destClazz)->componentType;
+
+					if (J9_IS_J9CLASS_FLATTENED(srcClazz) && J9_IS_J9CLASS_FLATTENED(destClazz) && J9_ARE_NO_BITS_SET(srcComponentClass->classFlags, J9ClassHasReferences) && J9_ARE_NO_BITS_SET(destComponentClass->classFlags, J9ClassHasReferences)) {
+						if (srcClazz == destClazz) {
+							UDATA elementSize = J9ARRAYCLASS_GET_STRIDE(srcClazz);
+							/* This only works for contiguous flattened arrays, since discontiguous flattened arrays are not supported by GC */
+							VM_ArrayCopyHelpers::primitiveArrayCopy(_currentThread, srcObject, srcStart * elementSize, destObject, destStart * elementSize, elementSize * elementCount, 0);
+						} else {
+							rc = THROW_ARRAY_STORE;
+						}
+					} else if (J9_IS_J9CLASS_FLATTENED(srcClazz)
+						|| J9_IS_J9CLASS_FLATTENED(destClazz)
+						|| J9_IS_J9ARRAYCLASS_NULL_RESTRICTED(destClazz)
+					) {
+						/* VM_ArrayCopyHelpers::referenceArrayCopy cannot handle
+						 * flattened arrays or null elements being copied into
+						 * arrays of null-restricted value types, so for those
+						 * cases use copyFlattenableArray instead.
+						 */
+						updateVMStruct(REGISTER_ARGS);
+						I_32 value = VM_ValueTypeHelpers::copyFlattenableArray(_currentThread, _objectAccessBarrier, _objectAllocate, srcObject, destObject, srcStart, destStart, elementCount);
+						VMStructHasBeenUpdated(REGISTER_ARGS);
+
+						if (-1 == value) {
+							rc = THROW_ARRAY_STORE;
+						} else if (-2 == value) {
+							rc = THROW_NPE;
+						}
+					} else
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
+					{
+						I_32 errorIndex = VM_ArrayCopyHelpers::referenceArrayCopy(_currentThread, srcObject, srcStart, destObject, destStart, elementCount);
+						if (-1 != errorIndex) {
+							rc = THROW_ARRAY_STORE;
+						}
 					}
 				}
 			}
@@ -1204,18 +1285,15 @@ obj:
 		VM_BytecodeAction rc = EXECUTE_BYTECODE;
 		/* Primitive array */
 		if (elementCount < 0) {
-			buildInternalNativeStackFrame(REGISTER_ARGS);
 			_currentThread->tempSlot = (UDATA)elementCount;
 			rc = THROW_AIOB;
 		} else {
 			I_32 invalidIndex = 0;
 			if (!VM_ArrayCopyHelpers::rangeCheck(_currentThread, srcObject, srcStart, elementCount, &invalidIndex)) {
-				buildInternalNativeStackFrame(REGISTER_ARGS);
 				_currentThread->tempSlot = (UDATA)invalidIndex;
 				rc = THROW_AIOB;
 			} else {
 				if (!VM_ArrayCopyHelpers::rangeCheck(_currentThread, destObject, destStart, elementCount, &invalidIndex)) {
-					buildInternalNativeStackFrame(REGISTER_ARGS);
 					_currentThread->tempSlot = (UDATA)invalidIndex;
 					rc = THROW_AIOB;
 				} else {
@@ -1358,6 +1436,29 @@ obj:
 				memset(_sp, 0, sizeof(UDATA) * ((methodIndexAndArgCount & 0xFF) + 1));
 				break;
 			}
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+			case JBinvokestatic: {
+				U_16 index = *(U_16*)(_pc + 1);
+				J9ConstantPool *ramConstantPool = J9_CP_FROM_METHOD(_literals);
+				J9RAMMethodRef *ramMethodRef = ((J9RAMMethodRef*)ramConstantPool) + index;
+				J9Method *method = ramMethodRef->method;
+				void *methodRunAddress = method->methodRunAddress;
+				if (((void *)J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOSTATICSPECIAL == methodRunAddress)
+				|| ((void *)J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOINTERFACE == methodRunAddress)
+				|| ((void *)J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOVIRTUAL == methodRunAddress)
+				) {
+					j9object_t dmhReceiver = *(j9object_t *)_arg0EA;
+					Assert_VM_true(0 != isSameOrSuperClassOf(
+						J9VMJAVALANGINVOKEDIRECTMETHODHANDLE_OR_NULL(_vm),
+						J9OBJECT_CLAZZ(_currentThread, dmhReceiver)));
+					j9object_t memberName = J9VMJAVALANGINVOKEDIRECTMETHODHANDLE_MEMBER(_currentThread, dmhReceiver);
+					*--_sp = (UDATA)memberName;
+				}
+				break;
+			}
+#endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
+			default:
+				break;
 			}
 		} else {
 			/* ForceEarlyReturn */
@@ -1406,69 +1507,108 @@ obj:
 	}
 #endif /* DEBUG_VERSION */
 
+#if JAVA_SPEC_VERSION >= 24
+	VMINLINE VM_BytecodeAction
+	yieldPinnedContinuation(REGISTER_ARGS_LIST, U_32 newThreadState, UDATA returnState)
+	{
+		buildInternalNativeStackFrame(REGISTER_ARGS);
+		updateVMStruct(REGISTER_ARGS);
+		J9VMJAVALANGVIRTUALTHREAD_SET_STATE(_currentThread, _currentThread->threadObject, newThreadState);
+
+		if (JAVA_LANG_VIRTUALTHREAD_BLOCKING == newThreadState) {
+			/* Add the thread object to the blocked list. */
+			omrthread_monitor_enter(_vm->blockedVirtualThreadsMutex);
+			_currentThread->currentContinuation->nextWaitingContinuation = _vm->blockedContinuations;
+			_vm->blockedContinuations = _currentThread->currentContinuation;
+			omrthread_monitor_exit(_vm->blockedVirtualThreadsMutex);
+		}
+
+		/* Store the current Continuation state and swap to the carrier thread stack. */
+		yieldContinuation(_currentThread, FALSE, returnState);
+
+		VMStructHasBeenUpdated(REGISTER_ARGS);
+		restoreInternalNativeStackFrame(REGISTER_ARGS);
+
+		/* The return behavior will mimic that of continuation.enterImpl(), requiring the
+		 * boolean return value to be pushed.
+		 */
+		returnSingleFromINL(REGISTER_ARGS, JNI_FALSE, 1);
+
+		return EXECUTE_BYTECODE;
+	}
+#endif /* JAVA_SPEC_VERSION >= 24 */
+
 	VMINLINE VM_BytecodeAction
 	checkAsync(REGISTER_ARGS_LIST)
 	{
-		/* The current stack frame may be one of the following:
-		 *
-		 * 1) Special frame
-		 *
-		 *	1a) INL frame (for an INL which returns void)
-		 *
-		 *		No frame build is required, and the restoreSpecialStackFrameAndDrop will remove the
-		 *		argument from the stack before resuming execution.
-		 *
-		 *	1b) An immediate async is pending
-		 *
-		 *		The stack is already in a walkable state, and the restore and executeCurrentBytecode
-		 *		will not take place.
-		 *
-		 * 2) Bytecode or JNI call-in frame
-		 *
-		 *	Build a generic special frame, tear it down when done.
-		 */
 		VM_BytecodeAction rc = EXECUTE_BYTECODE;
-		bool inlFrame = false;
-		UDATA *bp = NULL;
-		if ((UDATA)_pc <= J9SF_MAX_SPECIAL_FRAME_TYPE) {
-			if (J9SF_FRAME_TYPE_NATIVE_METHOD == (UDATA)_pc) {
-				inlFrame = true;
-				bp = ((UDATA*)(((J9SFNativeMethodFrame*)((UDATA)_sp + (UDATA)_literals)) + 1)) - 1;
-			}
+
+		/* Check for interpreter re-entry first because we will come back to checkAsync
+		 * immediately upon re-entry to the interpreter.
+		 */
+		if (interpreterReentryRequested()) {
+			rc = reenterInterpreter(J9_BCLOOP_CHECK_ASYNC);
 		} else {
-			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
-			bp = _arg0EA;
-		}
-		UDATA relativeBP = bp - _arg0EA;
-		updateVMStruct(REGISTER_ARGS);
-		UDATA action = javaCheckAsyncMessages(_currentThread, TRUE);
-		VMStructHasBeenUpdated(REGISTER_ARGS);
-		switch(action) {
-		case J9_CHECK_ASYNC_THROW_EXCEPTION:
-			rc = GOTO_THROW_CURRENT_EXCEPTION;
-			break;
-#if defined(DEBUG_VERSION)
-		case J9_CHECK_ASYNC_POP_FRAMES:
-			rc = HANDLE_POP_FRAMES;
-			break;
-#endif
-		default:
-			restoreSpecialStackFrameAndDrop(REGISTER_ARGS, _arg0EA + relativeBP);
-			if (inlFrame) {
-				_pc += 3;
+			/* The current stack frame may be one of the following:
+			 *
+			 * 1) Special frame
+			 *
+			 *	1a) INL frame (for an INL which returns void)
+			 *
+			 *		No frame build is required, and the restoreSpecialStackFrameAndDrop will remove the
+			 *		argument from the stack before resuming execution.
+			 *
+			 *	1b) An immediate async is pending
+			 *
+			 *		The stack is already in a walkable state, and the restore and executeCurrentBytecode
+			 *		will not take place.
+			 *
+			 * 2) Bytecode or JNI call-in frame
+			 *
+			 *	Build a generic special frame, tear it down when done.
+			 */
+			bool inlFrame = false;
+			UDATA *bp = NULL;
+			if ((UDATA)_pc <= J9SF_MAX_SPECIAL_FRAME_TYPE) {
+				if (J9SF_FRAME_TYPE_NATIVE_METHOD == (UDATA)_pc) {
+					inlFrame = true;
+					bp = ((UDATA*)(((J9SFNativeMethodFrame*)((UDATA)_sp + (UDATA)_literals)) + 1)) - 1;
+				}
+			} else {
+				buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
+				bp = _arg0EA;
 			}
-			break;
+			UDATA relativeBP = bp - _arg0EA;
+			updateVMStruct(REGISTER_ARGS);
+			UDATA action = javaCheckAsyncMessages(_currentThread, TRUE);
+			VMStructHasBeenUpdated(REGISTER_ARGS);
+			switch(action) {
+			case J9_CHECK_ASYNC_THROW_EXCEPTION:
+				rc = GOTO_THROW_CURRENT_EXCEPTION;
+				break;
+	#if defined(DEBUG_VERSION)
+			case J9_CHECK_ASYNC_POP_FRAMES:
+				rc = HANDLE_POP_FRAMES;
+				break;
+	#endif
+			default:
+				restoreSpecialStackFrameAndDrop(REGISTER_ARGS, _arg0EA + relativeBP);
+				if (inlFrame) {
+					_pc += 3;
+				}
+				break;
+			}
 		}
 		return rc;
 	}
 
 	VMINLINE bool immediateAsyncPending()
 	{
-#if defined(DEBUG_VERSION)
+#if defined(DEBUG_VERSION) || defined(J9VM_OPT_CRIU_SUPPORT)
 		return VM_VMHelpers::immediateAsyncPending(_currentThread);
-#else
+#else /* defined(DEBUG_VERSION) || defined(J9VM_OPT_CRIU_SUPPORT) */
 		return false;
-#endif
+#endif /* defined(DEBUG_VERSION) || defined(J9VM_OPT_CRIU_SUPPORT) */
 	}
 
 	VMINLINE VM_BytecodeAction
@@ -1610,6 +1750,12 @@ obj:
 						rc = THROW_CRIU_SINGLE_THREAD_MODE;
 						break;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#if JAVA_SPEC_VERSION >= 24
+					case J9_OBJECT_MONITOR_YIELD_VIRTUAL: {
+						rc = yieldPinnedContinuation(REGISTER_ARGS, JAVA_LANG_VIRTUALTHREAD_BLOCKING, J9VM_CONTINUATION_RETURN_FROM_SYNC_METHOD);
+						break;
+					}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 					case J9_OBJECT_MONITOR_OOM:
 						rc = THROW_MONITOR_ALLOC_FAIL;
 						break;
@@ -1687,6 +1833,12 @@ done:
 				rc = THROW_CRIU_SINGLE_THREAD_MODE;
 				break;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#if JAVA_SPEC_VERSION >= 24
+			case J9_OBJECT_MONITOR_YIELD_VIRTUAL: {
+				rc = yieldPinnedContinuation(REGISTER_ARGS, JAVA_LANG_VIRTUALTHREAD_BLOCKING, J9VM_CONTINUATION_RETURN_FROM_MONITOR_ENTER);
+				break;
+			}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 			case J9_OBJECT_MONITOR_OOM:
 				/* Monitor was not entered - hide the frame to prevent exception throw from processing it.
 				 * Note that BP can not have changed during a failed enter.
@@ -1780,13 +1932,7 @@ throwStackOverflow:
 			}
 #if defined(DEBUG_VERSION)
 			if (J9_CHECK_ASYNC_POP_FRAMES == action) {
-				UDATA executeAsyncCheck = FALSE;
-				updateVMStruct(REGISTER_ARGS);
-				ALWAYS_TRIGGER_J9HOOK_VM_POP_FRAMES_INTERRUPT(_vm->hookInterface, _currentThread, executeAsyncCheck);
-				VMStructHasBeenUpdated(REGISTER_ARGS);
-				if (executeAsyncCheck) {
-					rc = GOTO_ASYNC_CHECK;
-				}
+				rc = GOTO_ASYNC_CHECK;
 				goto done;
 			}
 #endif
@@ -1822,6 +1968,12 @@ throwStackOverflow:
 						rc = THROW_CRIU_SINGLE_THREAD_MODE;
 						break;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#if JAVA_SPEC_VERSION >= 24
+					case J9_OBJECT_MONITOR_YIELD_VIRTUAL: {
+						rc = yieldPinnedContinuation(REGISTER_ARGS, JAVA_LANG_VIRTUALTHREAD_BLOCKING, J9VM_CONTINUATION_RETURN_FROM_MONITOR_ENTER);
+						break;
+					}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 					case J9_OBJECT_MONITOR_OOM:
 						rc = THROW_MONITOR_ALLOC_FAIL;
 						break;
@@ -1833,7 +1985,14 @@ throwStackOverflow:
 			}
 #if defined(DO_HOOKS)
 			rc = REPORT_METHOD_ENTER;
-#endif
+			if (interpreterReentryRequested()) {
+				rc = reenterInterpreter(J9_BCLOOP_REPORT_METHOD_ENTER);
+			}
+#else /* DO_HOOKS */
+			if (interpreterReentryRequested()) {
+				rc = reenterInterpreter(J9_BCLOOP_EXECUTE_BYTECODE);
+			}
+#endif /* DO_HOOKS */
 		}
 done:
 		return rc;
@@ -2185,6 +2344,12 @@ done:
 					rc = THROW_CRIU_SINGLE_THREAD_MODE;
 					break;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#if JAVA_SPEC_VERSION >= 24
+				case J9_OBJECT_MONITOR_YIELD_VIRTUAL: {
+					rc = yieldPinnedContinuation(REGISTER_ARGS, JAVA_LANG_VIRTUALTHREAD_BLOCKING, J9VM_CONTINUATION_RETURN_FROM_MONITOR_ENTER);
+					break;
+				}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 				case J9_OBJECT_MONITOR_OOM:
 					rc = THROW_MONITOR_ALLOC_FAIL;
 					break;
@@ -2198,7 +2363,7 @@ done:
 			bool enterHooked = J9_EVENT_IS_HOOKED(_vm->hookInterface, J9HOOK_VM_NATIVE_METHOD_ENTER);
 			if (tracing || enterHooked) {
 				UDATA relativeBP = _arg0EA - bp;
-				updateVMStruct(REGISTER_ARGS);		
+				updateVMStruct(REGISTER_ARGS);
 				if (tracing) {
 					UTSI_TRACEMETHODENTER_FROMVM(_vm, _currentThread, _sendMethod, _arg0EA, 0);
 				}
@@ -2288,8 +2453,7 @@ done:
 			}
 		}
 		{
-			J9SFJNINativeMethodFrame *nativeMethodFrame = recordJNIReturn(REGISTER_ARGS, bp);
-			_currentThread->jitStackFrameFlags = nativeMethodFrame->specialFrameFlags & J9_SSF_JIT_NATIVE_TRANSITION_FRAME;
+			recordJNIReturn(REGISTER_ARGS, bp);
 			J9SFStackFrame *frame = (((J9SFStackFrame*)(bp + 1)) - 1);
 			_sp = _arg0EA;
 			_literals = frame->savedCP;
@@ -2310,6 +2474,9 @@ done:
 			*(U_32 *)_sp = (U_32)_currentThread->returnValue;
 		}
 		rc = EXECUTE_BYTECODE;
+		if (interpreterReentryRequested()) {
+			rc = reenterInterpreter(J9_BCLOOP_EXECUTE_BYTECODE);
+		}
 done:
 		return rc;
 	}
@@ -2698,6 +2865,7 @@ done:
 		if (!VM_ObjectMonitor::inlineFastObjectMonitorEnter(_currentThread, threadLock)) {
 			UDATA monitorRC = objectMonitorEnterNonBlocking(_currentThread, threadLock);
 			if (J9_OBJECT_MONITOR_ENTER_FAILED(monitorRC)) {
+				buildInternalNativeStackFrame(REGISTER_ARGS);
 				rc = THROW_MONITOR_ALLOC_FAIL;
 				goto done;
 			} else if (J9_OBJECT_MONITOR_BLOCKING == monitorRC) {
@@ -2757,6 +2925,51 @@ done:
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 		{
 			if (VM_ObjectMonitor::getMonitorForNotify(_currentThread, receiver, &monitorPtr, true)) {
+#if JAVA_SPEC_VERSION >= 24
+				if (J9_ARE_ANY_BITS_SET(_vm->extendedRuntimeFlags3, J9_EXTENDED_RUNTIME3_YIELD_PINNED_CONTINUATION)) {
+					j9objectmonitor_t lock = 0;
+					j9objectmonitor_t *lockEA = NULL;
+					J9ObjectMonitor *objectMonitor = NULL;
+
+					if (!LN_HAS_LOCKWORD(_currentThread, receiver)) {
+						objectMonitor = monitorTablePeek(_vm, receiver);
+					} else {
+						lockEA = J9OBJECT_MONITOR_EA(_currentThread, receiver);
+						lock = J9_LOAD_LOCKWORD(_currentThread, lockEA);
+						if (J9_LOCK_IS_INFLATED(lock)) {
+							objectMonitor = J9_INFLLOCK_OBJECT_MONITOR(lock);
+						}
+					}
+
+					if ((NULL != objectMonitor) && (NULL != objectMonitor->waitingContinuations)) {
+						omrthread_monitor_enter(_vm->blockedVirtualThreadsMutex);
+						J9VMContinuation *head = objectMonitor->waitingContinuations;
+						if (omrthread_monitor_notify == notifyFunction) {
+							objectMonitor->waitingContinuations = head->nextWaitingContinuation;
+							head->nextWaitingContinuation = _vm->blockedContinuations;
+							_vm->blockedContinuations = head;
+							J9VMJAVALANGVIRTUALTHREAD_SET_ONWAITINGLIST(_currentThread, head->vthread, JNI_TRUE);
+						} else {
+							J9VMContinuation *next = head;
+							J9VMJAVALANGVIRTUALTHREAD_SET_ONWAITINGLIST(_currentThread, head->vthread, JNI_TRUE);
+							while (NULL != next->nextWaitingContinuation) {
+								J9VMJAVALANGVIRTUALTHREAD_SET_ONWAITINGLIST(_currentThread, next->vthread, JNI_TRUE);
+								next = next->nextWaitingContinuation;
+							}
+							next->nextWaitingContinuation = _vm->blockedContinuations;
+							_vm->blockedContinuations = head;
+							objectMonitor->waitingContinuations = NULL;
+						}
+						omrthread_monitor_notify(_vm->blockedVirtualThreadsMutex);
+						omrthread_monitor_exit(_vm->blockedVirtualThreadsMutex);
+
+						if (omrthread_monitor_notify == notifyFunction) {
+							returnVoidFromINL(REGISTER_ARGS, 1);
+							goto done;
+						}
+					}
+				}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 				if (0 != notifyFunction(monitorPtr)) {
 					buildInternalNativeStackFrame(REGISTER_ARGS);
 					rc = THROW_ILLEGAL_MONITOR_STATE;
@@ -2818,16 +3031,6 @@ done:
 	}
 
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	/* java.lang.Class: public native boolean isPrimitiveClass(); */
-	VMINLINE VM_BytecodeAction
-	inlClassIsPrimitiveClass(REGISTER_ARGS_LIST)
-	{
-		J9Class *receiverClazz = J9VM_J9CLASS_FROM_HEAPCLASS(_currentThread, *(j9object_t*)_sp);
-		bool isPrimitiveClass = J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(receiverClazz);
-		returnSingleFromINL(REGISTER_ARGS, (isPrimitiveClass ? 1 : 0), 1);
-		return EXECUTE_BYTECODE;
-	}
-
 	/* java.lang.Class: public native boolean isValue(); */
 	VMINLINE VM_BytecodeAction
 	inlClassIsValue(REGISTER_ARGS_LIST)
@@ -2843,8 +3046,7 @@ done:
 	inlClassIsIdentity(REGISTER_ARGS_LIST)
 	{
 		J9Class *receiverClazz = J9VM_J9CLASS_FROM_HEAPCLASS(_currentThread, *(j9object_t*)_sp);
-		bool isIdentity = J9ROMCLASS_HAS_IDENTITY(receiverClazz->romClass);
-		returnSingleFromINL(REGISTER_ARGS, (isIdentity ? 1 : 0), 1);
+		returnSingleFromINL(REGISTER_ARGS, J9_IS_J9CLASS_IDENTITY(receiverClazz), 1);
 		return EXECUTE_BYTECODE;
 	}
 
@@ -2938,8 +3140,8 @@ done:
 		if (NULL == arrayClazz) {
 			buildInternalNativeStackFrame(REGISTER_ARGS);
 			updateVMStruct(REGISTER_ARGS);
-			arrayClazz = internalCreateArrayClass(_currentThread, 
-				(J9ROMArrayClass *) J9ROMIMAGEHEADER_FIRSTCLASS(_currentThread->javaVM->arrayROMClasses), 
+			arrayClazz = internalCreateArrayClass(_currentThread,
+				(J9ROMArrayClass *) J9ROMIMAGEHEADER_FIRSTCLASS(_currentThread->javaVM->arrayROMClasses),
 				componentClazz);
 			VMStructHasBeenUpdated(REGISTER_ARGS);
 			if (VM_VMHelpers::exceptionPending(_currentThread) || (NULL == arrayClazz)) {
@@ -3011,8 +3213,9 @@ done:
 		I_32 destPos = *(I_32*)(_sp + 1);
 		I_32 length = *(I_32*)_sp;
 
+		buildInternalNativeStackFrame(REGISTER_ARGS);
+
 		if ((NULL == src) || (NULL == dest)) {
-			buildInternalNativeStackFrame(REGISTER_ARGS);
 			rc = THROW_NPE;
 		} else {
 			J9Class *srcClass = J9OBJECT_CLAZZ(_currentThread, src);
@@ -3021,20 +3224,17 @@ done:
 				J9Class *destClass = J9OBJECT_CLAZZ(_currentThread, dest);
 				J9ROMClass *destRom = destClass->romClass;
 				if (!J9ROMCLASS_IS_ARRAY(destRom)) {
-					buildInternalNativeStackFrame(REGISTER_ARGS);
 					rc = THROW_ARRAY_STORE;
 				} else {
 					if (OBJECT_HEADER_SHAPE_POINTERS == J9CLASS_SHAPE(srcClass)) {
 						/* Reference array */
 						if (OBJECT_HEADER_SHAPE_POINTERS != J9CLASS_SHAPE(destClass)) {
-							buildInternalNativeStackFrame(REGISTER_ARGS);
 							rc = THROW_ARRAY_STORE;
 						} else {
 							rc = doReferenceArrayCopy(REGISTER_ARGS, src, srcPos, dest, destPos, length);
 						}
 					} else {
 						if (srcClass != destClass) {
-							buildInternalNativeStackFrame(REGISTER_ARGS);
 							rc = THROW_ARRAY_STORE;
 						} else {
 							rc = doPrimitiveArrayCopy(REGISTER_ARGS, src, srcPos, dest, destPos, ((J9ROMArrayClass*)srcClass->romClass)->arrayShape & 0x0000FFFF, length);
@@ -3042,12 +3242,12 @@ done:
 					}
 				}
 			} else {
-				buildInternalNativeStackFrame(REGISTER_ARGS);
 				rc = THROW_ARRAY_STORE;
 			}
 		}
 
 		if (EXECUTE_BYTECODE == rc) {
+			restoreInternalNativeStackFrame(REGISTER_ARGS);
 			returnVoidFromINL(REGISTER_ARGS, 5);
 		}
 
@@ -3154,10 +3354,29 @@ done:
 				walkState->walkThread = _currentThread;
 				updateVMStruct(REGISTER_ARGS);
 				UDATA walkRC = _vm->walkStackFrames(_currentThread, walkState);
+#if JAVA_SPEC_VERSION >= 19
+				UDATA continuationWalkRC = J9_STACKWALK_RC_NONE;
+				J9StackWalkState continuationWalkState= {0};
+				if (J9_ARE_ALL_BITS_SET(_vm->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_SHOW_CARRIER_FRAMES)
+					&& IS_JAVA_LANG_VIRTUALTHREAD(_currentThread, _currentThread->threadObject)
+				) {
+					continuationWalkState.flags = walkFlags;
+					continuationWalkRC = _vm->internalVMFunctions->walkContinuationStackFrames(
+							_currentThread, _currentThread->currentContinuation, _currentThread->carrierThreadObject, &continuationWalkState);
+				}
+#endif /* JAVA_SPEC_VERSION >= 19 */
 				/* No need for VMStructHasBeenUpdated as the above walk cannot change the roots */
 				UDATA framesWalked = walkState->framesWalked;
 				UDATA *cachePointer = walkState->cache;
-				if (J9_STACKWALK_RC_NONE != walkRC) {
+#if JAVA_SPEC_VERSION >= 19
+				UDATA continuationFramesWalked = continuationWalkState.framesWalked;
+				UDATA *continuationCachePointer = continuationWalkState.cache;
+#endif /* JAVA_SPEC_VERSION >= 19 */
+				if (J9_STACKWALK_RC_NONE != walkRC
+#if JAVA_SPEC_VERSION >= 19
+					|| J9_STACKWALK_RC_NONE != continuationWalkRC
+#endif /* JAVA_SPEC_VERSION >= 19 */
+				) {
 					/* Avoid infinite recursion if already throwing OOM */
 					if (_currentThread->privateFlags & J9_PRIVATE_FLAGS_OUT_OF_MEMORY) {
 						goto recursiveOOM;
@@ -3177,7 +3396,14 @@ done:
 #else
 					J9Class *arrayClass = _vm->intArrayClass;
 #endif
-					walkback = allocateIndexableObject(REGISTER_ARGS, arrayClass, (U_32)framesWalked, false);
+					walkback = allocateIndexableObject(
+							REGISTER_ARGS, arrayClass,
+#if JAVA_SPEC_VERSION >= 19
+							(U_32)framesWalked + (U_32)continuationFramesWalked,
+#else /* JAVA_SPEC_VERSION >= 19 */
+							(U_32)framesWalked,
+#endif /* JAVA_SPEC_VERSION >= 19 */
+							false);
 					if (J9_UNEXPECTED(NULL == walkback)) {
 						rc = THROW_HEAP_OOM;
 						goto done;
@@ -3188,14 +3414,29 @@ done:
 					if (framesWalked > maxSize) {
 						framesWalked = maxSize;
 					}
+#if JAVA_SPEC_VERSION >= 19
+					if ((framesWalked + continuationFramesWalked) > maxSize) {
+						continuationFramesWalked = maxSize - framesWalked;
+					}
+#endif /* JAVA_SPEC_VERSION >= 19 */
 				}
 				for (UDATA i = 0; i < framesWalked; ++i) {
 #if defined(J9VM_ENV_DATA64)
 					_objectAccessBarrier.inlineIndexableObjectStoreI64(_currentThread, walkback, i, cachePointer[i]);
-#else
+#else /* defined(J9VM_ENV_DATA64) */
 					_objectAccessBarrier.inlineIndexableObjectStoreI32(_currentThread, walkback, i, cachePointer[i]);
-#endif
+#endif /* defined(J9VM_ENV_DATA64) */
 				}
+#if JAVA_SPEC_VERSION >= 19
+				for (UDATA i = 0; i < continuationFramesWalked; ++i) {
+#if defined(J9VM_ENV_DATA64)
+					_objectAccessBarrier.inlineIndexableObjectStoreI64(_currentThread, walkback, framesWalked + i, continuationCachePointer[i]);
+#else /* defined(J9VM_ENV_DATA64) */
+					_objectAccessBarrier.inlineIndexableObjectStoreI32(_currentThread, walkback, framesWalked + i, continuationCachePointer[i]);
+#endif /* defined(J9VM_ENV_DATA64) */
+				}
+				freeStackWalkCaches(_currentThread, &continuationWalkState);
+#endif /* JAVA_SPEC_VERSION >= 19 */
 				freeStackWalkCaches(_currentThread, walkState);
 recursiveOOM:
 				restoreInternalNativeStackFrame(REGISTER_ARGS);
@@ -3927,7 +4168,7 @@ done:
 		j9object_t *value = (j9object_t*)_sp;
 		UDATA offset = (UDATA)*(I_64*)(_sp + 1);
 		j9object_t obj = *(j9object_t*)(_sp + 3);
-		
+
 		buildInternalNativeStackFrame(REGISTER_ARGS);
 		updateVMStruct(REGISTER_ARGS);
 		VM_UnsafeAPI::putObject(_currentThread, &_objectAccessBarrier, obj, offset, isVolatile, value);
@@ -4099,7 +4340,71 @@ done:
 	}
 
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	/* jdk.internal.misc.Unsafe: public native <V> V getValue(Object obj, long offset, Class<?> clz); */
+	/* jdk.internal.misc.Unsafe: public native <V> V uninitializedDefaultValue(Class<?> clz); */
+	VMINLINE VM_BytecodeAction
+	inlUnsafeUninitializedDefaultValue(REGISTER_ARGS_LIST)
+	{
+		j9object_t cls = *(j9object_t*)_sp;
+		j9object_t result = NULL;
+
+		/* TODO (#14073): update this function to have the same behavior as OpenJDK when cls is null or not a valuetype (currently OpenJDK segfaults in both those scenarios) */
+		if (NULL != cls) {
+			J9Class *j9clazz = J9VM_J9CLASS_FROM_HEAPCLASS(_currentThread, cls);
+			if (J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(j9clazz)) {
+				/* It is defaultValue for primitive value type, NULL for value class. */
+				result = j9clazz->flattenedClassCache->defaultValue;
+			}
+		}
+
+		returnObjectFromINL(REGISTER_ARGS, result, 2);
+		return EXECUTE_BYTECODE;
+	}
+
+	/* jdk.internal.misc.Unsafe: public native <V> long valueHeaderSize(Class<V> clz); */
+	VMINLINE VM_BytecodeAction
+	inlUnsafeValueHeaderSize(REGISTER_ARGS_LIST)
+	{
+		j9object_t cls = *(j9object_t*)_sp;
+		I_64 result = (I_64)0;
+
+		/* TODO (#14073): update this function to have the same behavior as OpenJDK when cls is null or not a vlauetype (currently OpenJDK segfaults in both those scenarios) */
+		if (NULL != cls) {
+			J9Class *j9clazz = J9VM_J9CLASS_FROM_HEAPCLASS(_currentThread, cls);
+			if (J9_IS_J9CLASS_VALUETYPE(j9clazz)) {
+				result = (I_64)J9VMTHREAD_OBJECT_HEADER_SIZE(_currentThread) + J9CLASS_PREPADDING_SIZE(j9clazz);
+			}
+		}
+
+		returnDoubleFromINL(REGISTER_ARGS, result, 2);
+		return EXECUTE_BYTECODE;
+	}
+
+	VMINLINE VM_BytecodeAction
+	inlUnsafeGetObjectSize(REGISTER_ARGS_LIST)
+	{
+		j9object_t receiver = *(j9object_t*)_sp;
+		VM_BytecodeAction rc = EXECUTE_BYTECODE;
+
+		if (NULL == receiver) {
+			rc = THROW_NPE;
+		} else {
+			J9Class *receiverClass = J9OBJECT_CLAZZ(_currentThread, receiver);
+
+			if (J9CLASS_IS_ARRAY(receiverClass)) {
+				I_64 arrayDataSize = J9INDEXABLEOBJECT_SIZE(_currentThread, receiver) * J9ARRAYCLASS_GET_STRIDE(receiverClass);
+				I_64 headerSize = J9VMTHREAD_UNSAFE_INDEXABLE_HEADER_SIZE(_currentThread);
+				returnDoubleFromINL(REGISTER_ARGS, arrayDataSize + headerSize, 2);
+			} else {
+				I_64 headerSize = (I_64)J9VMTHREAD_OBJECT_HEADER_SIZE(_currentThread);
+				returnDoubleFromINL(REGISTER_ARGS, receiverClass->totalInstanceSize + headerSize, 2);
+			}
+		}
+
+		return rc;
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+/* jdk.internal.misc.Unsafe: public native <V> V getValue(Object obj, long offset, Class<?> clz); */
 	VMINLINE VM_BytecodeAction
 	inlUnsafeGetValue(REGISTER_ARGS_LIST)
 	{
@@ -4177,49 +4482,9 @@ done:
 		returnVoidFromINL(REGISTER_ARGS, 6);
 		return rc;
 	}
-
-	/* jdk.internal.misc.Unsafe: public native <V> V uninitializedDefaultValue(Class<?> clz); */
+	/* jdk.internal.misc.Unsafe: public native boolean isFlatArray(Class<?> clz); */
 	VMINLINE VM_BytecodeAction
-	inlUnsafeUninitializedDefaultValue(REGISTER_ARGS_LIST)
-	{
-		j9object_t cls = *(j9object_t*)_sp;
-		j9object_t result = NULL;
-
-		/* TODO (#14073): update this function to have the same behavior as OpenJDK when cls is null or not a vlauetype (currently OpenJDK segfaults in both those scenarios) */
-		if (NULL != cls) {
-			J9Class *j9clazz = J9VM_J9CLASS_FROM_HEAPCLASS(_currentThread, cls);
-			if (J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(j9clazz)) {
-				/* It is defaultValue for primitive value type, NULL for value class. */
-				result = j9clazz->flattenedClassCache->defaultValue;
-			}
-		}
-
-		returnObjectFromINL(REGISTER_ARGS, result, 2);
-		return EXECUTE_BYTECODE;
-	}
-
-	/* jdk.internal.misc.Unsafe: public native <V> long valueHeaderSize(Class<V> clz); */
-	VMINLINE VM_BytecodeAction
-	inlUnsafeValueHeaderSize(REGISTER_ARGS_LIST)
-	{
-		j9object_t cls = *(j9object_t*)_sp;
-		I_64 result = (I_64)0;
-
-		/* TODO (#14073): update this function to have the same behavior as OpenJDK when cls is null or not a vlauetype (currently OpenJDK segfaults in both those scenarios) */
-		if (NULL != cls) {
-			J9Class *j9clazz = J9VM_J9CLASS_FROM_HEAPCLASS(_currentThread, cls);
-			if (J9_IS_J9CLASS_VALUETYPE(j9clazz)) {
-				result = (I_64)J9VMTHREAD_OBJECT_HEADER_SIZE(_currentThread) + J9CLASS_PREPADDING_SIZE(j9clazz);
-			}
-		}
-
-		returnDoubleFromINL(REGISTER_ARGS, result, 2);
-		return EXECUTE_BYTECODE;
-	}
-
-	/* jdk.internal.misc.Unsafe: public native boolean isFlattenedArray(Class<?> clz); */
-	VMINLINE VM_BytecodeAction
-	inlUnsafeIsFlattenedArray(REGISTER_ARGS_LIST)
+	inlUnsafeIsFlatArray(REGISTER_ARGS_LIST)
 	{
 		j9object_t cls = *(j9object_t*)_sp;
 
@@ -4239,8 +4504,9 @@ done:
 		return EXECUTE_BYTECODE;
 	}
 
+	/* jdk.internal.misc.Unsafe: public native boolean isFlatField(Field field); */
 	VMINLINE VM_BytecodeAction
-	inlUnsafeIsFlattened(REGISTER_ARGS_LIST)
+	inlUnsafeIsFlatField(REGISTER_ARGS_LIST)
 	{
 		j9object_t field = *(j9object_t*)_sp;
 		VM_BytecodeAction rc = EXECUTE_BYTECODE;
@@ -4256,35 +4522,11 @@ done:
 				rc = GOTO_THROW_CURRENT_EXCEPTION;
 			} else {
 				I_32 result = false;
-				if (VM_ValueTypeHelpers::isNameOrSignatureQtype(J9ROMFIELDSHAPE_SIGNATURE(fieldID->field))) {
+				if (J9ROMFIELD_IS_NULL_RESTRICTED(fieldID->field)) {
 					result = (I_32)isFlattenableFieldFlattened(fieldID->declaringClass, fieldID->field);
 				}
 				restoreInternalNativeStackFrame(REGISTER_ARGS);
 				returnSingleFromINL(REGISTER_ARGS, result, 2);
-			}
-		}
-
-		return rc;
-	}
-
-	VMINLINE VM_BytecodeAction
-	inlUnsafeGetObjectSize(REGISTER_ARGS_LIST)
-	{
-		j9object_t receiver = *(j9object_t*)_sp;
-		VM_BytecodeAction rc = EXECUTE_BYTECODE;
-
-		if (NULL == receiver) {
-			rc = THROW_NPE;
-		} else {
-			J9Class *receiverClass = J9OBJECT_CLAZZ(_currentThread, receiver);
-
-			if (J9CLASS_IS_ARRAY(receiverClass)) {
-				I_64 arrayDataSize = J9INDEXABLEOBJECT_SIZE(_currentThread, receiver) * J9ARRAYCLASS_GET_STRIDE(receiverClass);
-				I_64 headerSize = J9VMTHREAD_CONTIGUOUS_INDEXABLE_HEADER_SIZE(_currentThread);
-				returnDoubleFromINL(REGISTER_ARGS, arrayDataSize + headerSize, 2);
-			} else {
-				I_64 headerSize = (I_64)J9VMTHREAD_OBJECT_HEADER_SIZE(_currentThread);
-				returnDoubleFromINL(REGISTER_ARGS, receiverClass->totalInstanceSize + headerSize, 2);
 			}
 		}
 
@@ -4321,7 +4563,7 @@ done:
 		returnSingleFromINL(REGISTER_ARGS, isFlattened, 4);
 		return EXECUTE_BYTECODE;
 	}
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 	/* java.lang.J9VMInternals: private native static void prepareClassImpl(Class clazz); */
 	VMINLINE VM_BytecodeAction
@@ -4562,6 +4804,8 @@ done:
 			if (J9_ARE_ANY_BITS_SET(_vm->sharedClassConfig->runtimeFlags, J9SHR_RUNTIMEFLAG_ENABLE_SHAREANONYMOUSCLASSES)) {
 				/* ShareAnonymousClasses is enabled by default so we set the class loader flag */
 				_vm->anonClassLoader->flags |= J9CLASSLOADER_SHARED_CLASSES_ENABLED;
+			} else {
+				_vm->anonClassLoader->flags &= ~J9CLASSLOADER_SHARED_CLASSES_ENABLED;
 			}
 		}
 		J9CLASSLOADER_SET_CLASSLOADEROBJECT(_currentThread, _vm->anonClassLoader, anonClassLoaderObject);
@@ -4618,15 +4862,22 @@ internalError:
 			allClassesEndDo(&classWalkState);
 		} else {
 			updateVMStruct(REGISTER_ARGS);
-			J9ClassLoader* result = internalAllocateClassLoader(_vm, classLoaderObject);
-			VMStructHasBeenUpdated(REGISTER_ARGS); // likely unnecessary - no code runs in internalAllocateClassLoader
-			if (NULL == result) {
-				rc = GOTO_THROW_CURRENT_EXCEPTION;
-				goto done;
-			}
-			if (J9_CLASSLOADER_TYPE_PLATFORM == loaderType) {
-				/* extensionClassLoader holds the platform class loader in Java 11+ */
-				_vm->extensionClassLoader = result;
+#if defined(J9VM_OPT_SNAPSHOTS)
+			if (IS_RESTORE_RUN(_vm) && (J9_CLASSLOADER_TYPE_PLATFORM == loaderType)) {
+				_vm->internalVMFunctions->initializeSnapshotClassLoaderObject(_vm, _vm->extensionClassLoader, classLoaderObject);
+			} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+			{
+				J9ClassLoader *result = internalAllocateClassLoader(_vm, classLoaderObject);
+				VMStructHasBeenUpdated(REGISTER_ARGS); // likely unnecessary - no code runs in internalAllocateClassLoader
+				if (NULL == result) {
+					rc = GOTO_THROW_CURRENT_EXCEPTION;
+					goto done;
+				}
+				if (J9_CLASSLOADER_TYPE_PLATFORM == loaderType) {
+					/* extensionClassLoader holds the platform class loader in Java 11+ */
+					_vm->extensionClassLoader = result;
+				}
 			}
 		}
 		restoreInternalNativeStackFrame(REGISTER_ARGS);
@@ -4770,7 +5021,7 @@ done:
 		return rc;
 	}
 
-	/* openj9.internal.tools.attach.target.Attachment: private native int loadAgentLibraryImpl(ClassLoader loader, String agentLibrary, String options, boolean decorate); */
+	/* openj9.internal.tools.attach.target.Attachment: private static native int loadAgentLibraryImpl(boolean dummy, ClassLoader loader, String agentLibrary, String options, boolean decorate); */
 	VMINLINE VM_BytecodeAction
 	inlAttachmentLoadAgentLibraryImpl(REGISTER_ARGS_LIST)
 	{
@@ -4792,8 +5043,30 @@ done:
 //			Trc_JCL_attach_loadAgentLibrary(env, agentLibraryUTF, agentOptions, decorate);
 			const char *agentOptionsUTF = env->GetStringUTFChars(agentOptions, NULL);
 			if (NULL != agentOptionsUTF) {
+				if (J9_ARE_ANY_BITS_SET(_vm->runtimeFlags, J9_RUNTIME_ALLOW_DYNAMIC_AGENT)) {
+#if JAVA_SPEC_VERSION >= 21
+					bool printWarning = false;
+					/* The name "vm" is used by FIND_ARG_IN_VMARGS(). */
+					J9JavaVM *vm = _vm;
+					/* No warning if -XX:+EnableDynamicAgentLoading is specified. */
+					if (0 > FIND_ARG_IN_VMARGS(EXACT_MATCH, VMOPT_XXENABLEDYNAMICAGENTLOADING, NULL)) {
+						/* No warning if the same agent is already loaded. */
+						if (!vm->isAgentLibraryLoaded(vm, agentLibraryUTF, JNI_FALSE != decorate)) {
+							printWarning = true;
+						}
+					}
+#endif /* JAVA_SPEC_VERSION >= 21 */
 					status = (_vm->loadAgentLibraryOnAttach)(_vm, agentLibraryUTF, agentOptionsUTF, decorate);
-					env->ReleaseStringUTFChars(agentOptions, agentOptionsUTF);
+#if JAVA_SPEC_VERSION >= 21
+					if ((JNI_OK == status) && printWarning) {
+						fprintf(stderr, "WARNING: A JVM TI agent has been loaded dynamically (%s)\n", agentOptionsUTF);
+						fprintf(stderr, "WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning\n");
+						fprintf(stderr, "WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information\n");
+						fprintf(stderr, "WARNING: Dynamic loading of agents will be disallowed by default in a future release\n");
+					}
+#endif /* JAVA_SPEC_VERSION >= 21 */
+				}
+				env->ReleaseStringUTFChars(agentOptions, agentOptionsUTF);
 			}
 			env->ReleaseStringUTFChars(agentLibrary, agentLibraryUTF);
 		}
@@ -4805,8 +5078,7 @@ done:
 #endif /* JAVA_SPEC_VERSION >= 19 */
 		VMStructHasBeenUpdated(REGISTER_ARGS);
 		bp = _arg0EA - 5;
-		J9SFJNINativeMethodFrame *nativeMethodFrame = recordJNIReturn(REGISTER_ARGS, bp);
-		_currentThread->jitStackFrameFlags = nativeMethodFrame->specialFrameFlags & J9_SSF_JIT_NATIVE_TRANSITION_FRAME;
+		recordJNIReturn(REGISTER_ARGS, bp);
 		restoreSpecialStackFrameLeavingArgs(REGISTER_ARGS, bp);
 		returnSingleFromINL(REGISTER_ARGS, status, 5);
 		return EXECUTE_BYTECODE;
@@ -4885,6 +5157,23 @@ done:
 		j9object_t object = *(j9object_t*)(_sp + 3);
 		buildInternalNativeStackFrame(REGISTER_ARGS);
 		updateVMStruct(REGISTER_ARGS);
+#if JAVA_SPEC_VERSION >= 24
+		if (VM_ContinuationHelpers::isYieldableVirtualThread(_currentThread)) {
+			UDATA newState = JAVA_LANG_VIRTUALTHREAD_WAITING;
+			if ((millis > 0) || (nanos > 0)) {
+				newState = JAVA_LANG_VIRTUALTHREAD_TIMED_WAITING;
+			}
+			/* Try to yield the virtual thread if it will be blocked. */
+			UDATA result = preparePinnedVirtualThreadForUnmount(_currentThread, object, true);
+			if (J9_OBJECT_MONITOR_OOM != result) {
+				/* Handle the virutal thread Object.wait call. */
+				rc = yieldPinnedContinuation(REGISTER_ARGS, newState, J9VM_CONTINUATION_RETURN_FROM_OBJECT_WAIT);
+			} else {
+				rc = THROW_MONITOR_ALLOC_FAIL;
+			}
+			return rc;
+		}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 		IDATA waitResult = monitorWaitImpl(_currentThread, object, millis, nanos, TRUE);
 		VMStructHasBeenUpdated(REGISTER_ARGS);
 		if (0 == waitResult) {
@@ -4982,12 +5271,9 @@ nativeOOM:
 			}
 		}
 		bp = _arg0EA - 3;
-		{
-			J9SFJNINativeMethodFrame *nativeMethodFrame = recordJNIReturn(REGISTER_ARGS, bp);
-			_currentThread->jitStackFrameFlags = nativeMethodFrame->specialFrameFlags & J9_SSF_JIT_NATIVE_TRANSITION_FRAME;
-			restoreSpecialStackFrameLeavingArgs(REGISTER_ARGS, bp);
-			returnObjectFromINL(REGISTER_ARGS, errorBytes, 3);
-		}
+		recordJNIReturn(REGISTER_ARGS, bp);
+		restoreSpecialStackFrameLeavingArgs(REGISTER_ARGS, bp);
+		returnObjectFromINL(REGISTER_ARGS, errorBytes, 3);
 done:
 		j9mem_free_memory(errBuf);
 		j9mem_free_memory(cLibPath);
@@ -5005,7 +5291,7 @@ done:
 		return EXECUTE_BYTECODE;
 	}
 
-	/* sun.reflect.Reflection (JDK8) 
+	/* sun.reflect.Reflection (JDK8)
 	 * jdk.internal.reflect.Reflection (JDK11+): private static native int getClassAccessFlags(Class<?> cls);
 	 */
 	VMINLINE VM_BytecodeAction
@@ -5030,9 +5316,23 @@ done:
 	}
 
 #if JAVA_SPEC_VERSION >= 16
+#if JAVA_SPEC_VERSION >= 24
+	/* openj9.internal.foreign.abi.InternalDowncallHandler:
+	 * private native long invokeNative(Object returnStateMemBase, Object[] bases, long[] offsets, boolean isInCriticalDownCall, long returnStateMemAddr, long returnStructMemAddr, long functionAddr, long calloutThunk, long[] argValues);
+	 */
+#elif JAVA_SPEC_VERSION >= 22
+	/* openj9.internal.foreign.abi.InternalDowncallHandler:
+	 * private native long invokeNative(Object[] bases, long[] offsets, boolean isInCriticalDownCall, long returnStateMemAddr, long returnStructMemAddr, long functionAddr, long calloutThunk, long[] argValues);
+	 */
+#elif JAVA_SPEC_VERSION == 21
+	/* openj9.internal.foreign.abi.InternalDowncallHandler:
+	 * private native long invokeNative(boolean isInCriticalDownCall, long returnStateMemAddr, long returnStructMemAddr, long functionAddr, long calloutThunk, long[] argValues);
+	 */
+#else /* JAVA_SPEC_VERSION >= 21 */
 	/* openj9.internal.foreign.abi.InternalDowncallHandler:
 	 * private native long invokeNative(long returnStructMemAddr, long functionAddr, long calloutThunk, long[] argValues);
 	 */
+#endif /* JAVA_SPEC_VERSION >= 21 */
 	VMINLINE VM_BytecodeAction
 	inlInternalDowncallHandlerInvokeNative(REGISTER_ARGS_LIST)
 	{
@@ -5048,7 +5348,7 @@ done:
 #endif /* J9VM_ENV_LITTLE_ENDIAN */
 #if FFI_NATIVE_RAW_API
 		/* Make sure we can fit a double in each sValues_raw[] slot but assuring we end up
-		 * with an int that is a  multiple of sizeof(ffi_raw)
+		 * with an int that is a  multiple of sizeof(ffi_raw).
 		 */
 		const U_8 valRawWorstCaseMulFactor = ((sizeof(double) - 1U) / sizeof(ffi_raw)) + 1U;
 		ffi_raw sValues_raw[valRawWorstCaseMulFactor * 16];
@@ -5061,11 +5361,28 @@ done:
 		UDATA *returnStorage = &(_currentThread->returnValue);
 		U_64 *ffiArgs = _currentThread->ffiArgs;
 		U_64 sFfiArgs[16];
+#if JAVA_SPEC_VERSION >= 22
+#if JAVA_SPEC_VERSION >= 24
+		UDATA argSlots = 14;
+		UDATA returnStateMemAddr;
+		j9object_t returnStateMemBase = NULL;
+#else /* JAVA_SPEC_VERSION >= 24 */
+		UDATA argSlots = 13;
+#endif /* JAVA_SPEC_VERSION >= 24 */
+		I_32 *returnState = NULL;
+		UDATA curPtrArgIdx = 0;
+		j9object_t heapBase = NULL;
+		BOOLEAN isHeapPassed = FALSE;
+#elif JAVA_SPEC_VERSION == 21
+		UDATA argSlots = 11;
+		I_32 *returnState = NULL;
+#else /* JAVA_SPEC_VERSION >= 21 */
 		UDATA argSlots = 8;
+#endif /* JAVA_SPEC_VERSION >= 21 */
 
-		j9object_t argValues = *(j9object_t *)_sp; // argValues
-		ffi_cif *cif = (ffi_cif *)(UDATA)*(I_64 *)(_sp + 1); // calloutThunk
-		void *function = (void *)(UDATA)*(I_64 *)(_sp + 3); // functionAddr
+		j9object_t argValues = *(j9object_t *)_sp; /* argValues */
+		ffi_cif *cif = (ffi_cif *)(UDATA)*(I_64 *)(_sp + 1); /* calloutThunk */
+		void *function = (void *)(UDATA)*(I_64 *)(_sp + 3); /* functionAddr */
 		ffi_type *ffiRetType = cif->rtype;
 		UDATA returnTypeSize = ffiRetType->size;
 		U_8 returnType = LayoutFFITypeHelpers::getJ9NativeTypeCodeFromFFIType(ffiRetType);
@@ -5076,9 +5393,27 @@ done:
 		PORT_ACCESS_FROM_JAVAVM(_vm);
 
 		if (J9NtcStruct == returnType) {
-			/* The struct memory is allocated by the memory segment at java level */
-			returnStorage = (UDATA *)(UDATA)*(I_64 *)(_sp + 5); // returnStructMemAddr
+			/* The struct memory is allocated by the memory segment at java level. */
+			returnStorage = (UDATA *)(UDATA)*(I_64 *)(_sp + 5); /* returnStructMemAddr */
 		}
+
+#if JAVA_SPEC_VERSION >= 21
+		/* The native memory is allocated at java level to save the execution state after performing the downcall. */
+#if JAVA_SPEC_VERSION >= 24
+		returnStateMemAddr = (UDATA)*(I_64 *)(_sp + 7); /* returnStateMemAddr */
+		returnStateMemBase = *(j9object_t *)(_sp + 12); /* returnStateMemBase */
+		if (NULL != returnStateMemBase) {
+			returnState = (I_32 *)((UDATA)returnStateMemBase + returnStateMemAddr);
+		} else {
+			returnState = (I_32 *)returnStateMemAddr;
+		}
+#else /* JAVA_SPEC_VERSION >= 24 */
+		returnState = (I_32 *)(UDATA)*(I_64 *)(_sp + 7); /* returnStateMemAddr */
+#endif /* JAVA_SPEC_VERSION >= 24 */
+
+		/* Set the linker option to the current thread for the critical downcall. */
+		_currentThread->isInCriticalDownCall = (0 == *(U_32*)(_sp + 9)) ? FALSE : TRUE;
+#endif /* JAVA_SPEC_VERSION >= 21 */
 
 		if (isMinimal) {
 			values = sValues;
@@ -5098,7 +5433,7 @@ done:
 				goto ffi_OOM;
 			}
 
-			/* Only reallocate if the size of the existing native memory is less than the requested size */
+			/* Only reallocate if the size of the existing native memory is less than the requested size. */
 			if ((NULL != ffiArgs) && (ffiArgCount > _currentThread->ffiArgCount)) {
 				j9mem_free_memory(ffiArgs);
 				ffiArgs = NULL;
@@ -5120,25 +5455,66 @@ done:
 #endif /* FFI_NATIVE_RAW_API */
 		}
 
-		/* Convert the argument array object on the stack to a native memory for access */
+		/* Convert the argument array object on the stack to a native memory for access. */
 		ffiArgs = convertToNativeArgArray(_currentThread, argValues, ffiArgs);
 
 		for (U_8 i = 0; i < ffiArgCount; i++) {
 			U_8 argType = LayoutFFITypeHelpers::getJ9NativeTypeCodeFromFFIType(cif->arg_types[i]);
 
-			if (0 == ffiArgs[i]) {
+			if ((0 == ffiArgs[i]) && (J9NtcPointer != argType)) {
 				values[i] = &(ffiArgs[i]);
 			} else if (J9NtcPointer == argType) {
-				/* ffi_call expects the address of the pointer is the address of the stackslot */
+				/* ffi_call expects the address of the pointer is the address of the stackslot. */
 				pointerValues[i] = (U_64)ffiArgs[i];
+#if JAVA_SPEC_VERSION >= 22
+				heapBase = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(
+						_currentThread,
+						J9_JNI_UNWRAP_REFERENCE(_sp + 11), /* The heap base array. */
+						curPtrArgIdx);
+
+				/* A non-null heapBase object denotes the existence of the heap array;
+				 * otherwise, it is set to null in java in terms of the native array.
+				 * See memSegmtOfPtrToLongArg() in InternalDowncallHandler.java for
+				 * more details.
+				 */
+				if (NULL != heapBase) {
+					U_64 heapOffset = (U_64)J9JAVAARRAYOFLONG_LOAD(
+							_currentThread,
+							J9_JNI_UNWRAP_REFERENCE(_sp + 10), /* The heap offset array. */
+							curPtrArgIdx);
+					/* Extract the heap address from the base object of the heap segment which is
+					 * created by MemorySegment.ofArray(), MemorySegment.ofBuffer() or other methods
+					 * (which only returns part of the heap array) in OpenJDK.
+					 *
+					 * Note:
+					 * 1) Only MemorySegment objects representing the on-heap arrays reach here.
+					 * 2) The heap base object must be a contiguous array to be accessed in native.
+					 */
+					if (J9ISCONTIGUOUSARRAY(_currentThread, heapBase)) {
+						/* The address is simply the base object plus the offset. */
+						pointerValues[i] = (UDATA)heapBase + heapOffset;
+					} else {
+						/* Copy the discontiguous array to native memory to ensure
+						 * its elements can be accessed correctly in the native function.
+						 */
+						void *elems = memcpyFromHeapArray(_currentThread, heapBase, JNI_FALSE);
+						pointerValues[i] = (UDATA)elems;
+					}
+					/* Set the flag to obtain the VMAccess so as to prevent the GC from
+					 * updating the heap address during the critical downcall.
+					 */
+					isHeapPassed = TRUE;
+				}
+				curPtrArgIdx += 1;
+#endif /* JAVA_SPEC_VERSION >= 22 */
 				values[i] = &pointerValues[i];
 			} else if (J9NtcStruct == argType) {
-				/* ffi_call expects the address of the struct is the address of the native memory that stores the struct */
+				/* ffi_call expects the address of the struct is the address of the native memory that stores the struct. */
 				values[i] = (void *)(U_64)ffiArgs[i];
 			} else {
 				values[i] = &(ffiArgs[i]);
 #if !defined(J9VM_ENV_LITTLE_ENDIAN)
-				/* Note: A float number is converted to int by Float.floatToIntBits() in InternalDowncallHandler */
+				/* Note: A float number is converted to int by Float.floatToIntBits() in InternalDowncallHandler. */
 				if ((J9NtcInt == argType) || (J9NtcFloat == argType)) {
 					values[i] = (void *)((U_64)values[i] + extraBytesOfInt);
 				} else if ((J9NtcShort == argType) || (J9NtcChar == argType)) {
@@ -5158,7 +5534,17 @@ done:
 		_currentThread->callOutCount += 1;
 #endif /* JAVA_SPEC_VERSION >= 19 */
 		updateVMStruct(REGISTER_ARGS);
-		VM_VMAccess::inlineExitVMToJNI(_currentThread);
+#if JAVA_SPEC_VERSION >= 21
+		/* Only exit to JNI for non-critical downcalls for better performance. */
+		if (!_currentThread->isInCriticalDownCall
+#if JAVA_SPEC_VERSION >= 22
+		|| isHeapPassed
+#endif /* JAVA_SPEC_VERSION >= 22 */
+		)
+#endif /* JAVA_SPEC_VERSION >= 21 */
+		{
+			VM_VMAccess::inlineExitVMToJNI(_currentThread);
+		}
 		VM_VMHelpers::beforeJNICall(_currentThread);
 #if FFI_NATIVE_RAW_API
 		ffiCallWithSetJmpForUpcall(_currentThread, cif, function, returnStorage, values, values_raw);
@@ -5166,7 +5552,17 @@ done:
 		ffiCallWithSetJmpForUpcall(_currentThread, cif, function, returnStorage, values);
 #endif /* FFI_NATIVE_RAW_API */
 		VM_VMHelpers::afterJNICall(_currentThread);
-		VM_VMAccess::inlineEnterVMFromJNI(_currentThread);
+#if JAVA_SPEC_VERSION >= 21
+		/* Re-enter VM after non-critical downcalls. */
+		if (!_currentThread->isInCriticalDownCall
+#if JAVA_SPEC_VERSION >= 22
+		|| isHeapPassed
+#endif /* JAVA_SPEC_VERSION >= 22 */
+		)
+#endif /* JAVA_SPEC_VERSION >= 21 */
+		{
+			VM_VMAccess::inlineEnterVMFromJNI(_currentThread);
+		}
 		VMStructHasBeenUpdated(REGISTER_ARGS);
 #if JAVA_SPEC_VERSION >= 19
 		_currentThread->callOutCount -= 1;
@@ -5174,17 +5570,56 @@ done:
 		if (VM_VMHelpers::exceptionPending(_currentThread)) {
 			rc = GOTO_THROW_CURRENT_EXCEPTION;
 		}
-		{
-			bp = _arg0EA - argSlots;
-			J9SFJNINativeMethodFrame *nativeMethodFrame = recordJNIReturn(REGISTER_ARGS, bp);
-			_currentThread->jitStackFrameFlags = nativeMethodFrame->specialFrameFlags & J9_SSF_JIT_NATIVE_TRANSITION_FRAME;
-			restoreSpecialStackFrameLeavingArgs(REGISTER_ARGS, bp);
-		}
+		bp = _arg0EA - argSlots;
+		recordJNIReturn(REGISTER_ARGS, bp);
+		restoreSpecialStackFrameLeavingArgs(REGISTER_ARGS, bp);
 
+#if JAVA_SPEC_VERSION >= 22
+		/* For each heap argument, copy the corresponding native memory
+		 * to the heap region in the case of the discontiguous array.
+		 */
+		if (isHeapPassed) {
+			curPtrArgIdx = 0;
+			for (U_8 i = 0; i < ffiArgCount; i++) {
+				U_8 argType = LayoutFFITypeHelpers::getJ9NativeTypeCodeFromFFIType(cif->arg_types[i]);
+				if (J9NtcPointer == argType) {
+					heapBase = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(
+							_currentThread,
+							J9_JNI_UNWRAP_REFERENCE(_sp + 11), /* The heap base array. */
+							curPtrArgIdx);
+					if ((NULL != heapBase) && !J9ISCONTIGUOUSARRAY(_currentThread, heapBase)) {
+						memcpyToHeapArray(_currentThread, heapBase, (void *)(UDATA)(pointerValues[i]), 0, JNI_FALSE);
+					}
+					curPtrArgIdx += 1;
+				}
+			}
+		}
+#endif /* JAVA_SPEC_VERSION >= 22 */
+
+#if JAVA_SPEC_VERSION >= 21
+		/* Set the execution state after the downcall as required in the linker options. */
+		if (NULL != returnState) {
+			/* The error code layout on Windows in JDK21 is changed to a segment for an array of integers
+			 * which saves the return value of GetLastError(), WSAGetLastError() and errno.
+			 */
+#if defined(WIN32)
+			returnState[0] = GetLastError();
+			returnState[1] = WSAGetLastError();
+			returnState[2] = (I_32)errno;
+#else /* defined(WIN32) */
+			*returnState = (I_32)errno;
+#endif /* defined(WIN32) */
+		}
+#endif /* JAVA_SPEC_VERSION >= 21 */
 		VM_VMHelpers::convertFFIReturnValue(_currentThread, returnType, returnTypeSize, returnStorage);
 		returnDoubleFromINL(REGISTER_ARGS, _currentThread->returnValue, argSlots);
 
 done:
+#if JAVA_SPEC_VERSION >= 21
+		/* Clear the critical downcall flag. */
+		_currentThread->isInCriticalDownCall = FALSE;
+#endif /* JAVA_SPEC_VERSION >= 21 */
+
 		if (!isMinimal) {
 			j9mem_free_memory(values);
 			j9mem_free_memory(pointerValues);
@@ -5260,26 +5695,82 @@ ffi_OOM:
 		} else if (VM_VMHelpers::exceptionPending(_currentThread)) {
 			rc = GOTO_THROW_CURRENT_EXCEPTION;
 		}
+#if JAVA_SPEC_VERSION >= 24
+		switch (_currentThread->currentContinuation->returnState) {
+		case J9VM_CONTINUATION_RETURN_FROM_YIELD:
+			returnSingleFromINL(REGISTER_ARGS, JNI_TRUE, 1);
+			break;
+		case J9VM_CONTINUATION_RETURN_FROM_MONITOR_ENTER:
+			break;
+		case J9VM_CONTINUATION_RETURN_FROM_OBJECT_WAIT: {
+			restoreInternalNativeStackFrame(REGISTER_ARGS);
+			j9object_t waitObject = *(j9object_t *)(_sp + 3);
+			UDATA monitorRC = enterObjectMonitor(REGISTER_ARGS, waitObject);
+
+			/* Monitor enter can only fail in the non-blocking case, which does not
+			 * release VM access. So, the immediate async and failed enter cases are
+			 * mutually exclusive.
+			 */
+			if (J9_OBJECT_MONITOR_ENTER_FAILED(monitorRC)) {
+				switch (monitorRC) {
+				case J9_OBJECT_MONITOR_VALUE_TYPE_IMSE:
+					_currentThread->tempSlot = (UDATA)waitObject;
+					rc = THROW_VALUE_TYPE_ILLEGAL_MONITOR_STATE;
+					break;
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+				case J9_OBJECT_MONITOR_CRIU_SINGLE_THREAD_MODE_THROW:
+					rc = THROW_CRIU_SINGLE_THREAD_MODE;
+					break;
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+				case J9_OBJECT_MONITOR_YIELD_VIRTUAL: {
+					rc = yieldPinnedContinuation(REGISTER_ARGS, JAVA_LANG_VIRTUALTHREAD_BLOCKING, J9VM_CONTINUATION_RETURN_FROM_OBJECT_WAIT);
+					omrthread_monitor_enter(_vm->blockedVirtualThreadsMutex);
+					omrthread_monitor_notify(_vm->blockedVirtualThreadsMutex);
+					omrthread_monitor_exit(_vm->blockedVirtualThreadsMutex);
+					break;
+				}
+				case J9_OBJECT_MONITOR_OOM:
+					rc = THROW_MONITOR_ALLOC_FAIL;
+					break;
+				default:
+					Assert_VM_unreachable();
+				}
+			} else {
+				omrthread_monitor_t monitor = getMonitorForWait(_currentThread, waitObject);
+				monitor->count = _currentThread->currentContinuation->waitingMonitorEnterCount;
+				_currentThread->currentContinuation->waitingMonitorEnterCount = 0;
+				returnVoidFromINL(REGISTER_ARGS, 4);
+			}
+			break;
+		}
+		case J9VM_CONTINUATION_RETURN_FROM_SYNC_METHOD:
+			UDATA *bp = ((UDATA *)(((J9SFMethodFrame *)_sp) + 1)) - 1;
+			restoreSpecialStackFrameLeavingArgs(REGISTER_ARGS, bp);
+			rc = inlineSendTarget(REGISTER_ARGS, VM_MAYBE, VM_MAYBE, VM_MAYBE, VM_MAYBE);
+			break;
+		}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 		return rc;
 	}
 
-	/* jdk.internal.vm.Continuation: private static native boolean yieldImpl(); */
+	/* jdk.internal.vm.Continuation: private static native boolean yieldImpl(boolean isFinished); */
 	VMINLINE VM_BytecodeAction
 	yieldContinuationImpl(REGISTER_ARGS_LIST)
 	{
 		VM_BytecodeAction rc = EXECUTE_BYTECODE;
+		BOOLEAN isFinished = (0 == *(I_32*)_sp) ? FALSE : TRUE;
 
 		buildInternalNativeStackFrame(REGISTER_ARGS);
 		updateVMStruct(REGISTER_ARGS);
 
-		/* store the current Continuation state and swap to carrier thread stack */
-		yieldContinuation(_currentThread);
+		/* Store the current Continuation state and swap to the carrier thread stack. */
+		yieldContinuation(_currentThread, isFinished, J9VM_CONTINUATION_RETURN_FROM_YIELD);
 
 		VMStructHasBeenUpdated(REGISTER_ARGS);
 		restoreInternalNativeStackFrame(REGISTER_ARGS);
 
-		/* its going to return as if it were returning from continuation.enterImpl()
-		 * so we need to push the boolean return val
+		/* The return behavior will mimic that of continuation.enterImpl(), requiring the
+		 * boolean return value to be pushed.
 		 */
 		returnSingleFromINL(REGISTER_ARGS, JNI_FALSE, 1);
 		return rc;
@@ -5417,7 +5908,7 @@ done:
 				updateVMStruct(REGISTER_ARGS);
 
 				resolvedValue = resolveConstantDynamic(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE);
-		
+
 				VMStructHasBeenUpdated(REGISTER_ARGS);
 				restoreGenericSpecialStackFrame(REGISTER_ARGS);
 
@@ -6570,7 +7061,7 @@ done:
 				rc = THROW_AIOB;
 			} else {
 				j9object_t value = VM_ValueTypeHelpers::loadFlattenableArrayElement(_currentThread, _objectAccessBarrier, _objectAllocate, arrayref, index, true);
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 				J9Class *arrayrefClass = J9OBJECT_CLAZZ(_currentThread, arrayref);
 				if ((NULL == value) && J9_IS_J9CLASS_FLATTENED(arrayrefClass)) {
 					/* We only get here due to an allocation failure */
@@ -6584,7 +7075,7 @@ done:
 						return rc;
 					}
 				}
-#endif /* if defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 				_pc += 1;
 				_sp += 1;
 				*(j9object_t*)_sp = value;
@@ -6616,22 +7107,12 @@ done:
 				if (false == VM_VMHelpers::objectArrayStoreAllowed(_currentThread, arrayref, value)) {
 					rc = THROW_ARRAY_STORE;
 				} else {
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-					J9ArrayClass *arrayrefClass = (J9ArrayClass *) J9OBJECT_CLAZZ(_currentThread, arrayref);
-					if (J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(arrayrefClass->componentType) && (NULL == value)) {
-						rc = THROW_NPE;
-						goto done;
-					}
-#endif /* if defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 					VM_ValueTypeHelpers::storeFlattenableArrayElement(_currentThread, _objectAccessBarrier, arrayref, index, value);
 					_pc += 1;
 					_sp += 3;
 				}
 			}
 		}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-done:
-#endif /* if defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 		return rc;
 	}
 
@@ -6940,7 +7421,7 @@ retry:
 				break;
 			case J9DescriptionCpTypeConstantDynamic:
 				if (((J9RAMConstantDynamicRef*)ramCPEntry)->exception == _vm->voidReflectClass->classObject) {
-					/* Void.class placed in the exception slot represents a valid null reference returned from resolution 
+					/* Void.class placed in the exception slot represents a valid null reference returned from resolution
 					 * directly restore the special frame and return the null reference
 					 */
 					restoreGenericSpecialStackFrame(REGISTER_ARGS);
@@ -6967,7 +7448,7 @@ retry:
 resolved:
 		_pc += (1 + parmSize);
 		_sp -= 1;
-		
+
 		if ((J9DescriptionCpTypeConstantDynamic == (romCPEntry->cpType & J9DescriptionCpTypeMask))
 		&& (0 != (romCPEntry->cpType >> J9DescriptionReturnTypeShift))
 		) {
@@ -7066,17 +7547,20 @@ retry:
 		{
 			J9Class *fieldClass = (J9Class*)(classAndFlags & ~(UDATA)J9StaticFieldRefFlagBits);
 			bool isVolatile = (0 != (classAndFlags & J9StaticFieldRefVolatile));
-			if (classAndFlags & J9StaticFieldRefBaseType) {
-				if (classAndFlags & J9StaticFieldRefDouble) {
-					_sp -= 2;
-					*(U_64*)_sp = _objectAccessBarrier.inlineStaticReadU64(_currentThread, fieldClass, (U_64 *)valueAddress, isVolatile);
-				} else {
-					_sp -= 1;
-					*(U_32*)_sp = _objectAccessBarrier.inlineStaticReadU32(_currentThread, fieldClass, (U_32 *)valueAddress, isVolatile);
-				}
-			} else {
+
+			switch(classAndFlags & J9StaticFieldRefTypeMask) {
+			case J9StaticFieldRefTypeObject:
 				_sp -= 1;
 				*(j9object_t*)_sp = _objectAccessBarrier.inlineStaticReadObject(_currentThread, fieldClass, (j9object_t *)valueAddress, isVolatile);
+				break;
+			case J9StaticFieldRefTypeLongDouble:
+				_sp -= 2;
+				*(U_64*)_sp = _objectAccessBarrier.inlineStaticReadU64(_currentThread, fieldClass, (U_64 *)valueAddress, isVolatile);
+				break;
+			default:
+				_sp -= 1;
+				*(U_32*)_sp = _objectAccessBarrier.inlineStaticReadU32(_currentThread, fieldClass, (U_32 *)valueAddress, isVolatile);
+				break;
 			}
 		}
 		_pc += 3;
@@ -7140,23 +7624,47 @@ done:
 		}
 #endif
 		{
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+			/* NullRestricted field cannot be set to null. */
+			if (J9_ARE_ALL_BITS_SET(classAndFlags, J9StaticFieldIsNullRestricted)) {
+				j9object_t valueref = *(j9object_t*)_sp;
+				if (NULL == valueref) {
+					rc = THROW_NPE;
+					goto done;
+				}
+			}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 			J9Class *fieldClass = (J9Class*)(classAndFlags & ~(UDATA)J9StaticFieldRefFlagBits);
 			bool isVolatile = (0 != (classAndFlags & J9StaticFieldRefVolatile));
-			if (classAndFlags & J9StaticFieldRefBaseType) {
-				if (classAndFlags & J9StaticFieldRefDouble) {
-					_objectAccessBarrier.inlineStaticStoreU64(_currentThread, fieldClass, (U_64*)valueAddress, *(U_64*)_sp, isVolatile);
-					_sp += 2;
-				} else {
-					U_32 value = *(U_32*)_sp;
-					if (J9_ARE_ALL_BITS_SET(classAndFlags, J9StaticFieldRefBoolean)) {
-						value &= 1;
-					}
-					_objectAccessBarrier.inlineStaticStoreU32(_currentThread, fieldClass, (U_32*)valueAddress, value, isVolatile);
-					_sp += 1;
-				}
-			} else {
+			switch(classAndFlags & J9StaticFieldRefTypeMask) {
+			case J9StaticFieldRefTypeObject:
 				_objectAccessBarrier.inlineStaticStoreObject(_currentThread, fieldClass, (j9object_t*)valueAddress, *(j9object_t*)_sp, isVolatile);
 				_sp += 1;
+				break;
+			case J9StaticFieldRefTypeBoolean:
+				_objectAccessBarrier.inlineStaticStoreU32(_currentThread, fieldClass, (U_32*)valueAddress, *(U_32*)_sp & 1, isVolatile);
+				_sp += 1;
+				break;
+			case J9StaticFieldRefTypeByte:
+				_objectAccessBarrier.inlineStaticStoreU32(_currentThread, fieldClass, (U_32*)valueAddress, (U_32)(I_32)(I_8)*(U_32*)_sp, isVolatile);
+				_sp += 1;
+				break;
+			case J9StaticFieldRefTypeChar:
+				_objectAccessBarrier.inlineStaticStoreU32(_currentThread, fieldClass, (U_32*)valueAddress, *(U_32*)_sp &= 0xFFFF, isVolatile);
+				_sp += 1;
+				break;
+			case J9StaticFieldRefTypeShort:
+				_objectAccessBarrier.inlineStaticStoreU32(_currentThread, fieldClass, (U_32*)valueAddress, (U_32)(I_32)(I_16)*(U_32*)_sp, isVolatile);
+				_sp += 1;
+				break;
+			case J9StaticFieldRefTypeIntFloat:
+				_objectAccessBarrier.inlineStaticStoreU32(_currentThread, fieldClass, (U_32*)valueAddress, *(U_32*)_sp, isVolatile);
+				_sp += 1;
+				break;
+			case J9StaticFieldRefTypeLongDouble:
+				_objectAccessBarrier.inlineStaticStoreU64(_currentThread, fieldClass, (U_64*)valueAddress, *(U_64*)_sp, isVolatile);
+				_sp += 2;
+				break;
 			}
 		}
 		_pc += 3;
@@ -7221,7 +7729,7 @@ retry:
 						*(U_64*)_sp = _objectAccessBarrier.inlineMixedObjectReadU64(_currentThread, objectref, newValueOffset, isVolatile);
 					} else if (flags & J9FieldFlagObject) {
 						j9object_t newObjectRef = NULL;
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 						if (flags & J9FieldFlagFlattened) {
 							newObjectRef = VM_ValueTypeHelpers::getFlattenableField(_currentThread, _objectAccessBarrier, _objectAllocate, ramFieldRef, objectref, true);
 							if (NULL == newObjectRef) {
@@ -7236,7 +7744,7 @@ retry:
 								}
 							}
 						} else
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 						{
 							newObjectRef = _objectAccessBarrier.inlineMixedObjectReadObject(_currentThread, objectref, newValueOffset, isVolatile);
 						}
@@ -7335,11 +7843,19 @@ done:
 					rc = THROW_NPE;
 					goto done;
 				}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+				/* NullRestricted field cannot be set to null. */
+				if (J9_ARE_ALL_BITS_SET(flags, J9FieldFlagIsNullRestricted)) {
+					j9object_t valueref = *(j9object_t*)_sp;
+					if (NULL == valueref) {
+						rc = THROW_NPE;
+						goto done;
+					}
+				}
 				if (flags & J9FieldFlagFlattened) {
 					VM_ValueTypeHelpers::putFlattenableField(_currentThread, _objectAccessBarrier, ramFieldRef, objectref, *(j9object_t*)_sp);
 				} else
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 				{
 					_objectAccessBarrier.inlineMixedObjectStoreObject(_currentThread, objectref, newValueOffset, *(j9object_t*)_sp, isVolatile);
 				}
@@ -7351,8 +7867,19 @@ done:
 					goto done;
 				}
 				U_32 value = *(U_32*)_sp;
-				if (J9FieldTypeBoolean == (flags & J9FieldTypeMask)) {
+				switch(flags & J9FieldTypeMask) {
+				case J9FieldTypeBoolean:
 					value &= 1;
+					break;
+				case J9FieldTypeByte:
+					value = (U_32)(I_32)(I_8)value;
+					break;
+				case J9FieldTypeChar:
+					value &= 0xFFFF;
+					break;
+				case J9FieldTypeShort:
+					value = (U_32)(I_32)(I_16)value;
+					break;
 				}
 				_objectAccessBarrier.inlineMixedObjectStoreU32(_currentThread, objectref, newValueOffset, value, isVolatile);
 				_sp += 2;
@@ -7389,7 +7916,7 @@ done:
 		UDATA methodIndex = methodIndexAndArgCount >> 8;
 		j9object_t receiver = ((j9object_t*)_sp)[methodIndexAndArgCount & 0xFF];
 		if (J9_UNEXPECTED(NULL == receiver)) {
-			/* Resolution exceptions must be thrown first, so check if methodRef 
+			/* Resolution exceptions must be thrown first, so check if methodRef
 			 * is resolved before throwing NPE on receiver.
 			 */
 			if (methodIndex != J9VTABLE_INITIAL_VIRTUAL_OFFSET) {
@@ -7434,7 +7961,7 @@ done:
 		/* argCount was initialized when we initialized the class (i.e. it is non-volatile), so no memory barrier is required */
 		j9object_t receiver = ((j9object_t*)_sp)[ramMethodRef->methodIndexAndArgCount & 0xFF];
 		if (NULL == receiver) {
-			/* Resolution exceptions must be thrown first, so check if methodRef 
+			/* Resolution exceptions must be thrown first, so check if methodRef
 			 * is resolved before throwing NPE on receiver.
 			 */
 			if (!fromBytecode || ((J9Method *)_vm->initialMethods.initialSpecialMethod != _sendMethod)) {
@@ -8056,9 +8583,9 @@ retry:
 		if ((NULL != resolvedClass) && J9ROMCLASS_ALLOCATES_VIA_NEW(resolvedClass->romClass)) {
 			if (!VM_VMHelpers::classRequiresInitialization(_currentThread, resolvedClass)) {
 				j9object_t instance = NULL;
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 				if (J9_ARE_NO_BITS_SET(resolvedClass->classFlags, J9ClassContainsUnflattenedFlattenables))
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 				{
 					instance = _objectAllocate.inlineAllocateObject(_currentThread, resolvedClass);
 				}
@@ -8183,9 +8710,9 @@ retry:
 			J9Class *arrayClass = resolvedClass->arrayClass;
 			if (J9_EXPECTED(NULL != arrayClass)) {
 				j9object_t instance = NULL;
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-				if (J9_ARE_NO_BITS_SET(arrayClass->classFlags, J9ClassContainsUnflattenedFlattenables)) 
-#endif
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+				if (J9_ARE_NO_BITS_SET(arrayClass->classFlags, J9ClassContainsUnflattenedFlattenables))
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 				{
 					instance = VM_VMHelpers::inlineAllocateIndexableObject(_currentThread, &_objectAllocate, arrayClass, (U_32) size);
 				}
@@ -8256,9 +8783,6 @@ retry:
 					goto done;
 				}
 			} else {
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-resolve:
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
 				/* Unresolved */
 				buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
 				updateVMStruct(REGISTER_ARGS);
@@ -8275,23 +8799,12 @@ resolve:
 				goto retry;
 			}
 		}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		else if (VM_ValueTypeHelpers::isClassRefQtype(ramConstantPool, index)) {
-			/* Even though an NPE is going to be thrown the classref must still be resolved because
-			 * its a qtype.
-			 *
-			 * TODO in the future a different type of exception may thrown, spec for this behaviour
-			 * not currently known.
-			 */
-			if (NULL == castClass) {
-				/* Resolve the class and then check again whether it is a value type */
-				goto resolve;
-			}
 
-			rc = THROW_NPE;
-			goto done;
-		}
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+		/* In the future, Valhalla checkcast must throw an exception on
+		 * null-restricted checkedType if object is null.
+		 * See issue https://github.com/eclipse-openj9/openj9/issues/19764.
+		 */
+
 		_pc += 3;
 done:
 		return rc;
@@ -8364,6 +8877,12 @@ done:
 					rc = THROW_CRIU_SINGLE_THREAD_MODE;
 					break;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+#if JAVA_SPEC_VERSION >= 24
+				case J9_OBJECT_MONITOR_YIELD_VIRTUAL: {
+					rc = yieldPinnedContinuation(REGISTER_ARGS, JAVA_LANG_VIRTUALTHREAD_BLOCKING, J9VM_CONTINUATION_RETURN_FROM_MONITOR_ENTER);
+					break;
+				}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 				case J9_OBJECT_MONITOR_OOM:
 					rc = THROW_MONITOR_ALLOC_FAIL;
 					break;
@@ -8707,29 +9226,23 @@ retry:
 		j9object_t invokeCacheArray = (ramConstantPool->ramClass->callSites)[index];
 
 		if (J9_EXPECTED(NULL != invokeCacheArray)) {
-			J9Class *clazz = J9OBJECT_CLAZZ(_currentThread, invokeCacheArray);
-			if (J9CLASS_IS_ARRAY(clazz)) {
-				/* Fetch target method and appendix from invokeCacheArray (2 element array)
-				 * Stack transitions from:
-				 * 		args <- SP
-				 * 		MH
-				 * To:
-				 * 		invokeCacheArray[1] "appendix" <- SP
-				 * 		args
-				 * 		MH
-				 *
-				 * and sendMethod is ((J9Method *)((j.l.MemberName)invokeCacheArray[0]) + vmtargetOffset)
-				 */
-				j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, invokeCacheArray, 0);
-				_sendMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
+			/* Fetch target method and appendix from invokeCacheArray (2 element array)
+			 * Stack transitions from:
+			 * 		args <- SP
+			 * 		MH
+			 * To:
+			 * 		invokeCacheArray[1] "appendix" <- SP
+			 * 		args
+			 * 		MH
+			 *
+			 * and sendMethod is ((J9Method *)((j.l.MemberName)invokeCacheArray[0]) + vmtargetOffset)
+			 */
+			j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, invokeCacheArray, 0);
+			_sendMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
 
-				j9object_t appendix = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, invokeCacheArray, 1);
-				if (NULL != appendix) {
-					*--_sp = (UDATA)appendix;
-				}
-			} else {
-				VM_VMHelpers::setExceptionPending(_currentThread, invokeCacheArray);
-				rc = GOTO_THROW_CURRENT_EXCEPTION;
+			j9object_t appendix = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, invokeCacheArray, 1);
+			if (NULL != appendix) {
+				*--_sp = (UDATA)appendix;
 			}
 		} else {
 			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
@@ -8946,7 +9459,7 @@ done:
 	invokeBasic(REGISTER_ARGS_LIST)
 	{
 		VM_BytecodeAction rc = GOTO_RUN_METHOD;
-		bool fromJIT = J9_ARE_ANY_BITS_SET(_currentThread->jitStackFrameFlags, J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
+		bool fromJIT = J9_ARE_ANY_BITS_SET(jitStackFrameFlags(REGISTER_ARGS, 0), J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
 		UDATA mhReceiverIndex = 0;
 
 		if (fromJIT) {
@@ -8975,9 +9488,8 @@ done:
 		_sendMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
 
 		if (fromJIT) {
-			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void *)_literals);
-			rc = j2iTransition(REGISTER_ARGS);
+			rc = j2iTransition(REGISTER_ARGS, true);
 		}
 
 		return rc;
@@ -8987,7 +9499,7 @@ done:
 	linkToStaticSpecial(REGISTER_ARGS_LIST)
 	{
 		VM_BytecodeAction rc = GOTO_RUN_METHOD;
-		bool fromJIT = J9_ARE_ANY_BITS_SET(_currentThread->jitStackFrameFlags, J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
+		bool fromJIT = J9_ARE_ANY_BITS_SET(jitStackFrameFlags(REGISTER_ARGS, 0), J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
 		J9ROMMethod *romMethod = NULL;
 		UDATA methodArgCount = 0;
 
@@ -9044,9 +9556,8 @@ done:
 			memmove(_sp, _sp + stackOffset, methodArgCount * sizeof(UDATA));
 			_sp[methodArgCount] = (UDATA)memberNameObject;
 
-			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void *)_literals);
-			rc = j2iTransition(REGISTER_ARGS);
+			rc = j2iTransition(REGISTER_ARGS, true);
 		}
 
 		return rc;
@@ -9064,7 +9575,7 @@ throw_npe:
 	linkToVirtual(REGISTER_ARGS_LIST)
 	{
 		VM_BytecodeAction rc = GOTO_RUN_METHOD;
-		bool fromJIT = J9_ARE_ANY_BITS_SET(_currentThread->jitStackFrameFlags, J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
+		bool fromJIT = J9_ARE_ANY_BITS_SET(jitStackFrameFlags(REGISTER_ARGS, 0), J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
 
 		/* Pop memberNameObject from the stack. */
 		j9object_t memberNameObject = *(j9object_t *)_sp++;
@@ -9077,10 +9588,10 @@ throw_npe:
 			return THROW_NPE;
 		}
 
-		J9JNIMethodID *methodID = (J9JNIMethodID *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
-		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
+		J9Method *method = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
+		J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(method);
 		UDATA methodArgCount = 0;
-		bool isInvokeBasic = (J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEBASIC == J9_BCLOOP_DECODE_SEND_TARGET(methodID->method->methodRunAddress));
+		bool isInvokeBasic = (J9_BCLOOP_SEND_TARGET_METHODHANDLE_INVOKEBASIC == J9_BCLOOP_DECODE_SEND_TARGET(method->methodRunAddress));
 
 		/* In MethodHandle.loop API it may generate a invokeBasic NamedFunction (see LambdaForm$NamedFunction(MethodType basicInvokerType))
 		 * that is linked by linkToVirtual. As invokeBasic is signature polymorphic, the romMethod->argCount may not match the actual
@@ -9104,43 +9615,17 @@ throw_npe:
 			return THROW_NPE;
 		}
 
-		/* vmindexOffset (J9JNIMethodID) is initialized using jnicsup.cpp::initializeMethodID.
-		 * initializeMethodID will set J9JNIMethodID->vTableIndex to 0 for private interface
-		 * methods and j.l.Object methods. When J9JNIMethodID->vTableIndex is 0, then
-		 * vmtargetOffset (J9Method) is the _sendMethod, and it will point to the private
-		 * interface method or j.l.Object method. When J9JNIMethodID->vTableIndex is not 0,
-		 * then it is either a vTable offset or an iTable index.
+		/* The vTable offset has been stored in memberNameObject.vmindex.
+		 *
+		 * Directly-dispatched instance methods don't reach here because they will go through linkToSpecial() instead.
+		 *
+		 * An interface method can reach here, but only when it was found via some non-interface class C that inherits it.
+		 * In that case, MemberName resolution has already done the iTable walk to get the corresponding vTable offset in
+		 * C and stored it in vmindex. The receiver is always an instance of C (or a subclass).
 		 */
-		UDATA vTableOffset = methodID->vTableIndex;
-		if (0 == vTableOffset) {
-			_sendMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
-		} else {
-			J9Class *receiverClass = J9OBJECT_CLAZZ(_currentThread, receiverObject);
-
-			if (J9_ARE_ANY_BITS_SET(vTableOffset, J9_JNI_MID_INTERFACE)) {
-				/* Treat as iTable index for the method if J9_JNI_MID_INTERFACE is set. */
-				UDATA iTableIndex = vTableOffset & ~(UDATA)J9_JNI_MID_INTERFACE;
-				J9Class *interfaceClass = J9_CLASS_FROM_METHOD(methodID->method);
-				/* Get the latest version of the class for the iTable search. */
-				interfaceClass = VM_VMHelpers::currentClass(interfaceClass);
-				vTableOffset = 0;
-				J9ITable * iTable = receiverClass->lastITable;
-				if (interfaceClass == iTable->interfaceClass) {
-					goto foundITable;
-				}
-				iTable = (J9ITable*)receiverClass->iTable;
-				while (NULL != iTable) {
-					if (interfaceClass == iTable->interfaceClass) {
-						receiverClass->lastITable = iTable;
-foundITable:
-						vTableOffset = ((UDATA*)(iTable + 1))[iTableIndex];
-						break;
-					}
-					iTable = iTable->next;
-				}
-			}
-			_sendMethod = *(J9Method **)(((UDATA)receiverClass) + vTableOffset);
-		}
+		UDATA vTableOffset = (UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
+		J9Class *receiverClass = J9OBJECT_CLAZZ(_currentThread, receiverObject);
+		_sendMethod = *(J9Method **)(((UDATA)receiverClass) + vTableOffset);
 
 		/* The invokeBasic INL uses the methodArgCount from ramCP to locate the receiver object,
 		 * so when dispatched using linkToVirtual, it will still access the ramCP of the linkToVirtual call
@@ -9163,9 +9648,8 @@ foundITable:
 			memmove(_sp, _sp + 1, methodArgCount * sizeof(UDATA));
 			_sp[methodArgCount] = (UDATA)memberNameObject;
 
-			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void *)_literals);
-			rc = j2iTransition(REGISTER_ARGS);
+			rc = j2iTransition(REGISTER_ARGS, true);
 		}
 
 		return rc;
@@ -9175,14 +9659,16 @@ foundITable:
 	linkToInterface(REGISTER_ARGS_LIST)
 	{
 		VM_BytecodeAction rc = GOTO_RUN_METHOD;
-		bool fromJIT = J9_ARE_ANY_BITS_SET(_currentThread->jitStackFrameFlags, J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
-		J9JNIMethodID *methodID = NULL;
+		bool fromJIT = J9_ARE_ANY_BITS_SET(jitStackFrameFlags(REGISTER_ARGS, 0), J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
 		J9ROMMethod *romMethod = NULL;
 		UDATA methodArgCount = 0;
 		j9object_t receiverObject = NULL;
 		J9Class *receiverClass = NULL;
 		J9Method *method = NULL;
 		UDATA vTableOffset = 0;
+		UDATA iTableIndex = 0;
+		J9Class *interfaceClass = NULL;
+		J9ITable *iTable = NULL;
 
 		/* Pop memberNameObject from the stack. */
 		j9object_t memberNameObject = *(j9object_t *)_sp++;
@@ -9196,8 +9682,8 @@ foundITable:
 			goto done;
 		}
 
-		methodID = (J9JNIMethodID *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
-		romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(methodID->method);
+		method = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
+		romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(method);
 		methodArgCount = romMethod->argCount;
 
 		receiverObject = ((j9object_t *)_sp)[methodArgCount - 1];
@@ -9212,45 +9698,42 @@ foundITable:
 		}
 
 		receiverClass = J9OBJECT_CLAZZ(_currentThread, receiverObject);
-		method = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmtargetOffset);
-		vTableOffset = methodID->vTableIndex;
 
-		/* vmindexOffset (J9JNIMethodID) is initialized using jnicsup.cpp::initializeMethodID.
-		 * initializeMethodID will set J9JNIMethodID->vTableIndex to 0 for private interface
-		 * methods and j.l.Object methods. When J9JNIMethodID->vTableIndex is 0, then
-		 * vmtargetOffset (J9Method) is the _sendMethod, and it will point to the private
-		 * interface method or j.l.Object method. When J9JNIMethodID->vTableIndex is not 0,
-		 * then it is either a vTable offset or an iTable index.
+		/* Here MemberName.vmindex is always an iTable index. If an instance method is supposed
+		 * to be dispatched directly, then it will go through linkToSpecial() instead. If it's
+		 * supposed to go through non-interface virtual dispatch, like e.g. a non-final method
+		 * of Object, it will go through linkToVirtual() instead.
 		 */
-		if (0 == vTableOffset) {
-			/* Private interface method or j.l.Object method. */
-			_sendMethod = method;
-		} else {
-			/* Treat as vTable offset for the method if J9_JNI_MID_INTERFACE is not set. */
-			if (J9_ARE_ANY_BITS_SET(vTableOffset, J9_JNI_MID_INTERFACE)) {
-				/* Treat as iTable index for the method if J9_JNI_MID_INTERFACE is set. */
-				UDATA iTableIndex = vTableOffset & ~(UDATA)J9_JNI_MID_INTERFACE;
-				J9Class *interfaceClass = J9_CLASS_FROM_METHOD(method);
-				/* Get the latest version of the class for the iTable search. */
-				interfaceClass = VM_VMHelpers::currentClass(interfaceClass);
-				vTableOffset = 0;
-				J9ITable * iTable = receiverClass->lastITable;
-				if (interfaceClass == iTable->interfaceClass) {
-					goto foundITable;
-				}
-				iTable = (J9ITable*)receiverClass->iTable;
-				while (NULL != iTable) {
-					if (interfaceClass == iTable->interfaceClass) {
-						receiverClass->lastITable = iTable;
-foundITable:
-						vTableOffset = ((UDATA*)(iTable + 1))[iTableIndex];
-						break;
-					}
-					iTable = iTable->next;
-				}
-			}
-			_sendMethod = *(J9Method **)(((UDATA)receiverClass) + vTableOffset);
+		iTableIndex = (UDATA)J9OBJECT_U64_LOAD(_currentThread, memberNameObject, _vm->vmindexOffset);
+		interfaceClass = J9_CLASS_FROM_METHOD(method);
+		vTableOffset = 0;
+		iTable = receiverClass->lastITable;
+		if (interfaceClass == iTable->interfaceClass) {
+			goto foundITable;
 		}
+		iTable = (J9ITable *)receiverClass->iTable;
+		while (NULL != iTable) {
+			if (interfaceClass == iTable->interfaceClass) {
+				receiverClass->lastITable = iTable;
+foundITable:
+				vTableOffset = ((UDATA *)(iTable + 1))[iTableIndex];
+				break;
+			}
+			iTable = iTable->next;
+		}
+
+		/* The bytecode guarantees with an explicit type test that the receiver is an instance
+		 * of the expected interface.
+		 *
+		 * Nevertheless, this assertion can fail if interfaceClass is obsolete and therefore has
+		 * no corresponding iTable. This situation can only arise if interfaceClass has been
+		 * redefined in such a way as to remove method from it, in which case iTableIndex no
+		 * longer meaningfully corresponds to method, and a crash is highly likely were dispatch
+		 * to proceed as usual. Better to crash eagerly by failing the assertion here.
+		 */
+		Assert_VM_false(0 == vTableOffset);
+
+		_sendMethod = *(J9Method **)(((UDATA)receiverClass) + vTableOffset);
 
 		romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(_sendMethod);
 		if (J9_ARE_NO_BITS_SET(romMethod->modifiers, J9AccPublic | J9AccPrivate)) {
@@ -9274,14 +9757,69 @@ foundITable:
 			memmove(_sp, _sp + 1, methodArgCount * sizeof(UDATA));
 			_sp[methodArgCount] = (UDATA)memberNameObject;
 
-			_currentThread->jitStackFrameFlags = 0;
 			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void *)_literals);
-			rc = j2iTransition(REGISTER_ARGS);
+			rc = j2iTransition(REGISTER_ARGS, true);
 		}
 
 done:
 		return rc;
 	}
+
+#if JAVA_SPEC_VERSION >= 22
+	VMINLINE VM_BytecodeAction
+	linkToNative(REGISTER_ARGS_LIST)
+	{
+		VM_BytecodeAction rc = GOTO_RUN_METHOD;
+		bool fromJIT = J9_ARE_ANY_BITS_SET(jitStackFrameFlags(REGISTER_ARGS, 0), J9_SSF_JIT_NATIVE_TRANSITION_FRAME);
+
+		/* Pop up the dummy argument (the placeholder for the method type of the bound MH)
+		 * forced by JIT to obtain the NativeMethodHandle object.
+		 */
+		if (fromJIT) {
+			_sp += 1;
+		}
+
+		j9object_t nativeMH = *(j9object_t *)_sp;
+		if (J9_UNEXPECTED(NULL == nativeMH)) {
+			if (fromJIT) {
+				/* Restore SP to before popping the dummy argument. */
+				_sp -= 1;
+				buildJITResolveFrame(REGISTER_ARGS);
+			}
+			return THROW_NPE;
+		}
+
+		j9object_t nepObject = J9VMJAVALANGINVOKENATIVEMETHODHANDLE_NEP(_currentThread, nativeMH);
+		j9object_t methodType = J9VMJAVALANGINVOKEMETHODHANDLE_TYPE(_currentThread, nepObject);
+		UDATA methodArgCount = VM_VMHelpers::methodTypeParameterSlotCount(_currentThread, methodType);
+
+		/* The cache array stores the data (memberName & appendix) for the bound MH which
+		 * has been resolved when generating the downcall handler.
+		 */
+		j9object_t invokeCacheArray = J9VMJAVALANGINVOKENATIVEMETHODHANDLE_INVOKECACHE(_currentThread, nativeMH);
+		j9object_t memberName = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, invokeCacheArray, 0);
+		_sendMethod = (J9Method *)(UDATA)J9OBJECT_U64_LOAD(_currentThread, memberName, _vm->vmtargetOffset);
+
+		/* Shift arguments by 1 and place the NEP object as the placeholder before the first argument
+		 * given the fixed-size arguments are popped out by JIT.
+		 */
+		memmove(_sp, _sp + 1, methodArgCount * sizeof(UDATA));
+		_sp[methodArgCount] = (UDATA)nepObject;
+
+		j9object_t appendix = (j9object_t)J9JAVAARRAYOFOBJECT_LOAD(_currentThread, invokeCacheArray, 1);
+		/* The slot the dummy argument is replaced with the method type to ensure it works with
+		 * and without JIT in terms of the argument count.
+		 */
+		*(j9object_t *)--_sp = appendix;
+
+		if (fromJIT) {
+			VM_JITInterface::restoreJITReturnAddress(_currentThread, _sp, (void *)_literals);
+			rc = j2iTransition(REGISTER_ARGS, true);
+		}
+
+		return rc;
+	}
+#endif /* JAVA_SPEC_VERSION >= 22 */
 
 	VMINLINE VM_BytecodeAction
 	throwDefaultConflictForMemberName(REGISTER_ARGS_LIST)
@@ -9469,145 +10007,6 @@ done:
 		return GOTO_DONE;
 	}
 
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	VMINLINE VM_BytecodeAction
-	aconst_init(REGISTER_ARGS_LIST)
-	{
-retry:
-		VM_BytecodeAction rc = EXECUTE_BYTECODE;
-		const U_16 index = *(U_16*)(_pc + 1);
-		J9ConstantPool * const ramConstantPool = J9_CP_FROM_METHOD(_literals);
-		J9RAMClassRef * const ramCPEntry = ((J9RAMClassRef*)ramConstantPool) + index;
-		J9Class * volatile resolvedClass = ramCPEntry->value;
-
-		if ((NULL != resolvedClass) && J9_IS_J9CLASS_VALUETYPE(resolvedClass) && !VM_VMHelpers::classRequiresInitialization(_currentThread, resolvedClass)) {
-			_pc += 3;
-			*(j9object_t*)--_sp = resolvedClass->flattenedClassCache->defaultValue;
-			goto done;
-		}
-
-		buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
-		updateVMStruct(REGISTER_ARGS);
-
-		if (NULL == resolvedClass) {
-			resolveClassRef(_currentThread, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE | J9_RESOLVE_FLAG_INIT_CLASS);
-		} else if (!J9_IS_J9CLASS_VALUETYPE(resolvedClass)) {
-			J9UTF8 *badClassName = J9ROMCLASS_CLASSNAME(resolvedClass->romClass);
-			setCurrentExceptionNLSWithArgs(_currentThread, J9NLS_VM_ERROR_BYTECODE_CLASSREF_MUST_BE_VALUE_TYPE, J9VMCONSTANTPOOL_JAVALANGINCOMPATIBLECLASSCHANGEERROR, J9UTF8_LENGTH(badClassName), J9UTF8_DATA(badClassName));
-		} else if (VM_VMHelpers::classRequiresInitialization(_currentThread, resolvedClass)) {
-			initializeClass(_currentThread, resolvedClass);
-		}
-
-		VMStructHasBeenUpdated(REGISTER_ARGS);
-
-		if (immediateAsyncPending()) {
-			rc = GOTO_ASYNC_CHECK;
-			goto done;
-		} else if (VM_VMHelpers::exceptionPending(_currentThread)) {
-			rc = GOTO_THROW_CURRENT_EXCEPTION;
-			goto done;
-		}
-
-		restoreGenericSpecialStackFrame(REGISTER_ARGS);
-
-		goto retry;
-done:
-		return rc;
-	}
-
-	VMINLINE VM_BytecodeAction
-	withfield(REGISTER_ARGS_LIST)
-	{
-retry:
-		VM_BytecodeAction rc = EXECUTE_BYTECODE;
-		U_16 const index = *(U_16 *)(_pc + 1);
-		J9ConstantPool * const ramConstantPool = J9_CP_FROM_METHOD(_literals);
-		J9RAMFieldRef * const ramFieldRef = ((J9RAMFieldRef *)ramConstantPool) + index;
-		UDATA const flags = ramFieldRef->flags;
-		UDATA const valueOffset = ramFieldRef->valueOffset;
-		j9object_t copyObjectRef = NULL;
-		J9Class *objectRefClass = NULL;
-
-		/* In a resolved field, flags will have the J9FieldFlagResolved bit set, thus
-		 * having a higher value than any valid valueOffset.
-		 *
-		 * This check avoids the need for a barrier, as it will only succeed if flags
-		 * and valueOffset have both been updated. It is crucial that we do not treat
-		 * a field ref as resolved if only one of the two values has been set (by
-		 * another thread that is in the middle of a resolve).
-		 */
-		if (!VM_VMHelpers::instanceFieldRefIsResolved(flags, valueOffset)) {
-			/* Field is unresolved */
-			J9Method *method = _literals;
-			buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
-			updateVMStruct(REGISTER_ARGS);
-			resolveInstanceFieldRef(_currentThread, method, ramConstantPool, index, J9_RESOLVE_FLAG_RUNTIME_RESOLVE | J9_RESOLVE_FLAG_WITH_FIELD, NULL);
-			VMStructHasBeenUpdated(REGISTER_ARGS);
-			if (immediateAsyncPending()) {
-				rc = GOTO_ASYNC_CHECK;
-				goto done;
-			} else if (VM_VMHelpers::exceptionPending(_currentThread)) {
-				rc = GOTO_THROW_CURRENT_EXCEPTION;
-				goto done;
-			}
-			restoreGenericSpecialStackFrame(REGISTER_ARGS);
-			goto retry;
-		}
-		{
-			j9object_t originalObjectRef = *(j9object_t *)(_sp + (J9_ARE_ALL_BITS_SET(flags, J9FieldSizeDouble) ? 2 : 1));
-
-			if (NULL == originalObjectRef) {
-				rc = THROW_NPE;
-				goto done;
-			}
-
-			objectRefClass = J9OBJECT_CLAZZ(_currentThread, originalObjectRef);
-
-			if (!J9_IS_J9CLASS_VALUETYPE(objectRefClass)) {
-				J9UTF8 *badClassName = J9ROMCLASS_CLASSNAME(objectRefClass->romClass);
-				setCurrentExceptionNLSWithArgs(_currentThread, J9NLS_VM_ERROR_BYTECODE_OBJECTREF_MUST_BE_VALUE_TYPE, J9VMCONSTANTPOOL_JAVALANGINCOMPATIBLECLASSCHANGEERROR, J9UTF8_LENGTH(badClassName), J9UTF8_DATA(badClassName));
-				rc = GOTO_THROW_CURRENT_EXCEPTION;
-				goto done;
-			}
-
-			/* need to zero memset the memory so padding bytes are zeroed for memcmp-like comparisons */
-			copyObjectRef = VM_ValueTypeHelpers::cloneValueType(_currentThread, _objectAccessBarrier, _objectAllocate, objectRefClass, originalObjectRef, true);
-			if (NULL == copyObjectRef) {
-				buildGenericSpecialStackFrame(REGISTER_ARGS, 0);
-				updateVMStruct(REGISTER_ARGS);
-				copyObjectRef = VM_ValueTypeHelpers::cloneValueType(_currentThread, _objectAccessBarrier, _objectAllocate, objectRefClass, originalObjectRef, false);
-				VMStructHasBeenUpdated(REGISTER_ARGS);
-				restoreGenericSpecialStackFrame(REGISTER_ARGS);
-				if (J9_UNEXPECTED(NULL == copyObjectRef)) {
-					rc = THROW_HEAP_OOM;
-					goto done;
-				}
-			}
-		}
-		{
-			UDATA const objectHeaderSize = J9VMTHREAD_OBJECT_HEADER_SIZE(_currentThread);
-			bool const isVolatile = (0 != (flags & J9AccVolatile));
-			UDATA const newValueOffset = valueOffset + objectHeaderSize;
-
-			if (J9_ARE_ALL_BITS_SET(flags, J9FieldSizeDouble)) {
-				_objectAccessBarrier.inlineMixedObjectStoreU64(_currentThread, copyObjectRef, newValueOffset, *(U_64*)_sp, isVolatile);
-				_sp += 2;
-			} else if (J9_ARE_ALL_BITS_SET(flags, J9FieldFlagObject)) {
-				VM_ValueTypeHelpers::putFlattenableField(_currentThread, _objectAccessBarrier, ramFieldRef, copyObjectRef, *(j9object_t*)_sp);
-				_sp += 1;
-			} else {
-				_objectAccessBarrier.inlineMixedObjectStoreU32(_currentThread, copyObjectRef, newValueOffset, *(U_32*)_sp, isVolatile);
-				_sp += 1;
-			}
-		}
-
-		*(j9object_t *)_sp = copyObjectRef;
-		_pc += 3;
-done:
-		return rc;
-	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
-
 protected:
 
 public:
@@ -9646,6 +10045,7 @@ public:
 #endif
 
 		DEBUG_MUST_HAVE_VM_ACCESS(vmThread);
+		vmThread->jitStackFrameFlags = 0;
 
 #if defined(COUNT_BYTECODE_PAIRS)
 		U_8 previousBytecode = JBinvokedynamic;
@@ -9890,13 +10290,8 @@ public:
 #else /* DEBUG_VERSION */
 		JUMP_TABLE_ENTRY(JBunimplemented), /* 0xCA(202) */
 #endif /* DEBUG_VERSION */
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		JUMP_TABLE_ENTRY(JBaconst_init), /* 0xCB(203) */
-		JUMP_TABLE_ENTRY(JBwithfield), /* 0xCC(204) */
-#else /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 		JUMP_TABLE_ENTRY(JBunimplemented), /* 0xCB(203) */
 		JUMP_TABLE_ENTRY(JBunimplemented), /* 0xCC(204) */
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 		JUMP_TABLE_ENTRY(JBunimplemented), /* 0xCD(205) */
 		JUMP_TABLE_ENTRY(JBunimplemented), /* 0xCE(206) */
 		JUMP_TABLE_ENTRY(JBunimplemented), /* 0xCF(207) */
@@ -9985,7 +10380,6 @@ public:
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_ARRAY),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_PRIMITIVE),
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_PRIMITIVE_CLASS),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_VALUE),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_IDENTITY),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_INTERNALS_POSITIVE_ONLY_HASHCODES),
@@ -10068,15 +10462,17 @@ public:
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_COMPAREANDSWAPLONG),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_COMPAREANDSWAPINT),
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_GETVALUE),
-		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_PUTVALUE),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_UNINITIALIZEDDEFAULTVALUE),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_VALUEHEADERSIZE),
-		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATTENEDARRAY),
-		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATTENED),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_GETOBJECTSIZE),
-		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFIELDATOFFSETFLATTENED),
 #endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_GETVALUE),
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_PUTVALUE),
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATARRAY),
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATFIELD),
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFIELDATOFFSETFLATTENED),
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_INTERNALS_GET_INTERFACES),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_ARRAY_NEW_ARRAY_IMPL),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_INL_CLASSLOADER_FIND_LOADED_CLASS_IMPL),
@@ -10113,6 +10509,9 @@ public:
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOSTATICSPECIAL),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOVIRTUAL),
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOINTERFACE),
+#if JAVA_SPEC_VERSION >= 22
+		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTONATIVE),
+#endif /* JAVA_SPEC_VERSION >= 22 */
 		JUMP_TABLE_ENTRY(J9_BCLOOP_SEND_TARGET_MEMBERNAME_DEFAULT_CONFLICT),
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 #if JAVA_SPEC_VERSION >= 16
@@ -10140,9 +10539,13 @@ public:
 			goto popFrames; \
 		case FALL_THROUGH: \
 			break;
-#else
+#elif defined(DO_HOOKS) /* defined(DEBUG_VERSION) */
+#define DEBUG_ACTIONS \
+		case REPORT_METHOD_ENTER: \
+			goto methodEnter;
+#else /* defined(DO_HOOKS) */
 #define DEBUG_ACTIONS
-#endif
+#endif /* defined(DEBUG_VERSION) */
 
 #if JAVA_SPEC_VERSION >= 16
 #define PERFORM_ACTION_VALUE_TYPE_IMSE \
@@ -10509,8 +10912,6 @@ runMethod: {
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_PRIMITIVE):
 		PERFORM_ACTION(inlClassIsPrimitive(REGISTER_ARGS));
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_PRIMITIVE_CLASS):
-		PERFORM_ACTION(inlClassIsPrimitiveClass(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_VALUE):
 		PERFORM_ACTION(inlClassIsValue(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_IDENTITY):
@@ -10665,23 +11066,25 @@ runMethod: {
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_COMPAREANDSWAPINT):
 		PERFORM_ACTION(inlUnsafeCompareAndSwapInt(REGISTER_ARGS));
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_GETVALUE):
-		PERFORM_ACTION(inlUnsafeGetValue(REGISTER_ARGS));
-	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_PUTVALUE):
-		PERFORM_ACTION(inlUnsafePutValue(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_UNINITIALIZEDDEFAULTVALUE):
 		PERFORM_ACTION(inlUnsafeUninitializedDefaultValue(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_VALUEHEADERSIZE):
 		PERFORM_ACTION(inlUnsafeValueHeaderSize(REGISTER_ARGS));
-	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATTENEDARRAY):
-		PERFORM_ACTION(inlUnsafeIsFlattenedArray(REGISTER_ARGS));
-	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATTENED):
-		PERFORM_ACTION(inlUnsafeIsFlattened(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_GETOBJECTSIZE):
 		PERFORM_ACTION(inlUnsafeGetObjectSize(REGISTER_ARGS));
+#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_GETVALUE):
+		PERFORM_ACTION(inlUnsafeGetValue(REGISTER_ARGS));
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_PUTVALUE):
+		PERFORM_ACTION(inlUnsafePutValue(REGISTER_ARGS));
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATARRAY):
+		PERFORM_ACTION(inlUnsafeIsFlatArray(REGISTER_ARGS));
+	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATFIELD):
+		PERFORM_ACTION(inlUnsafeIsFlatField(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFIELDATOFFSETFLATTENED):
 		PERFORM_ACTION(inlUnsafeIsFieldAtOffsetFlattened(REGISTER_ARGS));
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_INTERNALS_GET_INTERFACES):
 		PERFORM_ACTION(inlInternalsGetInterfaces(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_INL_ARRAY_NEW_ARRAY_IMPL):
@@ -10753,6 +11156,10 @@ runMethod: {
 		PERFORM_ACTION(linkToVirtual(REGISTER_ARGS));
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOINTERFACE):
 		PERFORM_ACTION(linkToInterface(REGISTER_ARGS));
+#if JAVA_SPEC_VERSION >= 22
+JUMP_TARGET(J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTONATIVE):
+	PERFORM_ACTION(linkToNative(REGISTER_ARGS));
+#endif /* JAVA_SPEC_VERSION >= 22 */
 	JUMP_TARGET(J9_BCLOOP_SEND_TARGET_MEMBERNAME_DEFAULT_CONFLICT):
 		PERFORM_ACTION(throwDefaultConflictForMemberName(REGISTER_ARGS));
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
@@ -10886,7 +11293,7 @@ valueTypeIllegalMonitorState:
 #define badClassName J9ROMCLASS_CLASSNAME(J9OBJECT_CLAZZ(_currentThread, (j9object_t)_currentThread->tempSlot)->romClass)
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 	if (J9_IS_J9CLASS_VALUETYPE(J9OBJECT_CLAZZ(_currentThread, (j9object_t)_currentThread->tempSlot))) {
-		setCurrentExceptionNLSWithArgs(_currentThread, J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE, J9VMCONSTANTPOOL_JAVALANGILLEGALMONITORSTATEEXCEPTION, J9UTF8_LENGTH(badClassName), J9UTF8_DATA(badClassName));
+		setCurrentExceptionNLSWithArgs(_currentThread, J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE, J9VMCONSTANTPOOL_JAVALANGIDENTITYEXCEPTION, J9UTF8_LENGTH(badClassName), J9UTF8_DATA(badClassName));
 	} else
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	{
@@ -11606,14 +12013,6 @@ executeBytecodeFromLocal:
 		JUMP_TARGET(JBimpdep2):
 			/* No single step for this bytecode */
 			PERFORM_ACTION(impdep2(REGISTER_ARGS));
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		JUMP_TARGET(JBaconst_init):
-			SINGLE_STEP();
-			PERFORM_ACTION(aconst_init(REGISTER_ARGS));
-		JUMP_TARGET(JBwithfield):
-			SINGLE_STEP();
-			PERFORM_ACTION(withfield(REGISTER_ARGS));
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 #if defined(USE_COMPUTED_GOTO)
 		cJBunimplemented:
 #else

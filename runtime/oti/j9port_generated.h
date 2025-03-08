@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -164,10 +164,6 @@ typedef struct J9PortLibrary {
 	void  ( *sysinfo_shutdown)(struct J9PortLibrary *portLibrary) ;
 	/** see @ref j9sysinfo.c::j9sysinfo_get_classpathSeparator "j9sysinfo_get_classpathSeparator"*/
 	uint16_t  ( *sysinfo_get_classpathSeparator)(struct J9PortLibrary *portLibrary ) ;
-	/** see @ref j9sysinfo.c::j9sysinfo_get_processor_description "j9sysinfo_get_processor_description"*/
-	intptr_t  ( *sysinfo_get_processor_description)(struct J9PortLibrary *portLibrary, J9ProcessorDesc *desc) ;
-	/** see @ref j9sysinfo.c::j9sysinfo_processor_has_feature "j9sysinfo_processor_has_feature"*/
-	BOOLEAN  ( *sysinfo_processor_has_feature)(struct J9PortLibrary *portLibrary, J9ProcessorDesc *desc, uint32_t feature) ;
 	/** see @ref j9sysinfo.c::j9sysinfo_get_hw_info "j9sysinfo_get_hw_info"*/
 	int32_t  ( *sysinfo_get_hw_info)(struct J9PortLibrary *portLibrary, uint32_t infoType, char * buf, uint32_t bufLen);
 	/** see @ref j9sysinfo.c::j9sysinfo_get_cache_info "j9sysinfo_get_cache_info"*/
@@ -395,9 +391,10 @@ typedef struct J9PortLibrary {
 	int64_t nanoTimeMonotonicClockDelta;
 	/* Invoking j9sysinfo_get_username()/getpwuid() with SSSD enabled can cause checkpoint failure.
 	 * It is safe to call those methods if checkpoint is disallowed after a final restore.
+	 * This is equivalent to isCheckpointAllowed(), just for portlibrary access.
 	 * https://github.com/eclipse-openj9/openj9/issues/15800
 	 */
-	BOOLEAN finalRestore;
+	BOOLEAN isCheckPointAllowed;
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 } J9PortLibrary;
 
@@ -517,8 +514,6 @@ extern J9_CFUNC int32_t j9port_isCompatible(struct J9PortLibraryVersion *expecte
 #define j9sysinfo_env_iterator_init(param1,param2,param3) OMRPORT_FROM_J9PORT(privatePortLibrary)->sysinfo_env_iterator_init(OMRPORT_FROM_J9PORT(privatePortLibrary),param1,param2,param3)
 #define j9sysinfo_env_iterator_hasNext(param1) OMRPORT_FROM_J9PORT(privatePortLibrary)->sysinfo_env_iterator_hasNext(OMRPORT_FROM_J9PORT(privatePortLibrary),param1)
 #define j9sysinfo_env_iterator_next(param1,param2) OMRPORT_FROM_J9PORT(privatePortLibrary)->sysinfo_env_iterator_next(OMRPORT_FROM_J9PORT(privatePortLibrary),param1,param2)
-#define j9sysinfo_get_processor_description(param1) privatePortLibrary->sysinfo_get_processor_description(privatePortLibrary,param1)
-#define j9sysinfo_processor_has_feature(param1,param2) privatePortLibrary->sysinfo_processor_has_feature(privatePortLibrary,param1,param2)
 #define j9sysinfo_get_hw_info(param1,param2,param3) privatePortLibrary->sysinfo_get_hw_info(privatePortLibrary,param1,param2,param3)
 #define j9sysinfo_get_cache_info(param1) privatePortLibrary->sysinfo_get_cache_info(privatePortLibrary,param1)
 #define j9file_startup() OMRPORT_FROM_J9PORT(privatePortLibrary)->file_startup(OMRPORT_FROM_J9PORT(privatePortLibrary))
@@ -574,7 +569,7 @@ extern J9_CFUNC int32_t j9port_isCompatible(struct J9PortLibraryVersion *expecte
 #define j9tty_printf(param1,...) OMRPORT_FROM_J9PORT(privatePortLibrary)->tty_printf(OMRPORT_FROM_J9PORT(param1), ## __VA_ARGS__)
 #define j9tty_vprintf(param1,param2) OMRPORT_FROM_J9PORT(privatePortLibrary)->tty_vprintf(OMRPORT_FROM_J9PORT(privatePortLibrary),param1,param2)
 #define j9tty_get_chars(param1,param2) OMRPORT_FROM_J9PORT(privatePortLibrary)->tty_get_chars(OMRPORT_FROM_J9PORT(privatePortLibrary),param1,param2)
-#define j9tty_err_printf(param1,...) OMRPORT_FROM_J9PORT(privatePortLibrary)->tty_err_printf(OMRPORT_FROM_J9PORT(param1), ## __VA_ARGS__)
+#define j9tty_err_printf(param1,...) OMRPORT_FROM_J9PORT(privatePortLibrary)->tty_err_printf(OMRPORT_FROM_J9PORT(privatePortLibrary), param1, ## __VA_ARGS__)
 #define j9tty_err_vprintf(param1,param2) OMRPORT_FROM_J9PORT(privatePortLibrary)->tty_err_vprintf(OMRPORT_FROM_J9PORT(privatePortLibrary),param1,param2)
 #define j9tty_available() OMRPORT_FROM_J9PORT(privatePortLibrary)->tty_available(OMRPORT_FROM_J9PORT(privatePortLibrary))
 #define j9tty_daemonize() OMRPORT_FROM_J9PORT(privatePortLibrary)->tty_daemonize(OMRPORT_FROM_J9PORT(privatePortLibrary))
@@ -625,7 +620,7 @@ extern J9_CFUNC int32_t j9port_isCompatible(struct J9PortLibraryVersion *expecte
 #define j9gp_handler_function() privatePortLibrary->gp_handler_function(privatePortLibrary)
 #define j9str_startup() OMRPORT_FROM_J9PORT(privatePortLibrary)->str_startup(OMRPORT_FROM_J9PORT(privatePortLibrary))
 #define j9str_shutdown() OMRPORT_FROM_J9PORT(privatePortLibrary)->str_shutdown(OMRPORT_FROM_J9PORT(privatePortLibrary))
-#define j9str_printf(param1,...) OMRPORT_FROM_J9PORT(privatePortLibrary)->str_printf(OMRPORT_FROM_J9PORT(param1), ## __VA_ARGS__)
+#define j9str_printf(param1,param2,param3,...) OMRPORT_FROM_J9PORT(privatePortLibrary)->str_printf(OMRPORT_FROM_J9PORT(privatePortLibrary), param1, param2, param3, ## __VA_ARGS__)
 #define j9str_vprintf(param1,param2,param3,param4) OMRPORT_FROM_J9PORT(privatePortLibrary)->str_vprintf(OMRPORT_FROM_J9PORT(privatePortLibrary),param1,param2,param3,param4)
 #define j9str_create_tokens(param1) OMRPORT_FROM_J9PORT(privatePortLibrary)->str_create_tokens(OMRPORT_FROM_J9PORT(privatePortLibrary),param1)
 #define j9str_set_token(param1,...) OMRPORT_FROM_J9PORT(privatePortLibrary)->str_set_token(OMRPORT_FROM_J9PORT(param1), ## __VA_ARGS__)
@@ -760,6 +755,9 @@ extern J9_CFUNC int32_t j9port_isCompatible(struct J9PortLibraryVersion *expecte
 #define j9sysinfo_get_open_file_count(param1) OMRPORT_FROM_J9PORT(privatePortLibrary)->sysinfo_get_open_file_count(OMRPORT_FROM_J9PORT(privatePortLibrary),param1)
 #define j9sysinfo_get_os_description(param1) OMRPORT_FROM_J9PORT(privatePortLibrary)->sysinfo_get_os_description(OMRPORT_FROM_J9PORT(privatePortLibrary),param1)
 #define j9sysinfo_os_has_feature(param1,param2) OMRPORT_FROM_J9PORT(privatePortLibrary)->sysinfo_os_has_feature(OMRPORT_FROM_J9PORT(privatePortLibrary),param1,param2)
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+#define j9sysinfo_get_process_start_time(param1,param2) OMRPORT_FROM_J9PORT(privatePortLibrary)->sysinfo_get_process_start_time(OMRPORT_FROM_J9PORT(privatePortLibrary),param1,param2)
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 #define j9syslog_write(param1,param2) OMRPORT_FROM_J9PORT(privatePortLibrary)->syslog_write(OMRPORT_FROM_J9PORT(privatePortLibrary),param1,param2)
 #define j9hypervisor_startup() privatePortLibrary->hypervisor_startup(privatePortLibrary)
 #define j9hypervisor_shutdown() privatePortLibrary->hypervisor_shutdown(privatePortLibrary)
@@ -799,6 +797,40 @@ extern J9_CFUNC int32_t j9port_isCompatible(struct J9PortLibraryVersion *expecte
 #define j9gs_deinitialize(param1) privatePortLibrary->gs_deinitialize(privatePortLibrary,param1)
 #define j9gs_isEnabled(param1,param2,param3,param4) privatePortLibrary->gs_isEnabled(privatePortLibrary,param1,param2,param3,param4)
 #endif /* OMR_GC_CONCURRENT_SCAVENGER */
+
+#if defined(J9VM_OPT_SNAPSHOTS)
+/*
+* OMR port library wrapper.
+* VMSnapshotImpl instance to access VM snapshot functions
+*/
+typedef struct VMSnapshotImplPortLibrary {
+	/* portLibrary must be the first member of J9PortLibrary. */
+	OMRPortLibrary portLibrary;
+	/* portLibrary redirects to vmSnapshotImpl for allocations. */
+	void *vmSnapshotImpl;
+} VMSnapshotImplPortLibrary;
+
+/* Snapshot macros for snapshot port library access. */
+#define VMSNAPSHOTIMPLPORT_FROM_PORT(_portLibrary) ((VMSnapshotImplPortLibrary *)(_portLibrary))
+#define VMSNAPSHOTIMPLPORT_FROM_JAVAVM(javaVM) ((VMSnapshotImplPortLibrary *)((javaVM)->vmSnapshotImplPortLibrary))
+#define VMSNAPSHOTIMPLPORT_ACCESS_FROM_JAVAVM(javaVM) VMSnapshotImplPortLibrary *privateImagePortLibrary = VMSNAPSHOTIMPLPORT_FROM_JAVAVM(javaVM)
+
+/* Snapshot macros for OMR port library access. */
+#define VMSNAPSHOTIMPL_OMRPORT_FROM_JAVAVM(javaVM) ((OMRPortLibrary *)((javaVM)->vmSnapshotImplPortLibrary))
+#define VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(vmSnapshotImplPortLibrary) ((OMRPortLibrary *)(vmSnapshotImplPortLibrary))
+
+/* Standard allocation and free functions for the snapshot heap suballocator. */
+#define vmsnapshot_allocate_memory(param1, category) \
+		VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary)->mem_allocate_memory(VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary), param1, J9_GET_CALLSITE(), category)
+#define vmsnapshot_free_memory(param1) \
+		VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary)->mem_free_memory(VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary), param1)
+#define vmsnapshot_allocate_memory32(param1, category) \
+		VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary)->mem_allocate_memory32(VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary), param1, J9_GET_CALLSITE(), category)
+#define vmsnapshot_free_memory32(param1) \
+		VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary)->mem_free_memory32(VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary), param1)
+#define vmsnapshot_reallocate_memory(param1, param2, category) \
+		VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary)->mem_reallocate_memory(VMSNAPSHOTIMPL_OMRPORT_FROM_VMSNAPSHOTIMPLPORT(privateImagePortLibrary), param1, param2, J9_GET_CALLSITE(), category)
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
 
 #if defined(OMR_OPT_CUDA)
 

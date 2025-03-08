@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,14 +18,13 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.tools.utils;
 
-
 /**
- * This class is to be used together with pre-match handler, match handler 
- * and post-match handler. It receives strings from the OutputStreamModifier 
+ * This class is to be used together with pre-match handler, match handler
+ * and post-match handler. It receives strings from the OutputStreamModifier
  * and delegates them to the above handlers according to the matching status.
  * <p>
  * @author Manqing Li, IBM.
@@ -48,7 +47,7 @@ public class StringModifier implements IStringModifier {
 		} else if (false == matched && true == becomeMatched) {
 			matched = true;
 			postmatchHandle.justMatched();
-			return prematchHandle.release() + matchHandle.process(s); 
+			return prematchHandle.release() + matchHandle.process(s);
 		} else if (true == matched && false == becomeMatched) {
 			return postmatchHandle.process(s);
 		} else { // matched == true && becomeMatched == true

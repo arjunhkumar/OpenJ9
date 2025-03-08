@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 
@@ -140,10 +140,17 @@ internalError:
 			}
 			allClassesEndDo(&classWalkState);
 		} else {
-			J9ClassLoader *classLoaderStruct = internalAllocateClassLoader(vm, classLoaderObject);
-			if (J9_CLASSLOADER_TYPE_PLATFORM == loaderType) {
-				/* extensionClassLoader holds the platform class loader in Java 11+ */
-				vm->extensionClassLoader = classLoaderStruct;
+#if defined(J9VM_OPT_SNAPSHOTS)
+			if (IS_RESTORE_RUN(vm) && (J9_CLASSLOADER_TYPE_PLATFORM == loaderType)) {
+				vm->internalVMFunctions->initializeSnapshotClassLoaderObject(vm, vm->extensionClassLoader, classLoaderObject);
+			} else
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+			{
+				J9ClassLoader *classLoaderStruct = internalAllocateClassLoader(vm, classLoaderObject);
+				if (J9_CLASSLOADER_TYPE_PLATFORM == loaderType) {
+					/* extensionClassLoader holds the platform class loader in Java 11+ */
+					vm->extensionClassLoader = classLoaderStruct;
+				}
 			}
 		}
 	}

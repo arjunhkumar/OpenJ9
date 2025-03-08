@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef OBJECTMODELDELEGATE_HPP_
@@ -368,8 +368,7 @@ public:
 				}
 			}
 
-			uintptr_t dataSize = _arrayObjectModel->getDataSizeInBytes(clazz, elements);
-			GC_ArrayletObjectModel::ArrayLayout layout = _arrayObjectModel->getArrayletLayout(clazz, dataSize);
+			GC_ArrayletObjectModel::ArrayLayout layout = _arrayObjectModel->getArrayletLayout(clazz, elements);
 			size = _arrayObjectModel->getSizeInBytesWithHeader(clazz, layout, elements);
 		} else {
 			size = _mixedObjectModel->getSizeInBytesWithoutHeader(clazz) + J9GC_OBJECT_HEADER_SIZE(this);

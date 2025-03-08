@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 
@@ -35,13 +35,17 @@ getMethodForSpecialSend(J9VMThread *vmStruct, J9Class *currentClass, J9Class *re
 {
 	/* See if this is meant to be a super send.  Super send requires:
 	 *
-	 *	A) ACC_SUPER set for current class
+	 *	A) ACC_SUPER set for current class. This condition will be
+	 *    removed when ACC_SUPER is replaced in JEP 401.
 	 *	B) Resolved method class is a superclass of current class
 	 *	C) Resolved method is not <init>
 	 *	D) Skip checking vTables if resolved or current class is an interface
 	 */
-	if ((J9AccSuper == (currentClass->romClass->modifiers & J9AccSuper))
-	|| J9_ARE_NO_BITS_SET(vmStruct->javaVM->extendedRuntimeFlags, J9_EXTENDED_RUNTIME_ALLOW_NON_VIRTUAL_CALLS)
+	if (
+#if !defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+		J9_ARE_ALL_BITS_SET(currentClass->romClass->modifiers, J9AccSuper) ||
+#endif /* !defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+		J9_ARE_NO_BITS_SET(vmStruct->javaVM->extendedRuntimeFlags, J9_EXTENDED_RUNTIME_ALLOW_NON_VIRTUAL_CALLS)
 	) {
 		J9Class *methodClass = J9_CLASS_FROM_METHOD(method);
 		UDATA currentDepth = J9CLASS_DEPTH(currentClass);
@@ -61,6 +65,15 @@ getMethodForSpecialSend(J9VMThread *vmStruct, J9Class *currentClass, J9Class *re
 				J9Class *superclass = currentClass->superclasses[currentDepth - 1];
 
 				if (isInterfaceMethod) {
+					/* From JVMS: "If the symbolic reference names a class (not an interface),
+					 * then that class is a superclass of the current class."
+					 * If the referenced class and current class are the same make sure to
+					 * treat that class as the superclass.
+					 */
+					if (resolvedClass == currentClass) {
+						superclass = resolvedClass;
+					}
+
 					/* CMVC 170457: Algorithm for invokespecial lookup is wrong.
 					 * New Algorithm:
 					 * 1) Find the vtable index for J9Method in the resolved class.
@@ -82,6 +95,8 @@ getMethodForSpecialSend(J9VMThread *vmStruct, J9Class *currentClass, J9Class *re
 				} else {
 					/* In order to support non-vTable methods in a super invoke, perform the lookup rather than
 					 * looking in the vTable.
+					 * We have already called this method and determined a result was not
+					 * found in the current class or current class's interfaces. Start at its superclass.
 					 */
 					method = (J9Method *)vmFuncs->javaLookupMethod(vmStruct, superclass, J9ROMMETHOD_NAMEANDSIGNATURE(J9_ROM_METHOD_FROM_RAM_METHOD(method)), currentClass, lookupOptions);
 				}
@@ -131,13 +146,13 @@ createErrorMessage(J9VMThread *vmStruct, J9Class *resolvedOrReceiverClass, J9Cla
 	if (NULL != errorMsg) {
 		J9UTF8 *resolvedOrReceiverName = J9ROMCLASS_CLASSNAME(resolvedOrReceiverClass->romClass);
 		J9UTF8 *currentName = J9ROMCLASS_CLASSNAME(currentClass->romClass);
-		UDATA bufLen = j9str_printf(PORTLIB, NULL, 0, errorMsg,
+		UDATA bufLen = j9str_printf(NULL, 0, errorMsg,
 				J9UTF8_LENGTH(resolvedOrReceiverName), J9UTF8_DATA(resolvedOrReceiverName),
 				J9UTF8_LENGTH(currentName), J9UTF8_DATA(currentName));
 		if (bufLen > 0) {
 			buf = j9mem_allocate_memory(bufLen, OMRMEM_CATEGORY_VM);
 			if (NULL != buf) {
-				j9str_printf(PORTLIB, buf, bufLen, errorMsg,
+				j9str_printf(buf, bufLen, errorMsg,
 					J9UTF8_LENGTH(resolvedOrReceiverName), J9UTF8_DATA(resolvedOrReceiverName),
 					J9UTF8_LENGTH(currentName), J9UTF8_DATA(currentName));
 			}

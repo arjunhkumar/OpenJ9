@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9modron.h"
@@ -79,6 +79,7 @@ void
 MM_VerboseHandlerOutputStandardJava::outputMemoryInfoInnerStanzaInternal(MM_EnvironmentBase *env, uintptr_t indent, MM_CollectionStatistics *statsBase)
 {
 	MM_VerboseHandlerJava::outputFinalizableInfo(_manager, env, indent);
+	outputContinuationObjectInfo(env, indent);
 }
 
 void
@@ -138,6 +139,15 @@ MM_VerboseHandlerOutputStandardJava::outputContinuationInfo(MM_EnvironmentBase *
 {
 	if (0 != continuationCandidates) {
 		_manager->getWriterChain()->formatAndOutput(env, indent, "<continuations candidates=\"%zu\" cleared=\"%zu\" />", continuationCandidates, continuationCleared);
+	}
+}
+
+void
+MM_VerboseHandlerOutputStandardJava::outputContinuationObjectInfo(MM_EnvironmentBase *env, uintptr_t indent)
+{
+	MM_ContinuationStats *continuationStats = &MM_GCExtensions::getExtensions(env->getOmrVM())->continuationStats;
+	if (0 != continuationStats->_total) {
+		_manager->getWriterChain()->formatAndOutput(env, indent, "<continuation-objects total=\"%zu\" started=\"%zu\"/>", continuationStats->_total, continuationStats->_started);
 	}
 }
 

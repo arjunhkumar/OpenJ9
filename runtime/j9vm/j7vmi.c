@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -331,6 +331,8 @@ JVM_DisableCompiler(jint arg0, jint arg1)
 	return NULL;
 }
 
+#if (JAVA_SPEC_VERSION == 8) && defined(WIN32)
+/* Do not remove: this method is required by Windows IBM Java 8 builds. */
 static jclass
 java_lang_J9VMInternals(JNIEnv* env)
 {
@@ -354,6 +356,7 @@ java_lang_J9VMInternals(JNIEnv* env)
 	return cached;
 }
 
+/* Do not remove: this method is required by Windows IBM Java 8 builds. */
 static jmethodID
 java_lang_J9VMInternals_doPrivileged(JNIEnv* env)
 {
@@ -367,6 +370,7 @@ java_lang_J9VMInternals_doPrivileged(JNIEnv* env)
 	return cached;
 }
 
+/* Do not remove: this method is required by Windows IBM Java 8 builds. */
 static jmethodID
 java_lang_J9VMInternals_doPrivilegedWithException(JNIEnv* env)
 {
@@ -380,7 +384,7 @@ java_lang_J9VMInternals_doPrivilegedWithException(JNIEnv* env)
 	return cached;
 }
 
-
+/* Do not remove: this method is required by Windows IBM Java 8 builds. */
 jobject JNICALL
 JVM_DoPrivileged(JNIEnv* env, jobject java_security_AccessController, jobject action, jboolean unknown, jboolean isExceptionAction)
 {
@@ -403,8 +407,7 @@ JVM_DoPrivileged(JNIEnv* env, jobject java_security_AccessController, jobject ac
 			methodID,
 			action);
 }
-
-
+#endif /* (JAVA_SPEC_VERSION == 8) && defined(WIN32) */
 
 jobject JNICALL
 JVM_EnableCompiler(jint arg0, jint arg1)
@@ -500,16 +503,16 @@ done:
 }
 
 /**
- * Find the specified class in given class loader 
+ * Find the specified class in given class loader
  *
  * @param env
  * @param className    null-terminated class name string.
  * @param init         initialize the class when set
- * @param classLoader  classloader of the class 
+ * @param classLoader  classloader of the class
  * @param throwError   set to true in order to throw errors
  * @return Assumed to be a jclass.
  *
- * Note: this call is implemented from info provided via CMVC 154874. 
+ * Note: this call is implemented from info provided via CMVC 154874.
  */
 jobject JNICALL
 JVM_FindClassFromClassLoader(JNIEnv* env, char* className, jboolean init, jobject classLoader, jboolean throwError)
@@ -1080,16 +1083,15 @@ JVM_GetClassInterfaces(jint arg0, jint arg1)
 	return NULL;
 }
 
-
-
+#if JAVA_SPEC_VERSION < 25
 jint JNICALL
-JVM_GetClassModifiers(JNIEnv* env, jclass clazz)
+JVM_GetClassModifiers(JNIEnv *env, jclass clazz)
 {
-	J9Class* ramClass = java_lang_Class_vmRef(env, clazz);
-	J9ROMClass* romClass = ramClass->romClass;
+	J9Class *ramClass = java_lang_Class_vmRef(env, clazz);
+	J9ROMClass *romClass = ramClass->romClass;
 
 	if (J9ROMCLASS_IS_ARRAY(romClass)) {
-		J9ArrayClass* arrayClass = (J9ArrayClass*)ramClass;
+		J9ArrayClass *arrayClass = (J9ArrayClass *)ramClass;
 		jint result = 0;
 		J9ROMClass *leafRomClass = arrayClass->leafComponentType->romClass;
 		if (J9_ARE_ALL_BITS_SET(leafRomClass->extraModifiers, J9AccClassInnerClass)) {
@@ -1108,8 +1110,7 @@ JVM_GetClassModifiers(JNIEnv* env, jclass clazz)
 		}
 	}
 }
-
-
+#endif /* JAVA_SPEC_VERSION < 25 */
 
 jobject JNICALL
 JVM_GetClassSigners(jint arg0, jint arg1)
@@ -1152,14 +1153,14 @@ JVM_GetDeclaringClass(jint arg0, jint arg1)
 }
 
 
-
+#if JAVA_SPEC_VERSION < 24
 jobject JNICALL
 JVM_GetInheritedAccessControlContext(jint arg0, jint arg1)
 {
 	assert(!"JVM_GetInheritedAccessControlContext() stubbed!");
 	return NULL;
 }
-
+#endif /* JAVA_SPEC_VERSION < 24 */
 
 
 /**
@@ -1341,20 +1342,22 @@ JVM_GetPrimitiveArrayElement(JNIEnv *env, jobject array, jint index, jint wCode)
 	return value;
 }
 
-
-
+#if JAVA_SPEC_VERSION < 25
 jobject JNICALL
 JVM_GetProtectionDomain(jint arg0, jint arg1)
 {
 	assert(!"JVM_GetProtectionDomain() stubbed!");
 	return NULL;
 }
+#endif /* JAVA_SPEC_VERSION < 25 */
 
+#if JAVA_SPEC_VERSION < 24
 jobject JNICALL
-JVM_GetStackAccessControlContext(JNIEnv* env, jclass java_security_AccessController)
+JVM_GetStackAccessControlContext(JNIEnv *env, jclass java_security_AccessController)
 {
 	return NULL;
 }
+#endif /* JAVA_SPEC_VERSION < 24 */
 
 jint JNICALL
 JVM_GetStackTraceDepth(JNIEnv* env, jobject throwable)
@@ -1425,7 +1428,7 @@ typedef struct GetStackTraceElementUserData {
 
 /* Return TRUE to keep iterating, FALSE to halt the walk. */
 static UDATA
-getStackTraceElementIterator(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeOffset, J9ROMClass * romClass, J9ROMMethod * romMethod, J9UTF8 * fileName, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass)
+getStackTraceElementIterator(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeOffset, J9ROMClass * romClass, J9ROMMethod * romMethod, J9UTF8 * fileName, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass, UDATA frameType)
 {
 	GetStackTraceElementUserData * userData = voidUserData;
 
@@ -1579,33 +1582,21 @@ JVM_Interrupt(jint arg0, jint arg1)
 	return NULL;
 }
 
-
+#if JAVA_SPEC_VERSION < 25
+jboolean JNICALL
+JVM_IsArrayClass(JNIEnv *env, jclass clazz)
+{
+	J9Class *ramClass = java_lang_Class_vmRef(env, clazz);
+	return J9ROMCLASS_IS_ARRAY(ramClass->romClass) ? JNI_TRUE : JNI_FALSE;
+}
+#endif /* JAVA_SPEC_VERSION < 25 */
 
 jboolean JNICALL
-JVM_IsArrayClass(JNIEnv* env, jclass clazz)
+JVM_IsInterface(JNIEnv *env, jclass clazz)
 {
-	J9Class * ramClass = java_lang_Class_vmRef(env, clazz);
-	if (J9ROMCLASS_IS_ARRAY(ramClass->romClass)) {
-		return JNI_TRUE;
-	} else {
-		return JNI_FALSE;
-	}
+	J9Class *ramClass = java_lang_Class_vmRef(env, clazz);
+	return J9ROMCLASS_IS_INTERFACE(ramClass->romClass) ? JNI_TRUE : JNI_FALSE;
 }
-
-
-
-jboolean JNICALL
-JVM_IsInterface(JNIEnv* env, jclass clazz)
-{
-	J9Class * ramClass = java_lang_Class_vmRef(env, clazz);
-	if (J9ROMCLASS_IS_INTERFACE(ramClass->romClass)) {
-		return JNI_TRUE;
-	} else {
-		return JNI_FALSE;
-	}
-}
-
-
 
 jboolean JNICALL
 JVM_IsInterrupted(JNIEnv* env, jobject thread, jboolean unknown)
@@ -1634,19 +1625,14 @@ JVM_IsInterrupted(JNIEnv* env, jobject thread, jboolean unknown)
 	}
 }
 
-
-
+#if JAVA_SPEC_VERSION < 25
 jboolean JNICALL
-JVM_IsPrimitiveClass(JNIEnv* env, jclass clazz)
+JVM_IsPrimitiveClass(JNIEnv *env, jclass clazz)
 {
-	J9Class * ramClass = java_lang_Class_vmRef(env, clazz);
-	if (J9ROMCLASS_IS_PRIMITIVE_TYPE(ramClass->romClass)) {
-		return JNI_TRUE;
-	} else {
-		return JNI_FALSE;
-	}
+	J9Class *ramClass = java_lang_Class_vmRef(env, clazz);
+	return J9ROMCLASS_IS_PRIMITIVE_TYPE(ramClass->romClass) ? JNI_TRUE : JNI_FALSE;
 }
-
+#endif /* JAVA_SPEC_VERSION < 25 */
 
 /**
  * Check whether the JNI version is supported.
@@ -1676,6 +1662,12 @@ JVM_IsSupportedJNIVersion(jint version)
 #if JAVA_SPEC_VERSION >= 20
 	case JNI_VERSION_20:
 #endif /* JAVA_SPEC_VERSION >= 20 */
+#if JAVA_SPEC_VERSION >= 21
+	case JNI_VERSION_21:
+#endif /* JAVA_SPEC_VERSION >= 21 */
+#if JAVA_SPEC_VERSION >= 24
+	case JNI_VERSION_24:
+#endif /* JAVA_SPEC_VERSION >= 24 */
 		return JNI_TRUE;
 
 	default:
@@ -1684,7 +1676,7 @@ JVM_IsSupportedJNIVersion(jint version)
 }
 
 
-
+#if JAVA_SPEC_VERSION < 17
 jboolean JNICALL
 JVM_IsThreadAlive(JNIEnv* jniEnv, jobject targetThread)
 {
@@ -1699,7 +1691,7 @@ JVM_IsThreadAlive(JNIEnv* jniEnv, jobject targetThread)
 	/* Assume that a non-null threadRef indicates the thread is alive */
 	return (NULL == vmThread) ? JNI_FALSE : JNI_TRUE;
 }
-
+#endif /* JAVA_SPEC_VERSION < 17 */
 
 
 jobject JNICALL
@@ -1778,7 +1770,7 @@ JVM_NewMultiArray(JNIEnv *env, jclass eltClass, jintArray dim)
 			vmFuncs->setCurrentException(currentThread, J9VMCONSTANTPOOL_JAVALANGILLEGALARGUMENTEXCEPTION, NULL);
 		} else {
 			j9object_t componentTypeClassObject = J9_JNI_UNWRAP_REFERENCE(eltClass);
-	
+
 			if (NULL != componentTypeClassObject) {
 				J9Class *componentTypeClass = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, componentTypeClassObject);
 
@@ -1786,25 +1778,25 @@ JVM_NewMultiArray(JNIEnv *env, jclass eltClass, jintArray dim)
 				UDATA count = dimensions;
 				J9Class *componentArrayClass = componentTypeClass;
 				BOOLEAN exceptionIsPending = FALSE;
-	
+
 				while ((count > 0) && (!exceptionIsPending)) {
 					componentArrayClass = fetchArrayClass(currentThread, componentArrayClass);
 					exceptionIsPending = (NULL != currentThread->currentException);
 					count -= 1;
 				}
-				
+
 				if (!exceptionIsPending) {
 					/* make a copy of the dimensions array in non-object memory */
 					I_32 onStackDimensions[MAX_DIMENSIONS];
 					j9object_t directObject = NULL;
 					UDATA i = 0;
-					
+
 					memset(onStackDimensions, 0, sizeof(onStackDimensions));
 					dimensionsArrayObject = J9_JNI_UNWRAP_REFERENCE(dim);
 					for (i = 0; i < dimensions; i++) {
 						onStackDimensions[i] = J9JAVAARRAYOFINT_LOAD(currentThread, dimensionsArrayObject, i);
 					}
-	
+
 					directObject = vmFuncs->helperMultiANewArray(currentThread, (J9ArrayClass *)componentArrayClass, (UDATA)dimensions, onStackDimensions, J9_GC_ALLOCATE_OBJECT_NON_INSTRUMENTABLE);
 					if (NULL != directObject) {
 						result = vmFuncs->j9jni_createLocalRef(env, directObject);
@@ -2325,30 +2317,6 @@ JVM_SuspendThread(jint arg0, jint arg1)
 }
 #endif /* JAVA_SPEC_VERSION < 20 */
 
-/* NOTE this is required by JDK15+ jdk.internal.loader.NativeLibraries.unload().
- */
-#if JAVA_SPEC_VERSION >= 15
-void JNICALL JVM_UnloadLibrary(void *handle)
-#else /* JAVA_SPEC_VERSION >= 15 */
-jobject JNICALL JVM_UnloadLibrary(jint arg0)
-#endif /* JAVA_SPEC_VERSION >= 15 */
-{
-#if JAVA_SPEC_VERSION >= 15
-	Trc_SC_UnloadLibrary_Entry(handle);
-#if defined(WIN32)
-	FreeLibrary((HMODULE)handle);
-#elif defined(J9UNIX) || defined(J9ZOS390) /* defined(WIN32) */
-	dlclose(handle);
-#else /* defined(WIN32) */
-#error "Please implement J7vmi.c:JVM_UnloadLibrary(void *handle)"
-#endif /* defined(WIN32) */
-#else /* JAVA_SPEC_VERSION >= 15 */
-	assert(!"JVM_UnloadLibrary() stubbed!");
-	return NULL;
-#endif /* JAVA_SPEC_VERSION >= 15 */
-}
-
-
 
 jobject JNICALL
 JVM_Yield(jint arg0, jint arg1)
@@ -2453,11 +2421,11 @@ JVM_GetHostName(char* name, int namelen)
  *  sun.jvm.args =
  */
 /*
- * Notes: 
- * 	Redirector has an implementation of JVM_InitAgentProperties. 
- * 	This method is still kept within the actual jvm dll in case that a launcher uses this jvm dll directly without going through the redirector. 
- * 	If this method need to be modified, the changes have to be synchronized for both versions. 
- */ 
+ * Notes:
+ * 	Redirector has an implementation of JVM_InitAgentProperties.
+ * 	This method is still kept within the actual jvm dll in case that a launcher uses this jvm dll directly without going through the redirector.
+ * 	If this method need to be modified, the changes have to be synchronized for both versions.
+ */
 jobject JNICALL
 JVM_InitAgentProperties(JNIEnv *env, jobject agent_props)
 {
@@ -2587,14 +2555,32 @@ jvmDefineClassHelper(JNIEnv *env, jobject classLoaderObject,
 
 	if (NULL != className) {
 		j9object_t classNameObject = J9_JNI_UNWRAP_REFERENCE(className);
+
+		/* Perform maximum length check to avoid copy in extreme cases. */
+		if (J9VMJAVALANGSTRING_LENGTH(currentThread, classNameObject) > J9VM_MAX_CLASS_NAME_LENGTH) {
+			vmFuncs->setCurrentExceptionNLS(currentThread,
+				J9VMCONSTANTPOOL_JAVALANGCLASSNOTFOUNDEXCEPTION,
+				J9NLS_VM_CLASS_NAME_EXCEEDS_MAX_LENGTH);
+			goto done;
+		}
+
 		utf8Name = (U_8*)vmFuncs->copyStringToUTF8WithMemAlloc(currentThread, classNameObject, J9_STR_NULL_TERMINATE_RESULT, "", 0, utf8NameStackBuffer, J9VM_PACKAGE_NAME_BUFFER_LENGTH, &utf8Length);
 		if (NULL == utf8Name) {
 			vmFuncs->setNativeOutOfMemoryError(currentThread, 0, 0);
 			goto done;
 		}
 
+		if (utf8Length > J9VM_MAX_CLASS_NAME_LENGTH) {
+			vmFuncs->setCurrentExceptionNLS(currentThread,
+				J9VMCONSTANTPOOL_JAVALANGCLASSNOTFOUNDEXCEPTION,
+				J9NLS_VM_CLASS_NAME_EXCEEDS_MAX_LENGTH);
+			goto done;
+		}
+
 		if (CLASSNAME_INVALID == vmFuncs->verifyQualifiedName(currentThread, utf8Name, utf8Length, CLASSNAME_VALID_NON_ARRARY)) {
-			vmFuncs->setCurrentException(currentThread, J9VMCONSTANTPOOL_JAVALANGNOCLASSDEFFOUNDERROR, (UDATA *)*(j9object_t*)className);
+			vmFuncs->setCurrentException(currentThread,
+				J9VMCONSTANTPOOL_JAVALANGNOCLASSDEFFOUNDERROR,
+				(UDATA *)*(j9object_t *)className);
 			goto done;
 		}
 	}
@@ -2727,11 +2713,10 @@ JVM_DTraceIsProbeEnabled(jint arg0, jint arg1)
 	return NULL;
 }
 
-jobject JNICALL
-JVM_DTraceIsSupported(jint arg0)
+jboolean JNICALL
+JVM_DTraceIsSupported(JNIEnv *env)
 {
-	assert(!"JVM_DTraceIsSupported() stubbed!");
-	return NULL;
+	return JNI_FALSE;
 }
 
 #endif /* JAVA_SPEC_VERSION < 17 */

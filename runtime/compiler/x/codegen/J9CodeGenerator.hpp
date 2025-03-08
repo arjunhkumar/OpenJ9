@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_X86_CODEGENERATOR_INCL
@@ -45,6 +45,8 @@ public:
    void initialize();
 
    TR::Recompilation *allocateRecompilationInfo();
+
+   TR::SymbolReference *getNanoTimeTemp();
 
    void beginInstructionSelection();
 
@@ -96,11 +98,19 @@ public:
     */
    bool canEmitBreakOnDFSet();
 
+   // See OMR::CodeGenerator::supportsNonHelper
+   bool supportsNonHelper(TR::SymbolReferenceTable::CommonNonhelperSymbol symbol);
+
    // See J9::CodeGenerator::guaranteesResolvedDirectDispatchForSVM
    bool guaranteesResolvedDirectDispatchForSVM() { return true; }
 
    // See J9::CodeGenerator::guaranteesResolvedVirtualDispatchForSVM
    bool guaranteesResolvedVirtualDispatchForSVM() { return true; }
+
+   bool willBeEvaluatedAsCallByCodeGen(TR::Node *node, TR::Compilation *comp);
+
+private:
+   TR::SymbolReference *_nanoTimeTemp;
    };
 
 }

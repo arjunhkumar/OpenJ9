@@ -1,24 +1,24 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <!--
-	Copyright IBM Corp. and others 2016
+Copyright IBM Corp. and others 2016
 
-	This program and the accompanying materials are made available under
-	the terms of the Eclipse Public License 2.0 which accompanies this
-	distribution and is available at https://www.eclipse.org/legal/epl-2.0/
-	or the Apache License, Version 2.0 which accompanies this distribution and
-	is available at https://www.apache.org/licenses/LICENSE-2.0.
+This program and the accompanying materials are made available under
+the terms of the Eclipse Public License 2.0 which accompanies this
+distribution and is available at https://www.eclipse.org/legal/epl-2.0/
+or the Apache License, Version 2.0 which accompanies this distribution and
+is available at https://www.apache.org/licenses/LICENSE-2.0.
 
-	This Source Code may also be made available under the following
-	Secondary Licenses when the conditions for such availability set
-	forth in the Eclipse Public License, v. 2.0 are satisfied: GNU
-	General Public License, version 2 with the GNU Classpath
-	Exception [1] and GNU General Public License, version 2 with the
-	OpenJDK Assembly Exception [2].
+This Source Code may also be made available under the following
+Secondary Licenses when the conditions for such availability set
+forth in the Eclipse Public License, v. 2.0 are satisfied: GNU
+General Public License, version 2 with the GNU Classpath
+Exception [1] and GNU General Public License, version 2 with the
+OpenJDK Assembly Exception [2].
 
-	[1] https://www.gnu.org/software/classpath/license.html
-	[2] https://openjdk.org/legal/assembly-exception.html
+[1] https://www.gnu.org/software/classpath/license.html
+[2] https://openjdk.org/legal/assembly-exception.html
 
-	SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <playlist xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../TKG/playlist.xsd">
 	<!-- jit.test.jitt tests start here -->
@@ -125,7 +125,7 @@
 			<variation>-Xjit:count=0,disableZ14</variation>
 			<variation>-Xjit:count=0,disableZ15</variation>
 		</variations>
-		<command> $(JAVA_COMMAND) $(JVM_OPTIONS) \
+		<command>$(JAVA_COMMAND) $(JVM_OPTIONS) \
 	-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(TEST_RESROOT)$(D)jitt.jar$(Q) \
 	org.testng.TestNG -d $(REPORTDIR) $(Q)$(TEST_RESROOT)$(D)testng.xml$(Q) \
 	-testnames \
@@ -152,7 +152,7 @@
 			<variation>-Xjit:disableAsyncCompilation,count=1 -XXgc:forcedShiftingCompressionAmount=3 -Xmx512m</variation>
 			<variation>-Xjit:disableAsyncCompilation,count=1 -XXgc:forcedShiftingCompressionAmount=4 -Xmx512m</variation>
 		</variations>
-		<command> $(JAVA_COMMAND) $(JVM_OPTIONS) \
+		<command>$(JAVA_COMMAND) $(JVM_OPTIONS) \
 	-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(TEST_RESROOT)$(D)jitt.jar$(Q) \
 	org.testng.TestNG -d $(REPORTDIR) $(Q)$(TEST_RESROOT)$(D)testng.xml$(Q) \
 	-testnames \
@@ -204,12 +204,6 @@
 	</test>
 	<test>
 		<testCaseName>jit_jitt_openj9_none_SCC</testCaseName>
-		<disables>
-			<disable>
-				<comment>https://github.com/eclipse-openj9/openj9/issues/15152</comment>
-				<version>19+</version>
-			</disable>
-		</disables>
 		<variations>
 			<variation>-Xjit:noJitUntilMain,count=0,optlevel=warm,gcOnResolve,rtResolve -verbose:stackwalk=0 -Xdump</variation>
 			<variation>-Xrs -Xjit:noJitUntilMain,count=0,optlevel=warm,gcOnResolve,rtResolve -verbose:stackwalk=0 -Xdump</variation>
@@ -357,7 +351,8 @@
 		<variations>
 			<variation>-Xjit:optlevel=warm,count=0 -DjarTesterArgs=$(Q)$(TEST_RESROOT)$(D)jitt.jar$(Q)</variation>
 		</variations>
-		<command>$(JAVA_COMMAND) $(JVM_OPTIONS) \
+		<command>$(ADD_JVM_LIB_DIR_TO_LIBPATH) \
+	$(JAVA_COMMAND) $(JVM_OPTIONS) \
 	-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(TEST_RESROOT)$(D)jitt.jar$(Q) \
 	org.testng.TestNG -d $(REPORTDIR) $(Q)$(TEST_RESROOT)$(D)testng.xml$(Q) \
 	-testnames \
@@ -375,6 +370,9 @@
 			<impl>openj9</impl>
 			<impl>ibm</impl>
 		</impls>
+		<types>
+			<type>native</type>
+		</types>
 	</test>
 	<!-- jit.test.tr start here -->
 	<test>
@@ -451,13 +449,13 @@
 			<variation>-Xjit:count=50,limit={*testSIMDCommonedAddress*},optLevel=scorching,disableAsyncCompilation</variation>
 		</variations>
 		<command>$(JAVA_COMMAND) $(JVM_OPTIONS) \
-        -cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(TEST_RESROOT)$(D)jitt.jar$(Q) \
-        org.testng.TestNG -d $(REPORTDIR) $(Q)$(TEST_RESROOT)$(D)testng.xml$(Q) \
-        -testnames \
-        SIMDCommonedAddressTest \
-        -groups $(TEST_GROUP) \
-        -excludegroups $(DEFAULT_EXCLUDE); \
-        $(TEST_STATUS)</command>
+		-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(TEST_RESROOT)$(D)jitt.jar$(Q) \
+		org.testng.TestNG -d $(REPORTDIR) $(Q)$(TEST_RESROOT)$(D)testng.xml$(Q) \
+		-testnames \
+		SIMDCommonedAddressTest \
+		-groups $(TEST_GROUP) \
+		-excludegroups $(DEFAULT_EXCLUDE); \
+		$(TEST_STATUS)</command>
 		<levels>
 			<level>sanity</level>
 		</levels>
@@ -527,6 +525,33 @@
 		</impls>
 	</test>
 	<test>
+		<testCaseName>BNDCHKImplicitNullTest</testCaseName>
+		<variations>
+			<variation>-Xjit:count=1000,limit={*C.shouldThrowNullPointerException*},optLevel=noopt,disableAsyncCompilation</variation>
+		</variations>
+		<command>$(JAVA_COMMAND) $(JVM_OPTIONS) \
+	-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(TEST_RESROOT)$(D)jitt.jar$(Q) \
+	org.testng.TestNG -d $(REPORTDIR) $(Q)$(TEST_RESROOT)$(D)testng.xml$(Q) \
+	-testnames \
+	BNDCHKImplicitNullTest \
+	-groups $(TEST_GROUP) \
+	-excludegroups $(DEFAULT_EXCLUDE); \
+	$(TEST_STATUS)</command>
+		<levels>
+			<level>sanity</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
+		<features>
+			<feature>AOT:nonapplicable</feature>
+		</features>
+		<impls>
+			<impl>openj9</impl>
+			<impl>ibm</impl>
+		</impls>
+	</test>
+	<test>
 		<testCaseName>BNDCHKSimplifyTest</testCaseName>
 		<variations>
 			<variation>-Xjit:count=100,limit={*checkIndex*},optLevel=scorching,disableAsyncCompilation</variation>
@@ -548,6 +573,30 @@
 		<features>
 			<feature>AOT:nonapplicable</feature>
 		</features>
+		<impls>
+			<impl>openj9</impl>
+			<impl>ibm</impl>
+		</impls>
+	</test>
+	<test>
+		<testCaseName>ArrayTranslateTest</testCaseName>
+		<variations>
+			<variation>-Xjit:count=1,limit={*arrayTranslate*},optLevel=scorching,disableAsyncCompilation</variation>
+		</variations>
+		<command>$(JAVA_COMMAND) $(JVM_OPTIONS) \
+	-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(TEST_RESROOT)$(D)jitt.jar$(Q) \
+	org.testng.TestNG -d $(REPORTDIR) $(Q)$(TEST_RESROOT)$(D)testng.xml$(Q) \
+	-testnames \
+	ArrayTranslateTest \
+	-groups $(TEST_GROUP) \
+	-excludegroups $(DEFAULT_EXCLUDE); \
+	$(TEST_STATUS)</command>
+		<levels>
+			<level>sanity</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
 		<impls>
 			<impl>openj9</impl>
 			<impl>ibm</impl>
@@ -646,7 +695,8 @@
 		<variations>
 			<variation>-Xdump</variation>
 		</variations>
-		<command>$(ADD_JVM_LIB_DIR_TO_LIBPATH) $(JAVA_COMMAND) $(JVM_OPTIONS) \
+		<command>$(ADD_JVM_LIB_DIR_TO_LIBPATH) \
+	$(JAVA_COMMAND) $(JVM_OPTIONS) \
 	-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(TEST_RESROOT)$(D)jitt.jar$(Q) \
 	org.testng.TestNG -d $(REPORTDIR) $(Q)$(TEST_RESROOT)$(D)testng.xml$(Q) \
 	-testnames \
@@ -732,6 +782,7 @@
 			 If the launcher doesn't exist we assume that the build doesn't support JITServer and trivially pass the test. -->
 		<command>if [ -x $(Q)$(TEST_JDK_BIN)$(D)jitserver$(Q) ]; \
 	then \
+		$(ADD_JVM_LIB_DIR_TO_LIBPATH) \
 		$(JAVA_COMMAND) \
 		-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(TEST_RESROOT)$(D)jitt.jar$(Q) \
 		-DSERVER_EXE=$(Q)$(TEST_JDK_BIN)$(D)jitserver$(Q) \
@@ -748,7 +799,7 @@
 		echo $(Q)$(TEST_JDK_BIN)$(D)jitserver doesn't exist; assuming this JDK does not support JITServer and trivially passing the test.$(Q); \
 	fi; \
 	$(TEST_STATUS)</command>
-		<platformRequirements>os.linux,^arch.arm,^arch.aarch64,bits.64</platformRequirements>
+		<platformRequirements>os.linux,^arch.arm,bits.64</platformRequirements>
 		<levels>
 			<level>sanity</level>
 		</levels>

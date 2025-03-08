@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9protos.h"
@@ -202,9 +202,6 @@ jitParseSignature (const J9UTF8 *signature, U_8 *paramBuffer, UDATA *paramElemen
 			state = returnValue;
 		} else {
 			switch (*sigChar) {
-			case 'Q':
-                                /* VALHALLA_TODO:  Need to return a J9_NATIVE_TYPE_VALUE for 'Q' in future */
-                                /* FALLTHROUGH */
 			case 'L': next = J9_NATIVE_TYPE_OBJECT; break;
 			case '[': 
 				next = J9_NATIVE_TYPE_OBJECT; 
@@ -231,7 +228,7 @@ jitParseSignature (const J9UTF8 *signature, U_8 *paramBuffer, UDATA *paramElemen
 			case 'V': next = J9_NATIVE_TYPE_VOID; break;
 			}
 			
-			if ('L' == *sigChar || 'Q' == *sigChar) {
+			if ('L' == *sigChar) {
 				/* flush the name of the class */
 				while (';' != *sigChar) {
 					++sigChar;

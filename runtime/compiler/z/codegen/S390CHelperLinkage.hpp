@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "codegen/Linkage.hpp"
@@ -39,6 +39,7 @@ class CHelperLinkage : public TR::Linkage
    uint32_t _preservedRegisterMapForGC;
    TR::RealRegister::RegNum _methodMetaDataRegister;
    TR::RealRegister::RegNum _returnAddressRegister;
+   bool getIsFastPathOnly(TR::Node * callNode);
 	// Following Regs are needed only in the case of zOS.
 #if defined(J9ZOS390)
 	TR::RealRegister::RegNum _DSAPointerRegister;

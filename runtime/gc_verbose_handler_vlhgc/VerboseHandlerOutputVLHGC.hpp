@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(VERBOSEHANDLEROUTPUTVLHGC_HPP_)
@@ -64,6 +64,18 @@ private:
 	 */
 	void outputOwnableSynchronizerInfo(MM_EnvironmentBase *env, UDATA indent, UDATA ownableSynchronizerCandidates, UDATA ownableSynchronizerCleared);
 	void outputContinuationInfo(MM_EnvironmentBase *env, UDATA indent, UDATA continuationCandidates, UDATA continuationCleared);
+	void outputContinuationObjectInfo(MM_EnvironmentBase *env, uintptr_t indent);
+
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	/**
+	 * Output off-heap processing summary.
+	 * @param env GC thread used for output.
+	 * @param indent base level of indentation for the summary.
+	 * @param offHeapRegionCandidates number of off-heap regions encountered.
+	 * @param offHeapRegionsCleared number of off-heap regions cleared.
+	 */
+	void outputOffHeapInfo(MM_EnvironmentBase *env, UDATA indent, UDATA offHeapRegionCandidates, UDATA offHeapRegionsCleared);
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 
 	/**
 	 * Output reference processing summary.

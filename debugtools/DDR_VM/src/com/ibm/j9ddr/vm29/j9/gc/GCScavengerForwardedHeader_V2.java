@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2021
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.j9.gc;
 
 import com.ibm.j9ddr.CorruptDataException;
@@ -45,7 +45,7 @@ class GCScavengerForwardedHeader_V2 extends GCScavengerForwardedHeader_V1
 	@Override
 	protected J9ObjectPointer getForwardedObjectNoCheck() throws CorruptDataException
 	{
-		if(J9ObjectHelper.compressObjectReferences && !J9BuildFlags.env_littleEndian) {
+		if(J9ObjectHelper.compressObjectReferences && !J9BuildFlags.J9VM_ENV_LITTLE_ENDIAN) {
 			/* compressed big endian - read two halves separately */
 			U32 low = U32Pointer.cast(objectPointer.clazzEA()).at(0).bitAnd(~ALL_TAGS);
 			U32 high = U32Pointer.cast(objectPointer.clazzEA()).at(1);

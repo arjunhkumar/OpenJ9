@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ###############################################################################
 
 include $(CONFIG_INCL_DIR)/configure_common.mk
@@ -40,21 +40,6 @@ ifeq (linux_x86-64_cmprssptrs, $(SPEC))
 		--enable-OMR_GC_CONCURRENT_SCAVENGER \
 		--enable-OMR_PORT_CAN_RESERVE_SPECIFIC_ADDRESS \
 		--enable-OMR_PORT_NUMA_SUPPORT \
-		OMR_GC_POINTER_MODE=compressed
-endif
-
-ifeq (linux_x86-64_cmprssptrs_panama, $(SPEC))
-	CONFIGURE_ARGS += \
-		--enable-OMRTHREAD_LIB_UNIX \
-		--enable-OMR_ARCH_X86 \
-		--enable-OMR_ENV_DATA64 \
-		--enable-OMR_GC_DOUBLE_MAP_ARRAYLETS \
-		--enable-OMR_ENV_LITTLE_ENDIAN \
-		--enable-OMR_GC_IDLE_HEAP_MANAGER \
-		--enable-OMR_GC_TLH_PREFETCH_FTA \
-		--enable-OMR_PORT_CAN_RESERVE_SPECIFIC_ADDRESS \
-		--enable-OMR_PORT_NUMA_SUPPORT \
-		--enable-OMR_JITBUILDER \
 		OMR_GC_POINTER_MODE=compressed
 endif
 

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.j9;
 
 import java.util.Iterator;
@@ -46,7 +46,6 @@ public class JavaMonitor implements com.ibm.dtfj.java.JavaMonitor
 	private Vector _blockList = new Vector();
 	private Vector _waitList = new Vector();
 
-	
 	public JavaMonitor(JavaRuntime runtime, ImagePointer pointer, String name, ImagePointer encompassingObjectAddress, long owningThread)
 	{
 		if (null == runtime) {
@@ -73,20 +72,20 @@ public class JavaMonitor implements com.ibm.dtfj.java.JavaMonitor
 	/* (non-Javadoc)
 	 * @see com.ibm.dtfj.java.JavaMonitor#getObject()
 	 */
-	public JavaObject getObject() 
+	public JavaObject getObject()
 	{
 		if (null == _encompassingObjectAddress) {
 			return null;
 		}
-		
+
 		// lazy loading of the encompassing object
 		if (null == _encompassingObject) {
 			try {
 				_encompassingObject = _javaVM.getObjectAtAddress(_encompassingObjectAddress);
 			} catch (CorruptDataException e) {
-				// since we cannot rethrow anything, we just return null 
+				// since we cannot rethrow anything, we just return null
 			} catch (IllegalArgumentException e) {
-				// since we cannot rethrow anything, we just return null 
+				// since we cannot rethrow anything, we just return null
 			}
 		}
 		return _encompassingObject;
@@ -107,10 +106,10 @@ public class JavaMonitor implements com.ibm.dtfj.java.JavaMonitor
 	{
 		JavaThread owningThread = null;
 		Iterator allThreads = _javaVM.getThreads();
-		
+
 		while (allThreads.hasNext()) {
 			JavaThread oneThread = (JavaThread) allThreads.next();
-			
+
 			if (oneThread.getJNIEnv().getAddress() == _owningThreadID) {
 				owningThread = oneThread;
 				break;
@@ -144,11 +143,11 @@ public class JavaMonitor implements com.ibm.dtfj.java.JavaMonitor
 		}
 		return _waitList.iterator();
 	}
-	
+
 	public boolean equals(Object obj)
 	{
 		boolean isEqual = false;
-		
+
 		if (obj instanceof JavaMonitor) {
 			JavaMonitor local = (JavaMonitor) obj;
 			isEqual = (_javaVM.equals(local._javaVM) && _monitorID.equals(local._monitorID));

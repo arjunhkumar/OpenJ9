@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -440,7 +440,7 @@ bufferTestDataDesc(JNIEnv *env, char *buf, UDATA buflen)
 	UDATA rc = 0;
 	PORT_ACCESS_FROM_ENV(env);
 
-	rc += j9str_printf(PORTLIB, buf, buflen,
+	rc += j9str_printf(buf, buflen,
 			"Test Data\n"
 			"\tself  vmthread: %p osthread: %p\n"
 			"\tother vmthread: %p osthread: %p\n"

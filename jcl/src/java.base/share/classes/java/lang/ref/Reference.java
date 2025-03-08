@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -18,29 +18,29 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.ref;
 
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-
-import com.ibm.oti.vm.VM;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 /*[IF JAVA_SPEC_VERSION >= 12]*/
 import jdk.internal.access.JavaLangRefAccess;
 import jdk.internal.access.SharedSecrets;
-/*[ELSE] JAVA_SPEC_VERSION >= 12
-/*[IF Sidecar19-SE]
+/*[ELSEIF JAVA_SPEC_VERSION >= 9] JAVA_SPEC_VERSION >= 12 */
 import jdk.internal.misc.JavaLangRefAccess;
 import jdk.internal.misc.SharedSecrets;
-/*[ELSE]
-/*[IF Sidecar18-SE-OpenJ9]
+/*[ELSEIF Sidecar18-SE-OpenJ9] JAVA_SPEC_VERSION >= 12 */
 import sun.misc.JavaLangRefAccess;
 import sun.misc.SharedSecrets;
-/*[ENDIF]*/
-/*[ENDIF]*/
 /*[ENDIF] JAVA_SPEC_VERSION >= 12 */
+
+/*[IF CRIU_SUPPORT]*/
+import openj9.internal.criu.NotCheckpointSafe;
+/*[ENDIF] CRIU_SUPPORT */
 
 /**
  * Abstract class which describes behavior common to all reference objects.
@@ -50,7 +50,7 @@ import sun.misc.SharedSecrets;
  * @since		1.2
  */
 /*[IF JAVA_SPEC_VERSION < 19]*/
-public abstract	class Reference<T> extends Object {
+public abstract class Reference<T> extends Object {
 /*[ELSE] JAVA_SPEC_VERSION < 19
 public abstract sealed class Reference<T> extends Object permits PhantomReference, SoftReference, WeakReference, FinalReference {
 /*[ENDIF] JAVA_SPEC_VERSION < 19 */
@@ -60,21 +60,26 @@ public abstract sealed class Reference<T> extends Object permits PhantomReferenc
 
 	private T referent;
 	private ReferenceQueue queue;
-	private int state;
+	private volatile int state;
 
 	/* jdk.lang.ref.disableClearBeforeEnqueue property allow reverting to the old behavior(non clear before enqueue)
 	 *  defer initializing the immutable variable to avoid bootstrap error
 	 */
 	static class ClearBeforeEnqueue {
 		@SuppressWarnings("boxing")
+		/*[IF JAVA_SPEC_VERSION >= 24]*/
+		static final boolean ENABLED = !Boolean.getBoolean("jdk.lang.ref.disableClearBeforeEnqueue"); //$NON-NLS-1$
+		/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 		static final boolean ENABLED = AccessController.doPrivileged(new PrivilegedAction<Boolean>() {
-			@Override public Boolean run() {
+			@Override
+			public Boolean run() {
 				return !Boolean.getBoolean("jdk.lang.ref.disableClearBeforeEnqueue"); //$NON-NLS-1$
 			}
 		});
+		/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 	}
 
-	/*[IF Sidecar18-SE-OpenJ9 | Sidecar19-SE]*/
+	/*[IF Sidecar18-SE-OpenJ9 | (JAVA_SPEC_VERSION >= 9)]*/
 	/**
 	 *  Wait for progress in reference processing.
 	 * return false if there is no processing reference,
@@ -82,7 +87,7 @@ public abstract sealed class Reference<T> extends Object permits PhantomReferenc
 	 */
 	static private native boolean waitForReferenceProcessingImpl();
 
-	/*[IF Sidecar19-SE]*/
+	/*[IF JAVA_SPEC_VERSION >= 9]*/
 	static {
 		SharedSecrets.setJavaLangRefAccess(new JavaLangRefAccess() {
 			public boolean waitForReferenceProcessing() throws InterruptedException {
@@ -96,9 +101,11 @@ public abstract sealed class Reference<T> extends Object permits PhantomReferenc
 			/*[ENDIF] JAVA_SPEC_VERSION >= 11 */
 
 			/*[IF JAVA_SPEC_VERSION >= 19]*/
+			/*[IF JAVA_SPEC_VERSION < 24] */
 			public <T> ReferenceQueue<T> newNativeReferenceQueue() {
 				return new NativeReferenceQueue<>();
 			}
+			/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 			public void startThreads() {
 				throw new UnsupportedOperationException();
@@ -111,8 +118,7 @@ public abstract sealed class Reference<T> extends Object permits PhantomReferenc
 	private static boolean waitForReferenceProcessing() throws InterruptedException {
 		return waitForReferenceProcessingImpl();
 	}
-
-	/*[ELSE]
+	/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 	static {
 		SharedSecrets.setJavaLangRefAccess(new JavaLangRefAccess() {
 			public boolean tryHandlePendingReference() {
@@ -120,9 +126,8 @@ public abstract sealed class Reference<T> extends Object permits PhantomReferenc
 			}
 		});
 	}
-
-	/*[ENDIF]*/
-	/*[ENDIF]*/
+	/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
+	/*[ENDIF] Sidecar18-SE-OpenJ9 | (JAVA_SPEC_VERSION >= 9) */
 
 	/**
 	 * Make the referent null.  This does not force the reference object to be enqueued.
@@ -181,9 +186,7 @@ public abstract sealed class Reference<T> extends Object permits PhantomReferenc
 	@Deprecated(since="16")
 	/*[ENDIF] JAVA_SPEC_VERSION >= 16 */
 	public boolean isEnqueued () {
-		synchronized(this) {
-			return state == STATE_ENQUEUED;
-		}
+		return state == STATE_ENQUEUED;
 	}
 
 	/**
@@ -192,25 +195,23 @@ public abstract sealed class Reference<T> extends Object permits PhantomReferenc
 	 * @return	true if the Reference was successfully
 	 *			enqueued, false otherwise.
 	 */
+	/*[IF CRIU_SUPPORT]*/
+	@NotCheckpointSafe
+	/*[ENDIF] CRIU_SUPPORT */
 	boolean enqueueImpl() {
-		final ReferenceQueue tempQueue;
-		boolean result;
 		T tempReferent = referent;
 		synchronized(this) {
 			/* Static order for the following code (DO NOT CHANGE) */
-			tempQueue = queue;
+			final ReferenceQueue tempQueue = queue;
 			queue = null;
-			if (state == STATE_ENQUEUED || tempQueue == null) {
+			if ((null == tempQueue) || (STATE_ENQUEUED == state)) {
 				return false;
 			}
-			result = tempQueue.enqueue(this);
-			if (result) {
-				state = STATE_ENQUEUED;
-				if (null != tempReferent) {
-					reprocess();
-				}
+			tempQueue.enqueue(this);
+			if (null != tempReferent) {
+				reprocess();
 			}
-			return result;
+			return true;
 		}
 	}
 
@@ -249,16 +250,19 @@ public abstract sealed class Reference<T> extends Object permits PhantomReferenc
 
 	/**
 	 * Called when a Reference has been removed from its ReferenceQueue.
-	 * Set the enqueued field to false.
 	 */
 	void dequeue() {
-		/*[PR 112508] not synchronized, so isEnqueued() could return wrong result */
-		synchronized(this) {
-			state = STATE_CLEARED;
-		}
+		state = STATE_CLEARED;
 	}
 
-	/*[IF Sidecar19-SE]*/
+	/**
+	 * Called when a Reference has been added to its ReferenceQueue.
+	 */
+	void setEnqueued() {
+		state = STATE_ENQUEUED;
+	}
+
+	/*[IF JAVA_SPEC_VERSION >= 9]*/
 	/**
 	 * Used to keep the referenced object strongly reachable so that it is not reclaimable by garbage collection.
 	 *
@@ -267,7 +271,7 @@ public abstract sealed class Reference<T> extends Object permits PhantomReferenc
 	 */
 	public static void reachabilityFence(java.lang.Object ref) {
 	}
-	/*[ENDIF]*/
+	/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 	/**
 	 * This method will always throw CloneNotSupportedException. A clone of this instance will not be returned

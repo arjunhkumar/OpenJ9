@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -62,6 +62,16 @@ private:
 		ANONYMOUS_CLASSES
 	};
 	ScanModes _mode; /**< indicate type of classes to be iterated */
+	J9Class *_iterateArrayClazz; /**< current array walk class */
+	J9Class *_startingClass; /**< the most recent table or system class which is the starting point for each array walk */
+	enum ArrayClassState {
+		STATE_VALUETYPEARRAY = 0, /**< setup value type array list walk */
+		STATE_VALUETYPEARRAYLIST, /**< value type array list walk */
+		STATE_ARRAY, /**< setup array list walk */
+		STATE_ARRAYLIST, /**< array list walk */
+		STATE_DONE
+	};
+	ArrayClassState _arrayState; /**< array walk state */
 	
 protected:
 public:
@@ -99,7 +109,28 @@ private:
 	 * @return true if this is the system class loader, false otherwise 
 	 */
 	bool switchToSystemMode();
+
+	/**
+	 * Iterate through all array classes of _nextClass. A base class may have
+	 * a list of array classes starting at the J9Class fields nullRestrictedArrayClass
+	 * and arrayClass. nullRestrictedArrayClass can only exist as a field of a value class
+	 * and can only be an array of arity 1.
+	 * After that its list will continue in the arrayClass field.
+	 * @return the next array class, or NULL if finished
+	 */
+	J9Class *nextArrayClass();
 	
+	/**
+	 * Initialize array class walk state machine.
+	 */
+	MMINLINE void
+	initArrayClassWalk()
+	{
+		_startingClass = _nextClass;
+		_arrayState = STATE_VALUETYPEARRAY;
+		_iterateArrayClazz = NULL;
+	}
+
 protected:
 	
 public:

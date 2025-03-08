@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 
@@ -107,6 +107,98 @@ MM_ObjectAccessBarrier::kill(MM_EnvironmentBase *env)
 void
 MM_ObjectAccessBarrier::tearDown(MM_EnvironmentBase *env)
 {
+}
+
+void
+MM_ObjectAccessBarrier::copyArrayCritical(J9VMThread *vmThread, void **data, J9IndexableObject *arrayObject, jboolean *isCopy)
+{
+	J9InternalVMFunctions *functions = vmThread->javaVM->internalVMFunctions;
+	GC_ArrayObjectModel *indexableObjectModel = &_extensions->indexableObjectModel;
+
+	int32_t sizeInElements = (int32_t)indexableObjectModel->getSizeInElements(arrayObject);
+	uintptr_t sizeInBytes = indexableObjectModel->getDataSizeInBytes(arrayObject);
+	*data = functions->jniArrayAllocateMemoryFromThread(vmThread, sizeInBytes);
+	if (NULL == *data) {
+		/* better error message here? */
+		functions->setNativeOutOfMemoryError(vmThread, 0, 0);
+	} else {
+		indexableObjectModel->memcpyFromArray(*data, arrayObject, 0, sizeInElements);
+		vmThread->jniCriticalCopyCount += 1;
+		if (NULL != isCopy) {
+			*isCopy = JNI_TRUE;
+		}
+	}
+}
+
+void
+MM_ObjectAccessBarrier::copyBackArrayCritical(J9VMThread *vmThread, void *elems, J9IndexableObject **arrayObject, jint mode)
+{
+	GC_ArrayObjectModel *indexableObjectModel = &_extensions->indexableObjectModel;
+	if (JNI_ABORT != mode) {
+		int32_t sizeInElements = (int32_t)indexableObjectModel->getSizeInElements(*arrayObject);
+		indexableObjectModel->memcpyToArray(*arrayObject, 0, sizeInElements, elems);
+	}
+
+	/*
+	 * Commit means copy the data but do not free the buffer.
+	 * All other modes free the buffer.
+	 */
+	if (JNI_COMMIT != mode) {
+		vmThread->javaVM->internalVMFunctions->jniArrayFreeMemoryFromThread(vmThread, elems);
+	}
+
+	if (vmThread->jniCriticalCopyCount > 0) {
+		vmThread->jniCriticalCopyCount -= 1;
+	} else {
+		Assert_MM_invalidJNICall();
+	}
+}
+
+void
+MM_ObjectAccessBarrier::copyStringCritical(J9VMThread *vmThread, jchar **data,
+	J9IndexableObject *valueObject, J9Object *stringObject, jboolean *isCopy, bool isCompressed)
+{
+	J9JavaVM *javaVM = vmThread->javaVM;
+	J9InternalVMFunctions *functions = javaVM->internalVMFunctions;
+	GC_ArrayObjectModel *indexableObjectModel = &_extensions->indexableObjectModel;
+	jint length = J9VMJAVALANGSTRING_LENGTH(vmThread, stringObject);
+	uintptr_t sizeInBytes = length * sizeof(jchar);
+	jchar *copyArr = (jchar *)functions->jniArrayAllocateMemoryFromThread(vmThread, sizeInBytes);
+	if (NULL == copyArr) {
+		/* better error message here? */
+		functions->setNativeOutOfMemoryError(vmThread, 0, 0);
+	} else {
+		if (isCompressed) {
+			for (jint i = 0; i < length; i++) {
+				copyArr[i] = (jchar)(uint8_t)J9JAVAARRAYOFBYTE_LOAD(vmThread, (j9object_t)valueObject, i);
+			}
+		} else {
+			if (J9_ARE_ANY_BITS_SET(javaVM->runtimeFlags, J9_RUNTIME_STRING_BYTE_ARRAY)) {
+				/* This API determines the stride based on the type of valueObject so in the [B case we must passin the length in bytes */
+				indexableObjectModel->memcpyFromArray(copyArr, valueObject, 0, (int32_t)sizeInBytes);
+			} else {
+				indexableObjectModel->memcpyFromArray(copyArr, valueObject, 0, length);
+			}
+		}
+		if (NULL != isCopy) {
+			*isCopy = JNI_TRUE;
+		}
+		*data = copyArr;
+		vmThread->jniCriticalCopyCount += 1;
+	}
+}
+
+void
+MM_ObjectAccessBarrier::freeStringCritical(J9VMThread *vmThread, const jchar *elems)
+{
+	/* String data is not copied back */
+	vmThread->javaVM->internalVMFunctions->jniArrayFreeMemoryFromThread(vmThread, (void *)elems);
+
+	if (vmThread->jniCriticalCopyCount > 0) {
+		vmThread->jniCriticalCopyCount -= 1;
+	} else {
+		Assert_MM_invalidJNICall();
+	}
 }
 
 /**
@@ -1141,7 +1233,7 @@ MM_ObjectAccessBarrier::copyObjectFieldsToFlattenedArrayElement(J9VMThread *vmTh
 	U_8 *elementAddress = (U_8*)indexableEffectiveAddress(vmThread, arrayRef, index, J9ARRAYCLASS_GET_STRIDE((J9Class *) arrayClazz));
 	IDATA elementOffset = (elementAddress - (U_8*)arrayRef);
 	J9Class *elementClazz = J9GC_J9OBJECT_CLAZZ_THREAD(srcObject, vmThread);
-	Assert_MM_true(J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(elementClazz));
+	Assert_MM_true(J9_IS_J9CLASS_ALLOW_DEFAULT_VALUE(elementClazz));
 	Assert_MM_true(elementClazz == arrayClazz->leafComponentType);
 
 	elementStartOffset += J9CLASS_PREPADDING_SIZE(elementClazz);
@@ -1165,7 +1257,7 @@ MM_ObjectAccessBarrier::copyObjectFieldsFromFlattenedArrayElement(J9VMThread *vm
 	U_8 *elementAddress = (U_8*)indexableEffectiveAddress(vmThread, arrayRef, index, J9ARRAYCLASS_GET_STRIDE((J9Class *) arrayClazz));
 	IDATA elementOffset = (elementAddress - (U_8*)arrayRef);
 	J9Class *elementClazz = J9GC_J9OBJECT_CLAZZ_THREAD(destObject, vmThread);
-	Assert_MM_true(J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(elementClazz));
+	Assert_MM_true(J9_IS_J9CLASS_ALLOW_DEFAULT_VALUE(elementClazz));
 	Assert_MM_true(elementClazz == arrayClazz->leafComponentType);
 
 	elementStartOffset += J9CLASS_PREPADDING_SIZE(elementClazz);
@@ -1416,7 +1508,7 @@ MM_ObjectAccessBarrier::structuralCompareFlattenedObjects(J9VMThread *vmThread, 
 	UDATA limit = J9CLASS_UNPADDED_INSTANCE_SIZE(valueClass);
 	UDATA offset = 0;
 
-	Assert_MM_true(J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(valueClass));
+	Assert_MM_true(J9_IS_J9CLASS_ALLOW_DEFAULT_VALUE(valueClass));
 
 	if (hasReferences) {
 		UDATA descriptionIndex = J9_OBJECT_DESCRIPTION_SIZE - 1;

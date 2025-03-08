@@ -18,11 +18,12 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <vmconstantpool>
 	<classref name="java/lang/ArrayStoreException"/>
 	<classref name="java/lang/ClassCastException"/>
+	<classref name="java/lang/IdentityException" flags="opt_valhallaValueTypes"/>
 	<classref name="java/lang/IllegalMonitorStateException"/>
 	<classref name="java/lang/IndexOutOfBoundsException"/>
 	<classref name="java/lang/NegativeArraySizeException"/>
@@ -95,7 +96,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<classref name="java/lang/ref/SoftReference"/>
 	<classref name="java/util/concurrent/locks/AbstractOwnableSynchronizer"/>
 	<classref name="java/lang/invoke/PrimitiveHandle" flags="opt_methodHandle"/>
-	<classref name="java/lang/invoke/NativeMethodHandle" flags="opt_panama"/>
 	<classref name="java/lang/invoke/ReceiverBoundHandle" flags="opt_methodHandle"/>
 	<classref name="java/lang/invoke/ConvertHandle" flags="opt_methodHandle"/>
 	<classref name="java/lang/invoke/CollectHandle" flags="opt_methodHandle"/>
@@ -142,6 +142,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<classref name="java/lang/invoke/MemberName" flags="opt_openjdkMethodhandle"/>
 	<classref name="java/lang/invoke/MethodTypeForm" flags="opt_openjdkMethodhandle"/>
 	<classref name="java/lang/invoke/LambdaForm" flags="opt_openjdkMethodhandle"/>
+	<classref name="java/lang/invoke/DirectMethodHandle" flags="opt_openjdkMethodhandle"/>
 
 	<classref name="jdk/internal/loader/NativeLibraries" versions="15-"/>
 	<classref name="jdk/internal/loader/NativeLibraries$NativeLibraryImpl" versions="15-"/>
@@ -150,23 +151,26 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 
 	<classref name="jdk/internal/vm/Continuation" versions="19-"/>
 
-	<classref name="org/eclipse/openj9/criu/JVMCheckpointException" flags="opt_criuSupport"/>
-	<classref name="org/eclipse/openj9/criu/JVMRestoreException" flags="opt_criuSupport"/>
+	<classref name="openj9/internal/criu/JVMCheckpointException" flags="opt_criuSupport"/>
+	<classref name="openj9/internal/criu/JVMRestoreException" flags="opt_criuSupport"/>
 
 	<!-- Class references needed to support Foreign Linker API. -->
-	<classref name="openj9/internal/foreign/abi/InternalDowncallHandler" flags="opt_openjdkFfi" versions="16-"/>
-	<classref name="openj9/internal/foreign/abi/InternalUpcallHandler" flags="opt_openjdkFfi" versions="16-"/>
-	<classref name="openj9/internal/foreign/abi/UpcallMHMetaData" flags="opt_openjdkFfi" versions="16-"/>
+	<classref name="java/lang/invoke/NativeMethodHandle" flags="opt_openjdkFfi" versions="22-"/>
 
-	<classref name="jdk/incubator/foreign/MemoryAddress" flags="opt_openjdkFfi" versions="16-18"/>
-	<classref name="java/lang/foreign/MemoryAddress" flags="opt_openjdkFfi" versions="19"/>
-	<classref name="jdk/incubator/foreign/MemorySegment" flags="opt_openjdkFfi" versions="16-18"/>
-	<classref name="java/lang/foreign/MemorySegment" flags="opt_openjdkFfi" versions="19-"/>
-	<classref name="jdk/internal/foreign/MemoryAddressImpl" flags="opt_openjdkFfi" versions="16-19"/>
-	<classref name="jdk/internal/foreign/AbstractMemorySegmentImpl" flags="opt_openjdkFfi" versions="16-"/>
-	<classref name="jdk/internal/foreign/NativeMemorySegmentImpl" flags="opt_openjdkFfi" versions="16-"/>
-	<classref name="jdk/internal/foreign/SharedScope" flags="opt_openjdkFfi" versions="16-18"/>
-	<classref name="jdk/internal/foreign/SharedSession" flags="opt_openjdkFfi" versions="19-"/>
+	<classref name="openj9/internal/foreign/abi/InternalDowncallHandler" flags="opt_openjdkFfi" versions="17-"/>
+	<classref name="openj9/internal/foreign/abi/InternalUpcallHandler" flags="opt_openjdkFfi" versions="17-"/>
+	<classref name="openj9/internal/foreign/abi/UpcallMHMetaData" flags="opt_openjdkFfi" versions="17-"/>
+
+	<classref name="jdk/incubator/foreign/MemoryAddress" flags="opt_openjdkFfi" versions="17"/>
+	<classref name="jdk/incubator/foreign/MemorySegment" flags="opt_openjdkFfi" versions="17"/>
+	<classref name="java/lang/foreign/MemorySegment" flags="opt_openjdkFfi" versions="20-"/>
+	<classref name="jdk/internal/foreign/MemoryAddressImpl" flags="opt_openjdkFfi" versions="17"/>
+	<classref name="jdk/internal/foreign/AbstractMemorySegmentImpl" flags="opt_openjdkFfi" versions="17-"/>
+	<classref name="jdk/internal/foreign/NativeMemorySegmentImpl" flags="opt_openjdkFfi" versions="17-"/>
+
+	<!-- Class references used in Thread.findScopedValueBindings(). -->
+	<classref name="java/lang/ScopedValue$Carrier" versions="20-"/>
+	<classref name="java/lang/ScopedValue$Snapshot" versions="20-"/>
 
 <!--
 	NOTE: the resolution code in jclcinit.c only looks at the J9ROMClassRef->runtimeFlags to determine
@@ -222,10 +226,12 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<fieldref class="java/lang/StackWalker$StackFrameImpl" name="methodName" signature="Ljava/lang/String;" versions="9-"/>
 	<fieldref class="java/lang/StackWalker$StackFrameImpl" name="methodSignature" signature="Ljava/lang/String;" versions="9-"/>
 	<fieldref class="java/lang/StackWalker$StackFrameImpl" name="frameModule" signature="Ljava/lang/Module;" versions="9-"/>
+	<fieldref class="java/lang/StackWalker$StackFrameImpl" name="monitors" signature="[Ljava/lang/Object;" versions="21-"/>
+	<fieldref class="java/lang/StackWalker$StackFrameImpl" name="flags" signature="I" versions="22-"/>
 
 	<!-- Common field references shared between OpenJ9 and OpenJDK Thread. -->
 	<fieldref class="java/lang/Thread" name="contextClassLoader" signature="Ljava/lang/ClassLoader;"/>
-	<fieldref class="java/lang/Thread" name="inheritedAccessControlContext" signature="Ljava/security/AccessControlContext;"/>
+	<fieldref class="java/lang/Thread" name="inheritedAccessControlContext" signature="Ljava/security/AccessControlContext;" versions="8-23"/>
 	<fieldref class="java/lang/Thread" name="name" signature="Ljava/lang/String;"/>
 	<fieldref class="java/lang/Thread" name="parkBlocker" signature="Ljava/lang/Object;"/>
 	<fieldref class="java/lang/Thread" name="tid" signature="J"/>
@@ -244,6 +250,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<!-- Field references for Java 19 Virtual Thread. -->
 	<fieldref class="java/lang/Thread" name="cont" signature="Ljdk/internal/vm/Continuation;" versions="19-"/>
 	<fieldref class="java/lang/Thread" name="holder" signature="Ljava/lang/Thread$FieldHolder;" versions="19-"/>
+	<fieldref class="java/lang/Thread" name="container" signature="Ljdk/internal/vm/ThreadContainer;" versions="19-"/>
 	<fieldref class="java/lang/Thread$FieldHolder" name="daemon" signature="Z" versions="19-"/>
 	<fieldref class="java/lang/Thread$FieldHolder" name="group" signature="Ljava/lang/ThreadGroup;" versions="19-"/>
 	<fieldref class="java/lang/Thread$FieldHolder" name="priority" signature="I" versions="19-"/>
@@ -257,6 +264,11 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<fieldref class="java/lang/VirtualThread" name="state" signature="I" versions="19-"/>
 	<fieldref class="java/lang/VirtualThread" name="carrierThread" signature="Ljava/lang/Thread;" versions="19-"/>
 	<fieldref class="java/lang/VirtualThread" name="cont" signature="Ljdk/internal/vm/Continuation;" versions="19-"/>
+
+	<!-- Field references for Synchronize Virtual Threads without Pinning (JEP491). -->
+	<fieldref class="java/lang/VirtualThread" name="blockPermit" signature="Z" versions="24-"/>
+	<fieldref class="java/lang/VirtualThread" name="next" signature="Ljava/lang/VirtualThread;" versions="24-"/>
+	<fieldref class="java/lang/VirtualThread" name="onWaitingList" signature="Z" versions="24-"/>
 
 	<fieldref class="java/lang/Throwable" name="cause" signature="Ljava/lang/Throwable;"/>
 	<fieldref class="java/lang/Throwable" name="detailMessage" signature="Ljava/lang/String;"/>
@@ -276,7 +288,8 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<fieldref class="java/lang/reflect/Field" name="type" signature="Ljava/lang/Class;"/>
 	<fieldref class="java/lang/reflect/Field" name="signature" signature="Ljava/lang/String;"/>
 	<fieldref class="java/lang/reflect/Field" name="modifiers" signature="I"/>
-	<fieldref class="java/lang/reflect/Field" name="trustedFinal" signature="Z" versions="15-"/>
+	<fieldref class="java/lang/reflect/Field" name="trustedFinal" signature="Z" versions="15-" flags="!opt_valhallaValueTypes"/>
+	<fieldref class="java/lang/reflect/Field" name="flags" signature="I" flags="opt_valhallaValueTypes"/>
 	<fieldref class="java/lang/reflect/Field" name="annotations" signature="[B"/>
 	<fieldref class="java/lang/reflect/Field" name="slot" signature="I"/>
 	<fieldref class="java/lang/reflect/Field" name="clazz" signature="Ljava/lang/Class;"/>
@@ -333,7 +346,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<fieldref class="java/lang/invoke/PrimitiveHandle" name="defc" signature="Ljava/lang/Class;" flags="opt_methodHandle"/>
 	<fieldref class="java/lang/invoke/MethodHandle" name="kind" signature="B" flags="opt_methodHandle"/>
 	<fieldref class="java/lang/invoke/MethodHandle" name="previousAsType" signature="Ljava/lang/invoke/MethodHandle;" flags="opt_methodHandle"/>
-	<fieldref class="java/lang/invoke/NativeMethodHandle" name="J9NativeCalloutDataRef" signature="J" cast="J9NativeCalloutData *" flags="opt_panama"/>
 	<fieldref class="java/lang/invoke/ReceiverBoundHandle" name="receiver" signature="Ljava/lang/Object;" flags="opt_methodHandle"/>
 	<fieldref class="java/lang/invoke/ConvertHandle" name="next" signature="Ljava/lang/invoke/MethodHandle;" flags="opt_methodHandle"/>
 	<fieldref class="java/lang/invoke/FoldHandle" name="next" signature="Ljava/lang/invoke/MethodHandle;" flags="opt_methodHandle"/>
@@ -406,6 +418,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<fieldref class="java/lang/invoke/MemberName" name="resolution" signature="Ljava/lang/Object;" flags="opt_openjdkMethodhandle"/>
 	<fieldref class="java/lang/invoke/LambdaForm" name="vmentry" signature="Ljava/lang/invoke/MemberName;" flags="opt_openjdkMethodhandle"/>
 	<fieldref class="java/lang/invoke/MethodHandle" name="form" signature="Ljava/lang/invoke/LambdaForm;" flags="opt_openjdkMethodhandle"/>
+	<fieldref class="java/lang/invoke/DirectMethodHandle" name="member" signature="Ljava/lang/invoke/MemberName;" flags="opt_openjdkMethodhandle"/>
 	<fieldref class="java/lang/invoke/MethodType" name="form" signature="Ljava/lang/invoke/MethodTypeForm;" flags="opt_openjdkMethodhandle"/>
 	<fieldref class="java/lang/invoke/MethodTypeForm" name="argCounts" signature="J" flags="opt_openjdkMethodhandle" versions="8-13"/>
 	<fieldref class="java/lang/invoke/MethodTypeForm" name="parameterSlotCount" signature="S" flags="opt_openjdkMethodhandle" versions="14-"/>
@@ -413,33 +426,39 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<fieldref class="jdk/internal/loader/NativeLibraries$NativeLibraryImpl" name="fromClass" signature="Ljava/lang/Class;" versions="15-"/>
 
 	<fieldref class="jdk/internal/vm/Continuation" name="vmRef" signature="J" cast="struct J9VMContinuation *" versions="19-"/>
-	<fieldref class="jdk/internal/vm/Continuation" name="finished" signature="Z" versions="19-"/>
-	<fieldref class="jdk/internal/vm/Continuation" name="started" signature="Z" versions="19-"/>
 	<fieldref class="jdk/internal/vm/Continuation" name="state" signature="J" versions="19-"/>
 	<fieldref class="jdk/internal/vm/Continuation" name="parent" signature="Ljdk/internal/vm/Continuation;" versions="19-"/>
 	<fieldref class="jdk/internal/vm/Continuation" name="vthread" signature="Ljava/lang/Thread;" versions="19-"/>
+	<fieldref class="jdk/internal/vm/Continuation" name="scopedValueCache" signature="[Ljava/lang/Object;" versions="19-"/>
+
+	<!-- Field references for Synchronize Virtual Threads without Pinning (JEP491). -->
+	<fieldref class="jdk/internal/vm/Continuation" name="blocker" signature="Ljava/lang/Object;" versions="24-"/>
 
 	<!-- Field references needed to support Foreign Linker API. -->
-	<fieldref class="openj9/internal/foreign/abi/InternalDowncallHandler" name="cifNativeThunkAddr" signature="J" flags="opt_openjdkFfi" versions="16-"/>
-	<fieldref class="openj9/internal/foreign/abi/InternalDowncallHandler" name="argTypesAddr" signature="J" flags="opt_openjdkFfi" versions="16-"/>
+	<fieldref class="java/lang/invoke/NativeMethodHandle" name="invokeCache" signature="[Ljava/lang/Object;" flags="opt_openjdkFfi" versions="22-"/>
+	<fieldref class="java/lang/invoke/NativeMethodHandle" name="nep" signature="Ljava/lang/invoke/MethodHandle;" flags="opt_openjdkFfi" versions="22-"/>
 
-	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="calleeMH" signature="Ljava/lang/invoke/MethodHandle;" flags="opt_openjdkFfi" versions="16-"/>
-	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="calleeType" signature="Ljava/lang/invoke/MethodType;" flags="opt_openjdkFfi" versions="16-"/>
-	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="invokeCache" signature="[Ljava/lang/Object;" flags="opt_openjdkFfi" versions="16-"/>
-	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="nativeArgArray" signature="[Ljava/lang/Object;" flags="opt_openjdkFfi" versions="16-"/>
+	<fieldref class="openj9/internal/foreign/abi/InternalDowncallHandler" name="argTypesAddr" signature="J" flags="opt_openjdkFfi" versions="17-"/>
+	<fieldref class="openj9/internal/foreign/abi/InternalDowncallHandler" name="boundMH" signature="Ljava/lang/invoke/MethodHandle;" flags="opt_openjdkFfi" versions="22-"/>
+	<fieldref class="openj9/internal/foreign/abi/InternalDowncallHandler" name="cifNativeThunkAddr" signature="J" flags="opt_openjdkFfi" versions="17-"/>
+	<fieldref class="openj9/internal/foreign/abi/InternalDowncallHandler" name="invokeCache" signature="[Ljava/lang/Object;" flags="opt_openjdkFfi" versions="22-"/>
 
-	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="scope" signature="Ljdk/incubator/foreign/ResourceScope;" flags="opt_openjdkFfi" versions="16-18"/>
-	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="session" signature="Ljava/lang/foreign/MemorySession;" flags="opt_openjdkFfi" versions="19"/>
-	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="scope" signature="Ljava/lang/foreign/SegmentScope;" flags="opt_openjdkFfi" versions="20-"/>
+	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="calleeMH" signature="Ljava/lang/invoke/MethodHandle;" flags="opt_openjdkFfi" versions="17-"/>
+	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="invokeCache" signature="[Ljava/lang/Object;" flags="opt_openjdkFfi" versions="17-"/>
+	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="nativeArgArray" signature="[Ljava/lang/Object;" flags="opt_openjdkFfi" versions="17-"/>
 
-	<fieldref class="jdk/internal/foreign/MemoryAddressImpl" name="segment" signature="Ljdk/internal/foreign/AbstractMemorySegmentImpl;" flags="opt_openjdkFfi" versions="16-17"/>
-	<fieldref class="jdk/internal/foreign/MemoryAddressImpl" name="offset" signature="J" flags="opt_openjdkFfi" versions="16-19"/>
+	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="scope" signature="Ljdk/incubator/foreign/ResourceScope;" flags="opt_openjdkFfi" versions="17"/>
+	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="scope" signature="Ljava/lang/foreign/SegmentScope;" flags="opt_openjdkFfi" versions="20"/>
+	<fieldref class="openj9/internal/foreign/abi/UpcallMHMetaData" name="scope" signature="Ljava/lang/foreign/MemorySegment$Scope;" flags="opt_openjdkFfi" versions="21-"/>
 
-	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="min" signature="J" flags="opt_openjdkFfi" versions="16-"/>
-	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="length" signature="J" flags="opt_openjdkFfi" versions="16-"/>
-	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="scope" signature="Ljdk/internal/foreign/ResourceScopeImpl;" flags="opt_openjdkFfi" versions="16-18"/>
-	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="session" signature="Ljava/lang/foreign/MemorySession;" flags="opt_openjdkFfi" versions="19"/>
-	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="scope" signature="Ljava/lang/foreign/SegmentScope;" flags="opt_openjdkFfi" versions="20-"/>
+	<fieldref class="jdk/internal/foreign/MemoryAddressImpl" name="segment" signature="Ljdk/internal/foreign/AbstractMemorySegmentImpl;" flags="opt_openjdkFfi" versions="17"/>
+	<fieldref class="jdk/internal/foreign/MemoryAddressImpl" name="offset" signature="J" flags="opt_openjdkFfi" versions="17"/>
+
+	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="min" signature="J" flags="opt_openjdkFfi" versions="17-"/>
+	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="length" signature="J" flags="opt_openjdkFfi" versions="17-"/>
+	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="scope" signature="Ljdk/internal/foreign/ResourceScopeImpl;" flags="opt_openjdkFfi" versions="17"/>
+	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="scope" signature="Ljava/lang/foreign/SegmentScope;" flags="opt_openjdkFfi" versions="20"/>
+	<fieldref class="jdk/internal/foreign/NativeMemorySegmentImpl" name="scope" signature="Ljdk/internal/foreign/MemorySessionImpl;" flags="opt_openjdkFfi" versions="21-"/>
 
 <!--
 	NOTE: the resolution code in jclcinit.c only looks at the J9ROMClassRef->runtimeFlags to determine
@@ -451,7 +470,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	for each combination of method flags.
 -->
 	<staticmethodref class="java/lang/J9VMInternals" name="completeInitialization" signature="()V"/>
-	<staticmethodref class="java/lang/J9VMInternals" name="checkPackageAccess" signature="(Ljava/lang/Class;Ljava/security/ProtectionDomain;)V"/>
+	<staticmethodref class="java/lang/J9VMInternals" name="checkPackageAccess" signature="(Ljava/lang/Class;Ljava/security/ProtectionDomain;)V" versions="8-23"/>
 	<staticmethodref class="java/lang/J9VMInternals" name="threadCleanup" signature="(Ljava/lang/Thread;)V"/>
 	<staticmethodref class="java/lang/J9VMInternals" name="newInstanceImpl" signature="(Ljava/lang/Class;)Ljava/lang/Object;" flags="jit_newInstancePrototype"/>
 	<staticmethodref class="java/lang/J9VMInternals" name="formatNoSuchMethod" signature="(Ljava/lang/String;Ljava/lang/Class;Ljava/lang/String;Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/String;"/>
@@ -463,7 +482,8 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<virtualmethodref class="java/lang/ClassLoader" name="loadClass" signature="(Ljava/lang/String;)Ljava/lang/Class;"/>
 	<specialmethodref class="java/lang/Thread" name="uncaughtException" signature="(Ljava/lang/Throwable;)V"/>
 	<specialmethodref class="java/lang/Thread" name="&lt;init>" signature="(Ljava/lang/String;Ljava/lang/Object;IZ)V"/>
-	<staticmethodref class="java/lang/ClassLoader" name="findNative" signature="(Ljava/lang/ClassLoader;Ljava/lang/String;)J" versions="17-"/>
+	<staticmethodref class="java/lang/ClassLoader" name="findNative0" signature="(Ljava/lang/ClassLoader;Ljava/lang/String;)J" versions="17-23"/>
+	<staticmethodref class="java/lang/ClassLoader" name="findNative1" signature="(Ljava/lang/ClassLoader;Ljava/lang/String;Ljava/lang/Class;Ljava/lang/String;)J" versions="24-"/>
 
 	<fieldref class="java/lang/J9VMInternals$ClassInitializationLock" name="theClass" signature="Ljava/lang/Class;"/>
 
@@ -482,7 +502,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<staticmethodref class="java/lang/invoke/MethodHandleResolver" name="linkCallerMethod" signature="(Ljava/lang/Class;ILjava/lang/Class;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Object;" flags="opt_openjdkMethodhandle"/>
 
 	<!-- Static method references needed to support Foreign Linker API. -->
-	<staticmethodref class="java/lang/invoke/MethodHandleResolver" name="upcallLinkCallerMethod" signature="(Ljava/lang/Class;Ljava/lang/invoke/MethodType;)Ljava/lang/Object;" versions="16-"/>
+	<staticmethodref class="java/lang/invoke/MethodHandleResolver" name="ffiCallLinkCallerMethod" signature="(Ljava/lang/Class;Ljava/lang/invoke/MethodType;)Ljava/lang/Object;" versions="17-"/>
 
 	<staticmethodref class="jdk/internal/loader/NativeLibraries" name="load" signature="(Ljdk/internal/loader/NativeLibraries$NativeLibraryImpl;Ljava/lang/String;ZZZ)Z" versions="15-18"/>
 	<staticmethodref class="jdk/internal/loader/NativeLibraries" name="load" signature="(Ljdk/internal/loader/NativeLibraries$NativeLibraryImpl;Ljava/lang/String;ZZ)Z" versions="19-"/>
@@ -490,7 +510,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<!-- Static method references needed to support VirtualThread/Continuation. -->
 	<staticmethodref class="jdk/internal/vm/Continuation" name="enter" signature="(Ljdk/internal/vm/Continuation;)V" versions="19-"/>
 	<!-- Security manager check -->
-	<staticfieldref class="java/lang/System" name="security" signature="Ljava/lang/SecurityManager;"/>
+	<staticfieldref class="java/lang/System" name="security" signature="Ljava/lang/SecurityManager;" versions="8-23"/>
 
 	<!-- VM constants in java -->
 	<staticfieldref class="com/ibm/oti/vm/VM" name="J9_GC_WRITE_BARRIER_TYPE" signature="I"/>

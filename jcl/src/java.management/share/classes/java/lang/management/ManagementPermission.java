@@ -1,6 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
 /*
- *******************************************************************************
  * Copyright IBM Corp. and others 2005
  *
  * This program and the accompanying materials are made available under
@@ -19,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.management;
 
 import java.security.BasicPermission;
@@ -46,11 +45,11 @@ public final class ManagementPermission extends BasicPermission {
 	private static final String MONITOR = "monitor";  //$NON-NLS-1$
 
 	/**
-	 * Creates a new instance of <code>ManagementPermission</code> with 
+	 * Creates a new instance of <code>ManagementPermission</code> with
 	 * the given name.
 	 * @param name the name of the permission. The only acceptable values
 	 * are the strings &quot;control&quot; or &quot;monitor&quot;.
-	 * @throws IllegalArgumentException if <code>name</code> is not one of 
+	 * @throws IllegalArgumentException if <code>name</code> is not one of
 	 * the string values &quot;control&quot; or &quot;monitor&quot;.
 	 * @throws NullPointerException if <code>name</code> is <code>null</code>.
 	 */
@@ -59,11 +58,11 @@ public final class ManagementPermission extends BasicPermission {
 	}
 
 	/**
-	 * Creates a new instance of <code>ManagementPermission</code> with 
+	 * Creates a new instance of <code>ManagementPermission</code> with
 	 * the given name and permitted actions.
 	 * @param name the name of the permission. The only acceptable values
 	 * are the strings &quot;control&quot; or &quot;monitor&quot;.
-	 * @param actions this argument must either be an empty string or 
+	 * @param actions this argument must either be an empty string or
 	 * <code>null</code>.
 	 * @throws NullPointerException if <code>name</code> is <code>null</code>.
 	 */

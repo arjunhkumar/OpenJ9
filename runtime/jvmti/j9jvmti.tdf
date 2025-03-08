@@ -16,7 +16,7 @@
 //[1] https://www.gnu.org/software/classpath/license.html
 //[2] https://openjdk.org/legal/assembly-exception.html
 //
-//SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+//SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 Executable=j9jvmti
 Submodules=j9vmutil,j9util,pool
@@ -146,12 +146,12 @@ TraceEntry=Trc_JVMTI_jvmtiNotifyFramePop_Entry Overhead=1 Level=5 Noenv Template
 TraceExit=Trc_JVMTI_jvmtiNotifyFramePop_Exit Overhead=1 Level=5 Noenv Template="NotifyFramePop returning %d"
 TraceEntry=Trc_JVMTI_jvmtiPopFrame_Entry Overhead=1 Level=1 Noenv Template="PopFrame env=%p"
 TraceExit=Trc_JVMTI_jvmtiPopFrame_Exit Overhead=1 Level=1 Noenv Template="PopFrame returning %d"
-TraceEntry=Trc_JVMTI_jvmtiGetObjectHashCode_Entry obsolete Overhead=1 Level=5 Noenv Template="GetObjectHashCode env=%p"
-TraceExit=Trc_JVMTI_jvmtiGetObjectHashCode_Exit obsolete Overhead=1 Level=5 Noenv Template="GetObjectHashCode returning %d"
-TraceEntry=Trc_JVMTI_jvmtiGetObjectMonitorUsage_Entry obsolete Overhead=1 Level=5 Noenv Template="GetObjectMonitorUsage env=%p"
-TraceExit=Trc_JVMTI_jvmtiGetObjectMonitorUsage_Exit obsolete Overhead=1 Level=5 Noenv Template="GetObjectMonitorUsage returning %d"
-TraceEntry=Trc_JVMTI_jvmtiGetObjectSize_Entry obsolete Overhead=1 Level=5 Noenv Template="GetObjectSize env=%p"
-TraceExit=Trc_JVMTI_jvmtiGetObjectSize_Exit obsolete Overhead=1 Level=5 Noenv Template="GetObjectSize returning %d"
+TraceEntry=Trc_JVMTI_jvmtiGetObjectHashCode_Entry Obsolete Overhead=1 Level=5 Noenv Template="GetObjectHashCode env=%p"
+TraceExit=Trc_JVMTI_jvmtiGetObjectHashCode_Exit Obsolete Overhead=1 Level=5 Noenv Template="GetObjectHashCode returning %d"
+TraceEntry=Trc_JVMTI_jvmtiGetObjectMonitorUsage_Entry Obsolete Overhead=1 Level=5 Noenv Template="GetObjectMonitorUsage env=%p"
+TraceExit=Trc_JVMTI_jvmtiGetObjectMonitorUsage_Exit Obsolete Overhead=1 Level=5 Noenv Template="GetObjectMonitorUsage returning %d"
+TraceEntry=Trc_JVMTI_jvmtiGetObjectSize_Entry Obsolete Overhead=1 Level=5 Noenv Template="GetObjectSize env=%p"
+TraceExit=Trc_JVMTI_jvmtiGetObjectSize_Exit Obsolete Overhead=1 Level=5 Noenv Template="GetObjectSize returning %d"
 TraceEntry=Trc_JVMTI_jvmtiGetLocalDouble_Entry Overhead=1 Level=5 Noenv Template="GetLocalDouble env=%p"
 TraceExit=Trc_JVMTI_jvmtiGetLocalDouble_Exit Overhead=1 Level=5 Noenv Template="GetLocalDouble returning %d"
 TraceEntry=Trc_JVMTI_jvmtiGetLocalFloat_Entry Overhead=1 Level=5 Noenv Template="GetLocalFloat env=%p"
@@ -476,7 +476,7 @@ TraceExit=Trc_JVMTI_jvmtiResetVmDump_Exit Overhead=1 Level=1 Noenv Template="Res
 TraceEntry=Trc_JVMTI_jvmtiRegisterTraceSubscriber_Entry Overhead=1 Level=1 Noenv Template="RegisterTraceSubscriber env=%p description=%s subscriber=%p alarm=%p userData=%p subscriptionID=%p"
 TraceExit=Trc_JVMTI_jvmtiRegisterTraceSubscriber_Exit Overhead=1 Level=1 Noenv Template="RegisterTraceSubscriber returning %d"
 
-TraceEntry=Trc_JVMTI_jvmtiDeregisterTraceSubscriber_Entry_Obsolete obsolete Overhead=1 Level=1 Noenv Template="DeregisterTraceSubscriber env=%p subscriptionID=%p alarm=%p"
+TraceEntry=Trc_JVMTI_jvmtiDeregisterTraceSubscriber_Entry_Obsolete Obsolete Overhead=1 Level=1 Noenv Template="DeregisterTraceSubscriber env=%p subscriptionID=%p alarm=%p"
 TraceExit=Trc_JVMTI_jvmtiDeregisterTraceSubscriber_Exit Overhead=1 Level=1 Noenv Template="DeregisterTraceSubscriber returning %d"
 
 TraceEntry=Trc_JVMTI_jvmtiFlushTraceData_Entry Overhead=1 Level=1 Noenv Template="FlushTraceData env=%p"
@@ -563,7 +563,7 @@ TraceExit=Trc_JVMTI_issueAgentOnLoadAttach_Exit Overhead=1 Level=1 Noenv Templat
 TraceEvent=Trc_JVMTI_issueAgentOnLoadAttach_close_shared_library Overhead=1 Level=1 Noenv Template="issueAgentOnLoadAttach unloading %s"
 
 TraceEntry=Trc_JVMTI_loadAgentLibraryGeneric_Entry Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric loading library %s"
-TraceExit=Trc_JVMTI_loadAgentLibraryGeneric_Exit Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric successfully loaded library %s"
+TraceExit=Trc_JVMTI_loadAgentLibraryGeneric_Exit Obsolete Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric successfully loaded library %s"
 
 TraceEntry=Trc_JVMTI_loadAgentLibraryOnAttach_Entry Overhead=1 Level=1 Noenv Template="loadAgentLibraryOnAttach loading library %s"
 TraceExit=Trc_JVMTI_loadAgentLibraryOnAttach_Exit Overhead=1 Level=1 Noenv Template="loadAgentLibraryOnAttach loaded library %s, status=%d"
@@ -602,11 +602,11 @@ TraceException=Trc_JVMTI_issueAgentOnLoadAttach_loadFunctionFailed Overhead=1 Le
 TraceEvent=Trc_JVMTI_issueAgentOnLoadAttach_loadFunctionSucceeded Overhead=1 Level=5 Noenv Template="issueAgentOnLoadAttach: Load function %s succeeded"
 
 TraceEvent=Trc_JVMTI_loadAgentLibraryGeneric_loadingAgentAs Overhead=1 Level=5 Noenv Template="loadAgentLibraryGeneric: Loading agent as %s"
-TraceException=Trc_JVMTI_loadAgentLibraryGeneric_execNameNotFound Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric: failed obtaining executable name; error code=%d"
-TraceException=Trc_JVMTI_loadAgentLibraryGeneric_failedOpeningAgentLibrary Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric: Failed opening agent library %s"
+TraceException=Trc_JVMTI_loadAgentLibraryGeneric_execNameNotFound Obsolete Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric: failed obtaining executable name; error code=%d"
+TraceException=Trc_JVMTI_loadAgentLibraryGeneric_failedOpeningAgentLibrary Obsolete Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric: Failed opening agent library %s"
 TraceEvent=Trc_JVMTI_loadAgentLibraryGeneric_openedAgentLibrary Overhead=1 Level=5 Noenv Template="loadAgentLibraryGeneric: Opened agent %s (address=%p) %s"
-TraceException=Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed1 Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric: Failed attaching agent library; load function %s not found"
-TraceException=Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed2 Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric: Failed attaching agent library; load function failed with error code %zd"
+TraceException=Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed1 Obsolete Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric: Failed attaching agent library; load function %s not found"
+TraceException=Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed2 Obsolete Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric: Failed attaching agent library; load function failed with error code %zd"
 TraceEvent=Trc_JVMTI_loadAgentLibraryGeneric_agentAttachedSuccessfully Overhead=1 Level=5 Noenv Template="loadAgentLibraryGeneric: Attached agent %s successfully"
 
 TraceEvent=Trc_JVMTI_loadAgentLibraryOnAttach_attachingAgentDynamically Overhead=1 Level=5 Noenv Template="loadAgentLibraryOnAttach: Attached agent %s dynamically"
@@ -658,3 +658,50 @@ TraceExit=Trc_JVMTI_jvmtiHookVirtualThreadUnmount_Exit Overhead=1 Level=5 Noenv 
 
 TraceEntry=Trc_JVMTI_jvmtiHookVirtualThreadMount_Entry Overhead=1 Level=5 Noenv Template="HookVirtualThreadMount"
 TraceExit=Trc_JVMTI_jvmtiHookVirtualThreadMount_Exit Overhead=1 Level=5 Noenv Template="HookVirtualThreadMount"
+
+TraceEvent=Trc_JVMTI_loadAgentLibraryOnAttach_agentLoadingDisabled Overhead=1 Level=5 Noenv Template="loadAgentLibraryOnAttach: Dynamic agent loading is disabled"
+TraceExit-Exception=Trc_JVMTI_loadAgentLibraryGeneric_execNameNotFound_Exit Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric failed to obtain executable name with error code=%d while loading library %s"
+TraceExit-Exception=Trc_JVMTI_loadAgentLibraryGeneric_failedOpeningAgentLibrary_Exit Overhead==1 Level=1 Noenv Template="loadAgentLibraryGeneric failed to open agent library %s with error message %s"
+TraceExit-Exception=Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed1_Exit Overhead==1 Level=1 Noenv Template="loadAgentLibraryGeneric failed attaching agent library %s; load function %s not found"
+TraceExit-Exception=Trc_JVMTI_loadAgentLibraryGeneric_agentAttachFailed2_Exit Overhead==1 Level=1 Noenv Template="loadAgentLibraryGeneric failed attaching agent library %s; load function %s failed with error code=%d"
+TraceExit=Trc_JVMTI_loadAgentLibraryGeneric_succeed_Exit Overhead=1 Level=1 Noenv Template="loadAgentLibraryGeneric successfully loaded library %s and function %s"
+TraceEvent=Trc_JVMTI_isAgentLibraryLoaded_result Overhead=1 Level=5 Noenv Template="isAgentLibraryLoaded() library(%s) agentPath(%s) result(%zu)"
+TraceEvent=Trc_JVMTI_isAgentLibraryLoaded_library_decorate Overhead=1 Level=5 Noenv Template="isAgentLibraryLoaded() library(%s) decorate(%zu)"
+TraceEvent=Trc_JVMTI_loadqueryGetObjectFiles_OOM Overhead=1 Level=1 Noenv Template="loadqueryGetObjectFiles() OOM with objectFileSize(%zu)"
+TraceEvent=Trc_JVMTI_isAgentLibraryLoaded_OOM Overhead=1 Level=1 Noenv Template="isAgentLibraryLoaded() OOM at %s"
+TraceEvent=Trc_JVMTI_loadqueryGetObjectFiles_loadquery_errno Overhead=1 Level=1 Noenv Template="loadqueryGetObjectFiles:loadquery() failed with errno(%d)"
+TraceEvent=Trc_JVMTI_loadqueryGetObjectFiles_allocate_memory Overhead=1 Level=5 Noenv Template="loadqueryGetObjectFiles() tmpBuffer(%p) objectFileSize(%zu)"
+TraceEvent=Trc_JVMTI_isAgentLibraryLoaded_libNames Overhead=1 Level=5 Noenv Template="isAgentLibraryLoaded() libNameSo(%s) libNameAr(%s)"
+TraceEvent=Trc_JVMTI_isAgentLibraryLoaded_loadquery_getlibpath Overhead=1 Level=5 Noenv Template="isAgentLibraryLoaded:loadquery(L_GETLIBPATH) returns libpath(%s) libpathSize(%zu)"
+TraceEvent=Trc_JVMTI_isAgentLibraryLoaded_ldinfo_filename_decorate Overhead=1 Level=5 Noenv Template="isAgentLibraryLoaded() ldinfo_filename(%s) decorate(%zu)"
+TraceEvent=Trc_JVMTI_isFileNameInLibPath_path_not_match Overhead=1 Level=5 Noenv Template="isFileNameInLibPath() fileName(%s) path doesn't match (%s) with dirLen (%zu)"
+TraceEvent=Trc_JVMTI_isFileNameInLibPath_path_match Overhead=1 Level=3 Noenv Template="isFileNameInLibPath() fileName(%s) path matches (%s) with dirLen (%zu)"
+TraceEvent=Trc_JVMTI_searchObjectFileFromLDInfo_library_object_file_found Overhead=1 Level=5 Noenv Template="searchObjectFileFromLDInfo() fileName(%s) is same as libName"
+TraceEvent=Trc_JVMTI_searchObjectFileFromLDInfo_library_object_file_not_found Overhead=1 Level=5 Noenv Template="searchObjectFileFromLDInfo() fileName(%s) is not same as libName(%s)"
+
+TraceEntry=Trc_JVMTI_jvmtiHookVMCheckpoint_Entry Overhead=1 Level=2 Noenv Template="HookVMCheckpoint"
+TraceExit=Trc_JVMTI_jvmtiHookVMCheckpoint_Exit Overhead=1 Level=2 Noenv Template="HookVMCheckpoint"
+TraceEntry=Trc_JVMTI_jvmtiHookVMRestore_Entry Overhead=1 Level=2 Noenv Template="HookVMRestore"
+TraceExit=Trc_JVMTI_jvmtiHookVMRestore_Exit Overhead=1 Level=2 Noenv Template="HookVMRestore"
+
+TraceEvent=Trc_JVMTI_jvmtiAddCapabilities_no_capability Overhead=1 Level=1 Template="jvmtiAddCapabilities() failed: ~(((U_8 *) &potentialCapabilities)[%zu] = %x, result (%x)"
+TraceEvent=Trc_JVMTI_jvmtiAddCapabilities_not_onload Overhead=1 Level=1 Template="jvmtiAddCapabilities() failed: not JVMTI_PHASE_ONLOAD"
+TraceEvent=Trc_JVMTI_jvmtiAddCapabilities_object_alloc_set_already Overhead=1 Level=1 Template="jvmtiAddCapabilities() failed: J9JVMTI_FLAG_SAMPLED_OBJECT_ALLOC_ENABLED was set"
+TraceEvent=Trc_JVMTI_jvmtiAddCapabilities_mapCapabilitiesToEvents_failed Overhead=1 Level=1 Template="jvmtiAddCapabilities() failed: mapCapabilitiesToEvents()"
+TraceEvent=Trc_JVMTI_jvmtiAddCapabilities_hookNonEventCapabilities_failed Overhead=1 Level=1 Template="jvmtiAddCapabilities() failed: hookNonEventCapabilities()"
+
+TraceEvent=Trc_JVMTI_criuAddCapabilities_invoked Noenv Overhead=1 Level=3 Template="CRIU adds capabilities before checkpoint"
+TraceEvent=Trc_JVMTI_createAgentLibraryWithOption_OOM Noenv Overhead=1 Level=3 Template="createAgentLibraryWithOption j9mem_allocate_memory OOM"
+TraceEvent=Trc_JVMTI_createAgentLibraryWithOption_Xrunjdwp_result Noenv Overhead=1 Level=3 Template="createAgentLibraryWithOption Xrunjdwp optionsPtr (%s) optionsLengthTmp (%zu) agentLibrary (%p) result (%d)"
+TraceEvent=Trc_JVMTI_createAgentLibraryWithOption_agentlib_result Noenv Overhead=1 Level=3 Template="createAgentLibraryWithOption optionsPtr (%s) libraryLength (%zu) options (%s) optionsLength (%zu) agentLibrary (%p) result (%d)"
+TraceEntry=Trc_JVMTI_jvmtiHookVMRestoreCRIUInit_Entry Obsolete Overhead=1 Level=3 Noenv Template="jvmtiHookVMRestoreCRIUInit"
+TraceExit=Trc_JVMTI_jvmtiHookVMRestoreCRIUInit_Exit Obsolete Overhead=1 Level=3 Noenv Template="jvmtiHookVMRestoreCRIUInit"
+TraceEntry=Trc_JVMTI_jvmtiHookVMRestoreStartAgent_Entry Obsolete Overhead=1 Level=3 Noenv Template="jvmtiHookVMRestoreStartAgent"
+TraceExit=Trc_JVMTI_jvmtiHookVMRestoreStartAgent_Exit Obsolete Overhead=1 Level=3 Noenv Template="jvmtiHookVMRestoreStartAgent"
+TraceEntry=Trc_JVMTI_jvmtiHookVMPreparingForRestore_Entry Overhead=1 Level=3 Noenv Template="jvmtiHookVMPreparingForRestore"
+TraceExit=Trc_JVMTI_jvmtiHookVMPreparingForRestore_Exit Overhead=1 Level=3 Noenv Template="jvmtiHookVMPreparingForRestore"
+TraceEntry=Trc_JVMTI_jvmtiHookVMCRIURestore_Entry Overhead=1 Level=3 Noenv Template="jvmtiHookVMCRIURestore"
+TraceExit=Trc_JVMTI_jvmtiHookVMCRIURestore_Exit Overhead=1 Level=3 Noenv Template="jvmtiHookVMCRIURestore"
+
+TraceEntry=Trc_JVMTI_jvmtiClearAllFramePops_Entry Overhead=1 Level=5 Noenv Template="ClearAllFramePops env=%p"
+TraceExit=Trc_JVMTI_jvmtiClearAllFramePops_Exit Overhead=1 Level=5 Noenv Template="ClearAllFramePops returning %d"

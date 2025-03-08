@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(SHRINIT_H_INCLUDED)
@@ -61,7 +61,7 @@ void j9shr_populatePreinitConfigDefaults(J9JavaVM *vm, J9SharedClassPreinitConfi
 BOOLEAN j9shr_isPlatformDefaultPersistent(struct J9JavaVM* vm);
 UDATA j9shr_isBCIEnabled(J9JavaVM *vm);
 UDATA ensureCorrectCacheSizes(J9JavaVM *vm, J9PortLibrary* portlib, U_64 runtimeFlags, UDATA verboseFlags, J9SharedClassPreinitConfig* piconfig);
-UDATA parseArgs(J9JavaVM* vm, char* options, U_64* runtimeFlags, UDATA* verboseFlags, char** cacheName, char** modContext, char** expireTime, char** ctrlDirName, char** cacheDirPerm, char** methodSpecs, UDATA* printStatsOptions, UDATA* storageKeyTesting);
+UDATA parseArgs(J9JavaVM* vm, char* options, U_64* runtimeFlags, U_64* runtimeFlags2, UDATA* verboseFlags, char** cacheName, char** modContext, char** expireTime, char** ctrlDirName, char** cacheDirPerm, char** methodSpecs, UDATA* printStatsOptions, UDATA* storageKeyTesting);
 UDATA convertPermToDecimal(J9JavaVM *vm, const char *permStr);
 SCAbstractAPI * initializeSharedAPI(J9JavaVM *vm);
 U_64 getDefaultRuntimeFlags(void);
@@ -195,6 +195,11 @@ typedef struct J9SharedClassesOptions {
 #define OPTION_LAYER_EQUALS "layer="
 #define OPTION_CREATE_LAYER "createLayer"
 #define OPTION_NO_PERSISTENT_DISK_SPACE_CHECK "noPersistentDiskSpaceCheck"
+#define OPTION_MAP31 "map31"
+#define OPTION_TEST_DOUBLE_PAGESIZE "testDoublePageSize"
+#define OPTION_TEST_HALF_PAGESIZE "testHalfPageSize"
+#define OPTION_EXTRA_STARTUPHINTS_EQUALS "extraStartupHints="
+#define OPTION_SHARE_LAMBDAFORM "shareLambdaForm" /* internal option for dev/testing */
 
 /* public options for printallstats= and printstats=  */
 #define SUB_OPTION_PRINTSTATS_ALL "all"
@@ -275,6 +280,8 @@ typedef struct J9SharedClassesOptions {
 #define RESULT_DO_CREATE_LAYER 52
 #define RESULT_DO_PRINT_TOP_LAYER_STATS 53
 #define RESULT_DO_PRINT_TOP_LAYER_STATS_EQUALS 54
+#define RESULT_DO_ADD_RUNTIMEFLAG2 55
+#define RESULT_DO_SET_EXTRA_STARTUPHINTS 56
 
 #define PARSE_TYPE_EXACT 1
 #define PARSE_TYPE_STARTSWITH 2
@@ -307,6 +314,7 @@ typedef struct J9SharedClassesOptions {
 #define HELPTEXT_ADJUST_MINJITDATA_EQUALS OPTION_ADJUST_MINJITDATA_EQUALS"<size>"
 #define HELPTEXT_ADJUST_MAXJITDATA_EQUALS OPTION_ADJUST_MAXJITDATA_EQUALS"<size>"
 #define HELPTEXT_LAYER_EQUALS OPTION_LAYER_EQUALS "<number>"
+#define HELPTEXT_OPTION_EXTRA_STARTUPHINTS_EQUALS OPTION_EXTRA_STARTUPHINTS_EQUALS"<number>"
 
 #define HELPTEXT_NEWLINE {"", 0, 0, 0, 0}
 

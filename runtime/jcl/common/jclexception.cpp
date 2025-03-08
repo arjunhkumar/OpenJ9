@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j2sever.h"
@@ -39,7 +39,7 @@ extern "C" {
 static void setStackTraceElementFields(J9VMThread *vmThread, j9object_t element, J9ClassLoader *classLoader);
 #endif /* JAVA_SPEC_VERSION >= 11 */
 
-static UDATA getStackTraceIterator(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeOffset, J9ROMClass * romClass, J9ROMMethod * romMethod, J9UTF8 * fileName, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass);
+static UDATA getStackTraceIterator(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeOffset, J9ROMClass * romClass, J9ROMMethod * romMethod, J9UTF8 * fileName, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass, UDATA frameType);
 
 /**
  * Saves enough context into the StackTraceElement to allow printing later.  For
@@ -91,7 +91,7 @@ setStackTraceElementSource(J9VMThread* vmThread, j9object_t stackTraceElement, J
 
 
 static UDATA
-getStackTraceIterator(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeOffset, J9ROMClass * romClass, J9ROMMethod * romMethod, J9UTF8 * fileName, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass)
+getStackTraceIterator(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeOffset, J9ROMClass * romClass, J9ROMMethod * romMethod, J9UTF8 * fileName, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass, UDATA frameType)
 {
 	J9GetStackTraceUserData *userData = (J9GetStackTraceUserData*)voidUserData;
 	J9JavaVM * vm = vmThread->javaVM;
@@ -185,7 +185,9 @@ getStackTraceIterator(J9VMThread * vmThread, void * voidUserData, UDATA bytecode
 					omrthread_monitor_exit(vm->classLoaderModuleAndLocationMutex);
 				}
 				if (NULL != module) {
-					J9VMJAVALANGSTACKTRACEELEMENT_SET_MODULENAME(vmThread, element, module->moduleName);
+					j9object_t moduleObject = module->moduleObject;
+					Assert_JCL_notNull(moduleObject);
+					J9VMJAVALANGSTACKTRACEELEMENT_SET_MODULENAME(vmThread, element, J9VMJAVALANGMODULE_NAME(vmThread, moduleObject));
 					J9VMJAVALANGSTACKTRACEELEMENT_SET_MODULEVERSION(vmThread, element, module->version);
 				}
 			}
@@ -301,7 +303,7 @@ done:
 	return rc;
 }
 
-J9IndexableObject *  
+J9IndexableObject *
 getStackTrace(J9VMThread * vmThread, j9object_t * exceptionAddr, UDATA pruneConstructors)
 {
 	J9JavaVM * vm = vmThread->javaVM;
@@ -332,7 +334,7 @@ retry:
 	if (arrayClass == NULL) {
 		/* the first class in vm->arrayROMClasses is the array class for Objects */
 		arrayClass = vmFuncs->internalCreateArrayClass(vmThread,
-			(J9ROMArrayClass *) J9ROMIMAGEHEADER_FIRSTCLASS(vm->arrayROMClasses), 
+			(J9ROMArrayClass *) J9ROMIMAGEHEADER_FIRSTCLASS(vm->arrayROMClasses),
 			elementClass);
 		if (arrayClass == NULL) {
 			/* exception is pending from the call */

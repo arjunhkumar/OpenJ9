@@ -17,7 +17,7 @@
 // [1] https://www.gnu.org/software/classpath/license.html
 // [2] https://openjdk.org/legal/assembly-exception.html
 //
-// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+// SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 //******************************************************************************
 
 Executable=j9shr
@@ -806,8 +806,8 @@ TraceEntry=Trc_SHR_SMI_scHashFn_Entry Noenv Overhead=1 Level=6 Template="SMI scH
 TraceExit=Trc_SHR_SMI_scHashFn_Exit Noenv Overhead=1 Level=6 Template="SMI scHashFn: Returning hashcode %u"
 
 TraceEntry=Trc_SHR_SMI_scHashEqualFn_Entry Noenv Overhead=1 Level=6 Template="SMI scHashEqualFn: Comparing 0x%p with 0x%p"
-TraceExit=Trc_SHR_SMI_scHashEqualFn_Exit1 Noenv Overhead=1 Level=6 Template="SMI scHashEqualFn: One key is null. Exiting with false."
-TraceExit=Trc_SHR_SMI_scHashEqualFn_Exit2 Noenv Overhead=1 Level=6 Template="SMI scHashEqualFn: Key lengths don't match. Exiting with false."
+TraceExit=Trc_SHR_SMI_scHashEqualFn_Exit1 Obsolete Noenv Overhead=1 Level=6 Template="SMI scHashEqualFn: One key is null. Exiting with false."
+TraceExit=Trc_SHR_SMI_scHashEqualFn_Exit2 Obsolete Noenv Overhead=1 Level=6 Template="SMI scHashEqualFn: Key lengths don't match. Exiting with false."
 TraceExit=Trc_SHR_SMI_scHashEqualFn_Exit3 Noenv Overhead=1 Level=6 Template="SMI scHashEqualFn: Called compareUTF8. Result=%d"
 
 TraceEntry=Trc_SHR_SMI_scTableAdd_Entry Overhead=1 Level=6 Template="SMI scTableAdd: Entering add with key %.*s for item 0x%p"
@@ -2318,7 +2318,7 @@ TraceExit=Trc_SHR_OSC_openCache_Exit_CreatedHeaderInitFailed NoEnv Overhead=1 Le
 TraceEvent=Trc_SHR_Bad_CC_Init_Value Overhead=1 Level=1 Template="Bad composite cache header value. CompositeCache = %p, _theca->ccInitComplete = %zu"
 TraceEvent=Trc_SHR_CC_Startup_Cache_Initialization_Failure Overhead=1 Level=1 Template="After waiting, read-only cache is still not initialized."
 TraceEvent=Trc_SHR_CC_Startup_No_Cachelets Obsolete Overhead=1 Level=1 Template="No cachelets exist on startup. *_runtimeFlags = %llu, getContainsCachelets() = %d"
-TraceEvent=Trc_SHR_CC_OSPAGE_SIZE_MISMATCH Overhead=1 Level=1 Template="Mismatch in composite cache osPageSize value. CompositeCache = %p, _theca->osPageSize = %zu, _osPageSize = %zu"
+TraceEvent=Trc_SHR_CC_OSPAGE_SIZE_MISMATCH Obsolete Overhead=1 Level=1 Template="Mismatch in composite cache osPageSize value. CompositeCache = %p, _theca->osPageSize = %zu, _osPageSize = %zu"
 
 TraceExit=Trc_SHR_CC_allocate_Exit_CacheCorrupt Overhead=1 Level=3 Template="CC allocate: Failed because cache is marked as corrupt"
 TraceExit=Trc_SHR_CC_allocate_Exit_CacheFull Overhead=1 Level=3 Template="CC allocate: Failed because cache is full"
@@ -2992,3 +2992,19 @@ TraceExit-Exception=Trc_SHR_CMI_Update_Exit5 Overhead=1 Level=2 Template="CMI Up
 TraceExit-Exception=Trc_SHR_CMI_validate_Exit_IdentifiedMutex_Failed Overhead=1 Level=2 Template="CMI validate: Failed to acquire _identifiedMutex. Returning -1."
 TraceException=Trc_SHR_CC_changePartialPageProtection_NotDone_V1 Overhead=1 Level=1 Template="CC changePartialPageProtection: Returning without changing page protection for address %p to %s"
 TraceEvent=Trc_SHR_CC_freeBlockBytes_info NoEnv Overhead=1 Level=10 Template="CC getFreeBlockBytes: case %d, retVal %d, freeBytes %d, minAOT %d, aotBytes %d, minJIT %d, jitBytes %d"
+
+TraceExit-Exception=Trc_SHR_CM_getCachedUTFString_exit4 Overhead=1 Level=2 Template="CM getCachedUTFString: Exiting due to memory allocation failed"
+
+TraceEvent=Trc_SHR_CC_startup_setCacheInitComplete Overhead=1 Level=9 Template="CC startup: set cache initialization complete"
+TraceEvent=Trc_SHR_CC_enterWriteMutex_writerCountInc Overhead=1 Level=9 Template="CC enterWriteMutex writerCount incremented from %zu to %zu"
+TraceEvent=Trc_SHR_CC_exitWriteMutex_writerCountDec Overhead=1 Level=9 Template="CC exitWriteMutex writerCount decremented to %zu"
+TraceExit=Trc_SHR_OSC_Mmap_syncUpdates_badmsync1 NoEnv Overhead=1 Level=1 Template="SH_OSCachemmap::syncUpdates: j9mmap_msync failed with error number: %d, error message %s"
+TraceEvent=Trc_SHR_TMI_LocalCheckTimestamp_Timestamps Overhead=1 Level=6 Template="TMI localCheckTimestamp: timestamp checked, current is %lld, test is %lld"
+
+TraceEvent=Trc_SHR_VMInitStages_Event_UsingJITServerAOTCacheLayer Overhead=1 Level=1 Template="The shared cache is using a temporary top layer for the JITServer AOT cache"
+TraceEvent=Trc_SHR_OSC_Mmap_startup_jitserverlayergooddelete NoEnv Overhead=1 Level=1 Template="SH_OSCachemmap::startup: deleteCacheFile succeeded for cache path name = %s, file handle %zd"
+TraceException=Trc_SHR_OSC_Mmap_startup_jitserverlayerbaddelete NoEnv Overhead=1 Level=1 Template="SH_OSCachemmap::startup: deleteCacheFile failed for cache path name = %s, file handle %zd"
+
+TraceEvent=Trc_SHR_CC_OSPAGE_SIZE_MISMATCH_V1 Overhead=1 Level=1 Template="Mismatch in layer %d composite cache osPageSize value. CompositeCache = %p, _theca->osPageSize = %zu, _osPageSize = %zu, _theca->roundedPagesFlag is %u, _readOnlyOSCache is %d"
+TraceEvent=Trc_SHR_CC_setExtraStartupHints_Event Overhead=1 Level=6 Template="CC setExtraStartupHints: set extraStartupHints in the header to %u"
+TraceEvent=Trc_SHR_CM_storeSharedData_NoMoreStartupHintsAllowed Overhead=1 Level=1 Template="CM storeSharedData: No more startup hints are allowed to be stored"

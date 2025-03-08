@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17 & !OPENJDK_METHODHANDLES]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 final class Insert1IntHandle extends InsertHandle {
@@ -32,7 +32,7 @@ final class Insert1IntHandle extends InsertHandle {
 		if (values[0] instanceof Character) {
 			this.value = ((Character)values[0]).charValue();
 		} else {
-			this.value = ((Number)values[0]).intValue();	
+			this.value = ((Number)values[0]).intValue();
 		}
 		this.nextNoUnbox = nextNoUnbox;
 	}
@@ -43,12 +43,11 @@ final class Insert1IntHandle extends InsertHandle {
 		this.nextNoUnbox = originalHandle.nextNoUnbox;
 	}
 
-	
 	@Override
 	MethodHandle cloneWithNewType(MethodType newType) {
 		return new Insert1IntHandle(this, newType);
 	}
-	
+
 	// {{{ JIT support
 
 	private static final ThunkTable _thunkTable = new ThunkTable();
@@ -67,7 +66,6 @@ final class Insert1IntHandle extends InsertHandle {
 			value,
 			ILGenMacros.lastN(numSuffixArgs(), argPlaceholder)));
 	}
- 
+
 	// }}} JIT support
 }
-

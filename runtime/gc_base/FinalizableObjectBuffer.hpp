@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -39,17 +39,17 @@ class GC_FinalizableObjectBuffer
 private:
 	j9object_t _systemHead; /**< the head of the linked list of finalizable objects loaded by the system class loader */
 	j9object_t _systemTail; /**< the tail of the linked list of unfinalized objects loaded by the system class loader */
-	UDATA _systemObjectCount; /**< the number of buffered objects loaded by the system class loader */
+	uintptr_t _systemObjectCount; /**< the number of buffered objects loaded by the system class loader */
 	j9object_t _defaultHead; /**< the head of the linked list of unfinalized objects not loaded by the system class loader */
 	j9object_t _defaultTail; /**< the tail of the linked list of unfinalized objects not loaded by the system class loader */
-	UDATA _defaultObjectCount; /**< the number of buffered objects not loaded by the system class loader */
+	uintptr_t _defaultObjectCount; /**< the number of buffered objects not loaded by the system class loader */
 	MM_GCExtensions * const _extensions; /**< a cached pointer to the extensions structure */
-	J9ClassLoader* const _systemClassLoader;
+	J9ClassLoader * const _systemClassLoader;
 protected:
 public:
 
 private:
-	void addSystemObject(MM_EnvironmentBase* env, j9object_t object) {
+	void addSystemObject(MM_EnvironmentBase *env, j9object_t object) {
 		if (NULL == _systemHead) {
 			Assert_MM_true(NULL == _systemTail);
 			Assert_MM_true(0 == _systemObjectCount);
@@ -66,7 +66,7 @@ private:
 		}
 	}
 
-	void addDefaultObject(MM_EnvironmentBase* env, j9object_t object) {
+	void addDefaultObject(MM_EnvironmentBase *env, j9object_t object) {
 		if (NULL == _defaultHead) {
 			_extensions->accessBarrier->setFinalizeLink(object, NULL);
 			_defaultHead = object;
@@ -85,7 +85,7 @@ public:
 	 * @param env[in] the current thread
 	 * @param object[in] the object to add
 	 */
-	virtual void add(MM_EnvironmentBase* env, j9object_t object)
+	virtual void add(MM_EnvironmentBase *env, j9object_t object)
 	{
 		if (_systemClassLoader == (J9OBJECT_CLAZZ((J9VMThread *)env->getOmrVMThread()->_language_vmthread, object)->classLoader)) {
 			addSystemObject(env, object);
@@ -94,7 +94,7 @@ public:
 		}
 	}
 
-	void flush(MM_EnvironmentBase* env)
+	void flush(MM_EnvironmentBase *env)
 	{
 		GC_FinalizeListManager *finalizeListManager = _extensions->finalizeListManager;
 		if (NULL != _systemHead) {
@@ -115,15 +115,15 @@ public:
 	 * Construct a new buffer.
 	 * @param extensions[in] the GC extensions
 	 */
-	GC_FinalizableObjectBuffer(MM_GCExtensions *extensions) :
-		_systemHead(NULL)
-		,_systemTail(NULL)
-		,_systemObjectCount(0)
-		,_defaultHead(NULL)
-		,_defaultTail(NULL)
-		,_defaultObjectCount(0)
-		,_extensions(extensions)
-		,_systemClassLoader(((J9JavaVM *)extensions->getOmrVM()->_language_vm)->systemClassLoader)
+	GC_FinalizableObjectBuffer(MM_GCExtensions *extensions)
+		: _systemHead(NULL)
+		, _systemTail(NULL)
+		, _systemObjectCount(0)
+		, _defaultHead(NULL)
+		, _defaultTail(NULL)
+		, _defaultObjectCount(0)
+		, _extensions(extensions)
+		, _systemClassLoader(((J9JavaVM *)extensions->getOmrVM()->_language_vm)->systemClassLoader)
 	{}
 };
 #endif /* FINALIZABLEOBJECTBUFFER_HPP_ */

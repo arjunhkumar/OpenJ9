@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.image.javacore;
 
 import java.util.Iterator;
@@ -32,12 +32,12 @@ import com.ibm.dtfj.image.ImageModule;
 import com.ibm.dtfj.image.ImageSymbol;
 
 public class JCImageModule implements ImageModule {
-	
+
 	private Vector fSections;
 	private Vector fSymbols;
 	private Properties fProperties;
 	private final String fName;
-	
+
 	public JCImageModule(String name) {
 		fName = name;
 		fSections = new Vector();
@@ -45,9 +45,8 @@ public class JCImageModule implements ImageModule {
 		fProperties = new Properties();
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public String getName() throws CorruptDataException {
 		if (fName == null) {
@@ -55,21 +54,18 @@ public class JCImageModule implements ImageModule {
 		}
 		return fName;
 	}
-	
-	
+
 	/**
 	 * NON-DTFJ. Used for internal building purposes. Do NOT call outside the building process.
 	 * Use the DTFJ alternative instead.
-	 * 
+	 *
 	 */
 	public String getInternalName() {
 		return fName;
 	}
 
-	
-	
 	/**
-	 * 
+	 *
 	 */
 	public Properties getProperties() throws CorruptDataException {
 		if (fProperties.size() == 0) {
@@ -77,10 +73,9 @@ public class JCImageModule implements ImageModule {
 		}
 		return fProperties;
 	}
-	
-	
+
 	/**
-	 * 
+	 *
 	 * @param key
 	 * @param value
 	 */
@@ -88,17 +83,15 @@ public class JCImageModule implements ImageModule {
 		fProperties.put(key, value);
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public Iterator getSections() {
 		return fSections.iterator();
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public Iterator getSymbols() {
 		return fSymbols.iterator();
@@ -112,7 +105,7 @@ public class JCImageModule implements ImageModule {
 			fSymbols.add(symbol);
 		}
 	}
-	
+
 	public long getLoadAddress() throws DataUnavailable {
 		throw new DataUnavailable("no load address in a javacore");
 	}

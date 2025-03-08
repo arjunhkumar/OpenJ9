@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,49 +18,49 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java;
 
 import java.util.Iterator;
 
 /**
  * <p>Represents a heap of managed objects.</p>
- * 
- * <p>There may be multiple heaps within a JVM, for instance a generational 
- * heap and a class heap. Additionally, heaps may consist of non-contiguous 
- * memory regions. For instance, an object heap may be divided into a hot 
+ *
+ * <p>There may be multiple heaps within a JVM, for instance a generational
+ * heap and a class heap. Additionally, heaps may consist of non-contiguous
+ * memory regions. For instance, an object heap may be divided into a hot
  * and cold section.</p>
- * 
+ *
  */
 public interface JavaHeap {
-    
-    /**
-     * Get the set of contiguous memory regions which form this heap. 
-     * @return an iterator over the collection of contiguous memory regions
-     * which form this heap
-     * 
-     * @see com.ibm.dtfj.image.ImageSection
-     * @see com.ibm.dtfj.image.CorruptData
-     */
-    public Iterator getSections();
-    
-    /**
-     * Get a brief textual description of this heap.
-     * @return a brief textual description of this heap
-     */
-    public String getName();
-    
-    /**
-     * Get the set of objects which are stored in this heap.
-     * @return an iterator over the collection of objects which
-     * are stored in this heap
-     * 
-     * @see JavaObject
-     * @see com.ibm.dtfj.image.CorruptData
-     */
-    public Iterator getObjects();
-    
+
+	/**
+	 * Get the set of contiguous memory regions which form this heap.
+	 * @return an iterator over the collection of contiguous memory regions
+	 * which form this heap
+	 *
+	 * @see com.ibm.dtfj.image.ImageSection
+	 * @see com.ibm.dtfj.image.CorruptData
+	 */
+	public Iterator getSections();
+
+	/**
+	 * Get a brief textual description of this heap.
+	 * @return a brief textual description of this heap
+	 */
+	public String getName();
+
+	/**
+	 * Get the set of objects which are stored in this heap.
+	 * @return an iterator over the collection of objects which
+	 * are stored in this heap
+	 *
+	 * @see JavaObject
+	 * @see com.ibm.dtfj.image.CorruptData
+	 */
+	public Iterator getObjects();
+
 	/**
 	 * @param obj
 	 * @return True if the given object refers to the same Java Heap in the image

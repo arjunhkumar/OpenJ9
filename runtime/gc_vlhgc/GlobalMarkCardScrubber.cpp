@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -290,18 +290,15 @@ MM_GlobalMarkCardScrubber::scrubClassLoaderObject(MM_EnvironmentVLHGC *env, J9Ob
 				Assert_MM_true(NULL != module->moduleObject);
 				doScrub = mayScrubReference(env, classLoaderObject, module->moduleObject);
 				if (doScrub) {
-					doScrub = mayScrubReference(env, classLoaderObject, module->moduleName);
-				}
-				if (doScrub) {
 					doScrub = mayScrubReference(env, classLoaderObject, module->version);
 				}
 				modulePtr = (J9Module**)hashTableNextDo(&walkState);
 			}
 
 			if (classLoader == javaVM->systemClassLoader) {
-				Assert_MM_true(NULL != javaVM->unamedModuleForSystemLoader->moduleObject);
+				Assert_MM_true(NULL != javaVM->unnamedModuleForSystemLoader->moduleObject);
 				if (doScrub) {
-					doScrub = mayScrubReference(env, classLoaderObject, javaVM->unamedModuleForSystemLoader->moduleObject);
+					doScrub = mayScrubReference(env, classLoaderObject, javaVM->unnamedModuleForSystemLoader->moduleObject);
 				}
 			}
 		}
@@ -395,7 +392,7 @@ MM_ParallelScrubCardTableTask::shouldYieldFromTask(MM_EnvironmentBase *env)
 {
 	if (!_timeLimitWasHit) {
 		PORT_ACCESS_FROM_ENVIRONMENT(env);
-		I_64 currentTime = j9time_current_time_millis();
+		U_64 currentTime = j9time_hires_clock();
 						
 		if (currentTime >= _timeThreshold) {
 			_timeLimitWasHit = true;

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -146,6 +146,7 @@ SH_OSCachemmap::finalise()
  * \args J9OSCACHE_OPEN_MODE_TRY_READONLY_ON_FAIL - if the cache could not be opened read/write - try readonly
  * \args J9OSCACHE_OPEN_MODE_GROUPACCESS - creates a cache with group access. Only applies when a cache is created
  * \args J9OSCACHE_OPEN_MODE_CHECK_NETWORK_CACHE - checks whether we are attempting to connect to a networked cache
+ * \args J9OSCACHE_OPEN_MODE_JITSERVER_AOT_LAYER - immediately unlink the underlying cache file after it is created
  * @param [in]  versionData Version data of the cache to connect to
  * @param [in]  initializer Pointer to an initializer to be used to initialize the data
  *              area of a new cache
@@ -183,7 +184,7 @@ SH_OSCachemmap::startup(J9JavaVM* vm, const char* ctrlDirName, UDATA cacheDirPer
 
 	versionData->cacheType = J9PORT_SHR_CACHE_TYPE_PERSISTENT;
 	mmapCapabilities = j9mmap_capabilities();
-	if (!(mmapCapabilities & J9PORT_MMAP_CAPABILITY_WRITE) || !(mmapCapabilities & J9PORT_MMAP_CAPABILITY_MSYNC)) {
+	if (J9_ARE_NO_BITS_SET(mmapCapabilities, J9PORT_MMAP_CAPABILITY_WRITE | J9PORT_MMAP_CAPABILITY_MSYNC)) {
 		Trc_SHR_OSC_Mmap_startup_nommap(mmapCapabilities);
 		errorHandler(J9NLS_SHRC_OSCACHE_MMAP_STARTUP_MMAPCAP, NULL);
 		goto _errorPreFileOpen;
@@ -214,6 +215,16 @@ SH_OSCachemmap::startup(J9JavaVM* vm, const char* ctrlDirName, UDATA cacheDirPer
 	}
 	Trc_SHR_OSC_Mmap_startup_goodfileopen(_cachePathName, _fileHandle);
 
+#if defined(J9VM_OPT_JITSERVER)
+	if (J9_ARE_ALL_BITS_SET(openMode, J9OSCACHE_OPEN_MODE_JITSERVER_AOT_LAYER)) {
+		if (deleteCacheFile(&lastErrorInfo)) {
+			Trc_SHR_OSC_Mmap_startup_jitserverlayergooddelete(_cachePathName, _fileHandle);
+		} else {
+			Trc_SHR_OSC_Mmap_startup_jitserverlayerbaddelete(_cachePathName, _fileHandle);
+			errorHandler(J9NLS_SHRC_OSCACHE_MMAP_STARTUP_JITSERVER_LAYER_FILE_DELETE_ERROR, &lastErrorInfo);
+		}
+	}
+#endif /* defined(J9VM_OPT_JITSERVER) */
 	/* Avoid any checks for cache file access if
 	 * - user has specified a cache directory, or
 	 * - destroying an existing cache (if SHR_STARTUP_REASON_DESTROY or SHR_STARTUP_REASON_EXPIRE or J9SH_OSCACHE_OPEXIST_DESTROY is set)
@@ -668,7 +679,7 @@ SH_OSCachemmap::acquireWriteLock(UDATA lockID)
 	while ((rc == -1) && (j9error_last_error_number() == J9PORT_ERROR_FILE_LOCK_EDEADLK)) {
 		if (++loopCount > 1) {
 			/* We time the loop so it doesn't loop forever. Try the lock algorithm below
-			 * once before staring the timer. */
+			 * once before starting the timer. */
 			if (startLoopTime == 0) {
 				startLoopTime = j9time_nano_time();
 			} else if (loopCount > 2) {
@@ -957,10 +968,8 @@ SH_OSCachemmap::internalAttach(bool isNewCache, UDATA generation)
 	IDATA rc = J9SH_OSCACHE_FAILURE;
 
 	Trc_SHR_OSC_Mmap_internalAttach_Entry();
-
 	/* Get current length of file */
 	accessFlags |= J9PORT_MMAP_FLAG_SHARED;
-
 	_actualFileLength = _cacheSize;
 	Trc_SHR_Assert_True(_actualFileLength > 0);
 
@@ -988,6 +997,13 @@ SH_OSCachemmap::internalAttach(bool isNewCache, UDATA generation)
 	}
 #endif
 
+#if defined(J9ZOS39064)
+	if (J9_ARE_NO_BITS_SET(_runtimeFlags, J9SHR_RUNTIMEFLAG_MAP31)
+		&& zos_version_at_least(ZOS_V2R4_RELEASE, ZOS_V2R4_VERSION)
+	) {
+		accessFlags |= J9PORT_MMAP_FLAG_ZOS_64BIT;
+	}
+#endif /* defined(J9ZOS39064) */
 	/* Map the file */
 	_mapFileHandle = j9mmap_map_file(_fileHandle, 0, (UDATA)_actualFileLength, _cachePathName, accessFlags, J9MEM_CATEGORY_CLASSES_SHC_CACHE);
 	if ((NULL == _mapFileHandle) || (NULL == _mapFileHandle->pointer)) {
@@ -1650,7 +1666,7 @@ SH_OSCachemmap::runExitCode()
 	Trc_SHR_OSC_Mmap_runExitCode_Exit();
 }
 
-#if defined (J9SHR_MSYNC_SUPPORT)
+#if defined(J9VM_OPT_SHR_MSYNC_SUPPORT)
 /**
  * Synchronise cache updates to disk
  *
@@ -1662,14 +1678,17 @@ IDATA
 SH_OSCachemmap::syncUpdates(void* start, UDATA length, U_32 flags)
 {
 	PORT_ACCESS_FROM_PORT(_portLibrary);
-
-	IDATA rc;
-
 	Trc_SHR_OSC_Mmap_syncUpdates_Entry(start, length, flags);
-
-	rc = j9mmap_msync(start, length, flags);
+	IDATA rc = j9mmap_msync(start, length, flags);
 	if (-1 == rc) {
-		Trc_SHR_OSC_Mmap_syncUpdates_badmsync();
+		I_32 errorno = j9error_last_error_number();
+		const char * errormsg = j9error_last_error_message();
+		LastErrorInfo lastErrorInfo;
+		lastErrorInfo.lastErrorCode = errorno;
+		lastErrorInfo.lastErrorMsg = errormsg;
+		Trc_SHR_OSC_Mmap_syncUpdates_badmsync1(errorno, errormsg);
+		errorHandler(J9NLS_SHRC_OSCACHE_MMAP_MSYNC_ERROR, &lastErrorInfo);
+		Trc_SHR_Assert_ShouldNeverHappen();
 		return -1;
 	}
 	Trc_SHR_OSC_Mmap_syncUpdates_goodmsync();
@@ -1677,7 +1696,7 @@ SH_OSCachemmap::syncUpdates(void* start, UDATA length, U_32 flags)
 	Trc_SHR_OSC_Mmap_syncUpdates_Exit();
 	return 0;
 }
-#endif
+#endif /* defined(J9VM_OPT_SHR_MSYNC_SUPPORT) */
 
 /**
  * Return the locking capabilities of this shared classes cache implementation
@@ -1725,12 +1744,17 @@ SH_OSCachemmap::getPermissionsRegionGranularity(J9PortLibrary* portLibrary)
 	/* The code below is used as is in SH_CompositeCacheImpl::initialize()
 	 * for initializing SH_CompositeCacheImpl::_osPageSize during unit testing.
 	 */
-
-	/* This call to capabilities is arguably unnecessary, but it is a good check to do */
-	if (j9mmap_capabilities() & J9PORT_MMAP_CAPABILITY_PROTECT) {
+	int32_t mmapCapabilities = j9mmap_capabilities();
+#if defined(J9VM_OPT_SHR_MSYNC_SUPPORT)
+#define MMAP_CAPABILITY_MASK (J9PORT_MMAP_CAPABILITY_PROTECT | J9PORT_MMAP_CAPABILITY_MSYNC)
+#else /* defined(J9VM_OPT_SHR_MSYNC_SUPPORT) */
+#define MMAP_CAPABILITY_MASK J9PORT_MMAP_CAPABILITY_PROTECT
+#endif /* defined(J9VM_OPT_SHR_MSYNC_SUPPORT) */
+	if (J9_ARE_ANY_BITS_SET(mmapCapabilities, MMAP_CAPABILITY_MASK)) {
 		return j9mmap_get_region_granularity((void*)_headerStart);
 	}
 	return 0;
+#undef MMAP_CAPABILITY_MASK
 }
 
 /**

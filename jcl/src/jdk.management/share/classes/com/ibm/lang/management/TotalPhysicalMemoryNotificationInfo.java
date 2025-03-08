@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2005
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management;
 
 import javax.management.openmbean.CompositeData;
@@ -42,7 +42,7 @@ public class TotalPhysicalMemoryNotificationInfo {
 
 	/**
 	 * Constructs a new instance of this object.
-	 * 
+	 *
 	 * @param newTotalPhysicalMemory
 	 *            the new total bytes of physical memory
 	 */
@@ -58,29 +58,29 @@ public class TotalPhysicalMemoryNotificationInfo {
 	 */
 	public long getNewTotalPhysicalMemory() {
 		return this.newTotalPhysicalMemory;
-    }
+	}
 
-    /**
-     * Receives a {@link CompositeData} representing a
-     * <code>TotalPhysicalMemoryNotificationInfo</code> object and attempts to
-     * return the root <code>TotalPhysicalMemoryNotificationInfo</code>
-     * instance.
-     * 
-     * @param cd
-     *            a <code>CompositeDate</code> that represents a
-     *            <code>TotalPhysicalMemoryNotificationInfo</code>.
-     * @return if <code>cd</code> is non- <code>null</code>, returns a new
-     *         instance of <code>TotalPhysicalMemoryNotificationInfo</code>.
-     *         If <code>cd</code> is <code>null</code>, returns
-     *         <code>null</code>.
-     * @throws IllegalArgumentException
-     *             if argument <code>cd</code> does not correspond to a
-     *             <code>TotalPhysicalMemoryNotificationInfo</code> with the
-     *             following attribute:
-     *             <ul>
-     *             <li><code>newTotalPhysicalMemory</code>( <code>java.lang.Long</code>)
-     *             </ul>
-     */
+	/**
+	 * Receives a {@link CompositeData} representing a
+	 * <code>TotalPhysicalMemoryNotificationInfo</code> object and attempts to
+	 * return the root <code>TotalPhysicalMemoryNotificationInfo</code>
+	 * instance.
+	 *
+	 * @param cd
+	 *            a <code>CompositeDate</code> that represents a
+	 *            <code>TotalPhysicalMemoryNotificationInfo</code>.
+	 * @return if <code>cd</code> is non- <code>null</code>, returns a new
+	 *         instance of <code>TotalPhysicalMemoryNotificationInfo</code>.
+	 *         If <code>cd</code> is <code>null</code>, returns
+	 *         <code>null</code>.
+	 * @throws IllegalArgumentException
+	 *             if argument <code>cd</code> does not correspond to a
+	 *             <code>TotalPhysicalMemoryNotificationInfo</code> with the
+	 *             following attribute:
+	 *             <ul>
+	 *             <li><code>newTotalPhysicalMemory</code>( <code>java.lang.Long</code>)
+	 *             </ul>
+	 */
 	public static TotalPhysicalMemoryNotificationInfo from(CompositeData cd) {
 		TotalPhysicalMemoryNotificationInfo result = null;
 
@@ -90,7 +90,7 @@ public class TotalPhysicalMemoryNotificationInfo {
 			// following method invocations will exit on an
 			// IllegalArgumentException...
 			ManagementUtils.verifyFieldNumber(cd, 1);
-			String[] attributeNames = { "newTotalPhysicalMemory" }; //$NON-NLS-1$ 
+			String[] attributeNames = { "newTotalPhysicalMemory" }; //$NON-NLS-1$
 			ManagementUtils.verifyFieldNames(cd, attributeNames);
 			String[] attributeTypes = { "java.lang.Long" }; //$NON-NLS-1$
 			ManagementUtils.verifyFieldTypes(cd, attributeNames, attributeTypes);

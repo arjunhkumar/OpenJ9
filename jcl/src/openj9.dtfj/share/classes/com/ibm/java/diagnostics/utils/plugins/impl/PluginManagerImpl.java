@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.diagnostics.utils.plugins.impl;
 
 import java.io.File;
@@ -34,14 +34,14 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 import java.net.URI;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.stream.Stream;
-/*[ENDIF] Sidecar19-SE */
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 import jdk.internal.org.objectweb.asm.ClassReader;
 
@@ -161,14 +161,14 @@ public class PluginManagerImpl implements PluginManager {
 				}
 			}
 
-			/*[IF Sidecar19-SE]*/
+			/*[IF JAVA_SPEC_VERSION >= 9]*/
 			scanModule("openj9.dtfj"); //$NON-NLS-1$
 			scanModule("openj9.dtfjview"); //$NON-NLS-1$
-			/*[ENDIF] Sidecar19-SE */
+			/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 		}
 	}
 
-	/*[IF Sidecar19-SE]*/
+	/*[IF JAVA_SPEC_VERSION >= 9]*/
 	private void scanModule(String moduleName) {
 		@SuppressWarnings("resource") // we explicitly do not want to close the file-system
 		FileSystem fs = FileSystems.getFileSystem(URI.create("jrt:/")); //$NON-NLS-1$
@@ -207,7 +207,7 @@ public class PluginManagerImpl implements PluginManager {
 			logger.log(Level.FINE, "Error occurred scanning " + path, e); //$NON-NLS-1$
 		}
 	}
-	/*[ENDIF] Sidecar19-SE */
+	/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 	/**
 	 * Get an entry from the cache, using generics to describe the type expected.
@@ -296,7 +296,7 @@ public class PluginManagerImpl implements PluginManager {
 		return entry;
 	}
 
-	/*[IF Sidecar19-SE]*/
+	/*[IF JAVA_SPEC_VERSION >= 9]*/
 	private Entry examineClassFile(InputStream is, URL url) {
 		Entry entry = null;
 		try {
@@ -309,7 +309,7 @@ public class PluginManagerImpl implements PluginManager {
 		}
 		return entry;
 	}
-	/*[ENDIF] Sidecar19-SE */
+	/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 	private ClassInfo scanClassFile(InputStream file, URL url) throws IOException {
 		ClassScanner scanner = new ClassScanner(url, listeners);

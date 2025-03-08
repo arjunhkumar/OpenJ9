@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.openj9.test.attachAPI;
 
 import java.io.BufferedReader;
@@ -48,7 +48,7 @@ import com.sun.tools.attach.VirtualMachineDescriptor;
 import com.sun.tools.attach.spi.AttachProvider;
 
 @SuppressWarnings("nls")
-class TargetManager {
+public class TargetManager {
 	static final String OPENJ9_INTERNAL_TOOLS_ATTACH_TARGET_ATTACH_HANDLER = "openj9.internal.tools.attach.target.AttachHandler";
 	private static Logger logger = Logger.getLogger(TargetManager.class);
 	public static final String PID_PREAMBLE = "pid=";
@@ -58,7 +58,8 @@ class TargetManager {
 	public static final String STATUS_DUPLICATE_VMID = "duplicate_vmid";
 	public static final String STATUS_INIT_FAIL = "attach_init_fail";
 
-	String targetId, displayName;
+	public String targetId;
+	String displayName;
 	private Process proc;
 	private BufferedWriter targetInWriter;
 	private BufferedReader targetOutReader;
@@ -70,7 +71,7 @@ class TargetManager {
 	private String targetVmid;
 	public static final String TARGETVM_START = "targetvm_start";
 	public static final String TARGETVM_STOP = "targetvm_stop";
-	private static boolean doLogging = false;
+	private static boolean doLogging = true; // enable doLogging by default
 	private static final String DEFAULT_IPC_DIR = ".com_ibm_tools_attach";
 	public TargetStatus targetVmStatus;
 	private boolean active = true;
@@ -330,7 +331,7 @@ class TargetManager {
 		return target;
 	}
 
-	boolean syncWithTarget() {
+	public boolean syncWithTarget() {
 		targetVmStatus = readTargetPidAndStatus();
 		if (!TargetStatus.INIT_SUCCESS.equals(targetVmStatus)) {
 			logger.info("TargetManager.syncWithTarget() failed!");

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -83,8 +83,8 @@ static void bcvHookClassesUnload (J9HookInterface** hook, UDATA eventNum, void* 
 static void printMethod (J9BytecodeVerificationData * verifyData);
 static IDATA simulateStack (J9BytecodeVerificationData * verifyData);
 
-static IDATA parseOptions (J9JavaVM *vm, char *optionValues, char **errorString);
-static IDATA setVerifyState ( J9JavaVM *vm, char *option, char **errorString );
+static IDATA parseOptions (J9JavaVM *vm, char *optionValues, const char **errorString);
+static IDATA setVerifyState ( J9JavaVM *vm, char *option, const char **errorString );
 
 
 /**
@@ -1166,9 +1166,6 @@ printMethod (J9BytecodeVerificationData * verifyData)
 			break;
 
 		case 'L':
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		case 'Q':
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 			i++;
 			while(string[i] != ';')
 			{
@@ -1225,9 +1222,6 @@ printMethod (J9BytecodeVerificationData * verifyData)
 				break;
 
 			case 'L':
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-			case 'Q':
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 				i++;
 				while(string[i] != ';')
 				{
@@ -1470,15 +1464,19 @@ simulateStack (J9BytecodeVerificationData * verifyData)
 		if ((stackTop - popCount) < stackBase) {
 			errorType = J9NLS_BCV_ERR_STACK_UNDERFLOW__ID;
 			verboseErrorCode = BCV_ERR_STACK_UNDERFLOW;
-			/* Given that the actual data type involved has not yet been located through pop operation
-			 * when stack underflow occurs, it needs to step back by 1 slot to the actual data type
-			 * to be manipulated by the opcode.
+			/* Set the error index to the maximal local variable instead of the 1st type
+			 * data on the stack to prevent displaying anything in the case of the stack
+			 * underflow when the garbage data on the empty stack is decoded in generating
+			 * the detailed error message so as to match the RI's behavior.
+			 *
+			 * Note:
+			 * liveStack->stackElements[0] represents the 1st local variable in 'locals'
+			 * while stackBase points to the 1st slot on the 'stack'. Thus, errorStackIndex
+			 * is set to 0 if stackBase points to liveStack->stackElements[0], which means
+			 * there is no variable in 'locals'.
 			 */
-			errorStackIndex = (U_32)(stackTop - liveStack->stackElements - 1);
-			/* Always set to the location of the 1st data type on 'stack' to show up if stackTop <= stackBase */
-			if (stackTop <= stackBase) {
-				errorStackIndex = (U_32)(stackBase - liveStack->stackElements);
-			}
+			errorStackIndex = (stackBase > liveStack->stackElements) ?
+					((U_32)(stackBase - liveStack->stackElements) - 1) : 0;
 			goto _verifyError;
 		}
 
@@ -1801,8 +1799,19 @@ simulateStack (J9BytecodeVerificationData * verifyData)
 				if (stackTop < stackBase) {
 					errorType = J9NLS_BCV_ERR_STACK_UNDERFLOW__ID;
 					verboseErrorCode = BCV_ERR_STACK_UNDERFLOW;
-					/* Always set to the location of the 1st data type on 'stack' to show up if stackTop <= stackBase */
-					errorStackIndex = (U_32)(stackBase - liveStack->stackElements);
+					/* Set the error index to the maximal local variable instead of the 1st type
+					 * data on the stack to prevent displaying anything in the case of the stack
+					 * underflow when the garbage data on the empty stack is decoded in generating
+					 * the detailed error message so as to match the RI's behavior.
+					 *
+					 * Note:
+					 * liveStack->stackElements[0] represents the 1st local variable in 'locals'
+					 * while stackBase points to the 1st slot on the 'stack'. Thus, errorStackIndex
+					 * is set to 0 if stackBase points to liveStack->stackElements[0], which means
+					 * there is no variable in 'locals'.
+					 */
+					errorStackIndex = (stackBase > liveStack->stackElements) ?
+							((U_32)(stackBase - liveStack->stackElements) - 1) : 0;
 					goto _verifyError;
 				}
 
@@ -2418,6 +2427,8 @@ j9bcv_verifyBytecodes (J9PortLibrary * portLib, J9Class * clazz, J9ROMClass * ro
 
 	verifyData->romClass = romClass;
 	verifyData->errorPC = 0;
+	verifyData->errorDetailCode = 0;
+	verifyData->errorTargetFrameIndex = -1;
 
 	verifyData->romClassInSharedClasses = j9shr_Query_IsAddressInCache(verifyData->javaVM, romClass, romClass->romSize);
 
@@ -2688,7 +2699,7 @@ j9bcv_J9VMDllMain (J9JavaVM* vm, IDATA stage, void* reserved)
 			loadInfo = FIND_DLL_TABLE_ENTRY( THIS_DLL_NAME );
 			verifyData = j9bcv_initializeVerificationData(vm);
 			if( !verifyData ) {
-				loadInfo->fatalErrorStr = "j9bcv_initializeVerificationData failed";
+				vm->internalVMFunctions->setErrorJ9dll(PORTLIB, loadInfo, "j9bcv_initializeVerificationData failed", FALSE);
 				returnVal = J9VMDLLMAIN_FAILED;
 				break;
 			}
@@ -2722,12 +2733,14 @@ j9bcv_J9VMDllMain (J9JavaVM* vm, IDATA stage, void* reserved)
 					/* Deal with possible -Xverify:<opt>,<opt> case */
 					GET_OPTION_VALUES( xVerifyColonIndex, ':', ',', &optionValuesBufferPtr, 128 );
 
-					if(*optionValuesBuffer) {
-						if (!parseOptions(vm, optionValuesBuffer, &loadInfo->fatalErrorStr)) {
+					if ('\0' != *optionValuesBuffer) {
+						const char *errorString = NULL;
+						if (!parseOptions(vm, optionValuesBuffer, &errorString)) {
+							vm->internalVMFunctions->setErrorJ9dll(PORTLIB, loadInfo, errorString, FALSE);
 							returnVal = J9VMDLLMAIN_FAILED;
 						}
 					} else {
-						loadInfo->fatalErrorStr = "No options specified for -Xverify:<opt>";
+						vm->internalVMFunctions->setErrorJ9dll(PORTLIB, loadInfo, "No options specified for -Xverify:<opt>", FALSE);
 						returnVal = J9VMDLLMAIN_FAILED;
 					}
 				}
@@ -2752,7 +2765,7 @@ j9bcv_J9VMDllMain (J9JavaVM* vm, IDATA stage, void* reserved)
 			noClassRelationshipVerifierIndex = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXNOCLASSRELATIONSHIPVERIFIER, NULL);
 			if (classRelationshipVerifierIndex > noClassRelationshipVerifierIndex) {
 				if (J9_ARE_ANY_BITS_SET(vm->runtimeFlags, J9_RUNTIME_XFUTURE)) {
-					loadInfo->fatalErrorStr = "-XX:+ClassRelationshipVerifier cannot be used if -Xfuture or if -Xverify:all is enabled";
+					vm->internalVMFunctions->setErrorJ9dll(PORTLIB, loadInfo, "-XX:+ClassRelationshipVerifier cannot be used if -Xfuture or if -Xverify:all is enabled", FALSE);
 					returnVal = J9VMDLLMAIN_FAILED;
 				} else {
 					vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME2_ENABLE_CLASS_RELATIONSHIP_VERIFIER;
@@ -2775,7 +2788,7 @@ j9bcv_J9VMDllMain (J9JavaVM* vm, IDATA stage, void* reserved)
 
 
 static IDATA
-setVerifyState(J9JavaVM *vm, char *option, char **errorString)
+setVerifyState(J9JavaVM *vm, char *option, const char **errorString)
 {
 	PORT_ACCESS_FROM_JAVAVM(vm);
 
@@ -2823,7 +2836,7 @@ setVerifyState(J9JavaVM *vm, char *option, char **errorString)
 
 
 static IDATA
-parseOptions(J9JavaVM *vm, char *optionValues, char **errorString)
+parseOptions(J9JavaVM *vm, char *optionValues, const char **errorString)
 {
 	char *optionValue = optionValues;			/* Values are separated by single NULL characters. */
 

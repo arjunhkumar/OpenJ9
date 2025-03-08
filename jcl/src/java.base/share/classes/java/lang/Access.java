@@ -18,11 +18,14 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  */
 package java.lang;
 
 import java.lang.annotation.Annotation;
+/*[IF JAVA_SPEC_VERSION >= 22]*/
+import java.lang.foreign.MemorySegment;
+/*[ENDIF] JAVA_SPEC_VERSION >= 22 */
 /*[IF JAVA_SPEC_VERSION >= 15]*/
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
@@ -32,17 +35,19 @@ import java.lang.StringConcatHelper;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
-import java.security.AccessControlContext;
 import java.util.Map;
 
 import com.ibm.oti.reflect.AnnotationParser;
 import com.ibm.oti.reflect.TypeAnnotationParser;
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 /*[IF JAVA_SPEC_VERSION >= 20]*/
 import java.io.InputStream;
 /*[ENDIF] JAVA_SPEC_VERSION >= 20 */
 import java.io.IOException;
+/*[IF JAVA_SPEC_VERSION >= 23]*/
+import java.io.PrintStream;
+/*[ENDIF] JAVA_SPEC_VERSION >= 23 */
 import java.lang.module.ModuleDescriptor;
 import java.net.URL;
 import java.net.URI;
@@ -73,15 +78,17 @@ import jdk.internal.vm.ContinuationScope;
 import jdk.internal.vm.StackableScope;
 import jdk.internal.vm.ThreadContainer;
 /*[ENDIF] JAVA_SPEC_VERSION >= 19 */
-/*[IF JAVA_SPEC_VERSION >= 20]*/
-import jdk.internal.misc.CarrierThreadLocal;
-/*[ENDIF] JAVA_SPEC_VERSION >= 20 */
-/*[ELSE] Sidecar19-SE */
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 import sun.misc.JavaLangAccess;
 import sun.reflect.ConstantPool;
-/*[ENDIF] Sidecar19-SE */
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 import sun.nio.ch.Interruptible;
 import sun.reflect.annotation.AnnotationType;
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import jdk.internal.loader.NativeLibraries;
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
 /**
  * Helper class to allow privileged access to classes
@@ -90,14 +97,12 @@ import sun.reflect.annotation.AnnotationType;
  */
 final class Access implements JavaLangAccess {
 
+	/*[IF JAVA_SPEC_VERSION == 8]*/
 	/** Set thread's blocker field. */
 	public void blockedOn(java.lang.Thread thread, Interruptible interruptable) {
-		/*[IF JAVA_SPEC_VERSION >= 11]*/
-		Thread.blockedOn(interruptable);
-		/*[ELSE] JAVA_SPEC_VERSION >= 11 */
 		thread.blockedOn(interruptable);
-		/*[ENDIF] JAVA_SPEC_VERSION >= 11 */
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION == 8 */
 
 	/**
 	 * Get the AnnotationType instance corresponding to this class.
@@ -164,11 +169,13 @@ final class Access implements JavaLangAccess {
 		return arg0.getInternalStackTrace()[arg1];
 	}
 
+/*[IF JAVA_SPEC_VERSION < 24]*/
 	/*[PR CMVC 199693] Prevent trusted method chain attack. */
 	@SuppressWarnings("removal")
-	public Thread newThreadWithAcc(Runnable runnable, AccessControlContext acc) {
+	public Thread newThreadWithAcc(Runnable runnable, java.security.AccessControlContext acc) {
 		return new Thread(runnable, acc);
 	}
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 	/**
 	 * Returns a directly present annotation instance of annotationClass type from clazz.
@@ -233,7 +240,7 @@ final class Access implements JavaLangAccess {
 		throw new Error("invokeFinalize unimplemented"); //$NON-NLS-1$
 	}
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 	public Class<?> findBootstrapClassOrNull(ClassLoader classLoader, String name) {
 		return VMAccess.findClassOrNull(name, ClassLoader.bootstrapClassLoader);
 	}
@@ -253,9 +260,11 @@ final class Access implements JavaLangAccess {
 	}
 /*[ENDIF] JAVA_SPEC_VERSION < 10 */
 
+/*[IF JAVA_SPEC_VERSION < 22]*/
 	public String fastUUID(long param1, long param2) {
 		return Long.fastUUID(param1, param2);
 	}
+/*[ENDIF] JAVA_SPEC_VERSION < 22 */
 
 	public Package definePackage(ClassLoader classLoader, String name, Module module) {
 		if (null == classLoader) {
@@ -283,29 +292,19 @@ final class Access implements JavaLangAccess {
 		return classLoader.createOrGetClassLoaderValueMap();
 	}
 
-	public Method getMethodOrNull(Class<?> clz, String name, Class<?>... parameterTypes) {
-		try {
-			return clz.getMethodHelper(false, false, null, name, parameterTypes);
-		} catch (NoSuchMethodException ex) {
-			return null;
-		}
-	}
-
+/*[IF (JAVA_SPEC_VERSION >= 11) & (JAVA_SPEC_VERSION < 24)]*/
 	@SuppressWarnings("removal")
 	public void invalidatePackageAccessCache() {
-/*[IF JAVA_SPEC_VERSION >= 10]*/
-		java.lang.SecurityManager.invalidatePackageAccessCache();
-/*[ELSE] JAVA_SPEC_VERSION >= 10 */
-		return;
-/*[ENDIF] JAVA_SPEC_VERSION >= 10 */
+		SecurityManager.invalidatePackageAccessCache();
 	}
+/*[ENDIF] (JAVA_SPEC_VERSION >= 11) & (JAVA_SPEC_VERSION < 24) */
 
 	public Class<?> defineClass(ClassLoader classLoader, String className, byte[] classRep, ProtectionDomain protectionDomain, String str) {
 		ClassLoader targetClassLoader = (null == classLoader) ? ClassLoader.bootstrapClassLoader : classLoader;
 		return targetClassLoader.defineClassInternal(className, classRep, 0, classRep.length, protectionDomain, true /* allowNullProtectionDomain */);
 	}
 
-/*[IF Sidecar19-SE-OpenJ9]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 	public Stream<ModuleLayer> layers(ModuleLayer ml) {
 		return ml.layers();
 	}
@@ -353,10 +352,12 @@ final class Access implements JavaLangAccess {
 		return ml.getServicesCatalog();
 	}
 
+/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	public void addNonExportedPackages(ModuleLayer ml) {
 		SecurityManager.addNonExportedPackages(ml);
 	}
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 	public List<Method> getDeclaredPublicMethods(Class<?> clz, String name, Class<?>... types) {
 		return clz.getDeclaredPublicMethods(name, types);
@@ -379,14 +380,14 @@ final class Access implements JavaLangAccess {
 	public boolean isReflectivelyExported(Module fromModule, String pkg, Module toModule) {
 		return fromModule.isReflectivelyExported(pkg, toModule);
 	}
-/*[ENDIF] Sidecar19-SE-OpenJ9 */
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 /*[IF JAVA_SPEC_VERSION >= 10]*/
 	public String newStringUTF8NoRepl(byte[] bytes, int offset, int length) {
 		/*[IF JAVA_SPEC_VERSION < 17]*/
 		return StringCoding.newStringUTF8NoRepl(bytes, offset, length);
 		/*[ELSE] JAVA_SPEC_VERSION < 17 */
-		/*[IF (JAVA_SPEC_VERSION < 21) | INLINE-TYPES]*/
+		/*[IF JAVA_SPEC_VERSION < 21]*/
 		return String.newStringUTF8NoRepl(bytes, offset, length);
 		/*[ELSE] JAVA_SPEC_VERSION < 21 */
 		return String.newStringUTF8NoRepl(bytes, offset, length, true);
@@ -404,7 +405,11 @@ final class Access implements JavaLangAccess {
 
 /*[IF JAVA_SPEC_VERSION >= 11]*/
 	public void blockedOn(Interruptible interruptible) {
+		/*[IF JAVA_SPEC_VERSION >= 23]*/
+		Thread.currentThread().blockedOn(interruptible);
+		/*[ELSE] JAVA_SPEC_VERSION >= 23 */
 		Thread.blockedOn(interruptible);
+		/*[ENDIF] JAVA_SPEC_VERSION >= 23 */
 	}
 	public byte[] getBytesNoRepl(String str, Charset charset) throws CharacterCodingException {
 		/*[IF JAVA_SPEC_VERSION < 17]*/
@@ -497,11 +502,24 @@ final class Access implements JavaLangAccess {
 		return String.join(prefix, suffix, delimiter, elements, size);
 	}
 
-/*[IF JAVA_SPEC_VERSION >= 20]*/
-	public void ensureNativeAccess(Module mod, Class<?> clsOwner, String methodName) {
-		mod.ensureNativeAccess(clsOwner, methodName);
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+	@Override
+	public void ensureNativeAccess(Module module, Class<?> ownerClass, String methodName, Class<?> callerClass, boolean isJNI) {
+		module.ensureNativeAccess(ownerClass, methodName, callerClass, isJNI);
 	}
+/*[ELSEIF JAVA_SPEC_VERSION >= 22]*/
+	@Override
+	public void ensureNativeAccess(Module module, Class<?> ownerClass, String methodName, Class<?> callerClass) {
+		module.ensureNativeAccess(ownerClass, methodName, callerClass);
+	}
+/*[ELSEIF JAVA_SPEC_VERSION >= 20]*/
+	@Override
+	public void ensureNativeAccess(Module module, Class<?> ownerClass, String methodName) {
+		module.ensureNativeAccess(ownerClass, methodName);
+	}
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
+/*[IF JAVA_SPEC_VERSION >= 20]*/
 	public void addEnableNativeAccessToAllUnnamed() {
 		Module.implAddEnableNativeAccessToAllUnnamed();
 	}
@@ -519,8 +537,61 @@ final class Access implements JavaLangAccess {
 		return mod.implAddEnableNativeAccess();
 	}
 
+/*[IF (21 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24)]*/
+	@Override
+	public boolean allowSecurityManager() {
+		return System.allowSecurityManager();
+	}
+/*[ENDIF] (21 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24) */
+
+/*[IF JAVA_SPEC_VERSION >= 23]*/
+	@Override
+	public boolean addEnableNativeAccess(ModuleLayer moduleLayer, String moduleName) {
+		return moduleLayer.addEnableNativeAccess(moduleName);
+	}
+
+	/*[IF JAVA_SPEC_VERSION < 25]*/
+	@Override
+	public int getCharsLatin1(long i, int index, byte[] buf) {
+		return StringLatin1.getChars(i, index, buf);
+	}
+
+	@Override
+	public int getCharsUTF16(long i, int index, byte[] buf) {
+		return StringUTF16.getChars(i, index, buf);
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 25 */
+
+	@Override
+	public void putCharUTF16(byte[] val, int index, int c) {
+		StringUTF16.putChar(val, index, c);
+	}
+
+/*[IF JAVA_SPEC_VERSION < 24]*/
+	@Override
+	public long stringConcatHelperPrepend(long indexCoder, byte[] buf, String value) {
+		return StringConcatHelper.prepend(indexCoder, buf, value);
+	}
+
+	@Override
+	public int stringSize(long x) {
+		return Long.stringSize(x);
+	}
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
+
+	@Override
+	public long stringConcatMix(long lengthCoder, char value) {
+		return StringConcatHelper.mix(lengthCoder, value);
+	}
+
+	@Override
+	public PrintStream initialSystemErr() {
+		return System.initialErr;
+	}
+/*[ENDIF] JAVA_SPEC_VERSION >= 23 */
+
 	public long findNative(ClassLoader loader, String entryName) {
-		return ClassLoader.findNative(loader, entryName);
+		return ClassLoader.findNative0(loader, entryName);
 	}
 
 	@Override
@@ -538,6 +609,7 @@ final class Access implements JavaLangAccess {
 		return Thread.currentCarrierThread();
 	}
 
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	public <V> V executeOnCarrierThread(Callable<V> task) throws Exception {
 		V result;
 		Thread currentThread = Thread.currentThread();
@@ -554,6 +626,7 @@ final class Access implements JavaLangAccess {
 		}
 		return result;
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 	public Continuation getContinuation(Thread thread) {
 		return thread.getContinuation();
@@ -600,6 +673,20 @@ final class Access implements JavaLangAccess {
 	public int countPositives(byte[] ba, int off, int len) {
 		return StringCoding.countPositives(ba, off, len);
 	}
+
+/*[IF JAVA_SPEC_VERSION < 23]*/
+	public long stringConcatCoder(char value) {
+		return StringConcatHelper.coder(value);
+	}
+
+	public long stringBuilderConcatMix(long lengthCoder, StringBuilder sb) {
+		return sb.mix(lengthCoder);
+	}
+
+	public long stringBuilderConcatPrepend(long lengthCoder, byte[] buf, StringBuilder sb) {
+		return sb.prepend(lengthCoder, buf);
+	}
+/*[ENDIF] JAVA_SPEC_VERSION < 23 */
 /*[ENDIF] JAVA_SPEC_VERSION >= 21 */
 /*[ELSE] JAVA_SPEC_VERSION >= 20 */
 	public Object[] extentLocalCache() {
@@ -696,9 +783,12 @@ final class Access implements JavaLangAccess {
 	}
 /*[ENDIF] JAVA_SPEC_VERSION >= 19 */
 
-/*[IF (JAVA_SPEC_VERSION >= 21) & !INLINE-TYPES]*/
+/*[IF JAVA_SPEC_VERSION >= 11]*/
 	@Override
 	public String getLoaderNameID(ClassLoader loader) {
+		if (loader == null) {
+			return "null";
+		}
 		StringBuilder buffer = new StringBuilder();
 		String name = loader.getName();
 
@@ -714,39 +804,74 @@ final class Access implements JavaLangAccess {
 
 		return buffer.toString();
 	}
-/*[ENDIF] (JAVA_SPEC_VERSION >= 21) & !INLINE-TYPES */
+/*[ENDIF] JAVA_SPEC_VERSION >= 11 */
+
+/*[IF JAVA_SPEC_VERSION >= 22]*/
+	@Override
+	public boolean bytesCompatible(String string, Charset charset) {
+		return string.bytesCompatible(charset);
+	}
+
+	@Override
+	public void copyToSegmentRaw(String string, MemorySegment segment, long offset) {
+		string.copyToSegmentRaw(segment, offset);
+	}
+
+	// No @Override to avoid breaking valhalla builds which is behind latest OpenJDK head stream update.
+	public Method findMethod(Class<?> clazz, boolean publicOnly, String methodName, Class<?>... parameterTypes) {
+		return clazz.findMethod(publicOnly, methodName, parameterTypes);
+	}
+
+/*[ENDIF] JAVA_SPEC_VERSION >= 22 */
 
 /*[IF INLINE-TYPES]*/
-	@Override
-	public boolean isPrimitiveClass(Class<?> c) {
-		return c.isPrimitiveClass();
-	}
-
-	@Override
-	public Class<?> asPrimaryType(Class<?> c) {
-		return c.asPrimaryType();
-	}
-
-	@Override
-	public Class<?> asValueType(Class<?> c) {
-		return c.asValueType();
-	}
-
-	@Override
-	public boolean isPrimaryType(Class<?> c) {
-		return c.isPrimaryType();
-	}
-
-	@Override
-	public boolean isPrimitiveValueType(Class<?> c) {
-		return c.isPrimitiveValueType();
-	}
-
 	@Override
 	public int classFileFormatVersion(Class<?> c) {
 		return c.getClassFileVersion();
 	}
 /*[ENDIF] INLINE-TYPES */
 
-/*[ENDIF] Sidecar19-SE */
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+	@Override
+	public Object stringConcat1(String[] constants) {
+		return new StringConcatHelper.Concat1(constants);
+	}
+
+	@Override
+	public String concat(String prefix, Object value, String suffix) {
+		return StringConcatHelper.concat(prefix, value, suffix);
+	}
+
+	@Override
+	public int countNonZeroAscii(String string) {
+		return StringCoding.countNonZeroAscii(string);
+	}
+
+	@Override
+	public NativeLibraries nativeLibrariesFor(ClassLoader loader) {
+		return ClassLoader.nativeLibrariesFor(loader);
+	}
+
+	@Override
+	public byte stringCoder(String string) {
+		return string.coder();
+	}
+
+	@Override
+	public byte stringInitCoder() {
+		return String.COMPACT_STRINGS ? String.LATIN1 : String.UTF16;
+	}
+
+	@Override
+	public Executor virtualThreadDefaultScheduler() {
+		return VirtualThread.defaultScheduler();
+	}
+
+	@Override
+	public Stream<ScheduledExecutorService> virtualThreadDelayedTaskSchedulers() {
+		return VirtualThread.delayedTaskSchedulers();
+	}
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
+
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 }

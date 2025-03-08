@@ -1,7 +1,7 @@
 /*[INCLUDE-IF SharedClasses]*/
 package com.ibm.oti.shared;
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -20,8 +20,8 @@ package com.ibm.oti.shared;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 import java.net.URL;
 
@@ -38,7 +38,7 @@ import java.net.URL;
  * <p>If partitions are required, the ClassLoader is responsible for coordinating the creation and use of partition Strings.</p>
  * <p>Classes can be stored only by using URLs that have file or jar protocols, and that refer to existing resources.
  * The presence of any other protocol in a URL prevents SharedClassURLHelper from locating and storing classes in the shared cache.</p>
- * <h2>Dynamic Cache Updates</h2> 
+ * <h2>Dynamic Cache Updates</h2>
  * <p>Because the shared cache persists beyond the lifetime of a JVM, classes in the shared cache can become out of date (stale).</p>
  * Classes in the cache are automatically kept up to date by default:<br>
  * <p>If findSharedClass is called for a class that exists in the cache but which has been updated on the filesystem since it was stored,
@@ -61,17 +61,21 @@ import java.net.URL;
  *   any metadata that it needs from disk before defining the classes.</p>
  * <h2>Security</h2>
  * <p>A SharedClassHelper will only allow classes that were defined by the ClassLoader that owns the SharedClassHelper to be stored in the cache.</p>
+/*[IF JAVA_SPEC_VERSION < 24]
  * <p>If a SecurityManager is installed, SharedClassPermissions must be used to permit read/write access to the shared class cache.
  * Permissions are granted by ClassLoader classname in the java.policy file and are fixed when the SharedClassHelper is created.</p>
- * <p>Note also that if the createClassLoader RuntimePermission is not granted, ClassLoaders cannot be created, 
+/*[ENDIF] JAVA_SPEC_VERSION < 24
+ * <p>Note also that if the createClassLoader RuntimePermission is not granted, ClassLoaders cannot be created,
  * which in turn means that SharedClassHelpers cannot be created.</p>
  * <h2>Compatibility with other SharedClassHelpers</h2>
  * <p>Classes stored by using the SharedClassURLHelper can be retrieved by using the SharedClassURLClasspathHelper and vice versa.
  * This is also true for partitions that can be used across these two helpers.</p>
- * 
+ *
  * @see SharedClassURLHelper
  * @see SharedClassHelperFactory
+/*[IF JAVA_SPEC_VERSION < 24]
  * @see SharedClassPermission
+/*[ENDIF] JAVA_SPEC_VERSION < 24
  */
 public interface SharedClassURLHelper extends SharedClassHelper {
 
@@ -139,7 +143,7 @@ public interface SharedClassURLHelper extends SharedClassHelper {
 	 * Returns <code>true</code> if the class is stored successfully or <code>false</code> otherwise.</p>
 	 * <p>Will return <code>false</code> if the class being stored was not defined by the caller ClassLoader.</p>
 	 * <p>Also returns <code>false</code> if the URL at foundAtIndex is not a file URL or if the resource it refers to does not exist.</p>
-	 * 
+	 *
 	 * @param 		partition String.
 	 * 					User-defined partition if storing modified bytecode (see <q>Partitions</q>).
 	 * 					Passing null is equivalent of calling non-partition storeSharedClass call.
@@ -152,17 +156,17 @@ public interface SharedClassURLHelper extends SharedClassHelper {
 	 *
 	 * @return		boolean.
 	 * 					True if the class was stored successfully, false otherwise.
-	 */ 
+	 */
 	public boolean storeSharedClass(String partition, URL path, Class<?> clazz);
-	
+
 	/**
 	 * <p>Minimizes update checking on jar files for optimal performance.</p>
 	 * <p>By default, when a class is loaded from the shared class cache, the timestamp of the container it was originally loaded from is
 	 * compared with the timestamp of the actual container on the filesystem. If the two do not match, the original class is marked stale
 	 * and is not returned by findSharedClass(). These checks are not performed if the container is held open by the ClassLoader.</p>
-	 * <p>If the ClassLoader does not want to open the container, but doesn't want the timestamp to be constantly checked when 
+	 * <p>If the ClassLoader does not want to open the container, but doesn't want the timestamp to be constantly checked when
 	 * classes are loaded, it should call this function immediately after the SharedClassURLHelper object has been created.
-	 * After this function has been called, each container timestamp is checked once and then is only checked again if the 
+	 * After this function has been called, each container timestamp is checked once and then is only checked again if the
 	 * container jar file is opened.<br>
 	 * <p>This feature cannot be unset.</p>
 	 *

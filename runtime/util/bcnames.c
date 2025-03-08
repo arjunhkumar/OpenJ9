@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9comp.h"
@@ -227,8 +227,8 @@ const char * const JavaBCNames[] = {
 "JBgotow" /* 200 */,
 "JBunimplemented" /* 201 */,
 "JBbreakpoint" /* 202 */,
-"JBaconst_init" /* 203 */,
-"JBwithfield" /* 204 */,
+"JBunimplemented" /* 203 */,
+"JBunimplemented" /* 204 */,
 "JBunimplemented" /* 205 */,
 "JBunimplemented" /* 206 */,
 "JBunimplemented" /* 207 */,
@@ -486,13 +486,8 @@ const char * const sunJavaBCNames[] = {
 "JBgotow" /* 200 */,
 "JBjsrw" /* 201 */,
 "JBbreakpoint" /* 202 */,
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-"JBaconst_init" /* 203 */,
-"JBwithfield" /* 204 */,
-#else /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 "JBunimplemented" /* 203 */,
 "JBunimplemented" /* 204 */,
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 "JBunimplemented" /* 205 */,
 "JBunimplemented" /* 206 */,
 "JBunimplemented" /* 207 */,

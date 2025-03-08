@@ -1,6 +1,6 @@
 /*[INCLUDE-IF Sidecar16]*/
 package com.ibm.tools.attach.attacher;
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -19,8 +19,8 @@ package com.ibm.tools.attach.attacher;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -37,18 +37,18 @@ import com.sun.tools.attach.spi.AttachProvider;
  */
 final class OpenJ9VirtualMachineDescriptor extends VirtualMachineDescriptor {
 
-	@Override
 	/**
 	 * @note this compares two remote VMs, not the objects
 	 */
+	@Override
 	public boolean equals(Object comparand) {
 		return super.equals(comparand);
 	}
 
-	@Override
 	/**
-	 * 	@note this obtains the hashcode of the remote VM, not of this object
+	 * @note this obtains the hashcode of the remote VM, not of this object
 	 */
+	@Override
 	public int hashCode() {
 		return super.hashCode();
 	}
@@ -67,7 +67,7 @@ final class OpenJ9VirtualMachineDescriptor extends VirtualMachineDescriptor {
 	OpenJ9VirtualMachineDescriptor(AttachProvider provider, String id,
 			String displayName) {
 		super(provider, id, displayName);
-		attachSyncFileValue = null;		
+		attachSyncFileValue = null;
 		replyFile = null;
 		processId = 0;
 		uid = 0;
@@ -80,7 +80,7 @@ final class OpenJ9VirtualMachineDescriptor extends VirtualMachineDescriptor {
 	 */
 	OpenJ9VirtualMachineDescriptor(AttachProvider provider, String id) {
 		super(provider, id);
-		attachSyncFileValue = null;		
+		attachSyncFileValue = null;
 		replyFile = null;
 		processId = 0;
 		uid = 0;
@@ -95,7 +95,7 @@ final class OpenJ9VirtualMachineDescriptor extends VirtualMachineDescriptor {
 	OpenJ9VirtualMachineDescriptor(AttachProvider provider,
 			Advertisement advert) {
 		super(provider, advert.getVmId(), advert.getDisplayName());
-		replyFile = advert.getReplyFile(); 
+		replyFile = advert.getReplyFile();
 		attachSyncFileValue = advert.getNotificationSync();
 		processId = advert.getProcessId();
 		uid = advert.getUid();
@@ -104,7 +104,7 @@ final class OpenJ9VirtualMachineDescriptor extends VirtualMachineDescriptor {
 	}
 
 	/**
-	 * 
+	 *
 	 * @return Operating system process ID for the target VM.
 	 */
 	long getProcessId() {
@@ -112,7 +112,7 @@ final class OpenJ9VirtualMachineDescriptor extends VirtualMachineDescriptor {
 	}
 
 	/**
-	 * 
+	 *
 	 * @return true if the target uses the global semaphore (Windows only)
 	 */
 	public boolean isGlobalSemaphore() {
@@ -160,6 +160,5 @@ final class OpenJ9VirtualMachineDescriptor extends VirtualMachineDescriptor {
 	long getUid() {
 		return uid;
 	}
-	
 
 }

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2017
  *
  * This program and the accompanying materials are made available under
@@ -18,21 +18,21 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.oti.util;
 
 import java.lang.ref.*;
 
 /**
  * WeakReference that can be used as an element in a doubly linked list.
- * 
- * @param <T> The type of the referent 
+ *
+ * @param <T> The type of the referent
  */
 public class WeakReferenceNode<T> extends WeakReference<T> {
 	private WeakReferenceNode<T> previous;
 	private WeakReferenceNode<T> next;
-	
+
 	/**
 	 * Constructs a new WeakReferenceNode
 	 *
@@ -45,7 +45,7 @@ public class WeakReferenceNode<T> extends WeakReference<T> {
 
 	/**
 	 * Adds the current node before the specified node.
-	 * 
+	 *
 	 * @param after The node that will be after this node in the list (may be null)
 	 */
 	public void addBefore(WeakReferenceNode<T> after) {
@@ -58,9 +58,9 @@ public class WeakReferenceNode<T> extends WeakReference<T> {
 			after.previous = this;
 		}
 	}
-	
+
 	/**
-	 * Removes the current node from any list it may be part of. 
+	 * Removes the current node from any list it may be part of.
 	 */
 	public void remove() {
 		if (null != this.previous) {
@@ -70,14 +70,14 @@ public class WeakReferenceNode<T> extends WeakReference<T> {
 			this.next.previous = this.previous;
 		}
 	}
-	
+
 	/**
 	 * @return The node before this node in the list
 	 */
 	public WeakReferenceNode<T> previous() {
 		return previous;
 	}
-	
+
 	/**
 	 * @return The node after this node in the list
 	 */

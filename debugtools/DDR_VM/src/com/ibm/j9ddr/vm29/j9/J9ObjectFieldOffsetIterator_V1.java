@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1991
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.j9;
 
 import static com.ibm.j9ddr.vm29.events.EventManager.raiseCorruptDataEvent;
@@ -26,6 +26,7 @@ import static com.ibm.j9ddr.vm29.j9.ObjectFieldInfo.BACKFILL_SIZE;
 import static com.ibm.j9ddr.vm29.j9.ObjectFieldInfo.LOCKWORD_SIZE;
 import static com.ibm.j9ddr.vm29.j9.ObjectFieldInfo.NO_BACKFILL_AVAILABLE;
 import static com.ibm.j9ddr.vm29.j9.ObjectFieldInfo.fj9object_t_SizeOf;
+import static com.ibm.j9ddr.vm29.structure.J9FieldFlags.J9FieldFlagIsNullRestricted;
 import static com.ibm.j9ddr.vm29.structure.J9FieldFlags.J9FieldFlagObject;
 import static com.ibm.j9ddr.vm29.structure.J9FieldFlags.J9FieldSizeDouble;
 import static com.ibm.j9ddr.vm29.structure.J9JavaAccessFlags.J9AccStatic;
@@ -201,7 +202,7 @@ public class J9ObjectFieldOffsetIterator_V1 extends J9ObjectFieldOffsetIterator 
 						if (modifiers.anyBitsIn(J9FieldSizeDouble)) {
 							/* Add single scalar and object counts together, round up to 2 and divide by 2 to get number of doubles used by singles */
 							UDATA doubleSlots;
-							if (J9BuildFlags.env_data64) {
+							if (J9BuildFlags.J9VM_ENV_DATA64) {
 								doubleSlots = new UDATA(romClass.objectStaticCount().add(romClass.singleScalarStaticCount()));
 							} else {
 								doubleSlots = new UDATA(romClass.objectStaticCount().add(romClass.singleScalarStaticCount()).add(1)).rightShift(1);
@@ -219,7 +220,9 @@ public class J9ObjectFieldOffsetIterator_V1 extends J9ObjectFieldOffsetIterator 
 			} else {
 				if (walkFlags.anyBitsIn(J9VM_FIELD_OFFSET_WALK_INCLUDE_INSTANCE)) {
 					if (modifiers.anyBitsIn(J9FieldFlagObject)) {
-						if (valueTypeHelper.isFlattenableFieldSignature(J9ROMFieldShapeHelper.getSignature(localField))) {
+						if (valueTypeHelper.isFlattenableFieldSignature(J9ROMFieldShapeHelper.getSignature(localField))
+							|| modifiers.anyBitsIn(J9FieldFlagIsNullRestricted)
+						) {
 							J9ClassPointer fieldClass = valueTypeHelper.findJ9ClassInFlattenedClassCacheWithFieldName(instanceClass, J9ROMFieldShapeHelper.getName(localField));
 							if (valueTypeHelper.isJ9FieldIsFlattened(fieldClass, localField)) {
 								UDATA size = null;

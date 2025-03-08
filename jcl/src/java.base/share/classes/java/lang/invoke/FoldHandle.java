@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17 & !OPENJDK_METHODHANDLES]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 /*[IF JAVA_SPEC_VERSION >= 15]*/
@@ -33,7 +33,7 @@ abstract class FoldHandle extends MethodHandle {
 	private final int foldPosition;  /* The starting position of fold arguments */
 	@VMCONSTANTPOOL_FIELD
 	private final int[] argumentIndices;  /* An array of argument indexes of fold handle */
-	
+
 	protected FoldHandle(MethodHandle next, MethodHandle combiner, MethodType type, int foldPosition, int... argumentIndices) {
 		super(type, KIND_FOLDHANDLE, infoAffectingThunks(combiner.type(), foldPosition, argumentIndices));
 		this.next     = next;
@@ -60,7 +60,7 @@ abstract class FoldHandle extends MethodHandle {
 			return new FoldNonvoidHandle(next, combiner, type, foldPosition, argumentIndices);
 		}
 	}
-	
+
 	private static Object[] infoAffectingThunks(MethodType combinerType, int foldPosition, int... argumentIndices) {
 		// The number and types of values to fold affect jitted thunks
 		Object[] result = { combinerType, foldPosition, argumentIndices};
@@ -70,10 +70,9 @@ abstract class FoldHandle extends MethodHandle {
 	private static final ThunkTable _thunkTable = new ThunkTable();
 	protected ThunkTable thunkTable(){ return _thunkTable; }
 
-
 	protected final ThunkTuple computeThunks(Object info) {
 		return thunkTable().get(new ThunkKeyWithObjectArray(ThunkKey.computeThunkableType(type()), (Object[])info));
- 	}
+	}
 
 	final void compareWith(MethodHandle right, Comparator c) {
 		if (right instanceof FoldHandle) {
@@ -87,11 +86,11 @@ abstract class FoldHandle extends MethodHandle {
 		c.compareChildHandle(left.next, this.next);
 		c.compareChildHandle(left.combiner, this.combiner);
 		c.compareStructuralParameter(left.foldPosition, this.foldPosition);
-		/* The comparator does not address the case where two FoldHandles, 
+		/* The comparator does not address the case where two FoldHandles,
 		 * one with empty indices array and the other with non-empty indices array
 		 * but the argument indices for them are the same, should share the same thunkArchetype.
-		 * This is because that case will not happen due to the way we create the FoldHandle: 
-		 * if the argument indices in the array are exactly the same to the argument indices 
+		 * This is because that case will not happen due to the way we create the FoldHandle:
+		 * if the argument indices in the array are exactly the same to the argument indices
 		 * starting from the fold position, the FoldHandle will be created as if no array is passed in.
 		 */
 		c.compareStructuralParameter(left.argumentIndices, this.argumentIndices);
@@ -158,7 +157,6 @@ final class FoldVoidHandle extends FoldHandle {
 	}
 
 	// {{{ JIT support
-
 
 	@FrameIteratorSkip
 	private final int invokeExact_thunkArchetype_X(int argPlaceholder) {

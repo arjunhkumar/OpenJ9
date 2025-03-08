@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdlib.h>
@@ -375,7 +375,7 @@ deleteControlDirectory(struct J9PortLibrary *portLibrary, char* baseDir)
 		UDATA handle, rc;
 		char mybaseFilePath[J9SH_MAXPATH];
 
-		j9str_printf(PORTLIB, mybaseFilePath, J9SH_MAXPATH, "%s/*", baseDir);
+		j9str_printf(mybaseFilePath, J9SH_MAXPATH, "%s/*", baseDir);
 		rc = handle = j9file_findfirst(mybaseFilePath, resultBuffer);
 		while (-1 != rc) {
 			j9file_unlink(resultBuffer);

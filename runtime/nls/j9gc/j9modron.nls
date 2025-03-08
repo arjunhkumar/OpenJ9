@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 #
 
 # j9modron.nls
@@ -957,6 +957,7 @@ J9NLS_GC_OPTIONS_PREFERREDHEAPBASE_NOT_SUPPORTED_ON_ZOS_WARN.user_response=Refer
 # Note %s gc policy ("balanced" or "metronome")
 J9NLS_GC_POLICY_NOT_SUPPOURTED_CRIU=-Xgcpolicy:%s is currently unsupported with -XX:+EnableCRIUSupport
 # START NON-TRANSLATABLE
+J9NLS_GC_POLICY_NOT_SUPPOURTED_CRIU.sample_input_1=balanced
 J9NLS_GC_POLICY_NOT_SUPPOURTED_CRIU.explanation=The specified GC policy is currently unsuppourted with CRIU
 J9NLS_GC_POLICY_NOT_SUPPOURTED_CRIU.system_action=The JVM will terminate
 J9NLS_GC_POLICY_NOT_SUPPOURTED_CRIU.user_response=Adjust the garbage collector policy option (-Xgcpolicy) with one of the following supported policies: gencon, optavgpause or optthruput
@@ -978,4 +979,48 @@ J9NLS_GC_THREAD_VALUE_MUST_BE_ABOVE_WARN.system_action=The JVM will terminate
 J9NLS_GC_THREAD_VALUE_MUST_BE_ABOVE_WARN.user_response=Refer to the OpenJ9 documentation and adjust -Xgcthreads to specify a GC thread count greater than the checkpoint GC thread count
 J9NLS_GC_THREAD_VALUE_MUST_BE_ABOVE_WARN.sample_input_1=4
 
+# END NON-TRANSLATABLE
+
+J9NLS_GC_OPTIONS_HIERARCHICAL_SCAN_ORDERING_NOT_SUPPORTED_WARN=Unsupported -Xgc:hierarchicalScanOrdering option with -Xgcpolicy:%s will be ignored.
+# START NON-TRANSLATABLE
+J9NLS_GC_OPTIONS_HIERARCHICAL_SCAN_ORDERING_NOT_SUPPORTED_WARN.sample_input_1=balanced
+J9NLS_GC_OPTIONS_HIERARCHICAL_SCAN_ORDERING_NOT_SUPPORTED_WARN.explanation=-Xgc:hierarchicalScanOrdering is currently only supported with -Xgcpolicy:gencon.
+J9NLS_GC_OPTIONS_HIERARCHICAL_SCAN_ORDERING_NOT_SUPPORTED_WARN.system_action=The JVM ignores the -Xgc:hierarchicalScanOrdering option.
+J9NLS_GC_OPTIONS_HIERARCHICAL_SCAN_ORDERING_NOT_SUPPORTED_WARN.user_response=Refer to the OpenJ9 documentation for -Xgc:hierarchicalScanOrdering.
+
+# END NON-TRANSLATABLE
+
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_SPECIFIED_GCTHREAD_VALUE_WARN=-XX:CheckpointGCThreads will be ignored. The specified value %1$zu must not be larger than user specified value of the total GC threads %2$zu set by -Xgcthreads, -Xgcmaxthreads or -Xgc:threads.
+# START NON-TRANSLATABLE
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_SPECIFIED_GCTHREAD_VALUE_WARN.explanation=-XX:CheckpointGCThreads must be smaller than or equal to the number of gc threads.
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_SPECIFIED_GCTHREAD_VALUE_WARN.system_action=The JVM ignores the -XX:CheckpointGCThreads option.
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_SPECIFIED_GCTHREAD_VALUE_WARN.user_response=Refer to the OpenJ9 documentation and adjust -Xgcthreads/-XX:CheckpointGCThreads to make sure number of gc threads is larger than or equal to the number of checkpointgcthreads.
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_SPECIFIED_GCTHREAD_VALUE_WARN.sample_input_1=6
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_SPECIFIED_GCTHREAD_VALUE_WARN.sample_input_2=4
+
+# END NON-TRANSLATABLE
+
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_HEURISTIC_GCTHREAD_VALUE_WARN=-XX:CheckpointGCThreads will be ignored. The specified value %1$zu must not be larger than calculated value of the total GC threads %2$zu.
+# START NON-TRANSLATABLE
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_HEURISTIC_GCTHREAD_VALUE_WARN.explanation=-XX:CheckpointGCThreads must be smaller than or equal to the number of gc threads.
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_HEURISTIC_GCTHREAD_VALUE_WARN.system_action=The JVM ignores the -XX:CheckpointGCThreads option.
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_HEURISTIC_GCTHREAD_VALUE_WARN.user_response=Refer to the OpenJ9 documentation and adjust -XX:CheckpointGCThreads to make sure number of gc threads is larger than or equal to the number of checkpointgcthreads.
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_HEURISTIC_GCTHREAD_VALUE_WARN.sample_input_1=6
+J9NLS_CHECKPOINTGCTHREAD_VALUE_MUST_BE_AT_MOST_HEURISTIC_GCTHREAD_VALUE_WARN.sample_input_2=4
+# END NON-TRANSLATABLE
+
+J9NLS_GC_OPTIONS_VIRTUAL_LARGE_OBJECT_HEAP_NOT_SUPPORTED_WARN=Unsupported -XX:enableVirtualLargeObjectHeap option with -Xgcpolicy:%s will be ignored.
+# START NON-TRANSLATABLE
+J9NLS_GC_OPTIONS_VIRTUAL_LARGE_OBJECT_HEAP_NOT_SUPPORTED_WARN.explanation=-XX:enableVirtualLargeObjectHeap is currently only supported with -Xgcpolicy:balanced.
+J9NLS_GC_OPTIONS_VIRTUAL_LARGE_OBJECT_HEAP_NOT_SUPPORTED_WARN.system_action=The JVM ignores the -XX:enableVirtualLargeObjectHeap option.
+J9NLS_GC_OPTIONS_VIRTUAL_LARGE_OBJECT_HEAP_NOT_SUPPORTED_WARN.user_response=None
+J9NLS_GC_OPTIONS_VIRTUAL_LARGE_OBJECT_HEAP_NOT_SUPPORTED_WARN.sample_input_1=gencon
+# END NON-TRANSLATABLE
+
+J9NLS_GC_OPTIONS_ARRAYLET_DOUBLE_MAPPING_NOT_SUPPORTED_WARN=Unsupported -Xgc:enableArrayletDoubleMapping option with -Xgcpolicy:%s will be ignored.
+# START NON-TRANSLATABLE
+J9NLS_GC_OPTIONS_ARRAYLET_DOUBLE_MAPPING_NOT_SUPPORTED_WARN.explanation=-Xgc:enableArrayletDoubleMapping is currently only supported with -Xgcpolicy:balanced.
+J9NLS_GC_OPTIONS_ARRAYLET_DOUBLE_MAPPING_NOT_SUPPORTED_WARN.system_action=The JVM ignores the -Xgc:enableArrayletDoubleMapping option.
+J9NLS_GC_OPTIONS_ARRAYLET_DOUBLE_MAPPING_NOT_SUPPORTED_WARN.user_response=Refer to the OpenJ9 documentation for -Xgc:enableArrayletDoubleMapping.
+J9NLS_GC_OPTIONS_ARRAYLET_DOUBLE_MAPPING_NOT_SUPPORTED_WARN.sample_input_1=gencon
 # END NON-TRANSLATABLE

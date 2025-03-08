@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2005
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package org.openj9.test.java.lang.management;
 
@@ -31,10 +31,12 @@ import org.testng.Assert;
 import org.testng.AssertJUnit;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.management.Attribute;
 import javax.management.AttributeList;
@@ -91,6 +93,9 @@ public class TestThreadMXBean {
 		attribs.put("ThreadCpuTimeEnabled", new AttributeData(Boolean.TYPE.getName(), true, true, true));
 		attribs.put("ThreadCpuTimeSupported", new AttributeData(Boolean.TYPE.getName(), true, false, true));
 		attribs.put("TotalStartedThreadCount", new AttributeData(Long.TYPE.getName(), true, false, false));
+		if (!isIBMJava8) {
+			attribs.put("TotalThreadAllocatedBytes", new AttributeData(Long.TYPE.getName(), true, false, false));
+		}
 	} // end static initializer
 
 	private ThreadMXBean tb;
@@ -1060,6 +1065,130 @@ public class TestThreadMXBean {
 	}
 
 	@Test
+	public final void testThreadAllocationMetricsOnCurrentThread() {
+		com.sun.management.ThreadMXBean sunTB = (com.sun.management.ThreadMXBean)tb;
+		AssertJUnit.assertTrue(sunTB.isThreadAllocatedMemoryEnabled());
+		AssertJUnit.assertTrue(sunTB.isThreadAllocatedMemorySupported());
+		long tid = Thread.currentThread().getId();
+
+		long bytes1 = sunTB.getThreadAllocatedBytes(tid);
+		AssertJUnit.assertTrue(bytes1 > 0);
+		ArrayList list = new ArrayList<>();
+
+		for (int i = 0; i < 1000; i++) {
+			list.add(new Object[100]);
+		}
+
+		long bytes2 = sunTB.getThreadAllocatedBytes(tid);
+		AssertJUnit.assertTrue(bytes2 > bytes1);
+
+		sunTB.setThreadAllocatedMemoryEnabled(false);
+		long bytes3 = sunTB.getThreadAllocatedBytes(tid);
+		AssertJUnit.assertTrue(bytes3 == -1);
+
+		sunTB.setThreadAllocatedMemoryEnabled(false);
+		long bytes4 = sunTB.getThreadAllocatedBytes(tid);
+		AssertJUnit.assertTrue(bytes4 >= bytes3);
+
+		for (int i = 0; i < 1000; i++) {
+			list.add(new Object[100]);
+		}
+
+		long bytes5 = sunTB.getThreadAllocatedBytes(tid);
+		AssertJUnit.assertTrue(bytes5 >= bytes4);
+	}
+
+	private final void allocateAndWait(int allocCount, Object sync, AtomicInteger count) {
+		try {
+			ArrayList list = new ArrayList<>();
+
+			for (int i = 0; i < allocCount; i++) {
+				list.add(new Object[100]);
+			}
+
+			count.getAndIncrement();
+
+			synchronized (sync) {
+				sync.wait();
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+			AssertJUnit.fail(e.getMessage());
+		}
+	}
+
+	/**
+	 * Allocate differing amounts of objects on each thread and ensure that
+	 * threadMXbean getThreadAllocatedBytes correctly reports the relative
+	 * allocated amounts.
+	 *
+	 * @throws InterruptedException
+	 */
+	@Test
+	public final void testThreadAllocationMetrics() throws InterruptedException {
+		com.sun.management.ThreadMXBean sunTB = (com.sun.management.ThreadMXBean)tb;
+
+		final Object sync = new Object() {};
+		final AtomicInteger count = new AtomicInteger(0);
+
+		Thread t1 = new Thread(()->{
+			allocateAndWait(1000, sync, count);
+		});
+
+		Thread t2 = new Thread(()->{
+			allocateAndWait(2000, sync, count);
+		});
+
+		Thread t3 = new Thread(()->{
+			allocateAndWait(1, sync, count);
+		});
+
+		t1.start();
+		t2.start();
+		t3.start();
+
+		Thread.yield();
+		Thread.yield();
+		Thread.yield();
+
+		/* Wait for threads to complete allocations or 10 seconds */
+		for (int i = 0; (count.get() < 3) || (i < 100); i++) {
+			Thread.sleep(100);
+		}
+
+		if (count.get() != 3) {
+			AssertJUnit.fail("Threads did not complete allocations in allotted time.");
+		}
+
+		/* Allocation stats are updated after a GC. */
+		System.gc();
+
+		/* Check stats with `long getThreadAllocatedBytes(long tid)`. */
+		long t1Stats = sunTB.getThreadAllocatedBytes(t1.getId());
+		long t2Stats = sunTB.getThreadAllocatedBytes(t2.getId());
+		long t3Stats = sunTB.getThreadAllocatedBytes(t3.getId());
+
+		AssertJUnit.assertTrue(t2Stats > t1Stats);
+		AssertJUnit.assertTrue(t1Stats > t3Stats);
+
+		/* Check stats with `long[] getThreadAllocatedBytes(long[] tids)`. */
+		long[] threadIDs = new long[] {t1.getId(), t2.getId(), t3.getId()};
+		long[] threadStats = sunTB.getThreadAllocatedBytes(threadIDs);
+
+		AssertJUnit.assertTrue(threadStats[1] > threadStats[0]);
+		AssertJUnit.assertTrue(threadStats[0] > threadStats[2]);
+
+		/* Wake up threads and wait for them to terminate */
+		synchronized (sync) {
+			sync.notifyAll();
+		}
+
+		t1.join();
+		t2.join();
+		t3.join();
+	}
+
+	@Test
 	public final void testGetAttributes() {
 		AttributeList attributes = null;
 		try {
@@ -1439,7 +1568,7 @@ public class TestThreadMXBean {
 			numAttributes = 17;
 		} else {
 			numOperations = 20;
-			numAttributes = 18;
+			numAttributes = 19;
 		}
 		MBeanOperationInfo[] operations = mbi.getOperations();
 		AssertJUnit.assertNotNull(operations);

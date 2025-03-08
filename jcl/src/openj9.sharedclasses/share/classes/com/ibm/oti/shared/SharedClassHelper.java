@@ -1,5 +1,5 @@
 /*[INCLUDE-IF SharedClasses]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.oti.shared;
 
 /**
@@ -35,9 +35,11 @@ public interface SharedClassHelper extends SharedHelper {
 	/**
 	 * Applies the sharing filter to the SharedClassHelper.
 	 *
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * <p>If a SecurityManager is installed, this method can only be called
 	 * by an object whose caller ClassLoader has shared
 	 * class "read,write" permissions.
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 *
 	 * <p>If a SharedClassFilter is already set, it is replaced by the new filter.
 	 *

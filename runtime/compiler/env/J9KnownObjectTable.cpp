@@ -17,10 +17,11 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "compile/Compilation.hpp"
+#include "env/alloca_openxl.h"
 #include "env/j9fieldsInfo.h"
 #include "env/KnownObjectTable.hpp"
 #include "env/StackMemoryRegion.hpp"
@@ -230,7 +231,7 @@ J9::KnownObjectTable::getPointerLocation(Index index)
 
 #if defined(J9VM_OPT_JITSERVER)
 void
-J9::KnownObjectTable::updateKnownObjectTableAtServer(Index index, uintptr_t *objectReferenceLocationClient)
+J9::KnownObjectTable::updateKnownObjectTableAtServer(Index index, uintptr_t *objectReferenceLocationClient, bool isArrayWithConstantElements)
    {
    TR_ASSERT_FATAL(self()->comp()->isOutOfProcessCompilation(), "updateKnownObjectTableAtServer should only be called at the server");
    if (index == TR::KnownObjectTable::UNKNOWN)
@@ -256,6 +257,9 @@ J9::KnownObjectTable::updateKnownObjectTableAtServer(Index index, uintptr_t *obj
       {
       TR_ASSERT_FATAL(false, "index %d from the client is greater than the KOT nextIndex %d at the server", index, nextIndex);
       }
+
+   if (isArrayWithConstantElements)
+      addArrayWithConstantElements(index);
    }
 #endif /* defined(J9VM_OPT_JITSERVER) */
 
@@ -526,10 +530,15 @@ J9::KnownObjectTable::dumpTo(TR::FILE *file, TR::Compilation *comp)
 void
 J9::KnownObjectTable::addStableArray(Index index, int32_t stableArrayRank)
    {
-   uintptr_t    object = self()->getPointer(index);
-   TR_J9VMBase *j9fe = (TR_J9VMBase*)self()->fe();
-   J9Class      *clazz  = (J9Class*)j9fe->getObjectClass(object);
-   TR_ASSERT_FATAL((clazz->romClass->modifiers & J9AccClassArray), "addStableArray can only be called for arrays\n");
+   TR_J9VMBase *fej9 = static_cast<TR_J9VMBase*>(fe());
+   TR_OpaqueClassBlock *clazz =
+      fej9->getObjectClassFromKnownObjectIndex(comp(), index);
+
+   // Null is only possible on failure to get VM access. Most of the time we
+   // should find the class successfully anyway, so check only in that case.
+   TR_ASSERT_FATAL(
+      clazz == NULL || fej9->isClassArray(clazz),
+      "addStableArray can only be called for arrays");
 
    if (_stableArrayRanks[index] < stableArrayRank)
       {

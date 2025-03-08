@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "codegen/X86PrivateLinkage.hpp"
@@ -763,8 +763,29 @@ void J9::X86::PrivateLinkage::createPrologue(TR::Instruction *cursor)
          cursor = generateLabelInstruction(cursor, TR::InstOpCode::JBE4, checkLabel, cg());
          cursor = generateLabelInstruction(cursor, TR::InstOpCode::label, endLabel, cg());
 
-         // At this point, cg()->getAppendInstruction() is already in the cold code section.
-         generateVFPRestoreInstruction(vfp, cursor->getNode(), cg());
+         // Code Cache disclaim is more efficient if this code is in the warm area
+         bool moveToWarm = TR::Options::getCmdLineOptions()->getOption(TR_EnableCodeCacheDisclaiming) &&
+                           cg()->getLastWarmInstruction();
+
+         TR::Instruction* prevAppendInstruction = NULL;
+         TR::Instruction* followInstruction = NULL;
+
+         if (moveToWarm)
+            {
+            // OverflowCheck OOL executes often so move it to the warm cache
+            if (cg()->getAppendInstruction() != cg()->getLastWarmInstruction())
+               prevAppendInstruction = cg()->getAppendInstruction();
+
+            cg()->setAppendInstruction(cg()->getLastWarmInstruction());
+
+            followInstruction = cg()->getAppendInstruction()->getNext();
+            }
+         else
+            {
+            // At this point, cg()->getAppendInstruction() is already in the cold code section.
+            generateVFPRestoreInstruction(vfp, cursor->getNode(), cg());
+            }
+
          generateLabelInstruction(TR::InstOpCode::label, cursor->getNode(), checkLabel, cg());
          generateRegImmInstruction(TR::InstOpCode::MOV4RegImm4, cursor->getNode(), machine()->getRealRegister(TR::RealRegister::edi), allocSize, cg());
          if (doAllocateFrameSpeculatively)
@@ -779,6 +800,23 @@ void J9::X86::PrivateLinkage::createPrologue(TR::Instruction *cursor)
             generateRegImmInstruction(TR::InstOpCode::SUBRegImm4(), cursor->getNode(), espReal, allocSize, cg());
             }
          generateLabelInstruction(TR::InstOpCode::JMP4, cursor->getNode(), endLabel, cg());
+
+         if (moveToWarm)
+            {
+            TR::Instruction *appendInstruction = cg()->getAppendInstruction();
+            cg()->getLastWarmInstruction()->setLastWarmInstruction(false);
+            cg()->setLastWarmInstruction(appendInstruction);
+            appendInstruction->setLastWarmInstruction(true);
+            appendInstruction->setNext(followInstruction);
+
+            if (followInstruction)
+               {
+               followInstruction->setPrev(appendInstruction);
+               }
+
+            if (prevAppendInstruction)
+               cg()->setAppendInstruction(prevAppendInstruction);
+            }
          }
 
       if (cg()->canEmitBreakOnDFSet())
@@ -930,7 +968,7 @@ void J9::X86::PrivateLinkage::createPrologue(TR::Instruction *cursor)
 
       if (numReferenceLocalSlotsToInitialize > 0 || numInternalPointerSlotsToInitialize > 0)
          {
-         cursor = new (trHeapMemory()) TR::X86RegRegInstruction(cursor, TR::InstOpCode::XORRegReg(), scratchReg, scratchReg, cg());
+         cursor = new (trHeapMemory()) TR::X86RegRegInstruction(cursor, TR::InstOpCode::XOR4RegReg, scratchReg, scratchReg, cg());
 
          // Initialize locals that are live on entry
          //
@@ -1108,7 +1146,7 @@ J9::X86::PrivateLinkage::buildDirectDispatch(
    startLabel->setStartInternalControlFlow();
    doneLabel->setEndInternalControlFlow();
 
-   buildDirectCall(callNode->getSymbolReference(), site);
+   buildDirectCall(callNode->getSymbolReference(), site, doneLabel);
 
    // Construct postconditions
    //
@@ -1898,7 +1936,10 @@ TR::Register *J9::X86::PrivateLinkage::buildIndirectDispatch(TR::Node *callNode)
    return returnRegister;
    }
 
-void J9::X86::PrivateLinkage::buildDirectCall(TR::SymbolReference *methodSymRef, TR::X86CallSite &site)
+void J9::X86::PrivateLinkage::buildDirectCall(
+   TR::SymbolReference *methodSymRef,
+   TR::X86CallSite &site,
+   TR::LabelSymbol *doneLabel)
    {
    TR_J9VMBase *fej9 = (TR_J9VMBase *)(comp()->fe());
    TR::MethodSymbol   *methodSymbol = methodSymRef->getSymbol()->castToMethodSymbol();
@@ -1906,8 +1947,14 @@ void J9::X86::PrivateLinkage::buildDirectCall(TR::SymbolReference *methodSymRef,
    TR::Node           *callNode     = site.getCallNode();
    TR_AtomicRegion   *callSiteAtomicRegions = TR::X86PatchableCodeAlignmentInstruction::CALLImm4AtomicRegions;
 
-   if (comp()->target().is64Bit() && methodSymRef->getReferenceNumber()>=TR_AMD64numRuntimeHelpers)
+   bool isJitDispatchJ9Method = callNode->isJitDispatchJ9MethodCall(comp());
+
+   if (comp()->target().is64Bit()
+       && methodSymRef->getReferenceNumber() >= TR_AMD64numRuntimeHelpers
+       && !isJitDispatchJ9Method)
+      {
       fej9->reserveTrampolineIfNecessary(comp(), methodSymRef, false);
+      }
 
 #if defined(J9VM_OPT_JITSERVER)
    // JITServer Workaround: Further transmute dispatchJ9Method symbols to appear as a runtime helper, this will cause OMR to
@@ -1970,6 +2017,86 @@ void J9::X86::PrivateLinkage::buildDirectCall(TR::SymbolReference *methodSymRef,
       // Nop is necessary due to confusion when resolving shared slots at a transition
       if (methodSymRef->isOSRInductionHelper())
          generatePaddingInstruction(1, callNode, cg());
+      }
+   else if (isJitDispatchJ9Method)
+      {
+      // This should occur only on 64-bit because it's generated only for
+      // OpenJDK MethodHandles, which are not yet in use in Java 8, with Java 8
+      // being the last version to support 32-bit. This shouldn't necessarily
+      // be too hard to implement on 32-bit, but it is left unimplemented for
+      // now because we can't exercise it anyway until we start to get OpenJDK
+      // MethodHandles working on Java 8.
+      TR_ASSERT_FATAL(comp()->target().is64Bit(), "jitDispatchJ9Method on 32-bit");
+
+      TR::LabelSymbol *interpreterCallLabel = generateLabelSymbol(cg());
+
+      TR::Register *scratchReg = cg()->allocateRegister();
+      site.addPostCondition(
+         scratchReg, getProperties().getVTableIndexArgumentRegister());
+
+      // This will be assigned to getJ9MethodArgumentRegister().
+      TR::Register *j9mReg = callNode->getChild(0)->getRegister();
+
+      int32_t extraOffset = (int32_t)offsetof(J9Method, extra);
+      generateRegMemInstruction(
+         TR::InstOpCode::LRegMem(),
+         callNode,
+         scratchReg,
+         generateX86MemoryReference(j9mReg, extraOffset, cg()),
+         cg());
+
+      // The test/jnz sequence assumes that J9_STARTPC_NOT_TRANSLATED is a
+      // single bit in the low byte.
+      static_assert(0 < J9_STARTPC_NOT_TRANSLATED, "negative J9_STARTPC_NOT_TRANSLATED");
+      static_assert(J9_STARTPC_NOT_TRANSLATED < 256, "large J9_STARTPC_NOT_TRANSLATED");
+      static_assert(
+         (J9_STARTPC_NOT_TRANSLATED & (J9_STARTPC_NOT_TRANSLATED - 1)) == 0,
+         "non-power-of-two J9_STARTPC_NOT_TRANSLATED");
+
+      generateRegImmInstruction(
+         TR::InstOpCode::TEST1RegImm1, callNode, scratchReg, J9_STARTPC_NOT_TRANSLATED, cg());
+
+      TR::InstOpCode::Mnemonic oolBranchOp = TR::InstOpCode::JNE4;
+      if (cg()->stressJitDispatchJ9MethodJ2I())
+         oolBranchOp = TR::InstOpCode::JMP4; // go to J2I path unconditionally
+
+      generateLabelInstruction(oolBranchOp, callNode, interpreterCallLabel, cg());
+
+      // The method is compiled - call through register to JIT entry point
+      generateRegMemInstruction(
+         TR::InstOpCode::L4RegMem,
+         callNode,
+         j9mReg, // can reuse because the actual J9Method isn't needed anymore
+         generateX86MemoryReference(scratchReg, -4, cg()),
+         cg());
+
+      generateRegImmInstruction(
+         TR::InstOpCode::SHR4RegImm1, callNode, j9mReg, 16, cg());
+
+      generateRegRegInstruction(
+         TR::InstOpCode::ADDRegReg(), callNode, scratchReg, j9mReg, cg());
+
+      callInstr = generateRegInstruction(
+         TR::InstOpCode::CALLReg, callNode, scratchReg, cg());
+
+      // But if the method is interpreted, call through a call snippet instead.
+      // The snippet will store arguments to the stack and do a J2I transition.
+      TR::LabelSymbol *snippetLabel = generateLabelSymbol(cg());
+      TR::SymbolReference *labelSymRef = new (trHeapMemory()) TR::SymbolReference(
+         comp()->getSymRefTab(), snippetLabel);
+
+      TR_OutlinedInstructionsGenerator og(interpreterCallLabel, callNode, cg());
+      TR::Instruction *interpreterCallInstr =
+         generateImmSymInstruction(TR::InstOpCode::CALLImm4, callNode, 0, labelSymRef, cg());
+      interpreterCallInstr->setNeedsGCMap(site.getPreservedRegisterMask());
+      generateLabelInstruction(TR::InstOpCode::JMP4, callNode, doneLabel, cg());
+      og.endOutlinedInstructionSequence();
+
+      TR::Snippet *snippet = new (trHeapMemory()) TR::X86CallSnippet(
+         cg(), callNode, snippetLabel, false);
+
+      cg()->addSnippet(snippet);
+      cg()->stopUsingRegister(scratchReg);
       }
    else
       {

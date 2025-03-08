@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -44,31 +44,30 @@ class GC_ConstantPoolClassSlotIterator
 {
 
 	J9Object **_cpEntry;
-	U_32 _cpEntryCount;
-	U_32 _cpEntryTotal;
-	U_32 *_cpDescriptionSlots;
-	U_32 _cpDescription;
-	UDATA _cpDescriptionIndex;
+	uint32_t _cpEntryCount;
+	uint32_t _cpEntryTotal;
+	uint32_t *_cpDescriptionSlots;
+	uint32_t _cpDescription;
+	uintptr_t _cpDescriptionIndex;
 	
 public:
-	GC_ConstantPoolClassSlotIterator(J9Class *clazz) :
-		_cpEntry((J9Object **)J9_CP_FROM_CLASS(clazz)),
-		_cpEntryCount(clazz->romClass->ramConstantPoolCount)
+	GC_ConstantPoolClassSlotIterator(J9Class *clazz)
+		: _cpEntry((J9Object **)J9_CP_FROM_CLASS(clazz))
+		, _cpEntryCount(clazz->romClass->ramConstantPoolCount)
 	{
 		_cpEntryTotal = _cpEntryCount;
-		if(_cpEntryCount) {
-			_cpDescriptionSlots = SRP_PTR_GET(&clazz->romClass->cpShapeDescription, U_32 *);
+		if (0 != _cpEntryCount) {
+			_cpDescriptionSlots = SRP_PTR_GET(&clazz->romClass->cpShapeDescription, uint32_t *);
 			_cpDescriptionIndex = 0;
 		}
-
-	};
+	}
 
 	/**
 	 * Gets the current constant pool index.
 	 * @return zero based constant pool index of the entry returned by the last call of nextSlot.
 	 * @return -1 if nextSlot has yet to be called.
 	 */
-	MMINLINE IDATA getIndex() {
+	MMINLINE intptr_t getIndex() {
 		return _cpEntryTotal - _cpEntryCount - 1;
 	}
 

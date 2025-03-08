@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "runtime/RelocationRuntimeLogger.hpp"
@@ -73,7 +73,7 @@ TR_RelocationRuntimeLogger::setupOptions(TR::Options *options)
    }
 
 void
-TR_RelocationRuntimeLogger::debug_printf(char *format, ...)
+TR_RelocationRuntimeLogger::debug_printf(const char *format, ...)
    {
    va_list args;
    char outputBuffer[512];
@@ -88,7 +88,7 @@ TR_RelocationRuntimeLogger::debug_printf(char *format, ...)
    }
 
 void
-TR_RelocationRuntimeLogger::printf(char *format, ...)
+TR_RelocationRuntimeLogger::printf(const char *format, ...)
    {
    va_list args;
    char outputBuffer[512];
@@ -130,7 +130,7 @@ TR_RelocationRuntimeLogger::method(bool newLine)
    if (reloRuntime()->method() == NULL)
       return;
 
-   char * patternString = "%.*s.%.*s%.*s";
+   const char *patternString = "%.*s.%.*s%.*s";
    if (newLine)
       patternString = "%.*s.%.*s%.*s\n";
 
@@ -179,7 +179,7 @@ TR_RelocationRuntimeLogger::metaData()
    if (logEnabled())
       {
       J9JavaVM *javaVM = jitConfig()->javaVM;
-      char *metaDataTag = "relocatableDataMetaDataRT";
+      const char *metaDataTag = "relocatableDataMetaDataRT";
 
       bool wasLocked = lockLog();
       startTag(metaDataTag);
@@ -226,7 +226,7 @@ TR_RelocationRuntimeLogger::relocationTime()
 void
 TR_RelocationRuntimeLogger::versionMismatchWarning()
    {
-   char *warningMessageFormat = "AOT major/minor versions don't match the ones of running JVM: aotMajorVersion %d jvmMajorVersion %d aotMinorVersion %d jvmMinorVersion %d   ";
+   const char *warningMessageFormat = "AOT major/minor versions don't match the ones of running JVM: aotMajorVersion %d jvmMajorVersion %d aotMinorVersion %d jvmMinorVersion %d   ";
    if (verbose())
       {
       bool wasLocked = lockLog();

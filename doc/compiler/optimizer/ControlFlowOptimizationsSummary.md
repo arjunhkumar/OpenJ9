@@ -17,7 +17,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 # Control Flow Optimizations
@@ -73,7 +73,7 @@ can be proven that the throw definitely reaches the catch block only and the
 thrown object is never used in code reachable from the catch block).
 See [this document](EdoOptimization.md) for an explanation of the mechanics involved.
 
-Note that [Value Propagation](https://github.com/eclipse/omr/blob/master/doc/compiler/optimizer/ValuePropagation.md)
+Note that [Value Propagation](https://github.com/eclipse-omr/omr/blob/master/doc/compiler/optimizer/ValuePropagation.md)
 (which propagates type information) is required
 to prove that the type of the exception being thrown will be caught by the
 catch block. Another important pre-requisite for doing EDO successfully is

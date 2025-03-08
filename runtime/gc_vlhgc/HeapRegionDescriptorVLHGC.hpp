@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(HEAPREGIONDESCRIPTORVLHGC_HPP)
@@ -85,6 +85,9 @@ public:
 	uintptr_t _projectedLiveBytesPreviousPGC;   /**< _projectedLiveBytes value from previous PGC; updated just before we apply decay for this PGC */
 	IDATA _projectedLiveBytesDeviation;	/**< difference between actual live bytes and projected live bytes. Note: not always update to date and can be negative. */
 	MM_HeapRegionDescriptorVLHGC *_compactDestinationQueueNext; /**< pointer to next compact destination region in the queue */
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	bool _sparseHeapAllocation;		/**< indicates whether this region is related with sparse heap allocation(the first region has reserved for off-heap) */
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 #if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
 	J9PortVmemIdentifier _arrayletDoublemapID;	/**< Contiguous address identifier associate with double mapped region of arraylet */
 #endif /* J9VM_GC_ENABLE_DOUBLE_MAP */

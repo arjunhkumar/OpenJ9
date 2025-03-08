@@ -16,7 +16,7 @@ dnl
 dnl [1] https://www.gnu.org/software/classpath/license.html
 dnl [2] https://openjdk.org/legal/assembly-exception.html
 dnl
-dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 include(zhelpers.m4)
 
@@ -78,6 +78,9 @@ PLACE_LABEL(L_CINTERP)
     LHI_GPR r0,J9TR_bcloop_exit_interpreter
     CLR_GPR CRINT,r0
     je LABEL_NAME(L_EXIT)
+    LHI_GPR r0,J9TR_bcloop_reenter_interpreter
+    CLR_GPR CRINT,r0
+    je LABEL_NAME(L_CINTERP)
     RESTORE_LR
     RESTORE_PRESERVED_REGS_AND_SWITCH_TO_JAVA_STACK
     BRANCH_VIA_VMTHREAD(J9TR_VMThread_tempSlot)

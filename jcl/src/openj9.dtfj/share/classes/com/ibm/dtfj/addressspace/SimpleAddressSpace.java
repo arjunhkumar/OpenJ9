@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,12 +18,11 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.addressspace;
 
 import java.io.IOException;
-
 
 import com.ibm.dtfj.corereaders.ClosingFileReader;
 import com.ibm.dtfj.corereaders.MemoryAccessException;
@@ -33,20 +32,19 @@ import com.ibm.dtfj.corereaders.MemoryRange;
  * @author jmdisher
  * Exists to provide a bridge by which to support the deprecated core readers while we use IAbstractAddressSpace
  * to enhance the capability of memory reading for more complicated platforms.
- * 
+ *
  * Ideally, this will be deprecated in the future.
  */
 public class SimpleAddressSpace  extends CommonAddressSpace
 {
 	private ClosingFileReader _backing;
-	
-	
+
 	public SimpleAddressSpace(MemoryRange[] deprecatedMemoryRanges, ClosingFileReader file, boolean isLittleEndian, boolean is64Bit)
 	{
 		super(deprecatedMemoryRanges, isLittleEndian, is64Bit);
 		_backing = file;
 	}
-	
+
 	/* (non-Javadoc)
 	 * @see com.ibm.dtfj.addressspace.IAbstractAddressSpace#isExecutable(int, long)
 	 */
@@ -76,7 +74,7 @@ public class SimpleAddressSpace  extends CommonAddressSpace
 		// TODO Auto-generated method stub
 		return false;
 	}
-	
+
 	public int getBytesAt(int asid, long address, byte[] buffer) throws MemoryAccessException
 	{
 		MemoryRange resident = _residentRange(asid, address);

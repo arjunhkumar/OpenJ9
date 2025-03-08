@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 
@@ -53,9 +53,9 @@ private:
 #if defined(J9VM_GC_DYNAMIC_CLASS_UNLOADING)
 	omrthread_monitor_t _undeadSegmentListMonitor;
 	J9MemorySegment *_firstUndeadSegment;
-	UDATA _undeadSegmentsTotalSize;
-	UDATA _lastUnloadNumOfClassLoaders;  /**< number of class loaders last seen during a dynamic class unloading pass */
-	UDATA _lastUnloadNumOfAnonymousClasses; /**< number of anonymous classes last seen during a dynamic class unloading pass */
+	uintptr_t _undeadSegmentsTotalSize;
+	uintptr_t _lastUnloadNumOfClassLoaders;  /**< number of class loaders last seen during a dynamic class unloading pass */
+	uintptr_t _lastUnloadNumOfAnonymousClasses; /**< number of anonymous classes last seen during a dynamic class unloading pass */
 #endif /* J9VM_GC_DYNAMIC_CLASS_UNLOADING */
 	MM_GlobalCollector *_globalCollector; /**< Pointer to the global collector.  Used for yielding */
 	J9ClassLoader *_classLoaders; /**< Linked list of classloaders */
@@ -101,12 +101,12 @@ public:
 	/**
 	 * Returns the total amount of memory (in bytes) which would be reclaimed if the buffer were to be flushed
 	 */
-	UDATA reclaimableMemory() { return _undeadSegmentsTotalSize; }
+	uintptr_t reclaimableMemory() { return _undeadSegmentsTotalSize; }
 	
 	/**
 	 * Returns the number of class loaders last seen during a dynamic class unloading pass
 	 */
-	UDATA getLastUnloadNumOfClassLoaders() { return _lastUnloadNumOfClassLoaders; }
+	uintptr_t getLastUnloadNumOfClassLoaders() { return _lastUnloadNumOfClassLoaders; }
 
 	/**
 	 * Set the number of class loaders last seen during a dynamic class unloading pass,
@@ -117,7 +117,7 @@ public:
 	/**
 	 * Returns the number of anonymous classes last seen during a dynamic class unloading pass
 	 */
-	UDATA getLastUnloadNumOfAnonymousClasses() { return _lastUnloadNumOfAnonymousClasses; }
+	uintptr_t getLastUnloadNumOfAnonymousClasses() { return _lastUnloadNumOfAnonymousClasses; }
 
 	/**
 	 * Set the number of anonymous classes last seen during a dynamic class unloading pass,
@@ -136,7 +136,7 @@ public:
 	 * @param markMap[in] the markMap to use to test for class loader and classes liveness
 	 * @param classUnloadStats[out] returns the class unloading statistics for classes about to be unloaded
 	 */
-	void cleanUpClassLoadersStart(MM_EnvironmentBase *env, J9ClassLoader* classLoaderUnloadList, MM_HeapMap *markMap, MM_ClassUnloadStats *classUnloadStats);
+	void cleanUpClassLoadersStart(MM_EnvironmentBase *env, J9ClassLoader *classLoaderUnloadList, MM_HeapMap *markMap, MM_ClassUnloadStats *classUnloadStats);
 	
 	/**
 	 * Perform final cleanup for classloader unloading.  The current thread has exclusive access.
@@ -156,7 +156,7 @@ public:
 	 *
 	 * @return the count of classes unloaded
 	 */
-	void cleanUpClassLoadersEnd(MM_EnvironmentBase *env, J9ClassLoader* unloadLink);
+	void cleanUpClassLoadersEnd(MM_EnvironmentBase *env, J9ClassLoader *unloadLink);
 	
 	/**
 	 * Frees all the ROMClass segments in the list reachable from segment following nextSegmentInClassLoader and
@@ -177,11 +177,12 @@ public:
 	 * Perform generic clean up for a list of class loaders to unload.
 	 * @param env[in] the current thread
 	 * @param classLoader[in] the list of class loaders to clean up
+	 * @param classUnloadStats[in] the Class Unloading Stats structure
 	 * @param reclaimedSegments[out] a linked list of memory segments to be reclaimed by cleanUpClassLoadersEnd
 	 * @param unloadLink[out] a linked list of class loaders to be reclaimed by cleanUpClassLoadersEnd
 	 * @param finalizationRequired[out] set to true if the finalize thread must be started, unmodified otherwise
 	 */
-	void cleanUpClassLoaders(MM_EnvironmentBase *env, J9ClassLoader *classLoadersUnloadedList, J9MemorySegment** reclaimedSegments, J9ClassLoader ** unloadLink, volatile bool* finalizationRequired);
+	void cleanUpClassLoaders(MM_EnvironmentBase *env, J9ClassLoader *classLoadersUnloadedList, MM_ClassUnloadStats *classUnloadStats, J9MemorySegment **reclaimedSegments, J9ClassLoader **unloadLink, volatile bool *finalizationRequired);
 
 	/**
 	 * Attempt to enter the class unload mutex if it is uncontended.
@@ -233,7 +234,26 @@ public:
 protected:
 	bool initialize(MM_EnvironmentBase *env);
 	void tearDown(MM_EnvironmentBase *env);
+
 private:
+	/**
+	 * Check is ROM class possible to unload.
+	 * There are might be multiple checks:
+	 * - ROM class should not be NULL
+	 * - ROM class should not be stored in SCC
+	 * - ROM class for Indexable object can not be unloaded
+	 * @param clazz[in] class to check
+	 * @return true if class is possible to unload
+	 */
+	MMINLINE bool
+	isROMClassUnloadable(J9Class *clazz)
+	{
+		J9ROMClass *romClass = clazz->romClass;
+
+		return (NULL != romClass)
+				&& (0 == (romClass->extraModifiers & J9AccClassIsShared))
+				&& !_extensions->objectModel.isIndexable(clazz);
+	}
 
 #if defined(J9VM_GC_DYNAMIC_CLASS_UNLOADING)
 	/**
@@ -246,7 +266,7 @@ private:
 	 * @param classUnloadCountOut[out] number of classes dying added to the list
 	 * @return new root to list of dying classes
 	 */
-	J9Class *addDyingClassesToList(MM_EnvironmentBase *env, J9ClassLoader * classLoader, MM_HeapMap *markMap, bool setAll, J9Class *classUnloadListStart, UDATA *classUnloadCountOut);
+	J9Class *addDyingClassesToList(MM_EnvironmentBase *env, J9ClassLoader *classLoader, MM_HeapMap *markMap, bool setAll, J9Class *classUnloadListStart, uintptr_t *classUnloadCountOut);
 
 #endif /* J9VM_GC_DYNAMIC_CLASS_UNLOADING */
 

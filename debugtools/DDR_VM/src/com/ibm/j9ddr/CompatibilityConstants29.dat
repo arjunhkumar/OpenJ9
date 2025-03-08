@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /*
@@ -33,8 +33,6 @@
  */
 
 CLimits.USHRT_MAX = 0xFFFF
-
-J9BuildFlags.J9VM_OPT_OPENJDK_METHODHANDLE = 0
 
 J9CfrClassFile.CFR_METHOD_EXT_HAS_SCOPED_ANNOTATION = 0
 J9CfrClassFile.CFR_METHOD_EXT_NOT_CHECKPOINT_SAFE_ANNOTATION = 0
@@ -53,24 +51,43 @@ J9Consts.J9_ITABLE_INDEX_UNRESOLVED = 0
 J9Consts.J9_ITABLE_OFFSET_DIRECT = 0
 J9Consts.J9_ITABLE_OFFSET_TAG_BITS = 0
 J9Consts.J9_ITABLE_OFFSET_VIRTUAL = 0
+J9Consts.J9_MODULE_NAME_IS_J9UTF8 = 0
+J9Consts.PREVIEW_MINOR_VERSION = 0
+J9Consts.VALUE_TYPES_MAJOR_VERSION = 0
 
+J9DescriptionBits.J9DescriptionCpBsmIndexMask = 0
+
+J9FieldFlags.J9FieldFlagIsNullRestricted = 0
+
+J9JavaAccessFlags.J9AccClassHasIdentity = 0
 J9JavaAccessFlags.J9AccClassIsUnmodifiable = 0
 J9JavaAccessFlags.J9AccRecord = 0
 J9JavaAccessFlags.J9AccSealed = 0
-J9JavaAccessFlags.J9AccValueType = 0
+J9JavaAccessFlags.J9PutfieldNarrowing = 0
+J9JavaAccessFlags.J9StaticFieldIsNullRestricted = 0
+J9JavaAccessFlags.J9StaticFieldRefBaseType = 0
+J9JavaAccessFlags.J9StaticFieldRefBoolean = 0
+J9JavaAccessFlags.J9StaticFieldRefDouble = 0
+J9JavaAccessFlags.J9StaticFieldRefTypeBoolean = 0
+J9JavaAccessFlags.J9StaticFieldRefTypeByte = 0
+J9JavaAccessFlags.J9StaticFieldRefTypeChar = 0
+J9JavaAccessFlags.J9StaticFieldRefTypeIntFloat = 0
+J9JavaAccessFlags.J9StaticFieldRefTypeLongDouble = 0
+J9JavaAccessFlags.J9StaticFieldRefTypeMask = 0
+J9JavaAccessFlags.J9StaticFieldRefTypeObject = 0
+J9JavaAccessFlags.J9StaticFieldRefTypeShort = 0
 
 J9JavaClassFlags.J9ClassIsFlattened = 0
-J9JavaClassFlags.J9ClassIsPrimitiveValueType = 0
 J9JavaClassFlags.J9ClassIsValueType = 0
 J9JavaClassFlags.J9ClassLargestAlignmentConstraintDouble = 0
 J9JavaClassFlags.J9ClassLargestAlignmentConstraintReference = 0
 J9JavaClassFlags.J9ClassRequiresPrePadding = 0
 
+J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE = 0
 J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_INJECTED_INTERFACE_INFO = 0
+J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_LOADABLEDESCRIPTORS_ATTRIBUTE = 0
 J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_PERMITTEDSUBCLASSES_ATTRIBUTE = 0
 J9NonbuilderConstants.J9_ROMCLASS_OPTINFO_RECORD_ATTRIBUTE = 0
-J9NonbuilderConstants.J9DescriptionCpBsmIndexMask = 0
-J9NonbuilderConstants.J9DescriptionCpTypeShift = 0
 
 J9Object.OBJECT_HEADER_LOCK_LEARNING = 0
 J9Object.OBJECT_HEADER_LOCK_LEARNING_RECURSION_OFFSET = 0

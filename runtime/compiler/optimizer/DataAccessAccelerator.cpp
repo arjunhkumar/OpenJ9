@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "optimizer/DataAccessAccelerator.hpp"
@@ -90,11 +90,19 @@ int32_t TR_DataAccessAccelerator::perform()
    {
    int32_t result = 0;
 
+   /* Disable DAA optimization for non-vectorized paths to unblock off-heap
+    * enablement while we continue to investigate the bug in non-vectorized
+    * pdload evaluator.
+    *
+    * TODO: Enable non-vectorized paths for off-heap.
+    *     - Issue: https://github.com/eclipse-openj9/openj9/issues/21246
+    */
    if (!comp()->getOption(TR_DisableIntrinsics) &&
        !comp()->getOption(TR_MimicInterpreterFrameShape) &&
 
        // We cannot handle arraylets because hardware intrinsics act on contiguous memory
-       !comp()->generateArraylets()&& !TR::Compiler->om.useHybridArraylets())
+       !comp()->generateArraylets() && !TR::Compiler->om.useHybridArraylets() &&
+       (!TR::Compiler->om.isOffHeapAllocationEnabled() || comp()->getOption(TR_DisableVectorBCD)))
      {
 
      // A vector to keep track of variable packed decimal calls
@@ -339,6 +347,14 @@ int32_t TR_DataAccessAccelerator::performOnBlock(TR::Block* block, TreeTopContai
                   break;
                case TR::com_ibm_dataaccess_DecimalData_convertPackedDecimalToExternalDecimal_:
                   if (generatePD2UD(treeTop, callNode, false))
+                     {
+                     ++result;
+                     }
+                  break;
+               // DAA External Decimal Check
+               case TR::com_ibm_dataaccess_ExternalDecimal_checkExternalDecimal_:
+                  if (comp()->target().cpu.supportsFeature(OMR_FEATURE_S390_VECTOR_PACKED_DECIMAL_ENHANCEMENT_FACILITY_3)
+                        && inlineCheckExternalDecimal(treeTop, callNode))
                      {
                      ++result;
                      }
@@ -625,7 +641,7 @@ TR::Node* TR_DataAccessAccelerator::insertDecimalGetIntrinsic(TR::TreeTop* callT
          case 8: targetDataType = TR::Double; break;
          }
 
-      TR::Node* valueNode = TR::Node::createWithSymRef(op, 1, 1, createByteArrayElementAddress(callTreeTop, callNode, byteArrayNode, offsetNode), comp()->getSymRefTab()->findOrCreateGenericIntShadowSymbolReference(0));
+      TR::Node* valueNode = TR::Node::createWithSymRef(op, 1, 1, constructAddressNode(callNode, byteArrayNode, offsetNode), comp()->getSymRefTab()->findOrCreateGenericIntShadowSymbolReference(0));
 
       if (requiresByteSwap)
          {
@@ -737,21 +753,21 @@ TR::Node* TR_DataAccessAccelerator::insertDecimalSetIntrinsic(TR::TreeTop* callT
             }
          }
 
-      return TR::Node::createWithSymRef(op, 2, 2, createByteArrayElementAddress(callTreeTop, callNode, byteArrayNode, offsetNode), valueNode, comp()->getSymRefTab()->findOrCreateGenericIntShadowSymbolReference(0));
+      return TR::Node::createWithSymRef(op, 2, 2, constructAddressNode(callNode, byteArrayNode, offsetNode), valueNode, comp()->getSymRefTab()->findOrCreateGenericIntShadowSymbolReference(0));
       }
 
    return NULL;
    }
 
-bool TR_DataAccessAccelerator::inlineCheckPackedDecimal(TR::TreeTop* callTreeTop, TR::Node* callNode)
+bool TR_DataAccessAccelerator::inlineCheckPackedDecimal(TR::TreeTop *callTreeTop, TR::Node *callNode)
    {
-   TR::Node* byteArrayNode = callNode->getChild(0);
-   TR::Node* offsetNode = callNode->getChild(1);
-   TR::Node* precisionNode = callNode->getChild(2);
-   TR::Node* ignoreHighNibbleForEvenPrecisionNode = callNode->getChild(3);
-   TR::Node* canOverwriteHighNibbleForEvenPrecisionNode = callNode->getChild(4);
+   TR::Node *byteArrayNode = callNode->getChild(0);
+   TR::Node *offsetNode = callNode->getChild(1);
+   TR::Node *precisionNode = callNode->getChild(2);
+   TR::Node *ignoreHighNibbleForEvenPrecisionNode = callNode->getChild(3);
+   TR::Node *canOverwriteHighNibbleForEvenPrecisionNode = callNode->getChild(4);
    int32_t precision = precisionNode->getInt();
-   char* failMsg = NULL;
+   const char *failMsg = NULL;
 
    if (!precisionNode->getOpCode().isLoadConst())
       failMsg = "precisionNode is not constant.";
@@ -784,9 +800,9 @@ bool TR_DataAccessAccelerator::inlineCheckPackedDecimal(TR::TreeTop* callTreeTop
       insertByteArrayBNDCHK(callTreeTop, callNode, byteArrayNode, offsetNode, 0);
       insertByteArrayBNDCHK(callTreeTop, callNode, byteArrayNode, offsetNode, precisionSizeInNumberOfBytes - 1);
 
-      TR::SymbolReference* packedDecimalSymbolReference = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, NULL, precisionSizeInNumberOfBytes, fe());
+      TR::SymbolReference *packedDecimalSymbolReference = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, NULL, precisionSizeInNumberOfBytes, fe());
 
-      TR::Node* pdchkChild0Node = TR::Node::createWithSymRef(TR::pdloadi, 1, 1, constructAddressNode(callNode, byteArrayNode, offsetNode), packedDecimalSymbolReference);
+      TR::Node *pdchkChild0Node = TR::Node::createWithSymRef(TR::pdloadi, 1, 1, constructAddressNode(callNode, byteArrayNode, offsetNode), packedDecimalSymbolReference);
 
       // The size argument passed to create an array shadow symbol reference is the size in number of bytes that this PackedDecimal represents.
       // Unfortunately when a Node is constructed with this symbol reference we extract the size from the symbol reference and convert it to a
@@ -845,6 +861,99 @@ bool TR_DataAccessAccelerator::inlineCheckPackedDecimal(TR::TreeTop* callTreeTop
 
    return false;
    }
+
+bool TR_DataAccessAccelerator::inlineCheckExternalDecimal(TR::TreeTop *callTreeTop, TR::Node *callNode)
+   {
+   TR::Node *byteArrayNode = callNode->getChild(0);
+   TR::Node *offsetNode = callNode->getChild(1);
+   TR::Node *precisionNode = callNode->getChild(2);
+   TR::Node *typeNode = callNode->getChild(3);
+   TR::Node *bytesWithSpacesNode = callNode->getChild(4);
+
+   int32_t precision = precisionNode->getInt();
+   int32_t bytesWithSpaces = bytesWithSpacesNode->getInt();
+   int32_t type = typeNode->getInt();
+   const char *failMsg = NULL;
+
+   /* Hardware expects both, precision and bytesWithSpaces to be
+    * 5 bit unsigned binary integer. However, 0 is valid only for
+    * bytesWithSpaces. This is why precision must be within [1-31]
+    * range and bytesWithSpaces must be within [0-31] range.
+    */
+   // TODO: Add support for non-constant arguments
+   if (!isChildConst(callNode, 2))
+      failMsg = "Precision is not constant";
+   else if (precision < 1 || precision > 31)
+      failMsg = "Precision value is not in valid range [1-31]";
+   else if (!isChildConst(callNode, 3))
+      failMsg = "Decimal type node is not constant";
+   else if (type < 1 || type > 4)
+      failMsg = "Invalid decimal type. Supported types are (1|2|3|4)";
+   else if (!isChildConst(callNode, 4))
+      failMsg = "bytesWithSpaces node is not constant";
+   else if (bytesWithSpaces < 0 || bytesWithSpaces > 31)
+      failMsg = "bytesWithSpaces value not in valid range [0-31]";
+
+   if (failMsg)
+      {
+      TR::DebugCounter::incStaticDebugCounter(comp(),
+                                               TR::DebugCounter::debugCounterName(comp(),
+                                                                                  "DAA/rejected/chkZonedDecimal"));
+
+      return printInliningStatus (false, callNode, failMsg);
+      }
+
+   if (performTransformation(comp(), "O^O TR_DataAccessAccelerator: inlineCheckZonedDecimal on callNode %p\n", callNode))
+      {
+      TR::DebugCounter::incStaticDebugCounter(comp(),
+                                              TR::DebugCounter::debugCounterName(comp(),
+                                                                                 "DAA/inlined/chkZonedDecimal"));
+
+      insertByteArrayNULLCHK(callTreeTop, callNode, byteArrayNode);
+
+      TR::DataType decimalType = TR::DataTypes::NoType;
+      TR::ILOpCodes loadOpCode = TR::BadILOp;
+      if (type == 1)
+         {
+         decimalType = TR::ZonedDecimal;
+         loadOpCode = TR::zdloadi;
+         }
+      else if (type == 2)
+         {
+         decimalType = TR::ZonedDecimalSignLeadingEmbedded;
+         loadOpCode = TR::zdsleLoadi;
+         }
+      else if (type == 3)
+         {
+         decimalType = TR::ZonedDecimalSignTrailingSeparate;
+         loadOpCode = TR::zdstsLoadi;
+         }
+      else if (type == 4)
+         {
+         decimalType = TR::ZonedDecimalSignLeadingSeparate;
+         loadOpCode = TR::zdslsLoadi;
+         }
+      int32_t precisionSizeInNumberOfBytes = TR::DataType::getSizeFromBCDPrecision(decimalType, precision);
+
+      insertByteArrayBNDCHK(callTreeTop, callNode, byteArrayNode, offsetNode, 0);
+      insertByteArrayBNDCHK(callTreeTop, callNode, byteArrayNode, offsetNode, precisionSizeInNumberOfBytes - 1);
+
+      TR::SymbolReference* zonedDecimalSymbolReference = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(decimalType, NULL, precisionSizeInNumberOfBytes, fe());
+      TR::Node* zdchkChild0Node = TR::Node::createWithSymRef(loadOpCode, 1, 1, constructAddressNode(callNode, byteArrayNode, offsetNode), zonedDecimalSymbolReference);
+      zdchkChild0Node->setDecimalPrecision(precision);
+
+      byteArrayNode->decReferenceCount();
+      offsetNode->decReferenceCount();
+      precisionNode->decReferenceCount();
+      typeNode->decReferenceCount();
+
+      TR::Node* bytesWithSpacesConstNode = TR::Node::bconst(static_cast<uint8_t>(bytesWithSpaces));
+      TR::Node::recreateWithoutProperties(callNode, TR::zdchk, 2, zdchkChild0Node, bytesWithSpacesConstNode);
+      return true;
+      }
+
+   return false;
+}
 
 TR::Node* TR_DataAccessAccelerator::insertIntegerGetIntrinsic(TR::TreeTop* callTreeTop, TR::Node* callNode, int32_t sourceNumBytes, int32_t targetNumBytes)
    {
@@ -957,7 +1066,7 @@ TR::Node* TR_DataAccessAccelerator::insertIntegerGetIntrinsic(TR::TreeTop* callT
          case 8: targetDataType = TR::Int64; break;
          }
 
-      TR::Node* valueNode = TR::Node::createWithSymRef(op, 1, 1, createByteArrayElementAddress(callTreeTop, callNode, byteArrayNode, offsetNode), comp()->getSymRefTab()->findOrCreateGenericIntShadowSymbolReference(0));
+      TR::Node* valueNode = TR::Node::createWithSymRef(op, 1, 1, constructAddressNode(callNode, byteArrayNode, offsetNode), comp()->getSymRefTab()->findOrCreateGenericIntShadowSymbolReference(0));
 
       if (requiresByteSwap)
          {
@@ -1085,17 +1194,16 @@ TR::Node* TR_DataAccessAccelerator::insertIntegerSetIntrinsic(TR::TreeTop* callT
          valueNode = TR::Node::create(byteswapOp, 1, valueNode);
          }
 
-      return TR::Node::createWithSymRef(op, 2, 2, createByteArrayElementAddress(callTreeTop, callNode, byteArrayNode, offsetNode), valueNode, comp()->getSymRefTab()->findOrCreateGenericIntShadowSymbolReference(0));
+      return TR::Node::createWithSymRef(op, 2, 2, constructAddressNode(callNode, byteArrayNode, offsetNode), valueNode, comp()->getSymRefTab()->findOrCreateGenericIntShadowSymbolReference(0));
       }
 
    return NULL;
    }
 
-TR::Node* TR_DataAccessAccelerator::constructAddressNode(TR::Node* callNode, TR::Node* arrayNode, TR::Node* offsetNode)
+TR::Node* TR_DataAccessAccelerator::constructAddressNode(TR::Node* callNode, TR::Node* arrayNode, TR::Node* offsetNode, bool isUnicodeOrExternalDecimalInvolved, bool isSrcOrTargetUnicodeDecimal)
    {
-   TR::Node * arrayAddressNode;
-   TR::Node * headerConstNode;
-   TR::Node * totalOffsetNode;
+   TR::Node * arrayAddressNode = NULL;
+   TR::Node * totalOffsetNode = NULL;
 
    TR::Node * pdBufAddressNode = NULL;
    TR::Node * pdBufPositionNode = NULL;
@@ -1131,21 +1239,8 @@ TR::Node* TR_DataAccessAccelerator::constructAddressNode(TR::Node* callNode, TR:
          }
       }
 
-   if (comp()->target().is64Bit())
-      {
-      headerConstNode = TR::Node::create(callNode, TR::lconst, 0, 0);
-      headerConstNode->setLongInt(TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
-      totalOffsetNode = TR::Node::create(TR::ladd, 2, headerConstNode, TR::Node::create(TR::i2l, 1, offsetNode));
-      arrayAddressNode = TR::Node::create(TR::aladd, 2, arrayNode, totalOffsetNode);
-      }
-   else
-      {
-      headerConstNode = TR::Node::create(callNode, TR::iconst, 0,
-            TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
-
-      totalOffsetNode = TR::Node::create(TR::iadd, 2, headerConstNode, offsetNode);
-      arrayAddressNode = TR::Node::create(TR::aiadd, 2, arrayNode, totalOffsetNode);
-      }
+   totalOffsetNode = TR::TransformUtil::generateConvertArrayElementIndexToOffsetTrees(comp(), offsetNode, NULL, isSrcOrTargetUnicodeDecimal ? 2 : 1, false);
+   arrayAddressNode = TR::TransformUtil::generateArrayElementAddressTrees(comp(), arrayNode, totalOffsetNode);
    arrayAddressNode->setIsInternalPointer(true);
    return arrayAddressNode;
    }
@@ -1203,9 +1298,9 @@ bool TR_DataAccessAccelerator::genComparisionIntrinsic(TR::TreeTop* treeTop, TR:
    TR::SymbolReference* bcdChkSymRef = callNode->getSymbolReference();
    TR::Node * bcdchkNode = TR::Node::createWithSymRef(TR::BCDCHK, 7, 7,
                                                       pdOpNode,
-                                                      callNode->getChild(0), callNode->getChild(1),
-                                                      callNode->getChild(2), callNode->getChild(3),
-                                                      callNode->getChild(4), callNode->getChild(5),
+                                                      op1Node, offset1Node,
+                                                      prec1Node, op2Node,
+                                                      offset2Node, prec2Node,
                                                       bcdChkSymRef);
 
    pdOpNode->setNumChildren(2);
@@ -1233,10 +1328,10 @@ bool TR_DataAccessAccelerator::genComparisionIntrinsic(TR::TreeTop* treeTop, TR:
    return printInliningStatus(true, callNode);
    }
 
-bool TR_DataAccessAccelerator::generateI2PD(TR::TreeTop* treeTop, TR::Node* callNode, bool isI2PD, bool isByteBuffer)
+bool TR_DataAccessAccelerator::generateI2PD(TR::TreeTop *treeTop, TR::Node *callNode, bool isI2PD, bool isByteBuffer)
    {
    int precision = callNode->getChild(3)->getInt();
-   char* failMsg = NULL;
+   const char *failMsg = NULL;
 
    if (!isChildConst(callNode, 3) || !isChildConst(callNode, 4))
       failMsg = "Child (3|4) is not constant";
@@ -1252,16 +1347,16 @@ bool TR_DataAccessAccelerator::generateI2PD(TR::TreeTop* treeTop, TR::Node* call
       return printInliningStatus(false, callNode, failMsg);
       }
 
-   TR::Node* intNode = NULL;
-   TR::Node* pdNode = NULL;
-   TR::Node* offsetNode = NULL;
-   TR::Node* precNode = NULL;
-   TR::Node* errorCheckingNode = NULL;
+   TR::Node *intNode = NULL;
+   TR::Node *pdNode = NULL;
+   TR::Node *offsetNode = NULL;
+   TR::Node *precNode = NULL;
+   TR::Node *errorCheckingNode = NULL;
 
    // Backing storage info for ByteBuffer
-   TR::Node * pdBufAddressNodeCopy = NULL;
-   TR::Node * pdBufCapacityNode = NULL;
-   TR::Node * pdBufPositionNode = NULL;
+   TR::Node *pdBufAddressNodeCopy = NULL;
+   TR::Node *pdBufCapacityNode = NULL;
+   TR::Node *pdBufPositionNode = NULL;
 
    TR::TreeTop *slowPathTreeTop = NULL;
    TR::TreeTop *fastPathTreeTop = NULL;
@@ -1300,7 +1395,7 @@ bool TR_DataAccessAccelerator::generateI2PD(TR::TreeTop* treeTop, TR::Node* call
 
       //create a TR::i2pd node and an pdstore.
       //this will not cause an exception, so it is safe to remove BCDCHK
-      TR::Node * i2pdNode = TR::Node::create((isI2PD)?TR::i2pd:TR::l2pd, 1, intNode);
+      TR::Node *i2pdNode = TR::Node::create((isI2PD)?TR::i2pd:TR::l2pd, 1, intNode);
       i2pdNode->setDecimalPrecision(precision);
 
       /**
@@ -1349,20 +1444,20 @@ bool TR_DataAccessAccelerator::generateI2PD(TR::TreeTop* treeTop, TR::Node* call
        * With AddrNode2 and AddrNode3 commoned up, the LocalCSE is able to copy propagate pdshlOverflow to the pd2zd
        * tree and replace its pdloadi.
        */
-      TR::Node * outOfLineCopyBackAddr = constructAddressNode(callNode, pdNode, offsetNode);
-      TR::Node * storeAddressNode      = constructAddressNode(callNode, pdNode, offsetNode);
+      TR::Node *outOfLineCopyBackAddr = constructAddressNode(callNode, pdNode, offsetNode);
+      TR::Node *storeAddressNode      = constructAddressNode(callNode, pdNode, offsetNode);
 
-      TR::TreeTop * nextTT = treeTop->getNextTreeTop();
-      TR::TreeTop * prevTT = treeTop->getPrevTreeTop();
+      TR::TreeTop *nextTT = treeTop->getNextTreeTop();
+      TR::TreeTop *prevTT = treeTop->getPrevTreeTop();
 
       TR::ILOpCodes op = comp()->il.opCodeForIndirectStore(TR::PackedDecimal);
 
-      TR::Node * pdstore = NULL;
-      TR::Node * bcdchkNode = NULL;
+      TR::Node *pdstore = NULL;
+      TR::Node *bcdchkNode = NULL;
       if (needsBCDCHK)
          {
          i2pdNode->setDecimalPrecision((isI2PD)? 10:19);
-         TR::Node * pdshlNode = TR::Node::create(TR::pdshlOverflow, 2, i2pdNode, TR::Node::create(callNode, TR::iconst, 0));
+         TR::Node *pdshlNode = TR::Node::create(TR::pdshlOverflow, 2, i2pdNode, TR::Node::create(callNode, TR::iconst, 0));
          pdshlNode->setDecimalPrecision(precision);
 
          /* Attaching all the original callNode's children as the children to BCDCHK.
@@ -1406,7 +1501,7 @@ bool TR_DataAccessAccelerator::generateI2PD(TR::TreeTop* treeTop, TR::Node* call
          pdstore = TR::Node::create(op, 2, storeAddressNode, i2pdNode);
          }
 
-      TR::TreeTop* pdstoreTT = TR::TreeTop::create(comp(), pdstore);
+      TR::TreeTop *pdstoreTT = TR::TreeTop::create(comp(), pdstore);
 
       if (isByteBuffer)
          {
@@ -1433,7 +1528,7 @@ bool TR_DataAccessAccelerator::generateI2PD(TR::TreeTop* treeTop, TR::Node* call
          callBlock->createConditionalBlocksBeforeTree(treeTop, isValidAddrTreeTop, slowPathTreeTop, fastPathTreeTop, cfg, false, true);
          }
 
-      TR::SymbolReference * symRef = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, outOfLineCopyBackAddr, 8, fe());
+      TR::SymbolReference *symRef = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, outOfLineCopyBackAddr, 8, fe());
       pdstore->setSymbolReference(symRef);
       pdstore->setDecimalPrecision(precision);
 
@@ -1606,17 +1701,17 @@ void TR_DataAccessAccelerator::createPrecisionDiamond(TR::Compilation* comp,
    }
 
 bool
-TR_DataAccessAccelerator::generatePD2IConstantParameter(TR::TreeTop* treeTop, TR::Node* callNode, bool isPD2i, bool isByteBuffer)
+TR_DataAccessAccelerator::generatePD2IConstantParameter(TR::TreeTop *treeTop, TR::Node *callNode, bool isPD2i, bool isByteBuffer)
    {
-   TR::Node* pdInputNode    = callNode->getChild(0);
-   TR::Node* offsetNode     = callNode->getChild(1);
-   TR::Node* precisionNode  = callNode->getChild(2);
-   TR::Node* overflowNode   = callNode->getChild(3);
+   TR::Node *pdInputNode    = callNode->getChild(0);
+   TR::Node *offsetNode     = callNode->getChild(1);
+   TR::Node *precisionNode  = callNode->getChild(2);
+   TR::Node *overflowNode   = callNode->getChild(3);
 
    // Backing storage info for ByteBuffer
-   TR::Node * pdBufAddressNodeCopy = NULL;
-   TR::Node * pdBufCapacityNode = NULL;
-   TR::Node * pdBufPositionNode = NULL;
+   TR::Node *pdBufAddressNodeCopy = NULL;
+   TR::Node *pdBufCapacityNode = NULL;
+   TR::Node *pdBufPositionNode = NULL;
 
    TR::TreeTop *slowPathTreeTop = NULL;
    TR::TreeTop *fastPathTreeTop = NULL;
@@ -1628,7 +1723,7 @@ TR_DataAccessAccelerator::generatePD2IConstantParameter(TR::TreeTop* treeTop, TR
    TR::TreeTop *bcdchkTreeTop = NULL;
    int precision = precisionNode->getInt();
    int overflow = overflowNode->getInt();
-   char* failMsg = NULL;
+   const char *failMsg = NULL;
 
    if (precision < 1)
       failMsg = "Invalid precision. Precision can not be less than 1";
@@ -2119,19 +2214,19 @@ bool TR_DataAccessAccelerator::genArithmeticIntrinsic(TR::TreeTop* treeTop, TR::
    return false;
    }
 
-bool TR_DataAccessAccelerator::genShiftRightIntrinsic(TR::TreeTop* treeTop, TR::Node* callNode)
+bool TR_DataAccessAccelerator::genShiftRightIntrinsic(TR::TreeTop *treeTop, TR::Node *callNode)
    {
-   TR::Node * dstNode = callNode->getChild(0);
-   TR::Node * dstOffsetNode = callNode->getChild(1);
-   TR::Node * dstPrecNode = callNode->getChild(2);
+   TR::Node *dstNode = callNode->getChild(0);
+   TR::Node *dstOffsetNode = callNode->getChild(1);
+   TR::Node *dstPrecNode = callNode->getChild(2);
 
-   TR::Node * srcNode = callNode->getChild(3);
-   TR::Node * srcOffsetNode = callNode->getChild(4);
-   TR::Node * srcPrecNode = callNode->getChild(5);
+   TR::Node *srcNode = callNode->getChild(3);
+   TR::Node *srcOffsetNode = callNode->getChild(4);
+   TR::Node *srcPrecNode = callNode->getChild(5);
 
-   TR::Node * shiftNode = callNode->getChild(6);
-   TR::Node * roundNode = callNode->getChild(7);
-   TR::Node * overflowNode = callNode->getChild(8);
+   TR::Node *shiftNode = callNode->getChild(6);
+   TR::Node *roundNode = callNode->getChild(7);
+   TR::Node *overflowNode = callNode->getChild(8);
 
    int srcPrec = srcPrecNode->getInt();
    int dstPrec = dstPrecNode->getInt();
@@ -2139,7 +2234,7 @@ bool TR_DataAccessAccelerator::genShiftRightIntrinsic(TR::TreeTop* treeTop, TR::
    int shiftAmount = shiftNode->getInt();
    int isRound   = roundNode->getInt();
    int isCheckOverflow = overflowNode->getInt();
-   char* failMsg = NULL;
+   const char *failMsg = NULL;
 
    if (!isChildConst(callNode, 2) || !isChildConst(callNode, 5) ||
            !isChildConst(callNode, 7) || !isChildConst(callNode, 8))
@@ -2228,24 +2323,24 @@ bool TR_DataAccessAccelerator::genShiftRightIntrinsic(TR::TreeTop* treeTop, TR::
    return printInliningStatus(true, callNode);
    }
 
-bool TR_DataAccessAccelerator::genShiftLeftIntrinsic(TR::TreeTop* treeTop, TR::Node* callNode)
+bool TR_DataAccessAccelerator::genShiftLeftIntrinsic(TR::TreeTop *treeTop, TR::Node *callNode)
    {
 
 
-   TR::Node * dstNode = callNode->getChild(0);
-   TR::Node * dstOffsetNode = callNode->getChild(1);
-   TR::Node * dstPrecNode = callNode->getChild(2);
+   TR::Node *dstNode = callNode->getChild(0);
+   TR::Node *dstOffsetNode = callNode->getChild(1);
+   TR::Node *dstPrecNode = callNode->getChild(2);
 
-   TR::Node * srcNode = callNode->getChild(3);
-   TR::Node * srcOffsetNode = callNode->getChild(4);
-   TR::Node * srcPrecNode = callNode->getChild(5);
+   TR::Node *srcNode = callNode->getChild(3);
+   TR::Node *srcOffsetNode = callNode->getChild(4);
+   TR::Node *srcPrecNode = callNode->getChild(5);
 
-   TR::Node * shiftNode = callNode->getChild(6);
+   TR::Node *shiftNode = callNode->getChild(6);
 
    int srcPrec = srcPrecNode->getInt();
    int dstPrec = dstPrecNode->getInt();
    int shiftAmount = shiftNode->getInt();
-   char* failMsg = NULL;
+   const char *failMsg = NULL;
 
    if (!isChildConst(callNode, 2) || !isChildConst(callNode, 5) ||
            !isChildConst(callNode, 6) || !isChildConst(callNode, 7))
@@ -2281,18 +2376,18 @@ bool TR_DataAccessAccelerator::genShiftLeftIntrinsic(TR::TreeTop* treeTop, TR::N
    TR::Node* pdStoreAddrNode       = constructAddressNode(callNode, dstNode, dstOffsetNode);
 
    //pdload:
-   TR::Node * pdload = TR::Node::create(TR::pdloadi, 1, srcAddrNode);
-   TR::SymbolReference * symRef = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, srcAddrNode, 8, fe());
+   TR::Node *pdload = TR::Node::create(TR::pdloadi, 1, srcAddrNode);
+   TR::SymbolReference *symRef = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, srcAddrNode, 8, fe());
    symRef->setOffset(0);
    pdload->setSymbolReference(symRef);
    pdload->setDecimalPrecision(srcPrec);
 
    // Always use BCDCHK node for exception handling (invalid digits/sign).
-   TR::Node * pdshlNode = TR::Node::create(TR::pdshlOverflow, 2, pdload, shiftNode);
+   TR::Node *pdshlNode = TR::Node::create(TR::pdshlOverflow, 2, pdload, shiftNode);
    pdshlNode->setDecimalPrecision(dstPrec);
 
    TR::SymbolReference* bcdChkSymRef = callNode->getSymbolReference();
-   TR::Node* bcdchkNode = TR::Node::createWithSymRef(TR::BCDCHK, 10, 10,
+   TR::Node *bcdchkNode = TR::Node::createWithSymRef(TR::BCDCHK, 10, 10,
                                        pdshlNode, outOfLineCopyBackAddr,
                                        callNode->getChild(0), callNode->getChild(1),
                                        callNode->getChild(2), callNode->getChild(3),
@@ -2306,19 +2401,19 @@ bool TR_DataAccessAccelerator::genShiftLeftIntrinsic(TR::TreeTop* treeTop, TR::N
 
    //following pdstore
    TR::ILOpCodes op = comp()->il.opCodeForIndirectStore(TR::PackedDecimal);
-   TR::SymbolReference * symRefPdstore = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, outOfLineCopyBackAddr, 8, fe());
-   TR::Symbol * symStore =  TR::Symbol::createShadow(comp()->trHeapMemory(), TR::PackedDecimal, TR::DataType::getSizeFromBCDPrecision(TR::PackedDecimal, dstPrec));
+   TR::SymbolReference *symRefPdstore = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, outOfLineCopyBackAddr, 8, fe());
+   TR::Symbol *symStore =  TR::Symbol::createShadow(comp()->trHeapMemory(), TR::PackedDecimal, TR::DataType::getSizeFromBCDPrecision(TR::PackedDecimal, dstPrec));
    symStore->setArrayShadowSymbol();
    symRefPdstore->setSymbol(symStore);
 
-   TR::Node * pdstore = TR::Node::create(op, 2, pdStoreAddrNode, pdshlNode);
+   TR::Node *pdstore = TR::Node::create(op, 2, pdStoreAddrNode, pdshlNode);
    pdstore->setSymbolReference(symRefPdstore);
    pdstore->setDecimalPrecision(dstPrec);
 
    //gen treeTop tops
-   TR::TreeTop * nextTT      = treeTop->getNextTreeTop();
-   TR::TreeTop * prevTT      = treeTop->getPrevTreeTop();
-   TR::TreeTop * pdstoreTT   = TR::TreeTop::create(comp(), pdstore);
+   TR::TreeTop *nextTT      = treeTop->getNextTreeTop();
+   TR::TreeTop *prevTT      = treeTop->getPrevTreeTop();
+   TR::TreeTop *pdstoreTT   = TR::TreeTop::create(comp(), pdstore);
 
    prevTT->join(treeTop);
    treeTop->setNode(bcdchkNode);
@@ -2329,25 +2424,25 @@ bool TR_DataAccessAccelerator::genShiftLeftIntrinsic(TR::TreeTop* treeTop, TR::N
    return printInliningStatus(true, callNode);
    }
 
-bool TR_DataAccessAccelerator::generateUD2PD(TR::TreeTop* treeTop, TR::Node* callNode, bool isUD2PD)
+bool TR_DataAccessAccelerator::generateUD2PD(TR::TreeTop *treeTop, TR::Node *callNode, bool isSrcUnicodeDecimal)
    {
-   TR::Node * decimalNode = callNode->getChild(0);
-   TR::Node * decimalOffsetNode = callNode->getChild(1);
-   TR::Node * pdNode = callNode->getChild(2);
-   TR::Node * pdOffsetNode = callNode->getChild(3);
-   TR::Node * precNode = callNode->getChild(4);
-   TR::Node * typeNode = callNode->getChild(5);
+   TR::Node *decimalNode = callNode->getChild(0);
+   TR::Node *decimalOffsetNode = callNode->getChild(1);
+   TR::Node *pdNode = callNode->getChild(2);
+   TR::Node *pdOffsetNode = callNode->getChild(3);
+   TR::Node *precNode = callNode->getChild(4);
+   TR::Node *typeNode = callNode->getChild(5);
 
    //first, check decimalType
    int type = typeNode->getInt();
    int prec = precNode->getInt();
-   char* failMsg = NULL;
+   const char *failMsg = NULL;
 
    if (!isChildConst(callNode, 4) || !isChildConst(callNode, 5))
       failMsg = "Child (4|5) is not constant";
-   else if (isUD2PD && type != 5 && type != 6 && type != 7)
+   else if (isSrcUnicodeDecimal && type != 5 && type != 6 && type != 7)
       failMsg = "Invalid decimal type. Supported types are (5|6|7)";
-   else if (!isUD2PD && (type < 1 || type > 4))
+   else if (!isSrcUnicodeDecimal && (type < 1 || type > 4))
       failMsg = "Invalid decimal type. Supported types are (1|2|3|4)";
    else if (prec < 1 || prec > 31)
       failMsg = "Invalid precision. Valid precision is in range [1, 31]";
@@ -2405,32 +2500,7 @@ bool TR_DataAccessAccelerator::generateUD2PD(TR::TreeTop* treeTop, TR::Node* cal
          }
 
       //create decimalload
-      TR::Node * decimalAddressNode;
-      int offset = decimalOffsetNode->getInt();
-      TR::Node * twoConstNode;
-      TR::Node * multipliedOffsetNode;
-      TR::Node * totalOffsetNode;
-      TR::Node * headerConstNode;
-      if (comp()->target().is64Bit())
-         {
-         headerConstNode = TR::Node::create(callNode, TR::lconst, 0, 0);
-         headerConstNode->setLongInt(TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
-         twoConstNode = TR::Node::create(callNode, TR::lconst, 0, 0);
-         twoConstNode->setLongInt(isUD2PD ? 2 : 1);
-         multipliedOffsetNode = TR::Node::create(TR::lmul, 2,
-                                                TR::Node::create(TR::i2l, 1, decimalOffsetNode), twoConstNode);
-         totalOffsetNode = TR::Node::create(TR::ladd, 2, headerConstNode, multipliedOffsetNode);
-         decimalAddressNode = TR::Node::create(TR::aladd, 2, decimalNode, totalOffsetNode);
-         }
-      else
-         {
-         headerConstNode = TR::Node::create(callNode, TR::iconst, 0,
-                                           TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
-         twoConstNode = TR::Node::create(callNode, TR::iconst, 0, isUD2PD ? 2 : 1);
-         multipliedOffsetNode = TR::Node::create(TR::imul, 2, decimalOffsetNode, twoConstNode);
-         totalOffsetNode = TR::Node::create(TR::iadd, 2, headerConstNode, multipliedOffsetNode);
-         decimalAddressNode = TR::Node::create(TR::aiadd, 2, decimalNode, totalOffsetNode);
-         }
+      TR::Node *decimalAddressNode = constructAddressNode(callNode, decimalNode, decimalOffsetNode, true, isSrcUnicodeDecimal);
 
       decimalAddressNode->setIsInternalPointer(true);
       TR::SymbolReference * symRef = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(dt, decimalAddressNode, 8, fe());
@@ -2441,17 +2511,17 @@ bool TR_DataAccessAccelerator::generateUD2PD(TR::TreeTop* treeTop, TR::Node* cal
       decimalload->setDecimalPrecision(prec);
 
       //create PDaddress
-      TR::Node * pdAddressNode = constructAddressNode(callNode, pdNode, pdOffsetNode);
+      TR::Node *pdAddressNode = constructAddressNode(callNode, pdNode, pdOffsetNode);
 
-      int elementSize = isUD2PD ? TR::DataType::getUnicodeElementSize() : TR::DataType::getZonedElementSize();
+      int elementSize = isSrcUnicodeDecimal ? TR::DataType::getUnicodeElementSize() : TR::DataType::getZonedElementSize();
 
       //bound values
       int pdPrecSize = TR::DataType::getSizeFromBCDPrecision(TR::PackedDecimal, prec) - 1;
       int decimalPrecSize = (TR::DataType::getSizeFromBCDPrecision(dt, prec) / elementSize) - 1;
-      TR::Node * pdBndvalue = TR::Node::create(TR::iadd, 2,
+      TR::Node *pdBndvalue = TR::Node::create(TR::iadd, 2,
                                               pdOffsetNode,
                                               TR::Node::create(callNode, TR::iconst, 0, pdPrecSize));
-      TR::Node * decimalBndvalue = TR::Node::create(TR::iadd, 2,
+      TR::Node *decimalBndvalue = TR::Node::create(TR::iadd, 2,
                                               decimalOffsetNode,
                                               TR::Node::create(callNode, TR::iconst, 0, decimalPrecSize)); //size of unicode is 2 bytes
 
@@ -2488,8 +2558,8 @@ bool TR_DataAccessAccelerator::generateUD2PD(TR::TreeTop* treeTop, TR::Node* cal
             TR_ASSERT(false, "illegal decimalType.\n");
          }
 
-      TR::Node * decimal2pdNode = NULL;
-      if (isUD2PD || type == 1)
+      TR::Node *decimal2pdNode = NULL;
+      if (isSrcUnicodeDecimal || type == 1)
          {
          //for converting zd to pd (here type == 1), dont need the additional intermediate conversion
          decimal2pdNode = TR::Node::create(op, 1, decimalload);
@@ -2503,46 +2573,46 @@ bool TR_DataAccessAccelerator::generateUD2PD(TR::TreeTop* treeTop, TR::Node* cal
          decimal2pdNode->setDecimalPrecision(prec);
 
       //create pdstore
-      TR::Node * pdstoreNode = TR::Node::create(TR::pdstorei, 2, pdAddressNode, decimal2pdNode);
-      TR::SymbolReference * symRefStore = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, pdAddressNode, 8, fe());
-      TR::Symbol * symStore =  TR::Symbol::createShadow(comp()->trHeapMemory(), TR::PackedDecimal, TR::DataType::getSizeFromBCDPrecision(TR::PackedDecimal, prec));
+      TR::Node *pdstoreNode = TR::Node::create(TR::pdstorei, 2, pdAddressNode, decimal2pdNode);
+      TR::SymbolReference *symRefStore = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, pdAddressNode, 8, fe());
+      TR::Symbol *symStore =  TR::Symbol::createShadow(comp()->trHeapMemory(), TR::PackedDecimal, TR::DataType::getSizeFromBCDPrecision(TR::PackedDecimal, prec));
       symRefStore->setSymbol(symStore);
 
       pdstoreNode->setSymbolReference(symRefStore);
       pdstoreNode->setDecimalPrecision(prec);
 
       //set up bndchks, and null chks
-      TR::Node * pdPassThroughNode = TR::Node::create(TR::PassThrough, 1, pdNode);
-      TR::Node * decimalPassThroughNode = TR::Node::create(TR::PassThrough, 1, decimalNode);
+      TR::Node *pdPassThroughNode = TR::Node::create(TR::PassThrough, 1, pdNode);
+      TR::Node *decimalPassThroughNode = TR::Node::create(TR::PassThrough, 1, decimalNode);
 
-      TR::Node * pdArrayLengthNode = TR::Node::create(TR::arraylength, 1, pdNode);
-      TR::Node * decimalArrayLengthNode = TR::Node::create(TR::arraylength, 1, decimalNode);
+      TR::Node *pdArrayLengthNode = TR::Node::create(TR::arraylength, 1, pdNode);
+      TR::Node *decimalArrayLengthNode = TR::Node::create(TR::arraylength, 1, decimalNode);
 
-      TR::Node * pdNullChkNode = TR::Node::createWithSymRef(TR::NULLCHK, 1, 1, pdPassThroughNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_nullCheck, false, true, true));
-      TR::Node * decimalNullChkNode = TR::Node::createWithSymRef(TR::NULLCHK, 1, 1, decimalPassThroughNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_nullCheck, false, true, true));
+      TR::Node *pdNullChkNode = TR::Node::createWithSymRef(TR::NULLCHK, 1, 1, pdPassThroughNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_nullCheck, false, true, true));
+      TR::Node *decimalNullChkNode = TR::Node::createWithSymRef(TR::NULLCHK, 1, 1, decimalPassThroughNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_nullCheck, false, true, true));
 
-      TR::Node * pdBndChk = TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, pdArrayLengthNode, pdOffsetNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
-      TR::Node * pdBndChk2 =TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, pdArrayLengthNode, pdBndvalue,   getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
-      TR::Node * decimalBndChk = TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, decimalArrayLengthNode, decimalOffsetNode,
+      TR::Node *pdBndChk = TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, pdArrayLengthNode, pdOffsetNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
+      TR::Node *pdBndChk2 =TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, pdArrayLengthNode, pdBndvalue,   getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
+      TR::Node *decimalBndChk = TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, decimalArrayLengthNode, decimalOffsetNode,
                                                 getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
-      TR::Node * decimalBndChk2 =TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, decimalArrayLengthNode, decimalBndvalue,
+      TR::Node *decimalBndChk2 =TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, decimalArrayLengthNode, decimalBndvalue,
                                                 getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
 
       //gen tree tops
-      TR::TreeTop * pdNullChktt = TR::TreeTop::create(comp(), pdNullChkNode);
-      TR::TreeTop * decimalNullChktt = TR::TreeTop::create(comp(), decimalNullChkNode);
+      TR::TreeTop *pdNullChktt = TR::TreeTop::create(comp(), pdNullChkNode);
+      TR::TreeTop *decimalNullChktt = TR::TreeTop::create(comp(), decimalNullChkNode);
 
-      TR::TreeTop * pdBndChktt1 = TR::TreeTop::create(comp(), pdBndChk);
-      TR::TreeTop * pdBndChktt2 = TR::TreeTop::create(comp(), pdBndChk2);
-      TR::TreeTop * decimalBndChktt1 = TR::TreeTop::create(comp(), decimalBndChk );
-      TR::TreeTop * decimalBndChktt2 = TR::TreeTop::create(comp(), decimalBndChk2);
+      TR::TreeTop *pdBndChktt1 = TR::TreeTop::create(comp(), pdBndChk);
+      TR::TreeTop *pdBndChktt2 = TR::TreeTop::create(comp(), pdBndChk2);
+      TR::TreeTop *decimalBndChktt1 = TR::TreeTop::create(comp(), decimalBndChk );
+      TR::TreeTop *decimalBndChktt2 = TR::TreeTop::create(comp(), decimalBndChk2);
 
-      TR::TreeTop * ttPdstore = TR::TreeTop::create(comp(), pdstoreNode);
+      TR::TreeTop *ttPdstore = TR::TreeTop::create(comp(), pdstoreNode);
 
 
       //link together
-      TR::TreeTop * nextTT = treeTop->getNextTreeTop();
-      TR::TreeTop * prevTT = treeTop->getPrevTreeTop();
+      TR::TreeTop *nextTT = treeTop->getNextTreeTop();
+      TR::TreeTop *prevTT = treeTop->getPrevTreeTop();
 
       prevTT->join(decimalNullChktt);
       decimalNullChktt->join(pdNullChktt);
@@ -2560,25 +2630,25 @@ bool TR_DataAccessAccelerator::generateUD2PD(TR::TreeTop* treeTop, TR::Node* cal
    return false;
    }
 
-bool TR_DataAccessAccelerator::generatePD2UD(TR::TreeTop* treeTop, TR::Node* callNode, bool isPD2UD)
+bool TR_DataAccessAccelerator::generatePD2UD(TR::TreeTop *treeTop, TR::Node *callNode, bool isTargetUnicodeDecimal)
    {
-   TR::Node * pdNode = callNode->getChild(0);
-   TR::Node * pdOffsetNode = callNode->getChild(1);
-   TR::Node * decimalNode = callNode->getChild(2);
-   TR::Node * decimalOffsetNode = callNode->getChild(3);
-   TR::Node * precNode = callNode->getChild(4);
-   TR::Node * typeNode = callNode->getChild(5);
+   TR::Node *pdNode = callNode->getChild(0);
+   TR::Node *pdOffsetNode = callNode->getChild(1);
+   TR::Node *decimalNode = callNode->getChild(2);
+   TR::Node *decimalOffsetNode = callNode->getChild(3);
+   TR::Node *precNode = callNode->getChild(4);
+   TR::Node *typeNode = callNode->getChild(5);
 
    //first, check decimalType
    int type = typeNode->getInt();
-   char* failMsg = NULL;
+   const char *failMsg = NULL;
    int prec = precNode->getInt();
 
    if (!isChildConst(callNode, 4) || !isChildConst(callNode, 5))
       failMsg = "Child (4|5) is not constant";
-   else if (isPD2UD && type != 5 && type != 6 && type != 7)
+   else if (isTargetUnicodeDecimal && type != 5 && type != 6 && type != 7)
       failMsg = "Invalid decimal type. Supported types are (5|6|7)";
-   else if (!isPD2UD && (type < 1 || type > 4)) //PD2ED
+   else if (!isTargetUnicodeDecimal && (type < 1 || type > 4)) //PD2ED
       failMsg = "Invalid decimal type. Supported types are (1|2|3|4)";
    else if (prec < 1 || prec > 31)
       failMsg = "Invalid precision. Valid precision is in range [1, 31]";
@@ -2588,7 +2658,7 @@ bool TR_DataAccessAccelerator::generatePD2UD(TR::TreeTop* treeTop, TR::Node* cal
       TR::DebugCounter::incStaticDebugCounter(comp(),
                                               TR::DebugCounter::debugCounterName(comp(),
                                                                                  "DAA/rejected/%s",
-                                                                                 isPD2UD ? "pd2ud" : "pd2ed"));
+                                                                                 isTargetUnicodeDecimal ? "pd2ud" : "pd2ed"));
 
       return printInliningStatus(false, callNode, failMsg);
       }
@@ -2598,48 +2668,21 @@ bool TR_DataAccessAccelerator::generatePD2UD(TR::TreeTop* treeTop, TR::Node* cal
       TR::DebugCounter::incStaticDebugCounter(comp(),
                                               TR::DebugCounter::debugCounterName(comp(),
                                                                                  "DAA/inlined/%s",
-                                                                                 isPD2UD ? "pd2ud" : "pd2ed"));
+                                                                                 isTargetUnicodeDecimal ? "pd2ud" : "pd2ed"));
 
       //set up pdload:
-      TR::Node * arrayAddressNode = constructAddressNode(callNode, pdNode, pdOffsetNode);
+      TR::Node *arrayAddressNode = constructAddressNode(callNode, pdNode, pdOffsetNode);
 
       int size = TR::DataType::getSizeFromBCDPrecision(TR::PackedDecimal, prec) - 1;
       TR::SymbolReference * symRef = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(TR::PackedDecimal, arrayAddressNode, 8, fe());
       symRef->setOffset(0);
 
-      TR::Node * pdload = TR::Node::create(TR::pdloadi, 1, arrayAddressNode);
+      TR::Node *pdload = TR::Node::create(TR::pdloadi, 1, arrayAddressNode);
       pdload->setSymbolReference(symRef);
       pdload->setDecimalPrecision(prec);
 
       //set up decimal arrayAddressNode
-      TR::Node * decimalAddressNode;
-         {
-         TR::Node * twoConstNode;
-         TR::Node * multipliedOffsetNode;
-         TR::Node * totalOffsetNode;
-         TR::Node * headerConstNode;
-         if (comp()->target().is64Bit())
-            {
-            headerConstNode = TR::Node::create(callNode, TR::lconst, 0, 0);
-            headerConstNode->setLongInt(TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
-            twoConstNode = TR::Node::create(callNode, TR::lconst, 0, 0);
-            twoConstNode->setLongInt(isPD2UD ? 2 : 1);
-            multipliedOffsetNode = TR::Node::create(TR::lmul, 2,
-                                                   TR::Node::create(TR::i2l, 1, decimalOffsetNode), twoConstNode);
-            totalOffsetNode = TR::Node::create(TR::ladd, 2, headerConstNode, multipliedOffsetNode);
-            decimalAddressNode = TR::Node::create(TR::aladd, 2, decimalNode, totalOffsetNode);
-            }
-         else
-            {
-            headerConstNode = TR::Node::create(callNode, TR::iconst, 0,
-                                              TR::Compiler->om.contiguousArrayHeaderSizeInBytes());
-            twoConstNode = TR::Node::create(callNode, TR::iconst, 0, isPD2UD ? 2 : 1);
-            multipliedOffsetNode = TR::Node::create(TR::imul, 2, decimalOffsetNode, twoConstNode);
-            totalOffsetNode = TR::Node::create(TR::iadd, 2, headerConstNode, multipliedOffsetNode);
-            decimalAddressNode = TR::Node::create(TR::aiadd, 2, decimalNode, totalOffsetNode);
-            }
-         decimalAddressNode->setIsInternalPointer(true);
-         }
+      TR::Node *decimalAddressNode = constructAddressNode(callNode, decimalNode, decimalOffsetNode, true, isTargetUnicodeDecimal);
 
       //set up pd2decimal node
       TR::ILOpCodes op = TR::BadILOp;
@@ -2693,62 +2736,62 @@ bool TR_DataAccessAccelerator::generatePD2UD(TR::TreeTop* treeTop, TR::Node* cal
          TR_ASSERT(false, "unsupported decimalType.\n");
          }
 
-      TR::Node * pd2decimalNode = NULL;
-      if (isPD2UD || type == 1)
+      TR::Node *pd2decimalNode = NULL;
+      if (isTargetUnicodeDecimal || type == 1)
          {
          pd2decimalNode = TR::Node::create(op, 1, pdload);
          }
       else //ED2PD
          {
-         TR::Node * toZDNode = TR::Node::create(interOp, 1, pdload);
+         TR::Node *toZDNode = TR::Node::create(interOp, 1, pdload);
          toZDNode->setDecimalPrecision(precNode->getInt());
          pd2decimalNode = TR::Node::create(op, 1, toZDNode);
          }
       pd2decimalNode->setDecimalPrecision(precNode->getInt());
 
       //set up decimalStore node
-      TR::SymbolReference * symRefDecimalStore = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(dt, decimalAddressNode, 8, fe());
-      TR::Symbol * symStore =  TR::Symbol::createShadow(comp()->trHeapMemory(), dt, TR::DataType::getSizeFromBCDPrecision(dt, prec));
+      TR::SymbolReference *symRefDecimalStore = comp()->getSymRefTab()->findOrCreateArrayShadowSymbolRef(dt, decimalAddressNode, 8, fe());
+      TR::Symbol *symStore =  TR::Symbol::createShadow(comp()->trHeapMemory(), dt, TR::DataType::getSizeFromBCDPrecision(dt, prec));
       symStore->setArrayShadowSymbol();
       symRefDecimalStore->setSymbol(symStore);
 
-      TR::Node * decimalStore = TR::Node::create(storeOp, 2, decimalAddressNode, pd2decimalNode);
+      TR::Node *decimalStore = TR::Node::create(storeOp, 2, decimalAddressNode, pd2decimalNode);
       decimalStore->setSymbolReference(symRefDecimalStore);
       decimalStore->setDecimalPrecision(precNode->getInt());
 
       //set up bndchks, and null chks
-      TR::Node * pdPassThroughNode = TR::Node::create(TR::PassThrough, 1, pdNode);
-      TR::Node * decimalPassThroughNode = TR::Node::create(TR::PassThrough, 1, decimalNode);
-      int elementSize = isPD2UD ? TR::DataType::getUnicodeElementSize() : TR::DataType::getZonedElementSize();
+      TR::Node *pdPassThroughNode = TR::Node::create(TR::PassThrough, 1, pdNode);
+      TR::Node *decimalPassThroughNode = TR::Node::create(TR::PassThrough, 1, decimalNode);
+      int elementSize = isTargetUnicodeDecimal ? TR::DataType::getUnicodeElementSize() : TR::DataType::getZonedElementSize();
       int pdPrecSize = TR::DataType::getSizeFromBCDPrecision(TR::PackedDecimal, prec) - 1;
       int decimalPrecSize = (TR::DataType::getSizeFromBCDPrecision(dt, prec) / elementSize) - 1;
-      TR::Node * pdBndvalue = TR::Node::create(TR::iadd, 2, pdOffsetNode, TR::Node::create(callNode, TR::iconst, 0, pdPrecSize));
-      TR::Node * decimalBndvalue = TR::Node::create(TR::iadd, 2, decimalOffsetNode, TR::Node::create(callNode, TR::iconst, 0, decimalPrecSize)); //size of unicode is 2 bytes
+      TR::Node *pdBndvalue = TR::Node::create(TR::iadd, 2, pdOffsetNode, TR::Node::create(callNode, TR::iconst, 0, pdPrecSize));
+      TR::Node *decimalBndvalue = TR::Node::create(TR::iadd, 2, decimalOffsetNode, TR::Node::create(callNode, TR::iconst, 0, decimalPrecSize)); //size of unicode is 2 bytes
 
-      TR::Node * pdArrayLengthNode = TR::Node::create(TR::arraylength, 1, pdNode);
-      TR::Node * decimalArrayLengthNode = TR::Node::create(TR::arraylength, 1, decimalNode);
+      TR::Node *pdArrayLengthNode = TR::Node::create(TR::arraylength, 1, pdNode);
+      TR::Node *decimalArrayLengthNode = TR::Node::create(TR::arraylength, 1, decimalNode);
 
-      TR::Node * pdNullChkNode = TR::Node::createWithSymRef(TR::NULLCHK, 1, 1, pdPassThroughNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_nullCheck, false, true, true));
-      TR::Node * decimalNullChkNode = TR::Node::createWithSymRef(TR::NULLCHK, 1, 1, decimalPassThroughNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_nullCheck, false, true, true));
+      TR::Node *pdNullChkNode = TR::Node::createWithSymRef(TR::NULLCHK, 1, 1, pdPassThroughNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_nullCheck, false, true, true));
+      TR::Node *decimalNullChkNode = TR::Node::createWithSymRef(TR::NULLCHK, 1, 1, decimalPassThroughNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_nullCheck, false, true, true));
 
-      TR::Node * pdBndChk = TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, pdArrayLengthNode, pdOffsetNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
-      TR::Node * pdBndChk2 =TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, pdArrayLengthNode, pdBndvalue, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
-      TR::Node * decimalBndChk = TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, decimalArrayLengthNode, decimalOffsetNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
-      TR::Node * decimalBndChk2 =TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, decimalArrayLengthNode, decimalBndvalue, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
+      TR::Node *pdBndChk = TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, pdArrayLengthNode, pdOffsetNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
+      TR::Node *pdBndChk2 =TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, pdArrayLengthNode, pdBndvalue, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
+      TR::Node *decimalBndChk = TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, decimalArrayLengthNode, decimalOffsetNode, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
+      TR::Node *decimalBndChk2 =TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, decimalArrayLengthNode, decimalBndvalue, getSymRefTab()->findOrCreateRuntimeHelper(TR_arrayBoundsCheck, false, true, true));
 
       //gen tree tops
-      TR::TreeTop * nextTT = treeTop->getNextTreeTop();
-      TR::TreeTop * prevTT = treeTop->getPrevTreeTop();
+      TR::TreeTop *nextTT = treeTop->getNextTreeTop();
+      TR::TreeTop *prevTT = treeTop->getPrevTreeTop();
 
-      TR::TreeTop * pdNullChktt = TR::TreeTop::create(comp(), pdNullChkNode);
-      TR::TreeTop * decimalNullChktt = TR::TreeTop::create(comp(), decimalNullChkNode);
+      TR::TreeTop *pdNullChktt = TR::TreeTop::create(comp(), pdNullChkNode);
+      TR::TreeTop *decimalNullChktt = TR::TreeTop::create(comp(), decimalNullChkNode);
 
-      TR::TreeTop * pdBndChktt1 = TR::TreeTop::create(comp(), pdBndChk);
-      TR::TreeTop * pdBndChktt2 = TR::TreeTop::create(comp(), pdBndChk2);
-      TR::TreeTop * decimalBndChktt1 = TR::TreeTop::create(comp(), decimalBndChk);
-      TR::TreeTop * decimalBndChktt2 = TR::TreeTop::create(comp(), decimalBndChk2);
+      TR::TreeTop *pdBndChktt1 = TR::TreeTop::create(comp(), pdBndChk);
+      TR::TreeTop *pdBndChktt2 = TR::TreeTop::create(comp(), pdBndChk2);
+      TR::TreeTop *decimalBndChktt1 = TR::TreeTop::create(comp(), decimalBndChk);
+      TR::TreeTop *decimalBndChktt2 = TR::TreeTop::create(comp(), decimalBndChk2);
 
-      TR::TreeTop * decimalStoreTT    = TR::TreeTop::create(comp(), decimalStore);
+      TR::TreeTop *decimalStoreTT    = TR::TreeTop::create(comp(), decimalStore);
 
       prevTT->join(pdNullChktt);
       pdNullChktt->join(decimalNullChktt);
@@ -2789,25 +2832,4 @@ void TR_DataAccessAccelerator::insertByteArrayBNDCHK(TR::TreeTop* callTreeTop,  
    arraylengthNode->setArrayStride(TR::Symbol::convertTypeToSize(TR::Int8));
 
    callTreeTop->insertBefore(TR::TreeTop::create(comp, TR::Node::createWithSymRef(TR::BNDCHK, 2, 2, arraylengthNode, offsetNode, comp->getSymRefTab()->findOrCreateArrayBoundsCheckSymbolRef(callNode->getSymbol()->getResolvedMethodSymbol()))));
-   }
-
-TR::Node* TR_DataAccessAccelerator::createByteArrayElementAddress(TR::TreeTop* callTreeTop, TR::Node* callNode, TR::Node* byteArrayNode, TR::Node* offsetNode)
-   {
-   TR::CodeGenerator* cg = comp()->cg();
-
-   TR::Node* byteArrayElementAddressNode;
-
-   if (comp()->target().is64Bit())
-      {
-      byteArrayElementAddressNode = TR::Node::create(TR::aladd, 2, byteArrayNode, TR::Node::create(TR::ladd, 2, TR::Node::create(callNode, TR::lconst, 0, TR::Compiler->om.contiguousArrayHeaderSizeInBytes()), TR::Node::create(TR::i2l, 1, offsetNode)));
-      }
-   else
-      {
-      byteArrayElementAddressNode = TR::Node::create(TR::aiadd, 2, byteArrayNode, TR::Node::create(TR::iadd, 2, TR::Node::create(callNode, TR::iconst, 0, TR::Compiler->om.contiguousArrayHeaderSizeInBytes()), offsetNode));
-      }
-
-   // This node is pointing to an array element so we must mark it as such
-   byteArrayElementAddressNode->setIsInternalPointer(true);
-
-   return byteArrayElementAddressNode;
    }

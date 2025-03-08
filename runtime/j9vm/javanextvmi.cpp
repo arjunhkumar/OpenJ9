@@ -17,31 +17,34 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
+
+#include <assert.h>
 #include <jni.h>
 
 #include "bcverify_api.h"
 #include "j9.h"
 #include "j9cfg.h"
+#include "jvminit.h"
 #include "rommeth.h"
 #include "ut_j9scar.h"
 #include "util_api.h"
 
 #if JAVA_SPEC_VERSION >= 19
 #include "VMHelpers.hpp"
+#include "ContinuationHelpers.hpp"
 #endif /* JAVA_SPEC_VERSION >= 19 */
+#if JAVA_SPEC_VERSION >= 24
+#include "j9protos.h"
+#endif /* JAVA_SPEC_VERSION >= 24 */
 
 extern "C" {
 
 #if JAVA_SPEC_VERSION >= 19
 extern J9JavaVM *BFUjavaVM;
 
-/* These come from jvm.c */
-extern IDATA (*f_monitorEnter)(omrthread_monitor_t monitor);
-extern IDATA (*f_monitorExit)(omrthread_monitor_t monitor);
-extern IDATA (*f_monitorWait)(omrthread_monitor_t monitor);
-extern IDATA (*f_monitorNotifyAll)(omrthread_monitor_t monitor);
+extern IDATA (*f_threadSleep)(I_64 millis);
 #endif /* JAVA_SPEC_VERSION >= 19 */
 
 /* Define for debug
@@ -59,12 +62,6 @@ JNIEXPORT void JNICALL
 JVM_LogLambdaFormInvoker(JNIEnv *env, jstring str)
 {
 	Assert_SC_true(!"JVM_LogLambdaFormInvoker unimplemented");
-}
-
-JNIEXPORT jboolean JNICALL
-JVM_IsDumpingClassList(JNIEnv *env)
-{
-	return JNI_FALSE;
 }
 #endif /* JAVA_SPEC_VERSION >= 16 */
 
@@ -84,7 +81,7 @@ typedef struct GetStackTraceElementUserData {
 } GetStackTraceElementUserData;
 
 static UDATA
-getStackTraceElementIterator(J9VMThread *vmThread, void *voidUserData, UDATA bytecodeOffset, J9ROMClass *romClass, J9ROMMethod *romMethod, J9UTF8 *fileName, UDATA lineNumber, J9ClassLoader *classLoader, J9Class* ramClass)
+getStackTraceElementIterator(J9VMThread *vmThread, void *voidUserData, UDATA bytecodeOffset, J9ROMClass *romClass, J9ROMMethod *romMethod, J9UTF8 *fileName, UDATA lineNumber, J9ClassLoader *classLoader, J9Class* ramClass, UDATA frameType)
 {
 	UDATA result = J9_STACKWALK_STOP_ITERATING;
 
@@ -153,7 +150,7 @@ JVM_GetExtendedNPEMessage(JNIEnv *env, jthrowable throwableObj)
 #else /* defined(J9VM_ENV_LITTLE_ENDIAN) */
 				flags |= BCT_BigEndianOutput;
 #endif /* defined(J9VM_ENV_LITTLE_ENDIAN) */
-				j9bcutil_dumpBytecodes(PORTLIB, userData.romClass, bytecodes, 0, userData.bytecodeOffset, flags, (void *)cfdumpBytecodePrintFunction, PORTLIB, "");
+				j9bcutil_dumpBytecodes(PORTLIB, userData.romClass, bytecodes, 0, userData.bytecodeOffset, flags, (void *)cfdumpBytecodePrintFunction, PORTLIB, 0);
 			}
 #endif /* defined(DEBUG_BCV) */
 			npeMsgData.npePC = userData.bytecodeOffset;
@@ -218,10 +215,29 @@ JVM_ReportFinalizationComplete(JNIEnv *env, jobject obj)
 #endif /* JAVA_SPEC_VERSION >= 18 */
 
 #if JAVA_SPEC_VERSION >= 19
-JNIEXPORT void JNICALL
+JNIEXPORT void * JNICALL
 JVM_LoadZipLibrary(void)
 {
-	Assert_SC_true(!"JVM_LoadZipLibrary unimplemented");
+	void *zipHandle = NULL;
+	J9JavaVM *vm = BFUjavaVM;
+
+	if (NULL != vm) {
+		PORT_ACCESS_FROM_JAVAVM(vm);
+		uintptr_t handle = 0;
+
+		if (J9PORT_SL_FOUND == j9sl_open_shared_library(
+				(char *)"zip",
+				&handle,
+				OMRPORT_SLOPEN_DECORATE | OMRPORT_SLOPEN_LAZY)
+		) {
+			zipHandle = (void *)handle;
+		}
+	}
+
+	/* We may as well assert here: we won't make much progress without the library. */
+	Assert_SC_notNull(zipHandle);
+
+	return zipHandle;
 }
 
 JNIEXPORT void JNICALL
@@ -255,37 +271,87 @@ enterVThreadTransitionCritical(J9VMThread *currentThread, jobject thread)
 	MM_ObjectAccessBarrierAPI objectAccessBarrier = MM_ObjectAccessBarrierAPI(currentThread);
 	j9object_t threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
 
-	while(!objectAccessBarrier.inlineMixedObjectCompareAndSwapU64(currentThread, threadObj, vm->virtualThreadInspectorCountOffset, 0, (U_64)-1)) {
-		/* Thread is being inspected or unmounted, wait. */
-		vmFuncs->internalExitVMToJNI(currentThread);
-		VM_AtomicSupport::yieldCPU();
-		/* After wait, the thread may suspend here. */
-		vmFuncs->internalEnterVMFromJNI(currentThread);
-		threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
+retry:
+	if (!VM_VMHelpers::isThreadSuspended(currentThread, threadObj)) {
+		while (!objectAccessBarrier.inlineMixedObjectCompareAndSwapU64(currentThread, threadObj, vm->virtualThreadInspectorCountOffset, 0, ~(U_64)0)) {
+			/* Thread is being inspected or unmounted, wait. */
+			vmFuncs->internalReleaseVMAccess(currentThread);
+			VM_AtomicSupport::yieldCPU();
+			/* After wait, the thread may suspend here. */
+			vmFuncs->internalAcquireVMAccess(currentThread);
+			threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
+		}
+
+		/* Now we have locked access to virtualThreadInspectorCount, check if the vthread is suspended.
+		 * If suspended, release the access and spin-wait until the vthread is resumed.
+		 * If not suspended, link the current J9VMThread with the virtual thread object.
+		 */
+		if (!VM_VMHelpers::isThreadSuspended(currentThread, threadObj)
+		&& objectAccessBarrier.inlineMixedObjectCompareAndSwapU64(currentThread, threadObj, vm->internalSuspendStateOffset, J9_VIRTUALTHREAD_INTERNAL_STATE_NONE, (U_64)currentThread)
+		) {
+			return;
+		}
+		J9OBJECT_I64_STORE(currentThread, threadObj, vm->virtualThreadInspectorCountOffset, 0);
 	}
+	vmFuncs->internalReleaseVMAccess(currentThread);
+	/* Spin is used instead of the halt flag as we cannot guarantee suspend flag is still set now.
+	 *
+	 * TODO: Dynamically increase the sleep time to a bounded maximum.
+	 */
+	f_threadSleep(10);
+	/* After wait, the thread may suspend here. */
+	vmFuncs->internalAcquireVMAccess(currentThread);
+	threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
+	goto retry;
 }
 
 static void
-exitVThreadTransitionCritical(J9VMThread *currentThread, j9object_t vthread)
+exitVThreadTransitionCritical(J9VMThread *currentThread, jobject thread)
 {
-	Assert_SC_true(-1 == J9OBJECT_I64_LOAD(currentThread, vthread, currentThread->javaVM->virtualThreadInspectorCountOffset));
-	J9OBJECT_I64_STORE(currentThread, vthread, currentThread->javaVM->virtualThreadInspectorCountOffset, 0);
-}
-
-JNIEXPORT void JNICALL
-JVM_VirtualThreadMountBegin(JNIEnv *env, jobject thread, jboolean firstMount)
-{
-	J9VMThread *currentThread = (J9VMThread *)env;
 	J9JavaVM *vm = currentThread->javaVM;
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+	j9object_t vthread = J9_JNI_UNWRAP_REFERENCE(thread);
+	MM_ObjectAccessBarrierAPI objectAccessBarrier = MM_ObjectAccessBarrierAPI(currentThread);
 
-	Trc_SC_VirtualThreadMountBegin_Entry(currentThread, thread, firstMount);
+	/* Remove J9VMThread address from internalSuspendedState field, as the thread state is no longer in a transition. */
+	while (!objectAccessBarrier.inlineMixedObjectCompareAndSwapU64(currentThread, vthread, vm->internalSuspendStateOffset, (U_64)currentThread, J9_VIRTUALTHREAD_INTERNAL_STATE_NONE)) {
+		/* Wait if the suspend flag is set. */
+		vmFuncs->internalReleaseVMAccess(currentThread);
+		VM_AtomicSupport::yieldCPU();
+		/* After wait, the thread may suspend here. */
+		vmFuncs->internalAcquireVMAccess(currentThread);
+		vthread = J9_JNI_UNWRAP_REFERENCE(thread);
+	}
 
-	vmFuncs->internalEnterVMFromJNI(currentThread);
+	/* Update to virtualThreadInspectorCount must be after clearing isSuspendedInternal field to retain sync ordering. */
+	Assert_SC_true(-1 == J9OBJECT_I64_LOAD(currentThread, vthread, vm->virtualThreadInspectorCountOffset));
+	J9OBJECT_I64_STORE(currentThread, vthread, vm->virtualThreadInspectorCountOffset, 0);
+}
+
+static void
+setContinuationStateToLastUnmount(J9VMThread *currentThread, jobject thread)
+{
+	enterVThreadTransitionCritical(currentThread, thread);
+	/* Re-fetch reference as enterVThreadTransitionCritical may release VMAccess. */
+	j9object_t threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
+	j9object_t continuationObj = J9VMJAVALANGVIRTUALTHREAD_CONT(currentThread, threadObj);
+	ContinuationState volatile *continuationStatePtr = VM_ContinuationHelpers::getContinuationStateAddress(currentThread, continuationObj);
+	/* Used in JVMTI to not suspend the virtual thread once it enters the last unmount phase. */
+	VM_ContinuationHelpers::setLastUnmount(continuationStatePtr);
+	exitVThreadTransitionCritical(currentThread, thread);
+}
+
+/* Caller must have VMAccess. */
+static void
+virtualThreadMountBegin(JNIEnv *env, jobject thread)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+
 	j9object_t threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
 	Assert_SC_true(IS_JAVA_LANG_VIRTUALTHREAD(currentThread, threadObj));
 
 	if (TrcEnabled_Trc_SC_VirtualThread_Info) {
+		J9JavaVM *vm = currentThread->javaVM;
 		j9object_t continuationObj = J9VMJAVALANGVIRTUALTHREAD_CONT(currentThread, threadObj);
 		J9VMContinuation *continuation = J9VMJDKINTERNALVMCONTINUATION_VMREF(currentThread, continuationObj);
 		Trc_SC_VirtualThread_Info(
@@ -300,25 +366,16 @@ JVM_VirtualThreadMountBegin(JNIEnv *env, jobject thread, jboolean firstMount)
 
 	enterVThreadTransitionCritical(currentThread, thread);
 
-	vmFuncs->internalExitVMToJNI(currentThread);
-
-	Trc_SC_VirtualThreadMountBegin_Exit(currentThread, thread, firstMount);
+	VM_VMHelpers::virtualThreadHideFrames(currentThread, JNI_TRUE);
 }
 
-JNIEXPORT void JNICALL
-JVM_VirtualThreadMountEnd(JNIEnv *env, jobject thread, jboolean firstMount)
+/* Caller must have VMAccess. */
+static void
+virtualThreadMountEnd(JNIEnv *env, jobject thread)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
 	J9JavaVM *vm = currentThread->javaVM;
-	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
-	j9object_t rootVirtualThread = NULL;
-	j9object_t threadObj = NULL;
-	BOOLEAN runJ9Hooks = FALSE;
-
-	Trc_SC_VirtualThreadMountEnd_Entry(currentThread, thread, firstMount);
-
-	vmFuncs->internalEnterVMFromJNI(currentThread);
-	threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
+	j9object_t threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
 
 	Assert_SC_true(IS_JAVA_LANG_VIRTUALTHREAD(currentThread, threadObj));
 
@@ -334,38 +391,21 @@ JVM_VirtualThreadMountEnd(JNIEnv *env, jobject thread, jboolean firstMount)
 				J9VMJDKINTERNALVMCONTINUATION_VMREF(currentThread, continuationObj));
 	}
 
-	/* If isSuspendedByJVMTI is non-zero, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND is set
-	 * in currentThread->publicFlags while resetting isSuspendedByJVMTI to zero. During
-	 * mount, this suspends the thread if the thread was unmounted when JVMTI suspended it.
-	 */
-	if (0 != J9OBJECT_U32_LOAD(currentThread, threadObj, vm->isSuspendedByJVMTIOffset)) {
-		vmFuncs->setHaltFlag(currentThread, J9_PUBLIC_FLAGS_HALT_THREAD_JAVA_SUSPEND);
-		J9OBJECT_U32_STORE(currentThread, threadObj, vm->isSuspendedByJVMTIOffset, 0);
-	}
+	VM_VMHelpers::virtualThreadHideFrames(currentThread, JNI_FALSE);
 
 	/* Allow thread to be inspected again. */
-	exitVThreadTransitionCritical(currentThread, threadObj);
+	exitVThreadTransitionCritical(currentThread, thread);
 
-	if (firstMount) {
-		TRIGGER_J9HOOK_VM_VIRTUAL_THREAD_STARTED(vm->hookInterface, currentThread);
-	}
 	TRIGGER_J9HOOK_VM_VIRTUAL_THREAD_MOUNT(vm->hookInterface, currentThread);
-
-	vmFuncs->internalExitVMToJNI(currentThread);
-
-	Trc_SC_VirtualThreadMountEnd_Exit(currentThread, thread, firstMount);
 }
 
-JNIEXPORT void JNICALL
-JVM_VirtualThreadUnmountBegin(JNIEnv *env, jobject thread, jboolean lastUnmount)
+/* Caller must have VMAccess. */
+static void
+virtualThreadUnmountBegin(JNIEnv *env, jobject thread)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
 	J9JavaVM *vm = currentThread->javaVM;
-	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 
-	Trc_SC_VirtualThreadUnmountBegin_Entry(currentThread, thread, lastUnmount);
-
-	vmFuncs->internalEnterVMFromJNI(currentThread);
 	j9object_t threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
 
 	Assert_SC_true(IS_JAVA_LANG_VIRTUALTHREAD(currentThread, threadObj));
@@ -383,39 +423,47 @@ JVM_VirtualThreadUnmountBegin(JNIEnv *env, jobject thread, jboolean lastUnmount)
 	}
 
 	TRIGGER_J9HOOK_VM_VIRTUAL_THREAD_UNMOUNT(vm->hookInterface, currentThread);
-	if (lastUnmount) {
-		TRIGGER_J9HOOK_VM_VIRTUAL_THREAD_END(vm->hookInterface, currentThread);
-	}
 
 	enterVThreadTransitionCritical(currentThread, thread);
-	if (lastUnmount) {
-		/* Re-fetch reference as enterVThreadTransitionCritical may release VMAccess. */
-		threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
-		j9object_t continuationObj = J9VMJAVALANGVIRTUALTHREAD_CONT(currentThread, threadObj);
-		/* Add reverse link from Continuation object to VirtualThread object, this let JVMTI code */
-		J9VMJDKINTERNALVMCONTINUATION_SET_VTHREAD(currentThread, continuationObj, NULL);
-	}
-	vmFuncs->internalExitVMToJNI(currentThread);
 
-	Trc_SC_VirtualThreadUnmountBegin_Exit(currentThread, thread, lastUnmount);
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+	j9object_t carrierThreadObject = currentThread->carrierThreadObject;
+	/* Virtual thread is being umounted. If its carrier thread is suspended, spin until
+	 * the carrier thread is resumed. The carrier thread should not be mounted until it
+	 * is resumed.
+	 */
+	while (VM_VMHelpers::isThreadSuspended(currentThread, carrierThreadObject)) {
+		exitVThreadTransitionCritical(currentThread, thread);
+		vmFuncs->internalReleaseVMAccess(currentThread);
+		/* Spin is used instead of the halt flag; otherwise, the virtual thread will
+		 * show as suspended.
+		 *
+		 * TODO: Dynamically increase the sleep time to a bounded maximum.
+		 */
+		f_threadSleep(10);
+		vmFuncs->internalAcquireVMAccess(currentThread);
+		enterVThreadTransitionCritical(currentThread, thread);
+		carrierThreadObject = currentThread->carrierThreadObject;
+	}
+
+	VM_VMHelpers::virtualThreadHideFrames(currentThread, JNI_TRUE);
 }
 
-JNIEXPORT void JNICALL
-JVM_VirtualThreadUnmountEnd(JNIEnv *env, jobject thread, jboolean lastUnmount)
+/* Caller must have VMAccess. */
+static void
+virtualThreadUnmountEnd(JNIEnv *env, jobject thread)
 {
 	J9VMThread *currentThread = (J9VMThread *)env;
 	J9JavaVM *vm = currentThread->javaVM;
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 
-	Trc_SC_VirtualThreadUnmountEnd_Entry(currentThread, thread, lastUnmount);
-
-	vmFuncs->internalEnterVMFromJNI(currentThread);
 	j9object_t threadObj = J9_JNI_UNWRAP_REFERENCE(thread);
+	j9object_t continuationObj = J9VMJAVALANGVIRTUALTHREAD_CONT(currentThread, threadObj);
+	ContinuationState continuationState = *VM_ContinuationHelpers::getContinuationStateAddress(currentThread, continuationObj);
 
 	Assert_SC_true(IS_JAVA_LANG_VIRTUALTHREAD(currentThread, threadObj));
 
 	if (TrcEnabled_Trc_SC_VirtualThread_Info) {
-		j9object_t continuationObj = J9VMJAVALANGVIRTUALTHREAD_CONT(currentThread, threadObj);
 		Trc_SC_VirtualThread_Info(
 				currentThread,
 				threadObj,
@@ -426,19 +474,14 @@ JVM_VirtualThreadUnmountEnd(JNIEnv *env, jobject thread, jboolean lastUnmount)
 				J9VMJDKINTERNALVMCONTINUATION_VMREF(currentThread, continuationObj));
 	}
 
-	if (lastUnmount) {
+	if (VM_ContinuationHelpers::isFinished(continuationState)) {
 		vmFuncs->freeTLS(currentThread, threadObj);
-		/* CleanupContinuation */
-		j9object_t contObj = (j9object_t)J9VMJAVALANGVIRTUALTHREAD_CONT(currentThread, threadObj);
-		vmFuncs->freeContinuation(currentThread, contObj);
 	}
 
+	VM_VMHelpers::virtualThreadHideFrames(currentThread, JNI_FALSE);
+
 	/* Allow thread to be inspected again. */
-	exitVThreadTransitionCritical(currentThread, threadObj);
-
-	vmFuncs->internalExitVMToJNI(currentThread);
-
-	Trc_SC_VirtualThreadUnmountEnd_Exit(currentThread, thread, lastUnmount);
+	exitVThreadTransitionCritical(currentThread, thread);
 }
 #endif /* JAVA_SPEC_VERSION >= 19 */
 
@@ -463,42 +506,237 @@ JVM_GetClassFileVersion(JNIEnv *env, jclass cls)
 
 	return version;
 }
-
-JNIEXPORT void JNICALL
-JVM_VirtualThreadHideFrames(JNIEnv *env, jobject vthread, jboolean hide)
-{
-	/* TODO toggle hiding of stack frames for JVMTI */
-}
 #endif /* JAVA_SPEC_VERSION >= 20 */
 
+#if ((20 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION <= 23)) || defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+JNIEXPORT void JNICALL
+JVM_VirtualThreadHideFrames(
+		JNIEnv *env,
+#if (JAVA_SPEC_VERSION == 23) || defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+		jclass clz,
+#else /* (JAVA_SPEC_VERSION == 23) || defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+		jobject vthread,
+#endif /* (JAVA_SPEC_VERSION == 23) || defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+		jboolean hide)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	J9InternalVMFunctions const * const vmFuncs = currentThread->javaVM->internalVMFunctions;
+
+	vmFuncs->internalEnterVMFromJNI(currentThread);
+
+	j9object_t vThreadObj = currentThread->threadObject;
+	Assert_SC_true(IS_JAVA_LANG_VIRTUALTHREAD(currentThread, vThreadObj));
+	/* Do not allow JVMTI operations because J9VMThread->threadObject is modified
+	 * between the first invocation with hide=true and the second invocation with
+	 * hide=false. Otherwise, JVMTI functions will see an unstable
+	 * J9VMThread->threadObject.
+	 */
+	bool hiddenFrames = J9_ARE_ALL_BITS_SET(currentThread->privateFlags, J9_PRIVATE_FLAGS_VIRTUAL_THREAD_HIDDEN_FRAMES);
+	if (hide) {
+		Assert_SC_true(!hiddenFrames);
+#if JAVA_SPEC_VERSION < 23
+		Assert_SC_true(vThreadObj == J9_JNI_UNWRAP_REFERENCE(vthread));
+#endif /* JAVA_SPEC_VERSION < 23 */
+		enterVThreadTransitionCritical(currentThread, (jobject)&currentThread->threadObject);
+	}
+
+	VM_VMHelpers::virtualThreadHideFrames(currentThread, hide);
+
+	if (!hide) {
+		Assert_SC_true(hiddenFrames);
+		exitVThreadTransitionCritical(currentThread, (jobject)&currentThread->threadObject);
+	}
+
+	vmFuncs->internalExitVMToJNI(currentThread);
+}
+#endif /* ((20 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION <= 23)) || defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+
 #if JAVA_SPEC_VERSION >= 21
-JNIEXPORT void JNICALL
-JVM_VirtualThreadMount(JNIEnv* env, jobject vthread, jboolean hide, jboolean firstMount)
-{
-	if (hide) {
-		JVM_VirtualThreadMountBegin(env, vthread, firstMount);
-	} else {
-		JVM_VirtualThreadMountEnd(env, vthread, firstMount);
-	}
-}
-
-JNIEXPORT void JNICALL
-JVM_VirtualThreadUnmount(JNIEnv* env, jobject vthread, jboolean hide, jboolean lastUnmount)
-{
-	if (hide) {
-		JVM_VirtualThreadUnmountBegin(env, vthread, lastUnmount);
-	} else {
-		JVM_VirtualThreadUnmountEnd(env, vthread, lastUnmount);
-	}
-}
-#endif /* JAVA_SPEC_VERSION >= 21 */
-
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 JNIEXPORT jboolean JNICALL
-JVM_IsValhallaEnabled()
+JVM_PrintWarningAtDynamicAgentLoad()
+{
+	jboolean result = JNI_TRUE;
+	J9JavaVM *vm = BFUjavaVM;
+	if (J9_ARE_ANY_BITS_SET(vm->runtimeFlags, J9_RUNTIME_ALLOW_DYNAMIC_AGENT)
+		&& (0 <= FIND_ARG_IN_VMARGS(EXACT_MATCH, VMOPT_XXENABLEDYNAMICAGENTLOADING, NULL))
+	) {
+		result = JNI_FALSE;
+	}
+	return result;
+}
+
+JNIEXPORT void JNICALL
+JVM_VirtualThreadMount(JNIEnv *env, jobject vthread, jboolean hide)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	J9JavaVM *vm = currentThread->javaVM;
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+
+	Trc_SC_VirtualThreadMount_Entry(currentThread, vthread, hide);
+
+	vmFuncs->internalEnterVMFromJNI(currentThread);
+
+	if (hide) {
+		virtualThreadMountBegin(env, vthread);
+	} else {
+		virtualThreadMountEnd(env, vthread);
+	}
+
+	vmFuncs->internalExitVMToJNI(currentThread);
+
+	Trc_SC_VirtualThreadMount_Exit(currentThread, vthread, hide);
+}
+
+JNIEXPORT void JNICALL
+JVM_VirtualThreadUnmount(JNIEnv *env, jobject vthread, jboolean hide)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	J9JavaVM *vm = currentThread->javaVM;
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+
+	Trc_SC_VirtualThreadUnmount_Entry(currentThread, vthread, hide);
+
+	vmFuncs->internalEnterVMFromJNI(currentThread);
+
+	if (hide) {
+		virtualThreadUnmountBegin(env, vthread);
+	} else {
+		virtualThreadUnmountEnd(env, vthread);
+	}
+
+	vmFuncs->internalExitVMToJNI(currentThread);
+
+	Trc_SC_VirtualThreadUnmount_Exit(currentThread, vthread, hide);
+}
+
+JNIEXPORT jboolean JNICALL
+JVM_IsForeignLinkerSupported()
 {
 	return JNI_TRUE;
 }
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+
+JNIEXPORT void JNICALL
+JVM_VirtualThreadStart(JNIEnv *env, jobject vthread)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	J9JavaVM *vm = currentThread->javaVM;
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+
+	Trc_SC_VirtualThreadStart_Entry(currentThread, vthread);
+
+	vmFuncs->internalEnterVMFromJNI(currentThread);
+
+	virtualThreadMountEnd(env, vthread);
+	TRIGGER_J9HOOK_VM_VIRTUAL_THREAD_STARTED(vm->hookInterface, currentThread);
+
+	vmFuncs->internalExitVMToJNI(currentThread);
+
+	Trc_SC_VirtualThreadStart_Exit(currentThread, vthread);
+}
+
+JNIEXPORT void JNICALL
+JVM_VirtualThreadEnd(JNIEnv *env, jobject vthread)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	J9JavaVM *vm = currentThread->javaVM;
+	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
+
+	Trc_SC_VirtualThreadEnd_Entry(currentThread, vthread);
+
+	vmFuncs->internalEnterVMFromJNI(currentThread);
+
+	TRIGGER_J9HOOK_VM_VIRTUAL_THREAD_END(vm->hookInterface, currentThread);
+	setContinuationStateToLastUnmount((J9VMThread *)env, vthread);
+	virtualThreadUnmountBegin(env, vthread);
+	TRIGGER_J9HOOK_VM_VIRTUAL_THREAD_DESTROY(vm->hookInterface, currentThread);
+
+	vmFuncs->internalExitVMToJNI(currentThread);
+
+	Trc_SC_VirtualThreadEnd_Exit(currentThread, vthread);
+}
+#endif /* JAVA_SPEC_VERSION >= 21 */
+
+#if JAVA_SPEC_VERSION >= 22
+JNIEXPORT void JNICALL
+JVM_ExpandStackFrameInfo(JNIEnv *env, jobject object)
+{
+	assert(!"JVM_ExpandStackFrameInfo unimplemented");
+}
+
+JNIEXPORT void JNICALL
+JVM_VirtualThreadDisableSuspend(
+		JNIEnv *env,
+#if JAVA_SPEC_VERSION >= 23
+		jclass clz,
+#else /* JAVA_SPEC_VERSION >= 23 */
+		jobject vthread,
+#endif /* JAVA_SPEC_VERSION >= 23 */
+		jboolean enter)
+{
+	/* TODO: Add implementation.
+	 * See https://github.com/eclipse-openj9/openj9/issues/18671 for more details.
+	 */
+}
+#endif /* JAVA_SPEC_VERSION >= 22 */
+
+#if JAVA_SPEC_VERSION >= 23
+JNIEXPORT jint JNICALL
+JVM_GetCDSConfigStatus()
+{
+	/* OpenJ9 does not support CDS, so we return 0 to indicate that there is no CDS config available. */
+	return 0;
+}
+#endif /* JAVA_SPEC_VERSION >= 23 */
+
+#if JAVA_SPEC_VERSION >= 24
+/**
+ * @brief Determine if the JVM is running inside a container.
+ *
+ * @return JNI_TRUE if running inside a container; otherwise, JNI_FALSE
+ */
+JNIEXPORT jboolean JNICALL
+JVM_IsContainerized(void)
+{
+	J9JavaVM *vm = BFUjavaVM;
+	jboolean isContainerized = JNI_FALSE;
+
+	Assert_SC_true(NULL != vm);
+
+	OMRPORT_ACCESS_FROM_J9PORT(vm->portLibrary);
+	if (omrsysinfo_is_running_in_container()) {
+		isContainerized = JNI_TRUE;
+	}
+
+	return isContainerized;
+}
+
+/**
+ * @brief Determine if the JVM is statically linked, always returns JNI_FALSE.
+ *
+ * @return JNI_FALSE
+ */
+JNIEXPORT jboolean JNICALL
+JVM_IsStaticallyLinked(void)
+{
+	/* OpenJDK removed static builds using --enable-static-build. */
+	return JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+JVM_VirtualThreadPinnedEvent(JNIEnv *env, jclass clazz, jstring op)
+{
+	// TODO: emit JFR Event
+	return;
+}
+
+JNIEXPORT jobject JNICALL
+JVM_TakeVirtualThreadListToUnblock(JNIEnv *env, jclass ignored)
+{
+	J9VMThread *currentThread = (J9VMThread *)env;
+	J9JavaVM *vm = currentThread->javaVM;
+
+	return vm->internalVMFunctions->takeVirtualThreadListToUnblock(currentThread);
+}
+#endif /* JAVA_SPEC_VERSION >= 24 */
 
 } /* extern "C" */

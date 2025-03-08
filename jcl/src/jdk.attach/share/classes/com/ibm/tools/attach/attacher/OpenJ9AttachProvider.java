@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -18,16 +18,18 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.tools.attach.attacher;
 
 import java.io.File;
 import java.io.IOException;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,13 +39,15 @@ import openj9.internal.tools.attach.target.CommonDirectory;
 import openj9.internal.tools.attach.target.IPC;
 import openj9.internal.tools.attach.target.TargetDirectory;
 import com.sun.tools.attach.AttachNotSupportedException;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import com.sun.tools.attach.AttachPermission;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import com.sun.tools.attach.VirtualMachineDescriptor;
 import com.sun.tools.attach.spi.AttachProvider;
 
 /**
  * Concrete subclass of the class that lists the available target VMs
- * 
+ *
  */
 /*[IF JAVA_SPEC_VERSION >= 17]*/
 @SuppressWarnings("removal")
@@ -60,20 +64,21 @@ public class OpenJ9AttachProvider extends AttachProvider {
 	@Override
 	public OpenJ9VirtualMachine attachVirtualMachine(String id)
 			throws AttachNotSupportedException, IOException {
-
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		checkAttachSecurity();
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		try {
 			OpenJ9VirtualMachine vm = new OpenJ9VirtualMachine(this, id);
 			IPC.logMessage("Attach target id: " + id); //$NON-NLS-1$
 			vm.attachTarget();
 			return vm;
 		} catch (NullPointerException e) {
-		/* constructor throws an NPE if the ID or name is not set. 
+		/* constructor throws an NPE if the ID or name is not set.
 		Turn this into an exception the  application is expecting */
 			/*[MSG "K0554", "Virtual machine ID or display name is null"]*/
 			AttachNotSupportedException exc = new AttachNotSupportedException(com.ibm.oti.util.Msg.getString("K0554")); //$NON-NLS-1$
 			exc.initCause(e);
-			throw exc; 
+			throw exc;
 		}
 	}
 
@@ -81,8 +86,9 @@ public class OpenJ9AttachProvider extends AttachProvider {
 	public OpenJ9VirtualMachine attachVirtualMachine (
 			VirtualMachineDescriptor descriptor)
 			throws AttachNotSupportedException, IOException {
-
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		checkAttachSecurity();
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		if (!(descriptor.provider() instanceof OpenJ9AttachProvider)) {
 			/*[MSG "K0543", "Virtual provider does not match"]*/
 			throw new AttachNotSupportedException(com.ibm.oti.util.Msg.getString("K0543")); //$NON-NLS-1$
@@ -97,6 +103,9 @@ public class OpenJ9AttachProvider extends AttachProvider {
 
 	@Override
 	public List<VirtualMachineDescriptor> listVirtualMachines() {
+		/*[IF JAVA_SPEC_VERSION >= 24]*/
+		return listVirtualMachinesImp();
+		/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 		List<VirtualMachineDescriptor> ret = null;
 		PrivilegedExceptionAction<List<VirtualMachineDescriptor>> action = () -> listVirtualMachinesImp();
 		try {
@@ -112,6 +121,7 @@ public class OpenJ9AttachProvider extends AttachProvider {
 			}
 		}
 		return ret;
+		/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 	}
 
 	private List<VirtualMachineDescriptor> listVirtualMachinesImp() {
@@ -134,10 +144,10 @@ public class OpenJ9AttachProvider extends AttachProvider {
 			/*[PR 164751 avoid scanning the directory when an attach API is launching ]*/
 			CommonDirectory.obtainControllerLock("OpenJ9AttachProvider.listVirtualMachinesImp"); //$NON-NLS-1$
 		} catch (IOException e) { /*[PR 164751 avoid scanning the directory when an attach API is launching ]*/
-			/* 
+			/*
 			 * IOException is thrown if we already have the lock. The only other cases where we lock this file are during startup and shutdown.
-			 * The attach API startup is complete, thanks to waitForAttachApiInitialization() and threads using this method terminate before shutdown. 
-			 */ 
+			 * The attach API startup is complete, thanks to waitForAttachApiInitialization() and threads using this method terminate before shutdown.
+			 */
 			IPC.logMessage("listVirtualMachines() IOError on controller lock : ", e.toString()); //$NON-NLS-1$
 			return descriptors; /* An error has occurred. Since the attach API is not working correctly, be conservative and don't list and targets */
 		}
@@ -172,7 +182,7 @@ public class OpenJ9AttachProvider extends AttachProvider {
 					}
 					/*[PR Jazz 30110 advertisement is from an older version or is corrupt.  get the owner via file stat ]*/
 					if ((myUid != 0) && (0 == uid)) {
-						/* 
+						/*
 						 * If this process's UID is 0, then it is root and should ignore file ownership and clean up everyone's files.
 						 * If getFileOwner fails, the uid will appear to be -1, and non-root users will ignore it.
 						 * CommonDirectory.deleteStaleDirectories() will handle the case of a target directory which does not have an advertisement directory.
@@ -222,8 +232,8 @@ public class OpenJ9AttachProvider extends AttachProvider {
 		return "Java SE"; //$NON-NLS-1$
 	}
 
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	private static void checkAttachSecurity() {
-		@SuppressWarnings("removal")
 		final SecurityManager securityManager = System.getSecurityManager();
 		if (securityManager != null) {
 			securityManager.checkPermission(Permissions.ATTACH_VM);
@@ -238,5 +248,5 @@ public class OpenJ9AttachProvider extends AttachProvider {
 		final static AttachPermission ATTACH_VM = new AttachPermission(
 				"attachVirtualMachine", null); //$NON-NLS-1$;
 	}
-
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 }

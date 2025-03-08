@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "env/VMJ9.h"
@@ -117,6 +117,7 @@ J9::LocalCSE::shouldCommonNode(TR::Node *parent, TR::Node *node)
             case TR::com_ibm_dataaccess_PackedDecimal_equalsPackedDecimal_:
             case TR::com_ibm_dataaccess_PackedDecimal_notEqualsPackedDecimal_:
             case TR::com_ibm_dataaccess_PackedDecimal_checkPackedDecimal_:
+            case TR::com_ibm_dataaccess_ExternalDecimal_checkExternalDecimal_:
             case TR::com_ibm_dataaccess_DecimalData_convertExternalDecimalToPackedDecimal_:
             case TR::com_ibm_dataaccess_DecimalData_convertPackedDecimalToExternalDecimal_:
             case TR::com_ibm_dataaccess_DecimalData_convertPackedDecimalToUnicodeDecimal_:

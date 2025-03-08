@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jni.h"
@@ -702,9 +702,16 @@ Java_com_ibm_lang_management_internal_MemoryNotificationThread_processNotificati
 				return;
 			}
 
-			(*env)->CallVoidMethod(env, threadInstance, helperGCID,
-					gcName, gcAction, gcCause,
-					(jlong)gcInfo->index, (jlong)gcInfo->startTime, (jlong)gcInfo->endTime,
+			(*env)->CallVoidMethod(
+					env,
+					threadInstance,
+					helperGCID,
+					gcName,
+					gcAction,
+					gcCause,
+					(jlong)gcInfo->index,
+					(jlong)gcInfo->startTime,
+					(jlong)gcInfo->endTime,
 					initialArray,
 					preUsedArray,
 					preCommittedArray,
@@ -724,7 +731,10 @@ Java_com_ibm_lang_management_internal_MemoryNotificationThread_processNotificati
 			poolName = poolNames[idx];
 			if (THRESHOLD_EXCEEDED == notification->type) {
 				/* heap usage threshold exceeded */
-				(*env)->CallVoidMethod(env, threadInstance, helperMemID,
+				(*env)->CallVoidMethod(
+						env,
+						threadInstance,
+						helperMemID,
 						poolName,
 						(jlong)pool->initialSize,
 						(jlong)usageThreshold->usedSize,
@@ -738,7 +748,10 @@ Java_com_ibm_lang_management_internal_MemoryNotificationThread_processNotificati
 				}
 			} else { /* COLLECTION_THRESHOLD_EXCEEDED == notification->type) */
 				/* heap collection usage threshold exceeded */
-				(*env)->CallVoidMethod(env, threadInstance, helperMemID,
+				(*env)->CallVoidMethod(
+						env,
+						threadInstance,
+						helperMemID,
 						poolName,
 						pool->initialSize,
 						(jlong)usageThreshold->usedSize,

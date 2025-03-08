@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2022
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.openj9.criu;
 
 import java.io.ByteArrayOutputStream;
@@ -41,16 +41,8 @@ import org.eclipse.openj9.criu.*;
 import jdk.internal.misc.Unsafe;
 
 public class DeadlockTest {
-
-	static class TestResult {
-		boolean testPassed;
-		volatile int lockStatus;
-
-		TestResult(boolean testPassed, int lockStatus) {
-			this.testPassed = testPassed;
-			this.lockStatus = lockStatus;
-		}
-	}
+	final static TestResult mainTestResult = new TestResult(true, 0);
+	final static Object lock = new Object();
 
 	public static void main(String[] args) {
 		String test = args[0];
@@ -65,6 +57,12 @@ public class DeadlockTest {
 		case "MethodTypeDeadlockTest":
 			methodTypeDeadlockTest();
 			break;
+		case "ClinitTest":
+			clinitTest();
+			break;
+		case "ClinitTest2":
+			clinitTest2();
+			break;
 		default:
 			throw new RuntimeException("incorrect parameters");
 		}
@@ -77,39 +75,73 @@ public class DeadlockTest {
 		final TestResult testResult = new TestResult(true, 0);
 
 		Thread t1 = new Thread(() -> {
+			CRIUTestUtils.showThreadCurrentTime("checkpointDeadlock.t1 started with testResult.lockStatus = "
+					+ testResult.lockStatus.get());
 			synchronized (lock) {
-				testResult.lockStatus = 1;
-				try {
-					Thread.sleep(20000);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
+				testResult.lockStatus.set(1);
+				CRIUTestUtils.showThreadCurrentTime("checkpointDeadlock.t1 locked with testResult.lockStatus = "
+						+ testResult.lockStatus.get());
+				// Hold the lock until the lockStatus value is changed.
+				while (testResult.lockStatus.get() == 1) {
+					Thread.yield();
 				}
 			}
+			CRIUTestUtils.showThreadCurrentTime("checkpointDeadlock.t1 finished with testResult.lockStatus = "
+					+ testResult.lockStatus.get());
 		});
 
 		t1.start();
 
-		CRIUSupport criuSupport = new CRIUSupport(path);
-		criuSupport.registerPreCheckpointHook(() -> {
+		CRIUSupport criuSupport = CRIUSupport.getCRIUSupport().setImageDir(path).registerPreCheckpointHook(() -> {
 			synchronized (lock) {
-				System.out.println("Precheckpoint hook inside monitor");
+				CRIUTestUtils.showThreadCurrentTime("Precheckpoint hook inside monitor with testResult.lockStatus = "
+						+ testResult.lockStatus.get());
+				testResult.lockStatus.set(2);
 				testResult.testPassed = false;
 			}
 		});
 
-		while (testResult.lockStatus == 0) {
+		while (testResult.lockStatus.get() == 0) {
 			Thread.yield();
 		}
 
 		try {
-			System.out.println("Pre-checkpoint");
+			CRIUTestUtils.showThreadCurrentTime("Pre-checkpoint with testResult.lockStatus = "
+					+ testResult.lockStatus.get());
 			CRIUTestUtils.checkPointJVM(criuSupport, path, true);
+			CRIUTestUtils.showThreadCurrentTime("Post-restore with testResult.lockStatus = "
+					+ testResult.lockStatus.get());
 			testResult.testPassed = false;
 		} catch (JVMCheckpointException e) {
-			if (!e.getCause().getMessage().contains("Blocking operation is not allowed in CRIU single thread mode")) {
+			/*
+			An expected exception:
+			org.eclipse.openj9.criu.JVMCheckpointException: Exception thrown when running user pre-checkpoint
+				at openj9.criu/org.eclipse.openj9.criu.CRIUSupport.checkpointJVM(CRIUSupport.java:526)
+				at org.openj9.criu.CRIUTestUtils.checkPointJVM(CRIUTestUtils.java:77)
+			Caused by: openj9.internal.criu.JVMCheckpointException: Exception thrown when running user pre-checkpoint
+				at java.base/openj9.internal.criu.InternalCRIUSupport.lambda$registerCheckpointHookHelper$2(InternalCRIUSupport.java:699)
+				at java.base/openj9.internal.criu.J9InternalCheckpointHookAPI$J9InternalCheckpointHook.runHook(J9InternalCheckpointHookAPI.java:143)
+				at java.base/openj9.internal.criu.J9InternalCheckpointHookAPI.runHooks(J9InternalCheckpointHookAPI.java:98)
+				at java.base/openj9.internal.criu.J9InternalCheckpointHookAPI.runPreCheckpointHooksSingleThread(J9InternalCheckpointHookAPI.java:107)
+				at java.base/openj9.internal.criu.InternalCRIUSupport.checkpointJVMImpl(Native Method)
+				at java.base/openj9.internal.criu.InternalCRIUSupport.checkpointJVM(InternalCRIUSupport.java:867)
+				at openj9.criu/org.eclipse.openj9.criu.CRIUSupport.checkpointJVM(CRIUSupport.java:524)
+			Caused by: openj9.internal.criu.JVMCheckpointException: Blocking operation is not allowed in CRIU single thread mode.
+				at org.openj9.criu.DeadlockTest.lambda$checkpointDeadlock$1(DeadlockTest.java:93)
+				at java.base/openj9.internal.criu.InternalCRIUSupport.lambda$registerCheckpointHookHelper$2(InternalCRIUSupport.java:697)
+			*/
+			if (!e.getCause().getCause().getMessage().contains("Blocking operation is not allowed in CRIU single thread mode")) {
+				CRIUTestUtils.showThreadCurrentTime("checkpointDeadlock test failed with testResult.lockStatus = "
+						+ testResult.lockStatus.get());
 				testResult.testPassed = false;
 				e.printStackTrace();
 			}
+		}
+		testResult.lockStatus.set(3);
+		try {
+			t1.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
 
 		if (testResult.testPassed) {
@@ -127,14 +159,16 @@ public class DeadlockTest {
 
 		Thread t1 = new Thread(() -> {
 			Runnable run = () -> {
+				CRIUTestUtils.showThreadCurrentTime("notCheckpointSafeDeadlock.t1 started with testResult.lockStatus = "
+						+ testResult.lockStatus.get());
 				synchronized (lock) {
-					testResult.lockStatus = 1;
-					try {
-						Thread.sleep(20000);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
+					testResult.lockStatus.set(1);
+					CRIUTestUtils.showThreadCurrentTime("notCheckpointSafeDeadlock.t1 locked with testResult.lockStatus = "
+							+ testResult.lockStatus.get());
+					// Wait until the lockStatus value is changed.
+					while (testResult.lockStatus.get() == 1) {
+						Thread.yield();
 					}
-
 				}
 			};
 
@@ -143,21 +177,32 @@ public class DeadlockTest {
 
 		t1.start();
 
-		CRIUSupport criuSupport = new CRIUSupport(path);
+		CRIUSupport criuSupport = CRIUSupport.getCRIUSupport().setImageDir(path);
 
-		while (testResult.lockStatus == 0) {
+		while (testResult.lockStatus.get() == 0) {
 			Thread.yield();
 		}
 
 		try {
-			System.out.println("Pre-checkpoint");
+			CRIUTestUtils.showThreadCurrentTime("Pre-checkpoint with testResult.lockStatus = "
+					+ testResult.lockStatus.get());
 			CRIUTestUtils.checkPointJVM(criuSupport, path, true);
+			CRIUTestUtils.showThreadCurrentTime("Post-restore with testResult.lockStatus = "
+					+ testResult.lockStatus.get());
 			testResult.testPassed = false;
 		} catch (JVMCheckpointException e) {
 			if (!e.getMessage().contains("The JVM attempted to checkpoint but was unable to due to code being executed")) {
+				CRIUTestUtils.showThreadCurrentTime("notCheckpointSafeDeadlock test failed with testResult.lockStatus = "
+						+ testResult.lockStatus.get());
 				testResult.testPassed = false;
 				e.printStackTrace();
 			}
+		}
+		testResult.lockStatus.set(3);
+		try {
+			t1.join();
+		} catch (InterruptedException e) {
+			e.printStackTrace();
 		}
 
 		if (testResult.testPassed) {
@@ -172,7 +217,7 @@ public class DeadlockTest {
 		Path path = Paths.get("cpData");
 		final TestResult testResult = new TestResult(true, 0);
 		Runnable run = () -> {
-			testResult.lockStatus++;
+			testResult.lockStatus.incrementAndGet();
 			for (int i = 0; i < 30; i++) {
 				URL[] urlArray = { A.class.getProtectionDomain().getCodeSource().getLocation() };
 				URLClassLoader loader = new URLClassLoader(urlArray);
@@ -188,7 +233,7 @@ public class DeadlockTest {
 			thread.start();
 		}
 
-		while (testResult.lockStatus < 5) {
+		while (testResult.lockStatus.get() < 5) {
 			Thread.yield();
 		}
 
@@ -197,8 +242,7 @@ public class DeadlockTest {
 		byte[] bytes = getClassBytesFromResource(A.class);
 		Class clazz = unsafe.defineClass(A.class.getName(), bytes, 0, bytes.length, loader, null);
 
-		CRIUSupport criuSupport = new CRIUSupport(path);
-		criuSupport.registerPreCheckpointHook(()->{
+		CRIUSupport criuSupport = CRIUSupport.getCRIUSupport().setImageDir(path).registerPreCheckpointHook(() -> {
 			MethodType type = MethodType.methodType(clazz);
 		});
 
@@ -237,6 +281,95 @@ public class DeadlockTest {
 			throw new RuntimeException("Error reading in resource: " + clazz.getName(), e);
 		}
 		return result;
+	}
+
+	public static void clinitTest() {
+		Path path = Paths.get("cpData");
+
+		mainTestResult.testPassed = false;
+		mainTestResult.lockStatus.set(0);
+
+		Thread t1 = new Thread(()->{
+			new ClinitDeadlock();
+		});
+
+		t1.start();
+
+		while (mainTestResult.lockStatus.get() == 0) {
+			Thread.yield();
+		}
+
+		try {
+			System.out.println("Pre-checkpoint");
+			CRIUTestUtils.checkPointJVM(path);
+			mainTestResult.testPassed = false;
+		} catch (JVMCheckpointException e) {
+			mainTestResult.testPassed = true;
+		} finally {
+			synchronized(lock) {
+				lock.notify();
+			}
+		}
+
+		if (mainTestResult.testPassed) {
+			System.out.println("TEST PASSED");
+		} else {
+			System.out.println("TEST FAILED");
+		}
+
+		System.exit(0);
+	}
+
+	public static void clinitTest2() {
+		Path path = Paths.get("cpData");
+
+		mainTestResult.testPassed = false;
+		mainTestResult.lockStatus.set(0);
+
+		Thread t1 = new Thread(()->{
+			new ClinitDeadlock();
+		});
+
+		t1.start();
+
+		while (mainTestResult.lockStatus.get() == 0) {
+			Thread.yield();
+		}
+
+		try {
+			System.out.println("Pre-checkpoint");
+			CRIUTestUtils.checkPointJVM(path);
+			mainTestResult.testPassed = true;
+		} catch (JVMCheckpointException e) {
+			mainTestResult.testPassed = false;
+		} finally {
+			synchronized(lock) {
+				lock.notify();
+			}
+		}
+
+		if (mainTestResult.testPassed) {
+			System.out.println("TEST PASSED");
+		} else {
+			System.out.println("TEST FAILED");
+		}
+
+		System.exit(0);
+	}
+
+	static class ClinitDeadlock {
+
+		static {
+			mainTestResult.lockStatus.set(1);
+			synchronized(lock) {
+				try {
+					System.out.println("Thread waiting");
+					lock.wait();
+				} catch(InterruptedException e) {
+					e.printStackTrace();
+				}
+			}
+		}
 	}
 
 	static class A {

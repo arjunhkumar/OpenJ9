@@ -18,7 +18,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <playlist xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../TKG/playlist.xsd">
 	<include>../variables.mk</include>
@@ -30,14 +30,16 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<command>
 			perl $(JVM_TEST_ROOT)$(D)TestConfig$(D)scripts$(D)tools$(D)sysvcleanup.pl all ; \
 			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xverify:none \
+			--enable-preview \
 			--add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
 			-DRESJAR=$(CMDLINETESTER_RESJAR) \
 			-DEXE=$(SQ)$(JAVA_COMMAND) $(JVM_OPTIONS)$(SQ) \
 			-DJDMPVIEW_EXE=$(Q)$(TEST_JDK_HOME)$(D)bin$(D)jdmpview$(EXECUTABLE_SUFFIX)$(Q) \
-			-DASMJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)asm-all.jar$(Q) \
-			-DJCOMMANDERJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)jcommander.jar$(Q) \
-			-DTESTNGJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)testng.jar$(Q) \
+			-DASMJAR=$(Q)$(LIB_DIR)$(D)asm-all.jar$(Q) \
+			-DJCOMMANDERJAR=$(Q)$(LIB_DIR)$(D)jcommander.jar$(Q) \
+			-DTESTNGJAR=$(Q)$(LIB_DIR)$(D)testng.jar$(Q) \
 			-DVALUETYPEJAR=$(Q)$(JVM_TEST_ROOT)$(D)functional$(D)Valhalla$(D)ValhallaTests.jar$(Q) \
+			-DMIGRATEDVALUECLASSJAR=$(Q)$(TEST_JDK_HOME)$(D)lib$(D)valueclasses$(D)java.base-valueclasses.jar$(Q) \
 			-DCPDL=$(Q)$(P)$(Q) \
 			-jar $(CMDLINETESTER_JAR) \
 			-config $(Q)$(TEST_RESROOT)$(D)flattenedvaluetypeddrtests.xml$(Q) \
@@ -68,14 +70,16 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<command>
 			perl $(JVM_TEST_ROOT)$(D)TestConfig$(D)scripts$(D)tools$(D)sysvcleanup.pl all ; \
 			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xverify:none \
+			--enable-preview \
 			--add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
 			-DRESJAR=$(CMDLINETESTER_RESJAR) \
 			-DEXE=$(SQ)$(JAVA_COMMAND) $(JVM_OPTIONS)$(SQ) \
 			-DJDMPVIEW_EXE=$(Q)$(TEST_JDK_HOME)$(D)bin$(D)jdmpview$(EXECUTABLE_SUFFIX)$(Q) \
-			-DASMJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)asm-all.jar$(Q) \
-			-DJCOMMANDERJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)jcommander.jar$(Q) \
-			-DTESTNGJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)testng.jar$(Q) \
+			-DASMJAR=$(Q)$(LIB_DIR)$(D)asm-all.jar$(Q) \
+			-DJCOMMANDERJAR=$(Q)$(LIB_DIR)$(D)jcommander.jar$(Q) \
+			-DTESTNGJAR=$(Q)$(LIB_DIR)$(D)testng.jar$(Q) \
 			-DVALUETYPEJAR=$(Q)$(JVM_TEST_ROOT)$(D)functional$(D)Valhalla$(D)ValhallaTests.jar$(Q) \
+			-DMIGRATEDVALUECLASSJAR=$(Q)$(TEST_JDK_HOME)$(D)lib$(D)valueclasses$(D)java.base-valueclasses.jar$(Q) \
 			-DCPDL=$(Q)$(P)$(Q) \
 			-jar $(CMDLINETESTER_JAR) \
 			-config $(Q)$(TEST_RESROOT)$(D)unflattenedvaluetypeddrtests.xml$(Q) \
@@ -106,15 +110,17 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<command>
 			perl $(JVM_TEST_ROOT)$(D)TestConfig$(D)scripts$(D)tools$(D)sysvcleanup.pl all ; \
 			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xverify:none \
+			--enable-preview \
 			--add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
 			-DRESJAR=$(CMDLINETESTER_RESJAR) \
 			-DOPT=-Xint \
 			-DEXE=$(SQ)$(JAVA_COMMAND) $(JVM_OPTIONS)$(SQ) \
 			-DJDMPVIEW_EXE=$(Q)$(TEST_JDK_HOME)$(D)bin$(D)jdmpview$(EXECUTABLE_SUFFIX)$(Q) \
-			-DASMJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)asm-all.jar$(Q) \
-			-DJCOMMANDERJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)jcommander.jar$(Q) \
-			-DTESTNGJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)testng.jar$(Q) \
+			-DASMJAR=$(Q)$(LIB_DIR)$(D)asm-all.jar$(Q) \
+			-DJCOMMANDERJAR=$(Q)$(LIB_DIR)$(D)jcommander.jar$(Q) \
+			-DTESTNGJAR=$(Q)$(LIB_DIR)$(D)testng.jar$(Q) \
 			-DVALUETYPEJAR=$(Q)$(JVM_TEST_ROOT)$(D)functional$(D)Valhalla$(D)ValhallaTests.jar$(Q) \
+			-DMIGRATEDVALUECLASSJAR=$(Q)$(TEST_JDK_HOME)$(D)lib$(D)valueclasses$(D)java.base-valueclasses.jar$(Q) \
 			-DCPDL=$(Q)$(P)$(Q) \
 			-jar $(CMDLINETESTER_JAR) \
 			-config $(Q)$(TEST_RESROOT)$(D)flattened32bitRefBackfillTest.xml$(Q) \
@@ -145,15 +151,17 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<command>
 			perl $(JVM_TEST_ROOT)$(D)TestConfig$(D)scripts$(D)tools$(D)sysvcleanup.pl all ; \
 			$(JAVA_COMMAND) $(CMDLINETESTER_JVM_OPTIONS) -Xverify:none \
+			--enable-preview \
 			--add-opens java.base/jdk.internal.misc=ALL-UNNAMED \
 			-DRESJAR=$(CMDLINETESTER_RESJAR) \
 			-DEXE=$(SQ)$(JAVA_COMMAND) $(JVM_OPTIONS)$(SQ) \
 			-DOPT=-Xjit \
 			-DJDMPVIEW_EXE=$(Q)$(TEST_JDK_HOME)$(D)bin$(D)jdmpview$(EXECUTABLE_SUFFIX)$(Q) \
-			-DASMJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)asm-all.jar$(Q) \
-			-DJCOMMANDERJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)jcommander.jar$(Q) \
-			-DTESTNGJAR=$(Q)$(JVM_TEST_ROOT)$(D)TKG$(D)lib$(D)testng.jar$(Q) \
+			-DASMJAR=$(Q)$(LIB_DIR)$(D)asm-all.jar$(Q) \
+			-DJCOMMANDERJAR=$(Q)$(LIB_DIR)$(D)jcommander.jar$(Q) \
+			-DTESTNGJAR=$(Q)$(LIB_DIR)$(D)testng.jar$(Q) \
 			-DVALUETYPEJAR=$(Q)$(JVM_TEST_ROOT)$(D)functional$(D)Valhalla$(D)ValhallaTests.jar$(Q) \
+			-DMIGRATEDVALUECLASSJAR=$(Q)$(TEST_JDK_HOME)$(D)lib$(D)valueclasses$(D)java.base-valueclasses.jar$(Q) \
 			-DCPDL=$(Q)$(P)$(Q) \
 			-jar $(CMDLINETESTER_JAR) \
 			-config $(Q)$(TEST_RESROOT)$(D)flattened32bitRefBackfillTest.xml$(Q) \

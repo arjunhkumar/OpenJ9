@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar19-SE]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 9]*/
+/*
  * Copyright IBM Corp. and others 2017
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.gpu.spi;
 
 /**
@@ -37,7 +37,7 @@ public interface GPUAssist {
 		/**
 		 * Answer a GPUAssist implementation if one is available and enabled
 		 * or null otherwise.
-		 * 
+		 *
 		 * @return a GPUAssist implementation or null
 		 */
 		GPUAssist getGPUAssist();
@@ -75,7 +75,7 @@ public interface GPUAssist {
 	 * If sort is enabled on the GPU, and the array slice has a reasonable
 	 * size for using a GPU, sort the region of the given array of values
 	 * into ascending order, on the first available device.
-	 * 
+	 *
 	 * @param array
 	 *          the array that will be sorted
 	 * @param fromIndex
@@ -85,7 +85,7 @@ public interface GPUAssist {
 	 * @return true if the sort was successful, false otherwise
 	 * @throws ArrayIndexOutOfBoundsException
 	 *          if fromIndex is negative or toIndex is larger than
-	 *          the length of the array 
+	 *          the length of the array
 	 * @throws IllegalArgumentException if fromIndex &gt; toIndex
 	 */
 	boolean trySort(double[] array, int fromIndex, int toIndex);
@@ -94,7 +94,7 @@ public interface GPUAssist {
 	 * If sort is enabled on the GPU, and the array slice has a reasonable
 	 * size for using a GPU, sort the region of the given array of values
 	 * into ascending order, on the first available device.
-	 * 
+	 *
 	 * @param array
 	 *          the array that will be sorted
 	 * @param fromIndex
@@ -104,7 +104,7 @@ public interface GPUAssist {
 	 * @return true if the sort was successful, false otherwise
 	 * @throws ArrayIndexOutOfBoundsException
 	 *          if fromIndex is negative or toIndex is larger than
-	 *          the length of the array 
+	 *          the length of the array
 	 * @throws IllegalArgumentException if fromIndex &gt; toIndex
 	 */
 	boolean trySort(float[] array, int fromIndex, int toIndex);
@@ -113,7 +113,7 @@ public interface GPUAssist {
 	 * If sort is enabled on the GPU, and the array slice has a reasonable
 	 * size for using a GPU, sort the region of the given array of values
 	 * into ascending order, on the first available device.
-	 * 
+	 *
 	 * @param array
 	 *          the array that will be sorted
 	 * @param fromIndex
@@ -123,7 +123,7 @@ public interface GPUAssist {
 	 * @return true if the sort was successful, false otherwise
 	 * @throws ArrayIndexOutOfBoundsException
 	 *          if fromIndex is negative or toIndex is larger than
-	 *          the length of the array 
+	 *          the length of the array
 	 * @throws IllegalArgumentException if fromIndex &gt; toIndex
 	 */
 	boolean trySort(int[] array, int fromIndex, int toIndex);
@@ -132,7 +132,7 @@ public interface GPUAssist {
 	 * If sort is enabled on the GPU, and the array slice has a reasonable
 	 * size for using a GPU, sort the region of the given array of values
 	 * into ascending order, on the first available device.
-	 * 
+	 *
 	 * @param array
 	 *          the array that will be sorted
 	 * @param fromIndex
@@ -142,7 +142,7 @@ public interface GPUAssist {
 	 * @return true if the sort was successful, false otherwise
 	 * @throws ArrayIndexOutOfBoundsException
 	 *          if fromIndex is negative or toIndex is larger than
-	 *          the length of the array 
+	 *          the length of the array
 	 * @throws IllegalArgumentException if fromIndex &gt; toIndex
 	 */
 	boolean trySort(long[] array, int fromIndex, int toIndex);

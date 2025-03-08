@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 ###
@@ -321,7 +321,7 @@ target_link_libraries(j9vm_main_wrapper
 ###
 
 # set up glue library target names
-# See https://github.com/eclipse/omr/blob/master/doc/BuildingWithCMake.md
+# See https://github.com/eclipse-omr/omr/blob/master/doc/BuildingWithCMake.md
 set(OMR_GC_GLUE_TARGET "j9vm_gc_glue" CACHE INTERNAL "")
 set(OMR_GC_GLUE_FULL_TARGET "j9vm_gc_glue_full" CACHE INTERNAL "")
 set(OMR_RAS_GLUE_TARGET "j9vm_ras_glue" CACHE INTERNAL "")
@@ -435,19 +435,12 @@ endif()
 if(J9VM_MODULE_CODERT_VM)
 	add_subdirectory(codert_vm)
 endif()
-if(J9VM_OPT_CRIU_SUPPORT)
-	add_subdirectory(criusupport)
-endif()
 add_subdirectory(cuda)
 if(J9VM_MODULE_DBGEXT)
 	add_subdirectory(dbgext)
 endif()
 if(OMR_DDR)
 	add_subdirectory(ddr)
-endif()
-if(OMR_OS_WINDOWS)
-	# TODO: need to add windows support
-	# add_subdirectory(dfix)
 endif()
 if(J9VM_MODULE_EXELIB)
 	add_subdirectory(exelib)

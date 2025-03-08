@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef DATACACHE_HPP
@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include "j9.h"
 #include "infra/Assert.hpp"
+#include "runtime/OMRRSSReport.hpp"
 
 namespace TR { class Monitor; }
 struct J9JITDataCacheHeader;
@@ -41,6 +42,7 @@ private:
    uint8_t         *_allocationMark; // used if we want to give back memory up to previously set mark
    //TR::Monitor       *_mutex;     // Is this needed?
    int32_t          _status;    // mostly RAS at this point
+   OMR::RSSRegion  *_rssRegion; // to report footprint
 public:
    enum {
       RESERVED=1,
@@ -48,6 +50,9 @@ public:
       ALMOST_FULL,
       FULL,
    };
+
+   // Note: constructor for this class is not called
+
    friend class TR_DataCacheManager;
    // The following methods need to be called on a reserved DataCache
    uint8_t *allocateDataCacheSpace(int32_t size);
@@ -327,6 +332,7 @@ private:
    int32_t          _numAllocatedCaches;
    uint32_t         _flags;     // for configuration
    J9JITConfig     *_jitConfig;
+   bool             _disclaimEnabled; // If true, data cache segmnets can be disclaimed to a file or swap
 
    // Added as part of data cache reclamation
    const uint32_t _quantumSize;
@@ -337,6 +343,7 @@ private:
    TR_DataCache *allocateNewDataCache(uint32_t minimumSize);
    uint8_t *allocateDataCacheSpace(uint32_t size); // Made private for data cache reclamation.
    void freeDataCacheList(TR_DataCache *& head);
+   int disclaimSegment(J9MemorySegment *seg, bool canDisclaimOnSwap); // disclaim memory used for the indicated segment
 
    // Added as part of data cache reclamation
    void addToPool(Allocation *);
@@ -378,6 +385,7 @@ protected:
 
 public:
    void *operator new (size_t size, void * ptr) { return ptr; }
+   int32_t numAllocatedCaches() const { return _numAllocatedCaches; }
    TR_DataCache *reserveAvailableDataCache(J9VMThread *vmThread, uint32_t sizeHint);
    void makeDataCacheAvailable(TR_DataCache *dataCache); // put back the cache into the _activeDataCacheList
    uint8_t *allocateDataCacheRecord(uint32_t size, uint32_t allocType, uint32_t *allocSizePtr);
@@ -386,13 +394,10 @@ public:
    double computeDataCacheEfficiency();
    uint32_t getTotalSegmentMemoryAllocated() const { return _totalSegmentMemoryAllocated; }
    void freeDataCacheRecord(void *record);
-   void startupOver()
-      {
-      convertDataCachesToAllocations();
-      }
-
+   void startupOver() { convertDataCachesToAllocations(); }
    virtual void printStatistics();
-
+   bool isDisclaimEnabled() const { return _disclaimEnabled; }
+   int disclaimAllDataCaches();
 
    // static methods
    static TR_DataCacheManager* initialize(J9JITConfig * jitConfig);

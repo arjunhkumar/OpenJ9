@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.builder.javacore;
 
 /**
@@ -34,18 +34,18 @@ package com.ibm.dtfj.javacore.builder.javacore;
  * share similar structure in the sense that each contains a collection of children factories.
  * For example, an Image factory will contain various ImageAddressSpace factories, each associated
  * with a unique ImageAddressSpace
- * an ImageAddressSpace factory will contain various ImageProcess factories, each associated with a 
+ * an ImageAddressSpace factory will contain various ImageProcess factories, each associated with a
  * unique ImageProcess.
- * 
+ *
  * Such image-level components have a similar internal structure, and thus inherit such structure
  * from this parent class.
  *
  */
 public abstract class AbstractBuilderComponent {
-	
+
 	private final String fID;
 	private final BuilderContainer fSubComponentContainer;
-	
+
 	/**
 	 * @param id unique for this factory.
 	 */
@@ -56,18 +56,16 @@ public abstract class AbstractBuilderComponent {
 		fID = id;
 		fSubComponentContainer = new BuilderContainer();
 	}
-	
-	
+
 	/**
 	 * @return container with list of all children factories.
 	 */
 	protected BuilderContainer getBuilderContainer() {
 		return fSubComponentContainer;
 	}
-	
-	
+
 	/**
-	 * 
+	 *
 	 * @return unique id of this factory.
 	 */
 	public String getID() {

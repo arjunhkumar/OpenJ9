@@ -17,7 +17,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 # Getting started with JITServer
@@ -145,13 +145,14 @@ of network communication is larger than resources required to compile locally.
 With heuristics enabled, client will try to maximize benefits of using JITServer while
 minimizing overheads.
 
-### JITServer AOT cache (experimental)
+### JITServer AOT cache
 
 The server-side option `-XX:+JITServerUseAOTCache` enables storing AOT methods
 on the server. This allows the server to send AOT method bodies to clients that
 do not have pre-populated Shared Class Caches, improving startup time.
 
-This is currently an experimental feature and it is not fully supported.
+The option `-XX:+JITServerUseAOTCache` can then be enabled on the client side so the
+client can use the server's AOT cache.
 
 ## Logging
 

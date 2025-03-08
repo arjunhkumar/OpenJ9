@@ -17,11 +17,17 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef PERSISTENT_COLLECTIONS_H
 #define PERSISTENT_COLLECTIONS_H
+
+// Some of these container types are unsupported on certain XLC/C++ build
+// configurations
+#if defined(__IBMCPP__) && !defined(__IBMCPP_TR1__)
+#define PERSISTENT_COLLECTIONS_UNSUPPORTED
+#else
 
 #include <list>
 #include <unordered_map>
@@ -69,6 +75,19 @@ template<typename K, typename V, typename H = std::hash<K>, typename E = std::eq
 using UnorderedMap = std::unordered_map<K, V, H, E, UnorderedMapAllocator<K, V>>;
 
 
+struct StringKey
+   {
+   StringKey() : _string(NULL), _length(0) { } // Safely represents an empty string
+   StringKey(const uint8_t *string, size_t length) : _string(string), _length(length) { }
+   StringKey(const J9UTF8 *str) : _string(str ? J9UTF8_DATA(str) : NULL), _length(str ? J9UTF8_LENGTH(str) : 0) {}
+
+   bool operator==(const StringKey &k) const { return J9UTF8_DATA_EQUALS(_string, _length, k._string, k._length); }
+
+   const uint8_t *const _string;
+   const size_t _length;
+   };
+
+
 namespace std
    {
    template<typename T0, typename T1> struct hash<std::pair<T0, T1>>
@@ -103,7 +122,19 @@ namespace std
                 std::hash<T2>()(std::get<2>(k)) ^ std::hash<T3>()(std::get<3>(k));
          }
       };
+
+   template<> struct hash<StringKey>
+      {
+      size_t operator()(const StringKey &k) const noexcept
+         {
+         size_t h = 0;
+         for (size_t i = 0; i < k._length; ++i)
+            h = (h << 5) - h + k._string[i];
+         return h;
+         }
+      };
    }
 
 
+#endif /* defined(__IBMCPP__) && !defined(__IBMCPP_TR1__) */
 #endif /* PERSISTENT_COLLECTIONS_H */

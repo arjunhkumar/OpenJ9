@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar19-SE]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 9]*/
+/*
  * Copyright IBM Corp. and others 2017
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package jdk.internal.misc;
 
 import com.ibm.oti.vm.VM;
@@ -38,112 +38,152 @@ public final class Unsafe {
 
 	/* Prevents this class from being instantiated. */
 	private Unsafe() {}
-	
+
 	/* unsafe instance */
 	private static final Unsafe theUnsafe;
 
 	/**
 	 * Represents an invalid field offset value.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long INVALID_FIELD_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int INVALID_FIELD_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Starting offset of byte array.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long ARRAY_BYTE_BASE_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int ARRAY_BYTE_BASE_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Starting offset of int array.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long ARRAY_INT_BASE_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int ARRAY_INT_BASE_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Starting offset of long array.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long ARRAY_LONG_BASE_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int ARRAY_LONG_BASE_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Starting offset of float array.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long ARRAY_FLOAT_BASE_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int ARRAY_FLOAT_BASE_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Starting offset of double array.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long ARRAY_DOUBLE_BASE_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int ARRAY_DOUBLE_BASE_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Starting offset of short array.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long ARRAY_SHORT_BASE_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int ARRAY_SHORT_BASE_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Starting offset of char array.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long ARRAY_CHAR_BASE_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int ARRAY_CHAR_BASE_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Starting offset of boolean array.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long ARRAY_BOOLEAN_BASE_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int ARRAY_BOOLEAN_BASE_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Starting offset of Object array.
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public static final long ARRAY_OBJECT_BASE_OFFSET;
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public static final int ARRAY_OBJECT_BASE_OFFSET;
-	
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
+
 	/**
 	 * Index size of byte array in bytes.
 	 */
 	public static final int ARRAY_BYTE_INDEX_SCALE;
-	
+
 	/**
 	 * Index size of int array in bytes.
 	 */
 	public static final int ARRAY_INT_INDEX_SCALE;
-	
+
 	/**
 	 * Index size of long array in bytes.
 	 */
 	public static final int ARRAY_LONG_INDEX_SCALE;
-	
+
 	/**
 	 * Index size of float array in bytes.
 	 */
 	public static final int ARRAY_FLOAT_INDEX_SCALE;
-	
+
 	/**
 	 * Index size of double array in bytes.
 	 */
 	public static final int ARRAY_DOUBLE_INDEX_SCALE;
-	
+
 	/**
 	 * Index size of short array in bytes.
 	 */
 	public static final int ARRAY_SHORT_INDEX_SCALE;
-	
+
 	/**
 	 * Index size of char array in bytes.
 	 */
 	public static final int ARRAY_CHAR_INDEX_SCALE;
-	
+
 	/**
 	 * Index size of boolean array in bytes.
 	 */
 	public static final int ARRAY_BOOLEAN_INDEX_SCALE;
-	
+
 	/**
 	 * Index size of Object array in bytes.
 	 */
 	public static final int ARRAY_OBJECT_INDEX_SCALE;
-	
+
 	/**
 	 * Size of address on machine in use.
 	 */
 	public static final int ADDRESS_SIZE;
 
-	/* 
-	 * internal helpers 
+	/*
+	 * internal helpers
 	 */
 	/* true if machine is big endian, false otherwise. */
 	private static final boolean IS_BIG_ENDIAN;
@@ -171,13 +211,13 @@ public final class Unsafe {
 	/* Mask aligns offset to be int addressable (all but bottom two bits). */
 	private static final int INT_OFFSET_ALIGN_MASK = 0xFFFFFFFC;
 
-	/* 
+	/*
 	 * For int shift instructions (ishr, iushr, ishl), only the low 5 bits of the
 	 * shift amount are considered.
 	 */
 	private static final int BC_SHIFT_INT_MASK = 0b11111;
-	
-	/* 
+
+	/*
 	 * For long shift instructions (lshr, lushr, lshl) only the low 6 bits of the
 	 * shift amount are considered.
 	 */
@@ -197,8 +237,8 @@ public final class Unsafe {
 		theUnsafe = new Unsafe();
 
 		INVALID_FIELD_OFFSET = -1;
-		
-		/* All OpenJ9 array types have the same array base offset. To limit 
+
+		/* All OpenJ9 array types have the same array base offset. To limit
 		 * JNI calls arrayBaseOffset is only called once in this block and the
 		 * value used for each array base offset variable.
 		 */
@@ -211,7 +251,7 @@ public final class Unsafe {
 		ARRAY_CHAR_BASE_OFFSET = ARRAY_BYTE_BASE_OFFSET;
 		ARRAY_BOOLEAN_BASE_OFFSET = ARRAY_BYTE_BASE_OFFSET;
 		ARRAY_OBJECT_BASE_OFFSET = ARRAY_BYTE_BASE_OFFSET;
-		
+
 		ARRAY_BYTE_INDEX_SCALE = theUnsafe.arrayIndexScale(byte[].class);
 		ARRAY_INT_INDEX_SCALE = theUnsafe.arrayIndexScale(int[].class);
 		ARRAY_LONG_INDEX_SCALE = theUnsafe.arrayIndexScale(long[].class);
@@ -224,18 +264,18 @@ public final class Unsafe {
 
 		ADDRESS_SIZE = VM.ADDRESS_SIZE;
 		IS_BIG_ENDIAN = VM.IS_BIG_ENDIAN;
-		
+
 		/* Unaligned access is currently supported on all platforms */
-		UNALIGNED_ACCESS = true; 
+		UNALIGNED_ACCESS = true;
 	}
 
 	/* Attach jdk.internal.misc.Unsafe natives. */
 	private static native void registerNatives();
-	
+
 	/**
 	 * Gets the value of the byte in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return byte value stored in obj
@@ -245,17 +285,17 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the byte in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value byte to store in obj
 	 */
 	public native void putByte(Object obj, long offset, byte value);
-	
+
 	/**
 	 * Gets the value of the int in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return int value stored in obj
@@ -265,17 +305,17 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the int in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value int to store in obj
 	 */
 	public native void putInt(Object obj, long offset, int value);
-	
+
 	/**
 	 * Gets the value of the long in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return long value stored in obj
@@ -285,7 +325,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the long in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value long to store in obj
@@ -295,7 +335,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the float in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return float value stored in obj
@@ -305,7 +345,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the float in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value float to store in obj
@@ -315,7 +355,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the double in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return double value stored in obj
@@ -325,7 +365,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the double in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value double to store in obj
@@ -335,7 +375,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the short in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return short value stored in obj
@@ -345,17 +385,17 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the short in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value short to store in obj
 	 */
 	public native void putShort(Object obj, long offset, short value);
-	
+
 	/**
 	 * Gets the value of the char in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return char value stored in obj
@@ -365,17 +405,17 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the char in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value char to store in obj
 	 */
 	public native void putChar(Object obj, long offset, char value);
-	
+
 	/**
 	 * Gets the value of the boolean in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return boolean value stored in obj
@@ -385,7 +425,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the boolean in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value boolean to store in obj
@@ -395,7 +435,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the Object in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return Object value stored in obj
@@ -405,7 +445,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the Object in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value Object to store in obj
@@ -416,7 +456,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the Object in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return Object value stored in obj
@@ -426,7 +466,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the Object in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value Object to store in obj
@@ -437,64 +477,64 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the Object in memory referenced by address.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * NOTE: native implementation is a stub.
 	 *
 	 * @param address position of the object in memory
 	 * @return Object value stored in memory
 	 */
 	public native Object getUncompressedObject(long address);
-	
+
 	/**
 	 * Allocates a block of memory
 	 *
 	 * @param size number of bytes to allocate
 	 * @return address of allocated buffer
-	 * 
+	 *
 	 * @throws IllegalArgumentException if size is negative
 	 */
 	public native long allocateDBBMemory(long size);
-	
+
 	/**
 	 * Reallocates a block of memory.
-	 * 
+	 *
 	 * @param address of old buffer
 	 * @param size new size of buffer to allocate
 	 * @return address of new buffer
-	 * 
+	 *
 	 * @throws IllegalArgumentException if size is negative
 	 */
 	public native long reallocateDBBMemory(long address, long size);
-	
+
 	/**
-	 * Removes the block from the list.  Note that the pointers are located 
+	 * Removes the block from the list.  Note that the pointers are located
 	 * immediately before the address value.
-	 * 
+	 *
 	 * @param address of buffer
 	 */
 	public native void freeDBBMemory(long address);
 
 	/**
 	 * Returns the size of a page in memory in bytes.
-	 * 
+	 *
 	 * @return size of memory page
 	 */
 	public native int pageSize();
 
 	/**
 	 * Creates a class out of a given array of bytes with a ProtectionDomain.
-	 * 
+	 *
 	 * @param name binary name of the class, null if the name is not known
-	 * @param b a byte array of the class data. The bytes should have the format of a valid 
+	 * @param b a byte array of the class data. The bytes should have the format of a valid
 	 * class file as defined by The JVM Spec
 	 * @param offset offset of the start of the class data in b
 	 * @param bLength length of the class data
-	 * @param cl used to load the class being built. If null, the default 
+	 * @param cl used to load the class being built. If null, the default
 	 * system ClassLoader will be used
 	 * @param pd ProtectionDomain for new class
 	 * @return the Class created from the byte array and ProtectionDomain parameters
-	 * 
-	 * @throws IndexOutOfBoundsException if offset or bLength is negative, or if offset + bLength 
+	 *
+	 * @throws IndexOutOfBoundsException if offset or bLength is negative, or if offset + bLength
 	 * is greater than the length of b
 	 */
 	public native Class<?> defineClass0(String name, byte[] b, int offset, int bLength, ClassLoader cl,
@@ -502,29 +542,29 @@ public final class Unsafe {
 
 	/**
 	 * Allocate instance of class parameter.
-	 * 
+	 *
 	 * @param c class to allocate
 	 * @return instance of class c
-	 * 
+	 *
 	 * @throws InstantiationException if class c cannot be instantiated
 	 */
 	public native Object allocateInstance(Class<?> c) throws InstantiationException;
 
 	/**
 	 * Throw Throwable parameter.
-	 * 
+	 *
 	 * @param t Throwable to execute
-	 * 
+	 *
 	 * @throws NullPointerException if Throwable is null
 	 */
 	public native void throwException(Throwable t);
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -534,7 +574,7 @@ public final class Unsafe {
 	public final native boolean compareAndSetInt(Object obj, long offset, int compareValue, int setValue);
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
@@ -548,7 +588,7 @@ public final class Unsafe {
 	public final native int compareAndExchangeInt(Object obj, long offset, int compareValue, int exchangeValue);
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
@@ -562,7 +602,7 @@ public final class Unsafe {
 	public final native boolean compareAndSetLong(Object obj, long offset, long compareValue, long setValue);
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
@@ -576,7 +616,7 @@ public final class Unsafe {
 	public final native long compareAndExchangeLong(Object obj, long offset, long compareValue, long exchangeVale);
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
@@ -590,7 +630,7 @@ public final class Unsafe {
 	public final native boolean compareAndSetObject(Object obj, long offset, Object compareValue, Object setValue);
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
@@ -606,7 +646,7 @@ public final class Unsafe {
 
 /*[IF JAVA_SPEC_VERSION >= 12]*/
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
@@ -620,7 +660,7 @@ public final class Unsafe {
 	public final native boolean compareAndSetReference(Object obj, long offset, Object compareValue, Object setValue);
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
@@ -637,7 +677,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically gets the value of the byte in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return byte value stored in obj
@@ -646,16 +686,16 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the byte in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value byte to store in obj
 	 */
 	public native void putByteVolatile(Object obj, long offset, byte value);
-	
+
 	/**
 	 * Atomically gets the value of the int in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return int value stored in obj
@@ -664,7 +704,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the int in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value int to store in obj
@@ -673,7 +713,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically gets the value of the long in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return long value stored in obj
@@ -682,7 +722,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the long in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value long to store in obj
@@ -691,7 +731,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically gets the value of the float in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return float value stored in obj
@@ -700,7 +740,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the float in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value float to store in obj
@@ -709,7 +749,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically gets the value of the double in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return double value stored in obj
@@ -718,16 +758,16 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the double in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value double to store in obj
 	 */
 	public native void putDoubleVolatile(Object obj, long offset, double value);
-	
+
 	/**
 	 * Atomically gets the value of the short in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return short value stored in obj
@@ -736,7 +776,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the short in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value short to store in obj
@@ -745,7 +785,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically gets the value of the char in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return char value stored in obj
@@ -754,7 +794,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the char in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value char to store in obj
@@ -763,7 +803,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically gets the value of the boolean in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return boolean value stored in obj
@@ -772,16 +812,16 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the boolean in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value boolean to store in obj
 	 */
 	public native void putBooleanVolatile(Object obj, long offset, boolean value);
-	
+
 	/**
 	 * Atomically gets the value of the Object in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return Object value stored in obj
@@ -790,7 +830,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the Object in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value Object to store in obj
@@ -800,7 +840,7 @@ public final class Unsafe {
 /*[IF JAVA_SPEC_VERSION >= 12]*/
 	/**
 	 * Atomically gets the value of the Object in the obj parameter referenced by offset.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return Object value stored in obj
@@ -809,7 +849,7 @@ public final class Unsafe {
 
 	/**
 	 * Atomically sets the value of the Object in the obj parameter at memory offset.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value Object to store in obj
@@ -819,17 +859,17 @@ public final class Unsafe {
 
 	/**
 	 * Makes permit available for thread parameter.
-	 * 
+	 *
 	 * @param thread the thread to unpark. If null, method has no effect
 	 */
 	public native void unpark(Object thread);
 
 	/**
-	 * Disables current thread unless permit is available. Thread will not be 
+	 * Disables current thread unless permit is available. Thread will not be
 	 * scheduled until unpark provides permit.
-	 * 
+	 *
 	 * @param isAbsolute if true park timeout should be absolute
-	 * @param time parks for time in ns. 
+	 * @param time parks for time in ns.
 	 *	 ms is expected if isAbsolute is set to true.
 	 */
 	public native void park(boolean isAbsolute, long time);
@@ -851,64 +891,64 @@ public final class Unsafe {
 	 *  fence are reordered with any loads/stores after the fence.
 	 */
 	public native void fullFence();
-	
-	/* 
-	 * jdk.internal.misc.Unsafe natives 
+
+	/*
+	 * jdk.internal.misc.Unsafe natives
 	 */
-	/* 
+	/*
 	 * Allocates a block of memory.
 	 * If size passed is 0, no memory will be allocated.
-	 * 
+	 *
 	 * @param size requested size of memory in bytes
 	 * @return starting address of memory
-	 * 
+	 *
 	 * @throws IllegalArgumentException if size is not valid
 	 */
 	private native long allocateMemory0(long size);
 
-	/* 
+	/*
 	 * Reallocates a block of memory.
 	 * If size passed is 0, no memory will be allocated.
-	 * 
+	 *
 	 * @param size requested size of memory in bytes
 	 * @return starting address of memory
-	 * 
+	 *
 	 * @throws IllegalArgumentException if size is not valid
 	 */
 	private native long reallocateMemory0(long address, long size);
 
-	/* 
-	 * Removes the block from the list. Note that the pointers are located 
+	/*
+	 * Removes the block from the list. Note that the pointers are located
 	 * immediately before the startIndex value.
-	 * 
+	 *
 	 * @param startIndex memory address
-	 * 
+	 *
 	 * @throws IllegalArgumentException if startIndex is not valid
 	 */
 	private native void freeMemory0(long startIndex);
-	
-	/* 
+
+	/*
 	 * Set object at offset in obj parameter.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param startIndex position of the value in obj
 	 * @param size the number of bytes to be set to the value
 	 * @param replace overwrite memory with this value
-	 *            
+	 *
 	 * @throws IllegalArgumentException if startIndex is illegal in obj, or if size is invalid
 	 */
 	private native void setMemory0(Object obj, long startIndex, long size, byte replace);
 
-	/* 
+	/*
 	 * Copy bytes from source object to destination.
-	 * 
-	 * @param srcObj object to copy from 
-	 * @param srcOffset location in srcObj to start copy 
+	 *
+	 * @param srcObj object to copy from
+	 * @param srcOffset location in srcObj to start copy
 	 * @param destObj object to copy into
 	 * @param destOffset location in destObj to start copy
 	 * @param size the number of bytes to be copied
-	 * 
-	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj, 
+	 *
+	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj,
 	 * if destOffset is illegal in destObj, or if size is invalid
 	 */
 	private native void copyMemory0(Object srcObj, long srcOffset, Object destObj, long destOffset, long size);
@@ -916,27 +956,27 @@ public final class Unsafe {
 	/*
 	 * Copy bytes from source object to destination in reverse order.
 	 * Memory is reversed in elementSize chunks.
-	 * 
-	 * @param srcObj object to copy from 
+	 *
+	 * @param srcObj object to copy from
 	 * @param srcOffset location in srcObj to start copy
 	 * @param destObj object to copy into
 	 * @param destOffset location in destObj to start copy
 	 * @param copySize the number of bytes to be copied, a multiple of elementSize
 	 * @param elementSize the size in bytes of elements that will be reversed
-	 * 
-	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj, 
+	 *
+	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj,
 	 * if destOffset is illegal in destObj, if copySize is invalid or copySize is not
 	 * a multiple of elementSize
 	 */
 	private native void copySwapMemory0(Object srcObj, long srcOffset, Object destObj, long destOffset, long copySize,
 			long elementSize);
 
-	/* 
+	/*
 	 * Returns byte offset to field.
-	 * 
+	 *
 	 * @param field which contains desired class or interface
 	 * @return offset to start of class or interface
-	 * 
+	 *
 	 * @throws IllegalArgumentException if field is static
 	 */
 	private native long objectFieldOffset0(Field field);
@@ -944,72 +984,72 @@ public final class Unsafe {
 /*[IF JAVA_SPEC_VERSION >= 10]*/
 	/*
 	 * Returns byte offset to field.
-	 * 
+	 *
 	 * @param class with desired field
 	 * @param string name of desired field
 	 * @return offset to start of class or interface
-	 * 
+	 *
 	 * @throws IllegalArgumentException if field is static
 	 */
 	private native long objectFieldOffset1(Class<?> c, String fieldName);
 /*[ENDIF] JAVA_SPEC_VERSION >= 10 */
 
-	/* 
+	/*
 	 * Returns byte offset to start of static class or interface.
-	 * 
+	 *
 	 * @param field which contains desired class or interface
 	 * @return offset to start of class or interface
-	 * 
+	 *
 	 * @throws NullPointerException if field parameter is null
 	 * @throws IllegalArgumentException if field is not static
 	 */
 	private native long staticFieldOffset0(Field field);
 
-	/* 
+	/*
 	 * Returns class or interface described by static Field.
-	 * 
+	 *
 	 * @param field contains desired class or interface
 	 * @return class or interface in static field
-	 * 
+	 *
 	 * @throws NullPointerException if field parameter is null
 	 * @throws IllegalArgumentException if field is not static
 	 */
 	private native Object staticFieldBase0(Field field);
 
-	/* 
+	/*
 	 * Determines whether class has been initialized.
-	 * 
+	 *
 	 * @param class to verify
 	 * @return true if method has not been initialized, false otherwise
 	 */
 	private native boolean shouldBeInitialized0(Class<?> c);
 
-	/* 
+	/*
 	 * Initializes class parameter if it has not been already.
-	 * 
+	 *
 	 * @param c class to initialize if not already
-	 * 
+	 *
 	 * @throws NullPointerException if class is null
 	 */
 	private native void ensureClassInitialized0(Class<?> c);
 
-	/* 
+	/*
 	 * Return offset in array object at which the array data storage begins.
-	 * 
+	 *
 	 * @param c class array
 	 * @return offset at base of array
-	 * 
+	 *
 	 * @throws NullPointerException if the class parameter is null
 	 * @throws IllegalArgumentException if class is not an array
 	 */
 	private native int arrayBaseOffset0(Class<?> c);
 
-	/* 
+	/*
 	 * Return index size of array in bytes.
-	 * 
+	 *
 	 * @param c class array
 	 * @return returns index size of array in bytes
-	 * 
+	 *
 	 * @throws NullPointerException if class is null
 	 * @throws IllegalArgumentException if class is not an array
 	 */
@@ -1019,24 +1059,24 @@ public final class Unsafe {
 	private native int addressSize0();
 
 	/*[IF JAVA_SPEC_VERSION < 17]*/
-	/* 
+	/*
 	 * Define a class without making it known to the class loader.
-	 * 
-	 * @param hostingClass the context for class loader + linkage, and 
+	 *
+	 * @param hostingClass the context for class loader + linkage, and
 	 * access control + protection domain
 	 * @param bytecodes class file bytes
-	 * @param constPatches entries that are not "null" are replacements 
+	 * @param constPatches entries that are not "null" are replacements
 	 * for the corresponding const pool entries in the 'bytecodes' data
 	 * @return class created from bytecodes and constPatches
 	 */
 	private native Class<?> defineAnonymousClass0(Class<?> hostingClass, byte[] bytecodes, Object[] constPatches);
 	/*[ENDIF] JAVA_SPEC_VERSION < 17 */
 
-	/* 
+	/*
 	 * Get the load average in the system.
-	 * 
+	 *
 	 * NOTE: native implementation is a stub.
-	 * 
+	 *
 	 * @param loadavg array of elements
 	 * @param numberOfElements number of samples
 	 * @return load average
@@ -1054,7 +1094,7 @@ public final class Unsafe {
 	 * Make sure that the virtual memory at address "addr" for length "len" has
 	 * been written back from the cache to physical memory.
 	 * Throw RuntimeException if cache flushing is not enabled on the runtime OS.
-	 * 
+	 *
 	 * @param addr address to the start of the block of virtual memory to be flushed
 	 * @param len length of the block of virtual memory to be flushed
 	 * @throws RuntimeException if cache flushing not enabled
@@ -1064,7 +1104,7 @@ public final class Unsafe {
 	/**
 	 * Check if cache writeback is possible on the runtime platform by checking
 	 * if there is OS and/or CPU support.
-	 * 
+	 *
 	 * @return true if cache writeback is possible, else false
 	 */
 	public static native boolean isWritebackEnabled();
@@ -1072,17 +1112,17 @@ public final class Unsafe {
 
 	/**
 	 * Getter for unsafe instance.
-	 * 
+	 *
 	 * @return unsafe instance
 	 */
 	public static Unsafe getUnsafe() {
 		return theUnsafe;
 	}
-	
+
 	/**
 	 * Gets the address in the obj parameter referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the address
 	 * @param address location to retrieve the address in obj
 	 * @return address stored in obj
@@ -1102,7 +1142,7 @@ public final class Unsafe {
 	/**
 	 * Sets an address in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the address
 	 * @param address position to store value in obj
 	 * @param value address to store in obj
@@ -1118,7 +1158,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the byte in memory referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param locations where to retrieve value in memory
 	 * @return byte value stored in memory
 	 */
@@ -1129,18 +1169,18 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the byte at memory offset.
 	 * This is a non-volatile operation.
-	 *  
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @param value byte to store in memory
 	 */
 	public void putByte(long offset, byte value) {
 		putByte(null, offset, value);
 	}
-	
+
 	/**
 	 * Gets the value of the int in memory referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @return int value stored in memory
 	 */
@@ -1151,18 +1191,18 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the int at memory offset.
 	 * This is a non-volatile operation.
-	 *  
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @param value int to store in memory
 	 */
 	public void putInt(long offset, int value) {
 		putInt(null, offset, value);
 	}
-	
+
 	/**
 	 * Gets the value of the long in memory referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @return long value stored in memory
 	 */
@@ -1173,7 +1213,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the long at memory offset.
 	 * This is a non-volatile operation.
-	 *  
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @param value long to store in memory
 	 */
@@ -1184,7 +1224,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the float in memory referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @return float value stored in memory
 	 */
@@ -1195,7 +1235,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the float at memory offset.
 	 * This is a non-volatile operation.
-	 *  
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @param value float to store in memory
 	 */
@@ -1206,7 +1246,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the double in memory referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @return double value stored in memory
 	 */
@@ -1217,7 +1257,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the double at memory offset.
 	 * This is a non-volatile operation.
-	 *  
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @param value double to store in memory
 	 */
@@ -1228,7 +1268,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the short in memory referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @return short value stored in memory
 	 */
@@ -1239,7 +1279,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the short at memory offset.
 	 * This is a non-volatile operation.
-	 *  
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @param value short to store in memory
 	 */
@@ -1250,7 +1290,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the char in memory referenced by offset.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @return char value stored in memory
 	 */
@@ -1261,7 +1301,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the char at memory offset.
 	 * This is a non-volatile operation.
-	 *  
+	 *
 	 * @param offset location to retrieve value in memory
 	 * @param value char to store in memory
 	 */
@@ -1272,7 +1312,7 @@ public final class Unsafe {
 	/**
 	 * Gets the address value in memory at location of address parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param address location to retrieve the address in memory
 	 * @return address stored in obj
 	 */
@@ -1284,7 +1324,7 @@ public final class Unsafe {
 	/**
 	 * Sets an address value at the location by the address parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param address location to store value in memory
 	 * @param value address to store at address parameter
 	 */
@@ -1295,10 +1335,10 @@ public final class Unsafe {
 	/**
 	 * Allocates a block of memory.
 	 * If size passed is 0, no memory will be allocated.
-	 * 
+	 *
 	 * @param size requested size of memory in bytes
 	 * @return starting address of memory, or 0 if size is 0
-	 * 
+	 *
 	 * @throws OutOfMemoryError if no memory can be allocated
 	 * @throws IllegalArgumentException if size is not valid
 	 */
@@ -1321,10 +1361,10 @@ public final class Unsafe {
 	/**
 	 * Reallocates a block of memory.
 	 * If size passed is 0, no memory will be allocated.
-	 * 
+	 *
 	 * @param size requested size of memory in bytes
 	 * @return starting address of memory, or 0 if size is 0
-	 * 
+	 *
 	 * @throws OutOfMemoryError if no memory can be allocated
 	 * @throws IllegalArgumentException if size is not valid
 	 */
@@ -1352,12 +1392,12 @@ public final class Unsafe {
 
 	/**
 	 * Set the byte at the index and size in obj parameter.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param startIndex position of the value in obj
 	 * @param size the number of bytes to be set to the value
 	 * @param replace overwrite memory with this value
-	 *            
+	 *
 	 * @throws IllegalArgumentException if startIndex is illegal in obj, or if size is invalid
 	 */
 	public void setMemory(Object obj, long startIndex, long size, byte replace) {
@@ -1370,11 +1410,11 @@ public final class Unsafe {
 
 	/**
 	 * Set the byte at the index and size.
-	 * 
+	 *
 	 * @param startAddress location to store value in memory
 	 * @param size the number of bytes to be set to the value
 	 * @param replace overwrite memory with this value
-	 *            
+	 *
 	 * @throws IllegalArgumentException if startIndex is illegal, or if size is invalid
 	 */
 	public void setMemory(long startAddress, long size, byte replace) {
@@ -1383,14 +1423,14 @@ public final class Unsafe {
 
 	/**
 	 * Copy bytes from source object to destination.
-	 * 
-	 * @param srcObj object to copy from 
-	 * @param srcOffset location in srcObj to start copy 
+	 *
+	 * @param srcObj object to copy from
+	 * @param srcOffset location in srcObj to start copy
 	 * @param destObj object to copy into
 	 * @param destOffset location in destObj to start copy
 	 * @param size the number of bytes to be copied
-	 * 
-	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj, 
+	 *
+	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj,
 	 * if destOffset is illegal in destObj, or if size is invalid
 	 */
 	public void copyMemory(Object srcObj, long srcOffset, Object destObj, long destOffset, long size) {
@@ -1403,11 +1443,11 @@ public final class Unsafe {
 
 	/**
 	 * Copy bytes from source address to destination.
-	 * 
+	 *
 	 * @param srcAddress address to start copy
 	 * @param destAddress address to start copy
 	 * @param size the number of bytes to be copied
-	 * 
+	 *
 	 * @throws IllegalArgumentException if srcAddress or destAddress
 	 *  is illegal, or if size is invalid
 	 */
@@ -1418,15 +1458,15 @@ public final class Unsafe {
 	/**
 	 * Copy bytes from source object to destination in reverse order.
 	 * Memory is reversed in elementSize chunks.
-	 * 
-	 * @param srcObj object to copy from 
+	 *
+	 * @param srcObj object to copy from
 	 * @param srcOffset location in srcObj to start copy
 	 * @param destObj object to copy into
 	 * @param destOffset location in destObj to start copy
 	 * @param copySize the number of bytes to be copied, a multiple of elementSize
 	 * @param elementSize the size in bytes of elements that will be reversed
-	 * 
-	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj, 
+	 *
+	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj,
 	 * if destOffset is illegal in destObj, if copySize is invalid or copySize is not
 	 * a multiple of elementSize
 	 */
@@ -1442,13 +1482,13 @@ public final class Unsafe {
 	/**
 	 * Copy bytes from source address to destination in reverse order.
 	 * Memory is reversed in elementSize chunks.
-	 * 
+	 *
 	 * @param srcAddress location to start copy
 	 * @param destAddress location to start copy
 	 * @param copySize the number of bytes to be copied, a multiple of elementSize
 	 * @param elementSize the size in bytes of elements that will be reversed
-	 * 
-	 * @throws IllegalArgumentException if srcAddress or destAddress is illegal, 
+	 *
+	 * @throws IllegalArgumentException if srcAddress or destAddress is illegal,
 	 * if copySize is invalid or copySize is not a multiple of elementSize
 	 */
 	public void copySwapMemory(long srcAddress, long destAddress, long copySize, long elementSize) {
@@ -1456,11 +1496,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Removes the block from the list. Note that the pointers are located 
+	 * Removes the block from the list. Note that the pointers are located
 	 * immediately before the startIndex value.
-	 * 
+	 *
 	 * @param startIndex memory address
-	 * 
+	 *
 	 * @throws IllegalArgumentException if startIndex is not valid
 	 */
 	public void freeMemory(long startIndex) {
@@ -1473,10 +1513,10 @@ public final class Unsafe {
 
 	/**
 	 * Returns byte offset to field.
-	 * 
+	 *
 	 * @param field which contains desired class or interface
 	 * @return offset to start of class or interface
-	 * 
+	 *
 	 * @throws NullPointerException if field parameter is null
 	 * @throws IllegalArgumentException if field is static
 	 */
@@ -1488,11 +1528,11 @@ public final class Unsafe {
 /*[IF JAVA_SPEC_VERSION >= 10]*/
 	/**
 	 * Returns byte offset to field.
-	 * 
+	 *
 	 * @param class with desired field
 	 * @param string name of desired field
 	 * @return offset to start of class or interface
-	 * 
+	 *
 	 * @throws NullPointerException if field parameter is null
 	 * @throws IllegalArgumentException if field is static
 	 */
@@ -1505,10 +1545,10 @@ public final class Unsafe {
 
 	/**
 	 * Returns byte offset to start of static class or interface.
-	 * 
+	 *
 	 * @param field which contains desired class or interface
 	 * @return offset to start of class or interface
-	 * 
+	 *
 	 * @throws NullPointerException if field parameter is null
 	 * @throws IllegalArgumentException if field is not static
 	 */
@@ -1519,10 +1559,10 @@ public final class Unsafe {
 
 	/**
 	 * Returns class or interface described by static Field.
-	 * 
+	 *
 	 * @param field contains desired class or interface
 	 * @return class or interface in static field
-	 * 
+	 *
 	 * @throws NullPointerException if field parameter is null
 	 * @throws IllegalArgumentException if field is not static
 	 */
@@ -1533,10 +1573,10 @@ public final class Unsafe {
 
 	/**
 	 * Determines whether class has been initialized.
-	 * 
+	 *
 	 * @param class to verify
 	 * @return true if method has not been initialized, false otherwise
-	 * 
+	 *
 	 * @throws NullPointerException if class is null
 	 */
 	public boolean shouldBeInitialized(Class<?> c) {
@@ -1544,11 +1584,11 @@ public final class Unsafe {
 		return shouldBeInitialized0(c);
 	}
 
-	/** 
+	/**
 	 * Initializes class parameter if it has not been already.
-	 * 
+	 *
 	 * @param c class to initialize if not already
-	 * 
+	 *
 	 * @throws NullPointerException if class is null
 	 */
 	public void ensureClassInitialized(Class<?> c) {
@@ -1558,24 +1598,28 @@ public final class Unsafe {
 
 	/**
 	 * Return offset in array object at which the array data storage begins.
-	 * 
+	 *
 	 * @param c class array
 	 * @return offset at base of array
-	 * 
+	 *
 	 * @throws NullPointerException if the class parameter is null
 	 * @throws IllegalArgumentException if class is not an array
 	 */
+	/*[IF JAVA_SPEC_VERSION >= 25]*/
+	public long arrayBaseOffset(Class<?> c) {
+	/*[ELSE] JAVA_SPEC_VERSION >= 25 */
 	public int arrayBaseOffset(Class<?> c) {
+	/*[ENDIF] JAVA_SPEC_VERSION >= 25 */
 		Objects.requireNonNull(c);
 		return arrayBaseOffset0(c);
 	}
 
 	/**
 	 * Return index size of array in bytes.
-	 * 
+	 *
 	 * @param c class array
 	 * @return returns index size of array in bytes
-	 * 
+	 *
 	 * @throws NullPointerException if class is null
 	 * @throws IllegalArgumentException if class is not an array
 	 * @throws RuntimeException if index scale is not a power of 2
@@ -1598,20 +1642,20 @@ public final class Unsafe {
 
 	/**
 	 * Creates a class out of a given array of bytes with a ProtectionDomain.
-	 * 
+	 *
 	 * @param name binary name of the class, null if the name is not known
-	 * @param b a byte array of the class data. The bytes should have the format of a 
+	 * @param b a byte array of the class data. The bytes should have the format of a
 	 * 			valid class file as defined by The JVM Spec
 	 * @param offset offset of the start of the class data in b
 	 * @param bLength length of the class data
-	 * @param cl ClassLoader used to load the class being built. If null, the default 
+	 * @param cl ClassLoader used to load the class being built. If null, the default
 	 * system ClassLoader will be used
 	 * @param pd ProtectionDomain for new class
 	 * @return class created from the byte array and ProtectionDomain parameters
-	 * 
+	 *
 	 * @throws NullPointerException if b array of data is null
 	 * @throws ArrayIndexOutOfBoundsException if bLength is negative
-	 * @throws IndexOutOfBoundsException if offset + bLength is greater than the 
+	 * @throws IndexOutOfBoundsException if offset + bLength is greater than the
 	 * length of b
 	 */
 	public Class<?> defineClass(String name, byte[] b, int offset, int bLength, ClassLoader cl, ProtectionDomain pd) {
@@ -1630,21 +1674,21 @@ public final class Unsafe {
 	/*[IF JAVA_SPEC_VERSION < 17]*/
 	/**
 	 * Define a class without making it known to the class loader.
-	 * 
-	 * @param hostingClass the context for class loader + linkage, and 
+	 *
+	 * @param hostingClass the context for class loader + linkage, and
 	 * access control + protection domain
 	 * @param bytecodes class file bytes
-	 * @param constPatches entries that are not "null" are replacements 
+	 * @param constPatches entries that are not "null" are replacements
 	 * for the corresponding const pool entries in the 'bytecodes' data
 	 * @return class created from bytecodes and constPatches
-	 * 
+	 *
 	 * @throws NullPointerException if hostingClass or bytecodes is null
 	 * @throws IllegalArgumentException if hostingClass is an array or primitive
 	 */
 	public Class<?> defineAnonymousClass(Class<?> hostingClass, byte[] bytecodes, Object[] constPatches) {
 		Objects.requireNonNull(hostingClass);
 		Objects.requireNonNull(bytecodes);
-		
+
 		if (hostingClass.isArray() || hostingClass.isPrimitive()) {
 			throw invalidInput();
 		}
@@ -1654,14 +1698,14 @@ public final class Unsafe {
 	/*[ENDIF] JAVA_SPEC_VERSION < 17 */
 
 	/**
-	 * Allocate new array of same type as class parameter and 
+	 * Allocate new array of same type as class parameter and
 	 * length of int parameter.
-	 * 
+	 *
 	 * @param c class of same type as desired array
 	 * @param length desired length of array
 	 * @return allocated array of desired length and type
-	 * 
-	 * @throws IllegalArgumentException if class is null, if class 
+	 *
+	 * @throws IllegalArgumentException if class is null, if class
 	 * is not primitive, or if length is negative
 	 */
 	public Object allocateUninitializedArray(Class<?> c, int length) {
@@ -1683,9 +1727,8 @@ public final class Unsafe {
 		return allocateUninitializedArray0(c, length);
 	}
 
-
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -1701,11 +1744,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1718,11 +1761,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1734,11 +1777,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1750,11 +1793,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1766,11 +1809,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1782,7 +1825,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -1798,7 +1841,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -1814,7 +1857,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -1830,7 +1873,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -1846,11 +1889,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1862,11 +1905,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1878,11 +1921,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1894,11 +1937,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1910,7 +1953,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -1926,7 +1969,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -1942,11 +1985,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1958,11 +2001,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1974,11 +2017,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -1990,11 +2033,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2006,11 +2049,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2022,7 +2065,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2040,7 +2083,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -2059,7 +2102,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -2078,11 +2121,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2095,11 +2138,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2112,11 +2155,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2129,11 +2172,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2146,11 +2189,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2163,7 +2206,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2181,7 +2224,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -2200,7 +2243,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -2219,11 +2262,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2236,11 +2279,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2254,11 +2297,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2272,11 +2315,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2289,7 +2332,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2299,7 +2342,7 @@ public final class Unsafe {
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param exchangeValue value that will be set in obj at offset if the comparison is successful
 	 * @return value in obj at offset before this operation. This will be compareValue if the exchange was successful
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final short compareAndExchangeShort(Object obj, long offset, short compareValue, short exchangeValue) {
@@ -2308,17 +2351,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean compareAndSetShort(Object obj, long offset, short compareValue, short setValue) {
@@ -2327,17 +2370,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean weakCompareAndSetShort(Object obj, long offset, short compareValue, short setValue) {
@@ -2345,17 +2388,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean weakCompareAndSetShortAcquire(Object obj, long offset, short compareValue, short setValue) {
@@ -2363,17 +2406,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean weakCompareAndSetShortRelease(Object obj, long offset, short compareValue, short setValue) {
@@ -2381,17 +2424,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean weakCompareAndSetShortPlain(Object obj, long offset, short compareValue, short setValue) {
@@ -2399,7 +2442,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2409,7 +2452,7 @@ public final class Unsafe {
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param exchangeValue value that will be set in obj at offset if the comparison is successful
 	 * @return value in obj at offset before this operation. This will be compareValue if the exchange was successful
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final short compareAndExchangeShortAcquire(Object obj, long offset, short compareValue,
@@ -2418,7 +2461,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2428,7 +2471,7 @@ public final class Unsafe {
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param exchangeValue value that will be set in obj at offset if the comparison is successful
 	 * @return value in obj at offset before this operation. This will be compareValue if the exchange was successful
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final short compareAndExchangeShortRelease(Object obj, long offset, short compareValue,
@@ -2437,17 +2480,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean compareAndSetChar(Object obj, long offset, char compareValue, char setValue) {
@@ -2456,7 +2499,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2466,7 +2509,7 @@ public final class Unsafe {
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param exchangeValue value that will be set in obj at offset if the comparison is successful
 	 * @return value in obj at offset before this operation. This will be compareValue if the exchange was successful
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final char compareAndExchangeChar(Object obj, long offset, char compareValue, char exchangeValue) {
@@ -2476,7 +2519,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -2486,7 +2529,7 @@ public final class Unsafe {
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param exchangeValue value that will be set in obj at offset if the comparison is successful
 	 * @return value in obj at offset before this operation. This will be compareValue if the exchange was successful
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final char compareAndExchangeCharAcquire(Object obj, long offset, char compareValue, char exchangeValue) {
@@ -2494,7 +2537,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -2504,7 +2547,7 @@ public final class Unsafe {
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param exchangeValue value that will be set in obj at offset if the comparison is successful
 	 * @return value in obj at offset before this operation. This will be compareValue if the exchange was successful
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final char compareAndExchangeCharRelease(Object obj, long offset, char compareValue, char exchangeValue) {
@@ -2512,17 +2555,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean weakCompareAndSetChar(Object obj, long offset, char compareValue, char setValue) {
@@ -2530,17 +2573,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean weakCompareAndSetCharAcquire(Object obj, long offset, char compareValue, char setValue) {
@@ -2548,17 +2591,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean weakCompareAndSetCharRelease(Object obj, long offset, char compareValue, char setValue) {
@@ -2566,17 +2609,17 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
 	 * @param setValue value that will be set in obj at offset if the comparison is successful
 	 * @return boolean value indicating whether the field was updated
-	 * 
+	 *
 	 * @throws IllegalArgumentException if value at offset spans over multiple aligned words (4 bytes) in memory
 	 */
 	public final boolean weakCompareAndSetCharPlain(Object obj, long offset, char compareValue, char setValue) {
@@ -2584,11 +2627,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2600,7 +2643,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2618,7 +2661,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -2636,7 +2679,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -2654,11 +2697,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2670,11 +2713,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2687,11 +2730,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2704,11 +2747,11 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
 	 * @param compareValue value that is expected to be in obj at offset
@@ -2719,9 +2762,9 @@ public final class Unsafe {
 			boolean setValue) {
 		return weakCompareAndSetBytePlain(obj, offset, bool2byte(compareValue), bool2byte(setValue));
 	}
-	
+
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -2738,7 +2781,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -2755,7 +2798,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2771,7 +2814,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -2787,7 +2830,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -2803,7 +2846,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2820,7 +2863,7 @@ public final class Unsafe {
 
 /*[IF JAVA_SPEC_VERSION >= 12]*/
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -2837,7 +2880,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the parameter value at offset in obj if the compare value 
+	 * Atomically sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -2854,7 +2897,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2870,7 +2913,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -2886,7 +2929,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -2902,7 +2945,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the parameter value at offset in obj if the compare value 
+	 * Sets the parameter value at offset in obj if the compare value
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -2921,7 +2964,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the byte in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return byte value stored in obj
@@ -2933,7 +2976,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the int in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return int value stored in obj
@@ -2945,7 +2988,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the long in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return long value stored in obj
@@ -2953,11 +2996,11 @@ public final class Unsafe {
 	public final long getLongAcquire(Object obj, long offset) {
 		return getLongVolatile(obj, offset);
 	}
-	
+
 	/**
 	 * Gets the value of the float in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return float value stored in obj
@@ -2969,7 +3012,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the double in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return double value stored in obj
@@ -2977,11 +3020,11 @@ public final class Unsafe {
 	public final double getDoubleAcquire(Object obj, long offset) {
 		return getDoubleVolatile(obj, offset);
 	}
-	
+
 	/**
 	 * Gets the value of the short in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return short value stored in obj
@@ -2993,7 +3036,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the char in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return char value stored in obj
@@ -3001,11 +3044,11 @@ public final class Unsafe {
 	public final char getCharAcquire(Object obj, long offset) {
 		return getCharVolatile(obj, offset);
 	}
-	
+
 	/**
 	 * Gets the value of the boolean in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return boolean value stored in obj
@@ -3017,7 +3060,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the Object in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return Object value stored in obj
@@ -3030,7 +3073,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the Object in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return Object value stored in obj
@@ -3043,7 +3086,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the byte in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value byte to store in obj
@@ -3055,7 +3098,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the int in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value int to store in obj
@@ -3067,7 +3110,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the long in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value long to store in obj
@@ -3075,11 +3118,11 @@ public final class Unsafe {
 	public final void putLongRelease(Object obj, long offset, long value) {
 		putLongVolatile(obj, offset, value);
 	}
-	
+
 	/**
 	 * Sets the value of the float in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value float to store in obj
@@ -3091,7 +3134,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the double in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value double to store in obj
@@ -3103,7 +3146,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the short in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value short to store in obj
@@ -3115,7 +3158,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the char in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value char to store in obj
@@ -3127,7 +3170,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the boolean in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value boolean to store in obj
@@ -3139,7 +3182,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the Object in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value Object to store in obj
@@ -3152,7 +3195,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the Object in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value Object to store in obj
@@ -3165,7 +3208,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the byte in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return byte value stored in obj
@@ -3177,7 +3220,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the int in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return int value stored in obj
@@ -3189,7 +3232,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the long in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return long value stored in obj
@@ -3197,11 +3240,11 @@ public final class Unsafe {
 	public final long getLongOpaque(Object obj, long offset) {
 		return getLongVolatile(obj, offset);
 	}
-	
+
 	/**
 	 * Gets the value of the float in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return float value stored in obj
@@ -3213,7 +3256,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the double in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return double value stored in obj
@@ -3225,7 +3268,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the short in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return short value stored in obj
@@ -3237,7 +3280,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the char in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return char value stored in obj
@@ -3249,7 +3292,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the boolean in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return boolean value stored in obj
@@ -3257,11 +3300,11 @@ public final class Unsafe {
 	public final boolean getBooleanOpaque(Object obj, long offset) {
 		return getBooleanVolatile(obj, offset);
 	}
-	
+
 	/**
 	 * Gets the value of the Object in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return Object value stored in obj
@@ -3274,7 +3317,7 @@ public final class Unsafe {
 	/**
 	 * Gets the value of the Object in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return Object value stored in obj
@@ -3287,7 +3330,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the byte in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value byte to store in obj
@@ -3299,7 +3342,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the int in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value int to store in obj
@@ -3311,7 +3354,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the long in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value long to store in obj
@@ -3319,11 +3362,11 @@ public final class Unsafe {
 	public final void putLongOpaque(Object obj, long offset, long value) {
 		putLongVolatile(obj, offset, value);
 	}
-	
+
 	/**
 	 * Sets the value of the float in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value float to store in obj
@@ -3335,7 +3378,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the double in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value double to store in obj
@@ -3347,7 +3390,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the short in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value short to store in obj
@@ -3359,7 +3402,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the char in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value char to store in obj
@@ -3371,7 +3414,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the boolean in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value boolean to store in obj
@@ -3379,11 +3422,11 @@ public final class Unsafe {
 	public final void putBooleanOpaque(Object obj, long offset, boolean value) {
 		putBooleanVolatile(obj, offset, value);
 	}
-	
+
 	/**
 	 * Sets the value of the Object in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value Object to store in obj
@@ -3396,7 +3439,7 @@ public final class Unsafe {
 	/**
 	 * Sets the value of the Object in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value Object to store in obj
@@ -3408,14 +3451,14 @@ public final class Unsafe {
 
 	/**
 	 * Get the load average in the system.
-	 * 
+	 *
 	 * NOTE: native implementation is a stub.
-	 * 
+	 *
 	 * @param loadavg array of elements
 	 * @param numberOfElements number of samples
 	 * @return load average
-	 * 
-	 * @throws ArrayIndexOutOfBoundsException if numberOfElements is negative, more than three, or 
+	 *
+	 * @throws ArrayIndexOutOfBoundsException if numberOfElements is negative, more than three, or
 	 * the length of the loadavg array is greater than the numberOfElements
 	 */
 	public int getLoadAverage(double[] loadavg, int numberOfElements) {
@@ -3431,7 +3474,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3451,7 +3494,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3471,7 +3514,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3485,13 +3528,13 @@ public final class Unsafe {
 			}
 		}
 	}
-	
+
 	/**
 	 * Atomically adds to the current value of the field at offset in obj
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3511,7 +3554,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3531,7 +3574,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3551,7 +3594,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3571,7 +3614,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3591,7 +3634,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3611,7 +3654,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3633,7 +3676,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3655,7 +3698,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3677,7 +3720,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3699,7 +3742,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3721,7 +3764,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3743,7 +3786,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3763,7 +3806,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3783,7 +3826,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3803,7 +3846,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3823,7 +3866,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3843,7 +3886,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to add the value
 	 * @param offset location to add value in obj
 	 * @param value to add to existing value in field
@@ -3863,12 +3906,12 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
 	 * @return value of field in obj at offset before update
-	 */	
+	 */
 	public final byte getAndSetByte(Object obj, long offset, byte value) {
 		for (;;) {
 			byte byteAtOffset = getByteVolatile(obj, offset);
@@ -3883,7 +3926,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -3903,7 +3946,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -3917,13 +3960,13 @@ public final class Unsafe {
 			}
 		}
 	}
-	
+
 	/**
 	 * Atomically sets value at offset in obj
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -3943,7 +3986,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -3963,7 +4006,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -3983,7 +4026,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4003,7 +4046,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4023,7 +4066,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4043,7 +4086,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4059,7 +4102,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4075,7 +4118,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4091,7 +4134,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4107,7 +4150,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4123,7 +4166,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4139,7 +4182,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4159,7 +4202,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4179,7 +4222,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4199,7 +4242,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4219,7 +4262,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4239,7 +4282,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4253,13 +4296,13 @@ public final class Unsafe {
 			}
 		}
 	}
-	
+
 	/**
 	 * Atomically sets value at offset in obj
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4275,7 +4318,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4291,7 +4334,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4301,13 +4344,13 @@ public final class Unsafe {
 		byte result = getAndSetByteAcquire(obj, offset, bool2byte(value));
 		return byte2bool(result);
 	}
-	
+
 	/**
 	 * Atomically sets value at offset in obj
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4327,7 +4370,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4347,7 +4390,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4368,7 +4411,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4388,7 +4431,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4408,7 +4451,7 @@ public final class Unsafe {
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to set the value
 	 * @param offset location to set value in obj
 	 * @param value to set in obj memory
@@ -4425,12 +4468,12 @@ public final class Unsafe {
 /*[ENDIF] JAVA_SPEC_VERSION >= 12 */
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -4446,12 +4489,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -4467,12 +4510,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -4488,12 +4531,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -4509,12 +4552,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -4530,12 +4573,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -4551,12 +4594,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -4572,12 +4615,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -4593,12 +4636,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -4614,12 +4657,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -4635,12 +4678,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -4656,12 +4699,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -4677,12 +4720,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -4698,12 +4741,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -4719,12 +4762,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -4740,12 +4783,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -4761,12 +4804,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -4782,12 +4825,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -4803,12 +4846,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -4824,12 +4867,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -4845,12 +4888,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -4866,12 +4909,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -4887,12 +4930,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -4908,12 +4951,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -4929,12 +4972,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -4950,12 +4993,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -4971,12 +5014,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -4992,12 +5035,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -5013,12 +5056,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -5034,12 +5077,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -5055,12 +5098,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -5076,12 +5119,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -5097,12 +5140,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -5118,12 +5161,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -5139,12 +5182,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -5160,12 +5203,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -5181,12 +5224,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -5202,12 +5245,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -5223,12 +5266,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -5244,12 +5287,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -5265,12 +5308,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -5286,12 +5329,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -5307,12 +5350,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -5328,12 +5371,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -5349,12 +5392,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -5370,12 +5413,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -5387,12 +5430,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -5404,12 +5447,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically OR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically OR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to OR the value
 	 * @param offset location to OR value in obj
 	 * @param value to OR to existing value in field
@@ -5421,12 +5464,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -5438,12 +5481,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -5455,12 +5498,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically AND's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically AND's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to AND the value
 	 * @param offset location to AND value in obj
 	 * @param value to AND to existing value in field
@@ -5472,12 +5515,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -5489,12 +5532,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -5506,12 +5549,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically XOR's the given value to the current value of the 
-	 * field at offset in obj and returns the value of the field prior 
+	 * Atomically XOR's the given value to the current value of the
+	 * field at offset in obj and returns the value of the field prior
 	 * to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
-	 * 
+	 *
 	 * @param obj object into which to XOR the value
 	 * @param offset location to XOR value in obj
 	 * @param value to XOR to existing value in field
@@ -5556,7 +5599,7 @@ public final class Unsafe {
 	 * Gets the value of the int in the obj parameter referenced by offset
 	 *  that may be unaligned in memory.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return int value stored in obj
@@ -5583,10 +5626,10 @@ public final class Unsafe {
 
 	/**
 	 * Gets the value of the int in the obj parameter referenced by offset
-	 *  that may be unaligned in memory. Value may be reversed according to 
+	 *  that may be unaligned in memory. Value may be reversed according to
 	 *  the endianness parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @param bigEndian in what endianness value should be returned
@@ -5596,12 +5639,12 @@ public final class Unsafe {
 		int result = getIntUnaligned(obj, offset);
 		return convEndian(bigEndian, result);
 	}
-	
+
 	/**
 	 * Gets the value of the long in the obj parameter referenced by offset
 	 * that may be unaligned in memory.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return long value stored in obj
@@ -5638,10 +5681,10 @@ public final class Unsafe {
 
 	/**
 	 * Gets the value of the long in the obj parameter referenced by offset
-	 * that may be unaligned in memory. Value may be reversed according to 
+	 * that may be unaligned in memory. Value may be reversed according to
 	 *  the endianness parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @param bigEndian in what endianness value should be returned
@@ -5656,7 +5699,7 @@ public final class Unsafe {
 	 * Gets the value of the short in the obj parameter referenced by offset
 	 *  that may be unaligned in memory.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return short value stored in obj
@@ -5677,10 +5720,10 @@ public final class Unsafe {
 
 	/**
 	 * Gets the value of the short in the obj parameter referenced by offset
-	 *  that may be unaligned in memory. Value may be reversed according to 
+	 *  that may be unaligned in memory. Value may be reversed according to
 	 *  the endianness parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @param bigEndian in what endianness value should be returned
@@ -5695,7 +5738,7 @@ public final class Unsafe {
 	 * Gets the value of the char in the obj parameter referenced by offset
 	 *  that may be unaligned in memory.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object from which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @return char value stored in obj
@@ -5716,10 +5759,10 @@ public final class Unsafe {
 
 	/**
 	 * Gets the value of the char in the obj parameter referenced by offset
-	 *  that may be unaligned in memory. Value may be reversed according to 
+	 *  that may be unaligned in memory. Value may be reversed according to
 	 *  the endianness parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to retrieve the value
 	 * @param offset position of the value in obj
 	 * @param bigEndian in what endianness value should be returned
@@ -5734,7 +5777,7 @@ public final class Unsafe {
 	 * Sets the value of the int in the obj parameter at memory offset
 	 *  that may be unaligned in memory.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value int to store in obj
@@ -5755,7 +5798,7 @@ public final class Unsafe {
 	 *  that may be unaligned in memory. Value may be reversed according to
 	 *  the endianness parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value int to store in obj
@@ -5765,12 +5808,12 @@ public final class Unsafe {
 		int endianValue = convEndian(bigEndian, value);
 		putIntUnaligned(obj, offset, endianValue);
 	}
-	
+
 	/**
 	 * Sets the value of the long in the obj parameter at memory offset
 	 *  that may be unaligned in memory.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value long to store in obj
@@ -5795,7 +5838,7 @@ public final class Unsafe {
 	 *  that may be unaligned in memory. Value may be reversed according to
 	 *  the endianness parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value long to store in obj
@@ -5805,12 +5848,12 @@ public final class Unsafe {
 		long endianValue = convEndian(bigEndian, value);
 		putLongUnaligned(obj, offset, endianValue);
 	}
-	
+
 	/**
 	 * Sets the value of the short in the obj parameter at memory offset
 	 *  that may be unaligned in memory.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value short to store in obj
@@ -5828,7 +5871,7 @@ public final class Unsafe {
 	 *  that may be unaligned in memory. Value may be reversed according to
 	 *  the endianness parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value short to store in obj
@@ -5843,7 +5886,7 @@ public final class Unsafe {
 	 * Sets the value of the char in the obj parameter at memory offset
 	 *  that may be unaligned in memory.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value char to store in obj
@@ -5857,7 +5900,7 @@ public final class Unsafe {
 	 *  that may be unaligned in memory. Value may be reversed according to
 	 *  the endianness parameter.
 	 * This is a non-volatile operation.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset position of the value in obj
 	 * @param value char to store in obj
@@ -5874,7 +5917,7 @@ public final class Unsafe {
 	 * and it is direct, and not a slice or duplicate,
 	 * if it has a cleaner, it is invoked,
 	 * otherwise an IllegalArgumentException is thrown
-	 * 
+	 *
 	 * @param bbo a ByteBuffer object
 	 * @throws IllegalArgumentException as per description above
 	 */
@@ -5902,8 +5945,8 @@ public final class Unsafe {
 	}
 /*[ENDIF] JAVA_SPEC_VERSION >= 12 */
 
-	/* 
-	 * Private methods 
+	/*
+	 * Private methods
 	 */
 	/* @return true if offset accesses an int that is aligned in memory, else false */
 	private boolean isOffsetIntAligned(long offset) {
@@ -5911,7 +5954,7 @@ public final class Unsafe {
 		final long OFFSET_ALIGNED_INT = 0b11L;
 		return (0L == (OFFSET_ALIGNED_INT & offset));
 	}
-	
+
 	/* @return true if offset accesses a long that is aligned in memory, else false */
 	private boolean isOffsetLongAligned(long offset) {
 		/* Masks bits that must be 0 to be long aligned. */
@@ -5936,16 +5979,16 @@ public final class Unsafe {
 		return new IllegalArgumentException();
 	}
 
-	/* 
+	/*
 	 * Generic compareAndExchange for 8 bit primitives (byte and boolean).
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
-	 * @param compareValue value extended to the size of an int that is 
+	 * @param compareValue value extended to the size of an int that is
 	 * expected to be in obj at offset
-	 * @param exchangeValue value extended to the size of an int that will 
+	 * @param exchangeValue value extended to the size of an int that will
 	 * be set in obj at offset if the comparison is successful
-	 * @return value in obj at offset before this operation. This will be compareValue 
+	 * @return value in obj at offset before this operation. This will be compareValue
 	 * if the exchange was successful
 	 */
 	private final byte compareAndExchange8bits(Object obj, long offset, int compareValue, int exchangeValue) {
@@ -5972,29 +6015,29 @@ public final class Unsafe {
 
 	/*
 	 * Verify that parameters are valid.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if 16 bit primitive would span multiple
 	 * memory blocks
 	 */
 	private void compareAndExchange16BitsOffsetChecks(long offset) {
-		if ((IS_BIG_ENDIAN) && (BYTE_OFFSET_MASK == (BYTE_OFFSET_MASK & offset))) {
+		if (BYTE_OFFSET_MASK == (BYTE_OFFSET_MASK & offset)) {
 			/*[MSG "K0700", "Update spans the word, not supported"]*/
 			throw new IllegalArgumentException(com.ibm.oti.util.Msg.getString("K0700")); //$NON-NLS-1$
 		}
 	}
 
-	/* 
+	/*
 	 * Generic compareAndExchange for 16 bit primitives (short and char).
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
-	 * @param compareValue value extended to the size of an int that is 
+	 * @param compareValue value extended to the size of an int that is
 	 * expected to be in obj at offset
-	 * @param exchangeValue value extended to the size of an int that will 
+	 * @param exchangeValue value extended to the size of an int that will
 	 * be set in obj at offset if the comparison is successful
-	 * @return value in obj at offset before this operation. This will be compareValue 
+	 * @return value in obj at offset before this operation. This will be compareValue
 	 * if the exchange was successful
-	 * 
+	 *
 	 * @throws IllegalArgumentException if 16 bit type is unaligned in memory
 	 */
 	private final short compareAndExchange16bits(Object obj, long offset, int compareValue, int exchangeValue) {
@@ -6006,7 +6049,7 @@ public final class Unsafe {
 			/* mask extended 16 bit type to remove any sign extension for negative values */
 			compareValue = SHORT_MASK_INT & compareValue;
 			exchangeValue = SHORT_MASK_INT & exchangeValue;
-			
+
 			int byteOffset = pickPos(2, (int) (BYTE_OFFSET_MASK & offset));
 			int bitOffset = BITS_IN_BYTE * byteOffset;
 			int primitiveMask = SHORT_MASK_INT << (BC_SHIFT_INT_MASK & bitOffset);
@@ -6021,17 +6064,17 @@ public final class Unsafe {
 		return result;
 	}
 
-	/* 
+	/*
 	 * Compare and exchange for a primitive and not an array. Method is for
 	 * primitives smaller than an int such as byte, boolean, char, short.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
-	 * @param compareValue value extended to the size of an int that is 
+	 * @param compareValue value extended to the size of an int that is
 	 * expected to be in obj at offset
-	 * @param exchangeValue value extended to the size of an int that will 
+	 * @param exchangeValue value extended to the size of an int that will
 	 * be set in obj at offset if the comparison is successful
-	 * @return value of the field before this operation extended to the size of 
+	 * @return value of the field before this operation extended to the size of
 	 * an int. This will be compareValue if the exchange was successful
 	 */
 	private final int compareAndExchangeForSmallTypesPrimitivesHelper(Object obj, long offset, int compareValue,
@@ -6039,19 +6082,19 @@ public final class Unsafe {
 		return compareAndExchangeInt(obj, offset, compareValue, exchangeValue);
 	}
 
-	/* 
+	/*
 	 * Compare and exchange for an array of primitives. Method is for primitives
 	 * smaller than an int such as byte, boolean, char, short.
-	 * 
+	 *
 	 * @param obj object into which to store the value
 	 * @param offset location to compare and store value in obj
-	 * @param compareValue value extended to the size of an int that is 
+	 * @param compareValue value extended to the size of an int that is
 	 * expected to be in obj at offset
-	 * @param exchangeValue value extended to the size of an int that will 
+	 * @param exchangeValue value extended to the size of an int that will
 	 * be set in obj at offset if the comparison is successful
 	 * @param bitOffset offset within aligned int to exchanged primitive
 	 * @param primitiveMask masks bits of exchange value in int
-	 * @return value of the field before this operation extended to the size of an int. 
+	 * @return value of the field before this operation extended to the size of an int.
 	 * This will be compareValue if the exchange was successful
 	 */
 	private final int compareAndExchangeForSmallTypesArraysHelper(Object obj, long offset, int compareValue,
@@ -6072,7 +6115,7 @@ public final class Unsafe {
 			exchangeCopy |= exchangeValue << (BC_SHIFT_INT_MASK & bitOffset);
 
 			int result = compareAndExchangeInt(obj, offset & INT_OFFSET_ALIGN_MASK, compareCopy, exchangeCopy);
-			
+
 			if (result == compareCopy) {
 				return compareValue; /* success */
 			} else {
@@ -6089,10 +6132,10 @@ public final class Unsafe {
 		}
 	}
 
-	/* 
+	/*
 	 * Verify that no bits are set in long past the least
 	 * significant 32.
-	 * 
+	 *
 	 * @return true if no bits past 32 are set, false otherwise
 	 */
 	private boolean is32BitClean(long value) {
@@ -6100,9 +6143,9 @@ public final class Unsafe {
 		return (0L == shiftedValue);
 	}
 
-	/* 
+	/*
 	 * Verify that parameter is a valid size.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if parameter is not valid
 	 */
 	private void checkSize(long value) {
@@ -6117,33 +6160,33 @@ public final class Unsafe {
 		}
 	}
 
-	/* 
-	 * Verify that the address parameter does not exceed the 
-	 * maximum possible value of a native address. Address may 
+	/*
+	 * Verify that the address parameter does not exceed the
+	 * maximum possible value of a native address. Address may
 	 * be negative to support sign extended pointers.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if address is invalid
 	 */
 	private void checkNativeAddress(long address) {
 		if (BYTES_IN_INT == ADDRESS_SIZE) {
 			long shiftedValue = address >> 32;
-			
+
 			/* shiftedValue at this point will be either -1 if address
-			 * is at most 32 bits and negative, or 0 if the address is 
-			 * 32 bits and positive. The following calculation will only 
+			 * is at most 32 bits and negative, or 0 if the address is
+			 * 32 bits and positive. The following calculation will only
 			 * equate to zero and pass the check in these two cases.
 			 */
 			shiftedValue = (shiftedValue + 1) & -2L;
-			
+
 			if (0 != shiftedValue) {
 				throw invalidInput();
 			}
 		}
 	}
 
-	/* 
+	/*
 	 * Verify that parameter is a valid offset in obj.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if offset is invalid
 	 */
 	private void checkOffset(Object obj, long offset) {
@@ -6159,9 +6202,9 @@ public final class Unsafe {
 		}
 	}
 
-	/* 
+	/*
 	 * Verify that parameter is a valid offset in obj.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if offset is invalid
 	 */
 	private void checkPointer(Object obj, long offset) {
@@ -6172,9 +6215,9 @@ public final class Unsafe {
 		}
 	}
 
-	/* 
+	/*
 	 * Verify that parameter is a valid array.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if verification fails
 	 */
 	private void checkPrimitiveArray(Class<?> c) {
@@ -6185,10 +6228,10 @@ public final class Unsafe {
 		}
 	}
 
-	/* 
+	/*
 	 * Verify that parameter is a valid offset in obj,
 	 * and obj is a valid array.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if verification fails
 	 */
 	private void checkPrimitivePointer(Object obj, long offset) {
@@ -6199,18 +6242,18 @@ public final class Unsafe {
 		}
 	}
 
-	/* 
+	/*
 	 * Verify that parameters is a valid size.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if parameter is not valid
 	 */
 	private void allocateMemoryChecks(long size) {
 		checkSize(size);
 	}
 
-	/* 
+	/*
 	 * Verify that parameters are valid.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if parameters are not valid
 	 */
 	private void reallocateMemoryChecks(long address, long size) {
@@ -6218,10 +6261,10 @@ public final class Unsafe {
 		checkSize(size);
 	}
 
-	/* 
+	/*
 	 * Verify that parameters are valid.
-	 * 
-	 * @throws IllegalArgumentException if startIndex is illegal in obj, or 
+	 *
+	 * @throws IllegalArgumentException if startIndex is illegal in obj, or
 	 * if size is invalid
 	 */
 	private void setMemoryChecks(Object obj, long startIndex, long size, byte replace) {
@@ -6229,10 +6272,10 @@ public final class Unsafe {
 		checkSize(size);
 	}
 
-	/* 
+	/*
 	 * Verify that parameters are valid.
-	 * 
-	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj, 
+	 *
+	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj,
 	 * if destOffset is illegal in destObj, or if size is invalid
 	 */
 	private void copyMemoryChecks(Object srcObj, long srcOffset, Object destObj, long destOffset, long size) {
@@ -6241,10 +6284,10 @@ public final class Unsafe {
 		checkPrimitivePointer(destObj, destOffset);
 	}
 
-	/* 
+	/*
 	 * Verify that parameters are valid.
-	 * 
-	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj, 
+	 *
+	 * @throws IllegalArgumentException if srcOffset is illegal in srcObj,
 	 * if destOffset is illegal in destObj, if copySize is invalid or copySize is not
 	 * a multiple of elementSize
 	 */
@@ -6265,17 +6308,17 @@ public final class Unsafe {
 
 	/*
 	 * Verify that parameter is valid.
-	 * 
+	 *
 	 * @throws IllegalArgumentException if parameter is not valid
 	 */
 	private void freeMemoryChecks(long startIndex) {
 		checkPointer(null, startIndex);
 	}
 
-	/* 
-	 * Allocate new array of same type as class parameter and 
+	/*
+	 * Allocate new array of same type as class parameter and
 	 * length of int parameter.
-	 * 
+	 *
 	 * @param c class of same type as desired array
 	 * @param length desired length of array
 	 * @return allocated array of desired length and type, or null
@@ -6330,9 +6373,9 @@ public final class Unsafe {
 		throw new IllegalAccessError();
 	}
 
-	/* 
+	/*
 	 * Picks position based on endianness.
-	 * 
+	 *
 	 * @param value total length of object
 	 * @param position little endian position of object
 	 * @return position based on endianness of machine
@@ -6341,8 +6384,8 @@ public final class Unsafe {
 		return (IS_BIG_ENDIAN) ? (value - position) : (position);
 	}
 
-	/* 
-	 * Creates an int by concatenating two shorts where the first parameter is the 
+	/*
+	 * Creates an int by concatenating two shorts where the first parameter is the
 	 * least significant. Ordering is based on endianness of the machine.
 	 */
 	private static int makeInt(short arg0, short arg1) {
@@ -6352,8 +6395,8 @@ public final class Unsafe {
 		return result;
 	}
 
-	/* 
-	 * Creates an int by concatenating four bytes where the first parameter is the 
+	/*
+	 * Creates an int by concatenating four bytes where the first parameter is the
 	 * least significant. Ordering is based on endianness of the machine.
 	 */
 	private static int makeInt(byte arg0, byte arg1, byte arg2, byte arg3) {
@@ -6364,8 +6407,8 @@ public final class Unsafe {
 		result |= toUnsignedInt(arg3) << (BC_SHIFT_INT_MASK & pickPos(24, 24));
 		return result;
 	}
-	
-	/* 
+
+	/*
 	 * Creates a long by concatenating eight bytes where the first parameter is the least significant.
 	 * Ordering is based on endianness of the machine.
 	 */
@@ -6383,7 +6426,7 @@ public final class Unsafe {
 		return result;
 	}
 
-	/* 
+	/*
 	 * Creates a long by concatenating four shorts where the first parameter is the least
 	 * significant. Ordering is based on endianness of the machine.
 	 */
@@ -6396,7 +6439,7 @@ public final class Unsafe {
 		return result;
 	}
 
-	/* 
+	/*
 	 * Creates a long by concatenating two integers where the first parameter is the
 	 * least significant. Ordering is based on endianness of the machine.
 	 */
@@ -6407,8 +6450,8 @@ public final class Unsafe {
 		return result;
 	}
 
-	/* 
-	 * Creates a short by concatenating two bytes where the first parameter is the 
+	/*
+	 * Creates a short by concatenating two bytes where the first parameter is the
 	 * least significant. Ordering is based on endianness of the machine.
 	 */
 	private static short makeShort(byte arg0, byte arg1) {
@@ -6418,32 +6461,32 @@ public final class Unsafe {
 		return (short) result;
 	}
 
-	/* 
-	 * Pick first parameter if machine is little endian, 
+	/*
+	 * Pick first parameter if machine is little endian,
 	 * otherwise pick second.
 	 */
 	private static byte pick(byte arg0, byte arg1) {
 		return (IS_BIG_ENDIAN) ? arg1 : arg0;
 	}
 
-	/* 
-	 * Pick first parameter if machine is little endian, 
+	/*
+	 * Pick first parameter if machine is little endian,
 	 * otherwise pick second.
 	 */
 	private static short pick(short arg0, short arg1) {
 		return (IS_BIG_ENDIAN) ? arg1 : arg0;
 	}
 
-	/* 
-	 * Pick first parameter if machine is little endian, 
+	/*
+	 * Pick first parameter if machine is little endian,
 	 * otherwise pick second.
 	 */
 	private static int pick(int arg0, int arg1) {
 		return (IS_BIG_ENDIAN) ? arg1 : arg0;
 	}
 
-	/* 
-	 * Insert int value inserted per short into obj at offset. The first short parameter is the 
+	/*
+	 * Insert int value inserted per short into obj at offset. The first short parameter is the
 	 * least significant and will be inserted according to machine endianness.
 	 */
 	private void putIntParts(Object obj, long offset, short part1, short part2) {
@@ -6451,8 +6494,8 @@ public final class Unsafe {
 		putShort(obj, 2L + offset, pick(part2, part1));
 	}
 
-	/* 
-	 * Insert int value inserted per byte into obj at offset. The first byte parameter is the 
+	/*
+	 * Insert int value inserted per byte into obj at offset. The first byte parameter is the
 	 * least significant and will be inserted according to machine endianness.
 	 */
 	private void putIntParts(Object obj, long offset, byte part1, byte part2, byte part3, byte part4) {
@@ -6462,8 +6505,8 @@ public final class Unsafe {
 		putByte(obj, 3L + offset, pick(part4, part1));
 	}
 
-	/* 
-	 * Insert long value inserted per byte into obj at offset. The first byte parameter is the 
+	/*
+	 * Insert long value inserted per byte into obj at offset. The first byte parameter is the
 	 * least significant and will be inserted according to machine endianness.
 	 */
 	private void putLongParts(Object obj, long offset, byte part1, byte part2, byte part3, byte part4, byte part5,
@@ -6477,9 +6520,9 @@ public final class Unsafe {
 		putByte(obj, 6L + offset, pick(part7, part2));
 		putByte(obj, 7L + offset, pick(part8, part1));
 	}
-	
-	/* 
-	 * Insert long value inserted per short into obj at offset. The first short parameter is the 
+
+	/*
+	 * Insert long value inserted per short into obj at offset. The first short parameter is the
 	 * least significant and will be inserted according to machine endianness.
 	 */
 	private void putLongParts(Object obj, long offset, short part1, short part2, short part3, short part4) {
@@ -6489,8 +6532,8 @@ public final class Unsafe {
 		putShort(obj, 6L + offset, pick(part4, part1));
 	}
 
-	/* 
-	 * Insert long value inserted per int into obj at offset. The first int parameter is the 
+	/*
+	 * Insert long value inserted per int into obj at offset. The first int parameter is the
 	 * least significant and will be inserted according to machine endianness.
 	 */
 	private void putLongParts(Object obj, long offset, int part1, int part2) {
@@ -6498,8 +6541,8 @@ public final class Unsafe {
 		putInt(obj, 4L + offset, pick(part2, part1));
 	}
 
-	/* 
-	 * Insert short value inserted per byte into obj at offset. The first byte parameter is the 
+	/*
+	 * Insert short value inserted per byte into obj at offset. The first byte parameter is the
 	 * least significant and will be inserted according to machine endianness.
 	 */
 	private void putShortParts(Object obj, long offset, byte part1, byte part2) {
@@ -6536,7 +6579,7 @@ public final class Unsafe {
 		long lvalue = value;
 		return INT_MASK & lvalue;
 	}
-	
+
 	/* Convert int value according to users endianness preference. Bytes may be reversed. */
 	private static int convEndian(boolean isBigEndian, int value) {
 		return (IS_BIG_ENDIAN == isBigEndian) ? value : Integer.reverseBytes(value);
@@ -6559,41 +6602,41 @@ public final class Unsafe {
 
 	/*[IF INLINE-TYPES]*/
 	/**
-	 * Retrieves the value of the primitive type in the obj parameter referenced by offset.
-	 * The primitive type in obj at the given offset must be flattened.
+	 * Retrieves the value of the value type in the obj parameter referenced by offset.
+	 * The value type in obj at the given offset must be flattened.
 	 * This is a non-volatile operation.
 	 *
-	 * @param obj object from which to retrieve the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of primitive type to return
-	 * @return the value of the primitive type stored in obj at the given offset
+	 * @param obj object from which to retrieve the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of value type to return
+	 * @return the value stored in obj at the given offset
 	 */
 	public native <V> V getValue(Object obj, long offset, Class<?> clz);
 
 	/**
-	 * Sets the value of the primitive type in the obj parameter at memory offset.
-	 * Both the new value and the primitive type in obj at the given offset must be flattened.
+	 * Sets the value of the value type in the obj parameter at memory offset.
+	 * Both the new value and the value type in obj at the given offset must be flattened.
 	 * This is a non-volatile operation.
 	 *
-	 * @param obj object into which to store the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of the primitive type to store in obj
-	 * @param value primitive type to store in obj
+	 * @param obj object into which to store the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of the value type to store in obj
+	 * @param value value type to store in obj
 	 */
 	public native <V> void putValue(Object obj, long offset, Class<?> clz, V value);
 
 	/**
-	 * Returns the uninitialized default instance of the specified primitive class
+	 * Returns the uninitialized default instance of the specified value class
 	 *
-	 * @param clz the specificed primitive class
+	 * @param clz the specificed value class
 	 * @return the uninitialized default instance of clz
 	 */
 	public native <V> V uninitializedDefaultValue(Class<?> clz);
 
 	/**
-	 * Determines the size of the header for a specified primitive class
+	 * Determines the size of the header for a specified value class
 	 *
-	 * @param clz the specified primitive class
+	 * @param clz the specified value class
 	 * @return the size of the header for clz
 	 */
 	public native <V> long valueHeaderSize(Class<V> clz);
@@ -6604,7 +6647,7 @@ public final class Unsafe {
 	 * @param clz the class to check
 	 * @return boolean value indicating whether the class is a flattened array
 	 */
-	public native boolean isFlattenedArray(Class<?> clz);
+	public native boolean isFlatArray(Class<?> clz);
 
 	/**
 	 * Determines whether a field is flattened
@@ -6612,7 +6655,7 @@ public final class Unsafe {
 	 * @param field the field to check
 	 * @return boolean value indicating whether the field is flattened
 	 */
-	public native boolean isFlattened(Field field);
+	public native boolean isFlatField(Field field);
 
 	/**
 	 * Determines the size of an object in bytes
@@ -6632,7 +6675,7 @@ public final class Unsafe {
 	private native boolean isFieldAtOffsetFlattened(Class<?> clz, long offset);
 
 	/**
-	 * Atomically sets the primitive type at offset in obj if the parameter v1
+	 * Atomically sets the value type at offset in obj if the parameter v1
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
@@ -6646,7 +6689,7 @@ public final class Unsafe {
 	 */
 	public final <V> boolean compareAndSetValue(Object obj, long offset, Class<?> clz, V v1, V v2) {
 		boolean result = false;
-		if (isFlattenedArray(obj.getClass()) || isFieldAtOffsetFlattened(obj.getClass(), offset)) {
+		if (isFlatArray(obj.getClass()) || isFieldAtOffsetFlattened(obj.getClass(), offset)) {
 			synchronized (inlineTypesLock) {
 				if (getValue(obj, offset, clz) == v1) {
 					putValue(obj, offset, clz, v2);
@@ -6660,7 +6703,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the primitive type at offset in obj if the parameter v1
+	 * Atomically sets the value type at offset in obj if the parameter v1
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
@@ -6674,7 +6717,7 @@ public final class Unsafe {
 	 */
 	public final <V> Object compareAndExchangeValue(Object obj, long offset, Class<?> clz, V v1, V v2) {
 		Object result = null;
-		if (isFlattenedArray(obj.getClass()) || isFieldAtOffsetFlattened(obj.getClass(), offset)) {
+		if (isFlatArray(obj.getClass()) || isFieldAtOffsetFlattened(obj.getClass(), offset)) {
 			synchronized (inlineTypesLock) {
 				result = getValue(obj, offset, clz);
 				if (result == v1) {
@@ -6688,7 +6731,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the primitive type at offset in obj if the parameter v1
+	 * Atomically sets the value type at offset in obj if the parameter v1
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -6705,7 +6748,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the primitive type at offset in obj if the parameter v1
+	 * Atomically sets the value type at offset in obj if the parameter v1
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -6722,7 +6765,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the primitive type at offset in obj if the parameter v1
+	 * Sets the value type at offset in obj if the parameter v1
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -6739,7 +6782,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the primitive type at offset in obj if the parameter v1
+	 * Sets the value type at offset in obj if the parameter v1
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
@@ -6756,7 +6799,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the primitive type at offset in obj if the parameter v1
+	 * Sets the value type at offset in obj if the parameter v1
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
@@ -6773,7 +6816,7 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Sets the primitive type at offset in obj if the parameter v1
+	 * Sets the value type at offset in obj if the parameter v1
 	 * matches the existing value in the object.
 	 * The get operation has memory semantics of get.
 	 * The set operation has the memory semantics of set.
@@ -6790,12 +6833,12 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically retrieves the primitive type in the obj parameter referenced by offset.
+	 * Atomically retrieves the value type in the obj parameter referenced by offset.
 	 *
-	 * @param obj object from which to retrieve the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of primitive type to return
-	 * @return primitive type stored in obj
+	 * @param obj object from which to retrieve the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of value type to return
+	 * @return value type stored in obj
 	 */
 	public final <V> Object getValueVolatile(Object obj, long offset, Class<?> clz) {
 		synchronized (inlineTypesLock) {
@@ -6804,13 +6847,13 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the value of the primitive type in the obj parameter at memory offset.
+	 * Atomically sets the value of the value type in the obj parameter at memory offset.
 	 * This is a non-volatile operation.
 	 *
-	 * @param obj object into which to store the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of the primitive type to store in obj
-	 * @param v primitive type to store in obj
+	 * @param obj object into which to store the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of the value type to store in obj
+	 * @param v value type to store in obj
 	 */
 	public final <V> void putValueVolatile(Object obj, long offset, Class<?> clz, V v) {
 		synchronized (inlineTypesLock) {
@@ -6819,73 +6862,73 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Retrieves the primitive type in the obj parameter referenced by offset using acquire semantics.
+	 * Retrieves the value type in the obj parameter referenced by offset using acquire semantics.
 	 * Preceding loads will not be reordered with subsequent loads/stores.
 	 *
-	 * @param obj object from which to retrieve the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of primitive type to return
-	 * @return primitive type stored in obj
+	 * @param obj object from which to retrieve the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of value type to return
+	 * @return value type stored in obj
 	 */
 	public final <V> Object getValueAcquire(Object obj, long offset, Class<?> clz) {
 		return getValueVolatile(obj, offset, clz);
 	}
 
 	/**
-	 * Sets the value of primitive type in the obj parameter at memory offset using acquire semantics.
+	 * Sets the value of value type in the obj parameter at memory offset using acquire semantics.
 	 * Preceding stores will not be reordered with subsequent loads/stores.
 	 *
-	 * @param obj object into which to store the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of the primitive type to store in obj
-	 * @param v primitive type to store in obj
+	 * @param obj object into which to store the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of the value type to store in obj
+	 * @param v value type to store in obj
 	 */
 	public final <V> void putValueRelease(Object obj, long offset, Class<?> clz, V v) {
 		putValueVolatile(obj, offset, clz, v);
 	}
 
 	/**
-	 * Retrieves the primitive type in the obj parameter referenced by offset.
+	 * Retrieves the value type in the obj parameter referenced by offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
 	 *
-	 * @param obj object from which to retrieve the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of primitive type to return
-	 * @return primitive type stored in obj
+	 * @param obj object from which to retrieve the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of value type to return
+	 * @return value type stored in obj
 	 */
 	public final <V> Object getValueOpaque(Object obj, long offset, Class<?> clz) {
 		return getValueVolatile(obj, offset, clz);
 	}
 
 	/**
-	 * Sets the value of primitive type in the obj parameter at memory offset.
+	 * Sets the value of value type in the obj parameter at memory offset.
 	 * The operation is in program order, but does enforce ordering with respect to other threads.
 	 *
-	 * @param obj object into which to store the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of the primitive type to store in obj
-	 * @param v primitive type to store in obj
+	 * @param obj object into which to store the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of the value type to store in obj
+	 * @param v value type to store in obj
 	 */
 	public final <V> void putValueOpaque(Object obj, long offset, Class<?> clz, V v) {
 		putValueVolatile(obj, offset, clz, v);
 	}
 
 	/**
-	 * Atomically sets the primitive type at offset in obj
+	 * Atomically sets the value type at offset in obj
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getVolatile.
 	 * The set operation has the memory semantics of setVolatile.
 	 *
-	 * @param obj object into which to store the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of the primitive type to store in obj
-	 * @param v primitive type to store in obj
-	 * @return primitive type in obj at offset before update
+	 * @param obj object into which to store the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of the value type to store in obj
+	 * @param v value type to store in obj
+	 * @return value type in obj at offset before update
 	 */
 	public final <V> Object getAndSetValue(Object obj, long offset, Class<?> clz, V v) {
 		Object valueAtOffset = null;
 
-		if (isFlattenedArray(obj.getClass()) || isFieldAtOffsetFlattened(obj.getClass(), offset)) {
+		if (isFlatArray(obj.getClass()) || isFieldAtOffsetFlattened(obj.getClass(), offset)) {
 			synchronized (inlineTypesLock) {
 				valueAtOffset = getValue(obj, offset, clz);
 				putValue(obj, offset, clz, v);
@@ -6898,32 +6941,32 @@ public final class Unsafe {
 	}
 
 	/**
-	 * Atomically sets the primitive type at offset in obj
+	 * Atomically sets the value type at offset in obj
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of get.
 	 * The set operation has the memory semantics of setRelease.
 	 *
-	 * @param obj object into which to store the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of the primitive type to store in obj
-	 * @param v primitive type to store in obj
-	 * @return primitive type in obj at offset before update
+	 * @param obj object into which to store the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of the value type to store in obj
+	 * @param v value type to store in obj
+	 * @return value type in obj at offset before update
 	 */
 	public final <V> Object getAndSetValueRelease(Object obj, long offset, Class<?> clz, V v) {
 		return getAndSetValue(obj, offset, clz, v);
 	}
 
 	/**
-	 * Atomically sets the primitive type at offset in obj
+	 * Atomically sets the value type at offset in obj
 	 * and returns the value of the field prior to the update.
 	 * The get operation has the memory semantics of getAcquire.
 	 * The set operation has the memory semantics of set.
 	 *
-	 * @param obj object into which to store the primitive type
-	 * @param offset position of the primitive type in obj
-	 * @param clz the class of the primitive type to store in obj
-	 * @param v primitive type to store in obj
-	 * @return primitive type in obj at offset before update
+	 * @param obj object into which to store the value type
+	 * @param offset position of the value type in obj
+	 * @param clz the class of the value type to store in obj
+	 * @param v value type to store in obj
+	 * @return value type in obj at offset before update
 	 */
 	public final <V> Object getAndSetValueAcquire(Object obj, long offset, Class<?> clz, V v) {
 		return getAndSetValue(obj, offset, clz, v);
@@ -7065,16 +7108,6 @@ public final class Unsafe {
 		return weakCompareAndSetReference(obj, offset, compareValue, setValue);
 	}
 
-	public Object getReferenceVolatile(Object obj, long offset, Class<?> clz) {
-		// ToDo: this is a temporary implementation - https://github.com/eclipse-openj9/openj9/issues/13614
-		return getReferenceVolatile(obj, offset);
-	}
-
-	public Object getReference(Object obj, long offset, Class<?> clz) {
-		// ToDo: this is a temporary implementation - https://github.com/eclipse-openj9/openj9/issues/13614
-		return getReference(obj, offset);
-	}
-
 	public <V> V makePrivateBuffer(V v) {
 		// ToDo: this is a temporary implementation - https://github.com/eclipse-openj9/openj9/issues/13614
 		return null;
@@ -7085,9 +7118,100 @@ public final class Unsafe {
 		return null;
 	}
 
-	private static InternalError OpenJDKCompileStubThrowError() {
-		// ToDo: https://github.com/eclipse-openj9/openj9/issues/13614
-		throw new InternalError("Compile stub invoked! Apart from deliberate reflective access, this should not happen. Please report this to the project so it can be addressed");	//$NON-NLS-1$
+	/**
+	 * This method will always return false since OpenJ9 does not use null markers.
+	 * @return false
+	 */
+	public boolean hasNullMarker(Field f) {
+		return false;
+	}
+
+	public int nullMarkerOffset(Field f) {
+		throw new Error("jdk.internal.misc.Unsafe.nullMarkerOffset unimplemented"); //$NON-NLS-1$
+	}
+
+	public int arrayLayout(Class<?> arrayClass) {
+		throw new Error("jdk.internal.misc.Unsafe.arrayLayout unimplemented"); //$NON-NLS-1$
+	}
+
+	public int fieldLayout(Field f) {
+		throw new Error("jdk.internal.misc.Unsafe.fieldLayout unimplemented"); //$NON-NLS-1$
+	}
+
+	public <V> V getFlatValue(Object obj, long offset, int layoutKind, Class<?> valueType) {
+		throw new Error("jdk.internal.misc.Unsafe.getFlatValue unimplemented"); //$NON-NLS-1$
+	}
+
+	public <V> void putFlatValue(Object obj, long offset, int layoutKind, Class<?> valueType, V v) {
+		throw new Error("jdk.internal.misc.Unsafe.putFlatValue unimplemented"); //$NON-NLS-1$
+	}
+
+	public <V> Object getFlatValueVolatile(Object base, long offset, int layout, Class<?> valueType) {
+		throw new Error("jdk.internal.misc.Unsafe.getFlatValueVolatile unimplemented"); //$NON-NLS-1$
+	}
+
+	public <V> Object getFlatValueOpaque(Object base, long offset, int layout, Class<?> valueType) {
+		return getFlatValueVolatile(base, offset, layout, valueType);
+	}
+
+	public <V> Object getFlatValueAcquire(Object base, long offset, int layout, Class<?> valueType) {
+		return getFlatValueVolatile(base, offset, layout, valueType);
+	}
+
+	public <V> void putFlatValueVolatile(Object obj, long offset, int layout, Class<?> valueType, V x) {
+		throw new Error("jdk.internal.misc.Unsafe.putFlatValueVolatile unimplemented"); //$NON-NLS-1$
+	}
+
+	public <V> void putFlatValueOpaque(Object obj, long offset, int layout, Class<?> valueType, V x) {
+		putFlatValueVolatile(obj, offset, layout, valueType, x);
+	}
+
+	public <V> void putFlatValueRelease(Object obj, long offset, int layout, Class<?> valueType, V x) {
+		putFlatValueVolatile(obj, offset, layout, valueType, x);
+	}
+
+	public <V> Object compareAndExchangeFlatValue(Object obj, long offset, int layout, Class<?> valueType, V expected, V x) {
+		throw new Error("jdk.internal.misc.Unsafe.compareAndExchangeFlatValue unimplemented"); //$NON-NLS-1$
+	}
+
+	public <V> Object compareAndExchangeFlatValueAcquire(Object obj, long offset, int layout, Class<?> valueType, V expected, V x) {
+		return compareAndExchangeFlatValue(obj, offset, layout, valueType, expected, x);
+	}
+
+	public <V> Object compareAndExchangeFlatValueRelease(Object obj, long offset, int layout, Class<?> valueType, V expected, V x) {
+		return compareAndExchangeFlatValue(obj, offset, layout, valueType, expected, x);
+	}
+
+	public <V> boolean compareAndSetFlatValue(Object obj, long offset, int layout, Class<?> valueType, V expected, V x) {
+		throw new Error("jdk.internal.misc.Unsafe.compareAndSetFlatValue unimplemented"); //$NON-NLS-1$
+	}
+
+	public <V> boolean weakCompareAndSetFlatValuePlain(Object obj, long offset, int layout, Class<?> valueType, V expected, V x) {
+		return compareAndSetFlatValue(obj, offset, layout, valueType, expected, x);
+	}
+
+	public <V> boolean weakCompareAndSetFlatValue(Object obj, long offset, int layout, Class<?> valueType, V expected, V x) {
+		return compareAndSetFlatValue(obj, offset, layout, valueType, expected, x);
+	}
+
+	public <V> boolean weakCompareAndSetFlatValueRelease(Object obj, long offset, int layout, Class<?> valueType, V expected, V x) {
+		return compareAndSetFlatValue(obj, offset, layout, valueType, expected, x);
+	}
+
+	public <V> boolean weakCompareAndSetFlatValueAcquire(Object obj, long offset, int layout, Class<?> valueType, V expected, V x) {
+		return compareAndSetFlatValue(obj, offset, layout, valueType, expected, x);
+	}
+
+	public <V> Object getAndSetFlatValue(Object obj, long offset, int layout, Class<?> valueType, V newValue) {
+		throw new Error("jdk.internal.misc.Unsafe.getAndSetFlatValue unimplemented"); //$NON-NLS-1$
+	}
+
+	public <V> Object getAndSetFlatValueRelease(Object obj, long offset, int layout, Class<?> valueType, V newValue) {
+		return getAndSetFlatValue(obj, offset, layout, valueType, newValue);
+	}
+
+	public <V> Object getAndSetFlatValueAcquire(Object obj, long offset, int layout, Class<?> valueType, V newValue) {
+		return getAndSetFlatValue(obj, offset, layout, valueType, newValue);
 	}
 	/*[ENDIF] INLINE-TYPES */
 }

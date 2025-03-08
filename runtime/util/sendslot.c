@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -37,20 +37,13 @@ getSendSlotsFromSignature(const U_8* signature)
 		case '[':
 			/* skip all '['s */
 			for (i++; signature[i] == '['; i++);
-			if ((signature[i] == 'L')
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-				|| (signature[i] == 'Q')
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
-			) {
+			if (signature[i] == 'L') {
 				/* FALL THRU */
 			} else {
 				sendArgs++;
 				break;
 			}
 		case 'L':
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		case 'Q':
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
 			for (i++; signature[i] != ';'; i++);
 			sendArgs++;
 			break;

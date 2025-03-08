@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -90,7 +90,7 @@ deviceAttributes[] = {
 	ATTRIBUTE_ENTRY(MAXIMUM_SURFACECUBEMAP_WIDTH,          0, 32 * 1024),
 	ATTRIBUTE_ENTRY(MAXIMUM_TEXTURE1D_LAYERED_LAYERS,      512, 2 * 1024),
 	ATTRIBUTE_ENTRY(MAXIMUM_TEXTURE1D_LAYERED_WIDTH,       8 * 1024, 64 * 1024),
-	ATTRIBUTE_ENTRY(MAXIMUM_TEXTURE1D_LINEAR_WIDTH,        128 * 1024 * 1024, 128 * 1024 * 1024),
+	ATTRIBUTE_ENTRY(MAXIMUM_TEXTURE1D_LINEAR_WIDTH,        128 * 1024 * 1024, 256 * 1024 * 1024),
 	ATTRIBUTE_ENTRY(MAXIMUM_TEXTURE1D_MIPMAPPED_WIDTH,     8 * 1024, 64 * 1024),
 	ATTRIBUTE_ENTRY(MAXIMUM_TEXTURE1D_WIDTH,               8 * 1024, 64 * 1024),
 	ATTRIBUTE_ENTRY(MAXIMUM_TEXTURE2D_GATHER_HEIGHT,       0, 16 * 1024),

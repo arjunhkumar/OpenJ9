@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -192,9 +192,9 @@ listCounters(void)
 			for (i = 0; i < compData->tracepointCount; i++) {
 				if ( compData->tracepointcounters[i] > 0 ) {
 					if (f < 0) {
-						j9tty_err_printf(PORTLIB, "%s.%d %ld \n", compData->qualifiedComponentName, i, compData->tracepointcounters[i]);
+						j9tty_err_printf("%s.%d %ld \n", compData->qualifiedComponentName, i, compData->tracepointcounters[i]);
 					} else {
-						j9str_printf(PORTLIB, tempBuf, TEMPBUFLEN, "%s.%d %lld \n", compData->qualifiedComponentName, i, compData->tracepointcounters[i]);
+						j9str_printf(tempBuf, TEMPBUFLEN, "%s.%d %lld \n", compData->qualifiedComponentName, i, compData->tracepointcounters[i]);
 						/* convert to ebcdic if on zos */
 						j9file_write_text(f, tempBuf, strlen(tempBuf));
 					}
@@ -211,9 +211,9 @@ listCounters(void)
 			for (i = 0; i < compData->tracepointCount; i++) {
 				if ( compData->tracepointcounters[i] > 0 ) {
 					if (f < 0) {
-						j9tty_err_printf(PORTLIB, "%s.%d %ld \n", compData->qualifiedComponentName, i, compData->tracepointcounters[i]);
+						j9tty_err_printf("%s.%d %ld \n", compData->qualifiedComponentName, i, compData->tracepointcounters[i]);
 					} else {
-						j9str_printf(PORTLIB, tempBuf, TEMPBUFLEN, "%s.%d %lld \n", compData->qualifiedComponentName, i, compData->tracepointcounters[i]);
+						j9str_printf(tempBuf, TEMPBUFLEN, "%s.%d %lld \n", compData->qualifiedComponentName, i, compData->tracepointcounters[i]);
 						/* convert to ebcdic if on zos */
 						j9file_write_text(f, tempBuf, strlen(tempBuf));
 					}

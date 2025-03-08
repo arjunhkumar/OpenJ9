@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "optimizer/MethodHandleTransformer.hpp"
@@ -367,32 +367,34 @@ TR_MethodHandleTransformer::getObjectInfoOfNode(TR::Node* node)
       {
       auto rm = symbol->castToMethodSymbol()->getMandatoryRecognizedMethod();
       switch (rm)
-        {
-        case TR::java_lang_invoke_DirectMethodHandle_internalMemberName:
-        case TR::java_lang_invoke_DirectMethodHandle_internalMemberNameEnsureInit:
-           {
-           auto mhIndex = getObjectInfoOfNode(node->getFirstArgument());
-           if (knot && isKnownObject(mhIndex) && !knot->isNull(mhIndex))
-              {
-              auto mnIndex = comp()->fej9()->getMemberNameFieldKnotIndexFromMethodHandleKnotIndex(comp(), mhIndex, "member");
-              if (trace())
-                 traceMsg(comp(), "Get DirectMethodHandle.member known object %d, update node n%dn known object\n", mnIndex, node->getGlobalIndex());
-              node->setKnownObjectIndex(mnIndex);
-              return mnIndex;
-              }
-           }
-        case TR::java_lang_invoke_DirectMethodHandle_constructorMethod:
-           {
-           auto mhIndex = getObjectInfoOfNode(node->getFirstArgument());
-           if (knot && isKnownObject(mhIndex) && !knot->isNull(mhIndex))
-              {
-              auto mnIndex = comp()->fej9()->getMemberNameFieldKnotIndexFromMethodHandleKnotIndex(comp(), mhIndex, "initMethod");
-              if (trace())
-                 traceMsg(comp(), "Get DirectMethodHandle.initMethod known object %d, update node n%dn known object\n", mnIndex, node->getGlobalIndex());
-              node->setKnownObjectIndex(mnIndex);
-              return mnIndex;
-              }
-           }
+         {
+         case TR::java_lang_invoke_DirectMethodHandle_internalMemberName:
+         case TR::java_lang_invoke_DirectMethodHandle_internalMemberNameEnsureInit:
+            {
+            auto mhIndex = getObjectInfoOfNode(node->getFirstArgument());
+            if (knot && isKnownObject(mhIndex) && !knot->isNull(mhIndex))
+               {
+               auto mnIndex = comp()->fej9()->getMemberNameFieldKnotIndexFromMethodHandleKnotIndex(comp(), mhIndex, "member");
+               if (trace())
+                  traceMsg(comp(), "Get DirectMethodHandle.member known object %d, update node n%dn known object\n", mnIndex, node->getGlobalIndex());
+               node->setKnownObjectIndex(mnIndex);
+               return mnIndex;
+               }
+            break;
+            }
+         case TR::java_lang_invoke_DirectMethodHandle_constructorMethod:
+            {
+            auto mhIndex = getObjectInfoOfNode(node->getFirstArgument());
+            if (knot && isKnownObject(mhIndex) && !knot->isNull(mhIndex))
+               {
+               auto mnIndex = comp()->fej9()->getMemberNameFieldKnotIndexFromMethodHandleKnotIndex(comp(), mhIndex, "initMethod");
+               if (trace())
+                  traceMsg(comp(), "Get DirectMethodHandle.initMethod known object %d, update node n%dn known object\n", mnIndex, node->getGlobalIndex());
+               node->setKnownObjectIndex(mnIndex);
+               return mnIndex;
+               }
+            break;
+            }
 
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
          case TR::java_lang_invoke_DelegatingMethodHandle_getTarget:
@@ -404,6 +406,24 @@ TR_MethodHandleTransformer::getObjectInfoOfNode(TR::Node* node)
                comp(), dmhIndex, trace());
             }
 #endif
+         case TR::java_lang_invoke_Invokers_checkVarHandleGenericType:
+            {
+            auto vhIndex = getObjectInfoOfNode(node->getFirstArgument());
+            auto adIndex = getObjectInfoOfNode(node->getLastChild());
+            if (knot
+               && isKnownObject(adIndex)
+               && isKnownObject(vhIndex)
+               && !knot->isNull(vhIndex)
+               && !knot->isNull(adIndex))
+               {
+               auto mhIndex = comp()->fej9()->getMethodHandleTableEntryIndex(comp(), vhIndex, adIndex);
+               if (trace())
+                 traceMsg(comp(), "Invokers_checkVarHandleGenericType with known VarHandle object %d, updating node n%dn with known MH object %d from MH table\n", vhIndex, node->getGlobalIndex(), mhIndex);
+               node->setKnownObjectIndex(mhIndex);
+               return mhIndex;
+               }
+            break;
+            }
 
          default:
             break;
@@ -705,6 +725,9 @@ TR_MethodHandleTransformer::process_java_lang_invoke_Invokers_checkExactType(TR:
                                                                                          true,
                                                                                          "java/lang/invoke/MethodHandle.type Ljava/lang/invoke/MethodType;");
    auto handleTypeNode = TR::Node::createWithSymRef(node, comp()->il.opCodeForIndirectLoad(TR::Address), 1, methodHandleNode, typeSymRef);
+   auto nullCheckSymRef = comp()->getSymRefTab()->findOrCreateNullCheckSymbolRef(comp()->getMethodSymbol());
+   auto nullCheckNode = TR::Node::createWithSymRef(node, TR::NULLCHK, 1, handleTypeNode, nullCheckSymRef);
+   tt->insertBefore(TR::TreeTop::create(comp(), nullCheckNode));
    auto cmpEqNode = TR::Node::create(node, TR::acmpeq, 2, expectedTypeNode, handleTypeNode);
    TR::Node* zerochkNode = TR::Node::createWithSymRef(TR::ZEROCHK, 1, 1,
                                                        cmpEqNode,

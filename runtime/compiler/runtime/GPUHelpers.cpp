@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifdef ENABLE_GPU
@@ -185,7 +185,7 @@ static void saveSignalHandlers(struct sigaction sigactionArray[], bool trace)
 
       if (sigaction(i, NULL, &sigactionArray[i-1]) != 0) //Saving signal handlers to sigactionArray
          {
-         if (trace) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tsigaction error: Can't read sigaction for signal %d\n", i);
+         if (trace) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tsigaction error: Can't read sigaction for signal %d", i);
          }
       }
    }
@@ -199,7 +199,7 @@ static void restoreSignalHandlers(struct sigaction sigactionArray[], bool trace)
 
       if (sigaction(i, &sigactionArray[i-1], NULL) != 0) //Restoring signal handlers from sigactionArray
          {
-         if (trace) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tsigaction error: Can't set sigaction for signal %d\n", i);
+         if (trace) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tsigaction error: Can't set sigaction for signal %d", i);
          }
       }
    }
@@ -294,14 +294,14 @@ static bool checkDlError(int tracing, bool isNull)
 
    if (errorMessage)
       {
-      if (tracing > 0) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: %s\n", errorMessage);
+      if (tracing > 0) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: %s", errorMessage);
       return true;
       }
 #endif
 
    if (isNull)
       {
-      if (tracing > 0) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: null pointer while loading shared library\n");
+      if (tracing > 0) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: null pointer while loading shared library");
       return true;
       }
 
@@ -326,7 +326,7 @@ static bool loadNVVMlibrary(int tracing)
       libNvvmPointer = LoadLibrary("nvvm64_20_0.dll");
 
    if (tracing > 0 && !libNvvmPointer)
-      TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: Unable to locate NVVM library nvvm64_30_0.dll or nvvm64_20_0.dll\n");
+      TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: Unable to locate NVVM library nvvm64_30_0.dll or nvvm64_20_0.dll");
 #endif
 
    if (checkDlError(tracing, !libNvvmPointer)) return false;
@@ -382,7 +382,7 @@ static bool loadCudaRuntimeLibrary(int tracing)
       libCudartPointer = LoadLibrary("cudart64_55.dll");
 
    if (tracing > 0 && !libCudartPointer)
-      TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: Unable to locate Cuda Runtime library cudart64_75.dll\n");
+      TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: Unable to locate Cuda Runtime library cudart64_75.dll");
 #endif
    if (checkDlError(tracing, !libCudartPointer)) return false;
 
@@ -422,7 +422,7 @@ static bool loadCudaLibrary(int tracing)
    HINSTANCE libCudaPointer = LoadLibrary("nvcuda.dll");
 
    if (tracing > 0 && !libCudaPointer)
-      TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: Unable to locate Cuda Driver library nvcuda.dll\n");
+      TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: Unable to locate Cuda Driver library nvcuda.dll");
 #endif
    if (checkDlError(tracing, !libCudaPointer)) return false;
 
@@ -546,7 +546,7 @@ static bool loadNVMLLibrary(int tracing)
    HINSTANCE libNvmlPointer = LoadLibrary("nvml.dll");
 
    if (tracing > 0 && !libNvmlPointer)
-      TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: Unable to locate NVML library nvml.dll\n");
+      TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tDynamic linking error: Unable to locate NVML library nvml.dll");
 
    checkDlError(tracing, !libNvmlPointer);
 #endif
@@ -1113,7 +1113,7 @@ static bool loadKernel(CudaInfo *cudaInfo, GpuMetaData* gpuMetaData, int kernelI
    static bool disableModuleCaching = feGetEnv("TR_disableCUmoduleCaching") ? true : false;
 
    char functionName[16]; // 16 is max length of decimal string of ptxSourceID
-   sprintf(functionName, "test%d", kernelId);
+   snprintf(functionName, sizeof(functionName), "test%d", kernelId);
 
    int numPtxKernels = gpuMetaData->numPtxKernels;
    int maxNumCachedDevices = gpuMetaData->maxNumCachedDevices;
@@ -1349,8 +1349,9 @@ generatePTX(int tracing, const char *programSource, int deviceId, TR::Persistent
    if (detailsTrace) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tAdded NVVM module size=%d", strlen(programSource));
 
 #define OPTIONLENGTH    6
+#define OPTIONMAXSIZE   24
 
-   char optionStr[OPTIONLENGTH][24] = {"-opt=0", "-ftz=1", "-prec-sqrt=1", "-prec-div=1", "-fma=0", "-arch=compute_MMMMmmmm"};
+   char optionStr[OPTIONLENGTH][OPTIONMAXSIZE] = {"-opt=0", "-ftz=1", "-prec-sqrt=1", "-prec-div=1", "-fma=0", "-arch=compute_MMMMmmmm"};
    char *options[OPTIONLENGTH];
    int optionLength = (computeMajor == 256 && computeMinor == 256) ? OPTIONLENGTH - 1 : OPTIONLENGTH;
 
@@ -1359,7 +1360,7 @@ generatePTX(int tracing, const char *programSource, int deviceId, TR::Persistent
       options[i] = (char *)optionStr[i];
       }
 
-   sprintf(options[OPTIONLENGTH-1], "-arch=compute_%d%d", computeMajor, computeMinor);
+   snprintf(options[OPTIONLENGTH-1], OPTIONMAXSIZE, "-arch=compute_%d%d", computeMajor, computeMinor);
 
    //nvvm version 1.0 works with -opt=3
    //nvvm version 1.1 is untested. -opt=0 is used since it might have the same problem as version 1.2
@@ -1369,7 +1370,7 @@ generatePTX(int tracing, const char *programSource, int deviceId, TR::Persistent
    checkNVVMError(jitNvvmVersion(&nvvmVersionMajor, &nvvmVersionMinor), tracing);
    if (detailsTrace) TR_VerboseLog::writeLine(TR_Vlog_GPU, "\tNVVM Version: %d.%d", nvvmVersionMajor, nvvmVersionMinor);
    if ( (nvvmVersionMajor == 1) && (nvvmVersionMinor == 0) )
-      sprintf(options[0], "-opt=3");
+      snprintf(options[0], OPTIONMAXSIZE, "-opt=3");
 
    if (enableMath)
       {

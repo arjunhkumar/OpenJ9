@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /* Includes */
@@ -176,7 +176,7 @@ TextFileStream::writeInteger(UDATA data, const char *format)
 	PORT_ACCESS_FROM_PORT(_PortLibrary);
 	UDATA length;
 	
-	length = j9str_printf(PORTLIB, buffer, sizeof(buffer), format, data);
+	length = j9str_printf(buffer, sizeof(buffer), format, data);
 
 	writeCharacters(buffer, length);
 }
@@ -189,7 +189,7 @@ TextFileStream::writeInteger64(U_64 data, const char *format)
 	PORT_ACCESS_FROM_PORT(_PortLibrary);
 	UDATA length;
 	
-	length = j9str_printf(PORTLIB, buffer, sizeof(buffer), format, data);
+	length = j9str_printf(buffer, sizeof(buffer), format, data);
 
 	writeCharacters(buffer, length);
 }

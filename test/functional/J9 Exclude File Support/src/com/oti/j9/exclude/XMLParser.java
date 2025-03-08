@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.oti.j9.exclude;
 
 import java.io.*;
@@ -255,10 +255,10 @@ public class XMLParser {
 
 		XMLStringBuffer buffer = new XMLStringBuffer();
 
-		do {
+		while (_fScan != '"') {
 			buffer.append(_fScan);
 			scan_char();
-		} while ( _fScan != '"' );
+		}
 
 		// Advance past the final quote
 		scan_char();
@@ -396,6 +396,9 @@ public class XMLParser {
 		Hashtable attributes = _scan_attributes();
 
 		// Notify the content handler
+		if (VERBOSE) {
+			System.out.format("%nAbout to start <%s> at level %d%n", elementName, _fLevel + 1);
+		}
 		_fDocumentHandler.xmlStartElement(elementName, attributes);
 		_fLevel++;
 

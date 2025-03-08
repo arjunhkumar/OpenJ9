@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2006
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders.zos.le;
 
 import javax.imageio.stream.ImageInputStream;
@@ -29,48 +29,59 @@ import java.io.IOException;
 
 public final class Ceedsahp64Template implements CeedsahpTemplate {
 
-    public int length() {
-        return 2177;
-    }
+	public int length() {
+		return 2177;
+	}
 
-    public long getCeedsahpr4(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 2048);
-        return inputStream.readLong();
-    }
-    public int getCeedsahpr4$offset() {
-        return 2048;
-    }
-    public int getCeedsahpr4$length() {
-        return 64;
-    }
-    public long getCeedsahpr6(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 2064);
-        return inputStream.readLong();
-    }
-    public int getCeedsahpr6$offset() {
-        return 2064;
-    }
-    public int getCeedsahpr6$length() {
-        return 64;
-    }
-    public long getCeedsahpr7(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 2072);
-        return inputStream.readLong();
-    }
-    public int getCeedsahpr7$offset() {
-        return 2072;
-    }
-    public int getCeedsahpr7$length() {
-        return 64;
-    }
-    public long getCeedsahptran(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 2160);
-        return inputStream.readLong();
-    }
-    public int getCeedsahptran$offset() {
-        return 2160;
-    }
-    public int getCeedsahptran$length() {
-        return 64;
-    }
+	public long getCeedsahpr4(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 2048);
+		return inputStream.readLong();
+	}
+
+	public int getCeedsahpr4$offset() {
+		return 2048;
+	}
+
+	public int getCeedsahpr4$length() {
+		return 64;
+	}
+
+	public long getCeedsahpr6(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 2064);
+		return inputStream.readLong();
+	}
+
+	public int getCeedsahpr6$offset() {
+		return 2064;
+	}
+
+	public int getCeedsahpr6$length() {
+		return 64;
+	}
+
+	public long getCeedsahpr7(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 2072);
+		return inputStream.readLong();
+	}
+
+	public int getCeedsahpr7$offset() {
+		return 2072;
+	}
+
+	public int getCeedsahpr7$length() {
+		return 64;
+	}
+
+	public long getCeedsahptran(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 2160);
+		return inputStream.readLong();
+	}
+
+	public int getCeedsahptran$offset() {
+		return 2160;
+	}
+
+	public int getCeedsahptran$length() {
+		return 64;
+	}
 }

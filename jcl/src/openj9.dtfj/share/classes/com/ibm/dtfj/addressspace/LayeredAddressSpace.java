@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.addressspace;
 
 import java.io.IOException;
@@ -40,9 +40,9 @@ public class LayeredAddressSpace extends CommonAddressSpace
 {
 	private TreeMap _moduleRanges = new TreeMap();
 	private IAbstractAddressSpace _base;
-	private MemoryRange[] _moduleRangesArray = null; 
+	private MemoryRange[] _moduleRangesArray = null;
 	private Integer _lastModuleRange = Integer.valueOf(0);
-	
+
 	public LayeredAddressSpace(IAbstractAddressSpace base, boolean isLittleEndian, boolean is64Bit)
 	{
 		super(_extractRanges(base.getMemoryRanges()), isLittleEndian, is64Bit);
@@ -108,7 +108,7 @@ public class LayeredAddressSpace extends CommonAddressSpace
 		}
 
 		int retI = findWhichMemoryRange(asid, address, _moduleRangesArray, _lastModuleRange, false);
-		
+
 		if (retI > -1) {
 			MemoryRange range = (MemoryRange) _moduleRangesArray[retI];
 			if (range.contains(address)) {
@@ -124,11 +124,10 @@ public class LayeredAddressSpace extends CommonAddressSpace
 				}
 			}
 		}
-		
+
 		//this must not be in one of the newer regions
 		return _base.getBytesAt(asid, address, buffer);
 	}
-
 
 	public void mapRegion(long virtualAddress, ClosingFileReader residentFile, long fileOffset, long size)
 	{

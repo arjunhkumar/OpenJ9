@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jni.h"
@@ -83,6 +83,8 @@ jdouble JNICALL
 Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_getSystemCpuLoadImpl(JNIEnv *env, jobject instance) {
 	PORT_ACCESS_FROM_ENV(env);
 	OMRPORT_ACCESS_FROM_J9PORT(PORTLIB);
+
+	J9JavaVM *vm = ((J9VMThread *)env)->javaVM;
 	double cpuLoad = 0.0;
 
 	intptr_t portLibraryStatus = omrsysinfo_get_CPU_load(&cpuLoad);
@@ -94,6 +96,12 @@ Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_getSyste
 			break;
 		case OMRPORT_ERROR_SYSINFO_NOT_SUPPORTED:
 			portLibraryStatus = -3;
+			break;
+		case OMRPORT_ERROR_INSUFFICIENT_DATA:
+			portLibraryStatus =
+				J9_ARE_ALL_BITS_SET(vm->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_CPU_LOAD_COMPATIBILITY)
+				? 0
+				: -1;
 			break;
 		default:
 			portLibraryStatus = OMRPORT_ERROR_OPFAILED;

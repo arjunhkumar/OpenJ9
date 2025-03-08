@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9cfg.h"
@@ -50,8 +50,7 @@ MM_ScavengerBackOutScanner::scanAllSlots(MM_EnvironmentBase *env)
 			if ((MEMORY_TYPE_NEW == (region->getTypeFlags() & MEMORY_TYPE_NEW))) {
 				MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
 				for (uintptr_t i = 0; i < regionExtension->_maxListIndex; i++) {
-					MM_ReferenceObjectList *list = &regionExtension->_referenceObjectLists[i];
-					list->resetLists();
+					regionExtension->_referenceObjectLists[i].resetLists();
 				}
 			}
 		}
@@ -60,15 +59,22 @@ MM_ScavengerBackOutScanner::scanAllSlots(MM_EnvironmentBase *env)
 	/* Walk roots fixing up pointers through reverse forwarding information */
 	MM_RootScanner::scanAllSlots(env);
 
-	if (!_extensions->isConcurrentScavengerEnabled()) {
-	/* Back out Ownable Synchronizer Processing */
-		MM_HeapRegionDescriptorStandard *region = NULL;
-		GC_HeapRegionIteratorStandard regionIterator(_extensions->heapRegionManager);
-		while (NULL != (region = regionIterator.nextRegion())) {
-			MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
-			for (uintptr_t i = 0; i < regionExtension->_maxListIndex; i++) {
-				MM_OwnableSynchronizerObjectList *list = &regionExtension->_ownableSynchronizerObjectLists[i];
-				list->backoutList();
+	/* Back out Ownable Synchronizer and Continuation Processing */
+	MM_HeapRegionDescriptorStandard *region = NULL;
+	GC_HeapRegionIteratorStandard regionIterator(_extensions->heapRegionManager);
+
+	while (NULL != (region = regionIterator.nextRegion())) {
+		MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
+		for (uintptr_t i = 0; i < regionExtension->_maxListIndex; i++) {
+			if (_extensions->isConcurrentScavengerEnabled()) {
+				if (_scavenger->isObjectInEvacuateMemory((omrobjectptr_t )region->getLowAddress())) {
+					/* for concurrent scavenger case, only backout lists in Evacuate region. */
+					regionExtension->_continuationObjectLists[i].backoutList();
+				}
+			} else {
+				/* Back out all of regions (includes tenure region, which is backed up during startProcessing). */
+				regionExtension->_ownableSynchronizerObjectLists[i].backoutList();
+				regionExtension->_continuationObjectLists[i].backoutList();
 			}
 		}
 	}
@@ -320,85 +326,50 @@ MM_ScavengerBackOutScanner::backoutUnfinalizedObjects(MM_EnvironmentStandard *en
 }
 #endif /* J9VM_GC_FINALIZATION */
 
+/**
+ * Backout the continuation objects.
+ * Move continuation backout processing in scanAllSlots(), scavenger abort would never happen after continuationObjectList processing
+ * (so only need to backout list._head from _priorHead).
+ * Here walk the lists in the Evacuate region only for helping to back out the references in java stacks of the unmounted continuations.
+ */
 void
 MM_ScavengerBackOutScanner::backoutContinuationObjects(MM_EnvironmentStandard *env)
 {
-	MM_Heap *heap = _extensions->heap;
-	MM_HeapRegionManager *regionManager = heap->getHeapRegionManager();
-	MM_HeapRegionDescriptorStandard *region = NULL;
-	bool const compressed = _extensions->compressObjectReferences();
-
-	GC_HeapRegionIteratorStandard regionIterator(regionManager);
-	while (NULL != (region = regionIterator.nextRegion())) {
-		MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
-		for (uintptr_t i = 0; i < regionExtension->_maxListIndex; i++) {
-			MM_ContinuationObjectList *list = &regionExtension->_continuationObjectLists[i];
-			list->startProcessing();
-		}
-	}
-
 #if defined(OMR_GC_CONCURRENT_SCAVENGER)
 	if (_extensions->isConcurrentScavengerEnabled()) {
-		GC_HeapRegionIteratorStandard regionIterator2(regionManager);
-		while (NULL != (region = regionIterator2.nextRegion())) {
-			MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
-			for (uintptr_t i = 0; i < regionExtension->_maxListIndex; i++) {
-				MM_ContinuationObjectList *list = &regionExtension->_continuationObjectLists[i];
-				if (!list->wasEmpty()) {
-					omrobjectptr_t object = list->getPriorList();
-					while (NULL != object) {
-						MM_ForwardedHeader forwardHeader(object, compressed);
-						omrobjectptr_t forwardPtr = forwardHeader.getNonStrictForwardedObject();
-						if (NULL != forwardPtr) {
-							if (forwardHeader.isSelfForwardedPointer()) {
-								forwardHeader.restoreSelfForwardedPointer();
-							} else {
-								object = forwardPtr;
-							}
-						}
-
-						omrobjectptr_t next = _extensions->accessBarrier->getContinuationLink(object);
-						env->getGCEnvironment()->_continuationObjectBuffer->add(env, object);
-
-						object = next;
-					}
-				}
-			}
-		}
+		/**
+		 * For ConcurrentScavenge no need to backout stack references,
+		 * since they will be fixed up to point to the new version of the object
+		 * (if not already do so), later during marking when continuation objects are found live.
+		 */
+		return;
 	} else
 #endif /* OMR_GC_CONCURRENT_SCAVENGER */
 	{
-		GC_HeapRegionIteratorStandard regionIterator2(regionManager);
-		while (NULL != (region = regionIterator2.nextRegion())) {
-			MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
-			for (uintptr_t i = 0; i < regionExtension->_maxListIndex; i++) {
-				MM_ContinuationObjectList *list = &regionExtension->_continuationObjectLists[i];
-				if (!list->wasEmpty()) {
-					omrobjectptr_t object = list->getPriorList();
-					while (NULL != object) {
-						omrobjectptr_t next = NULL;
-						MM_ForwardedHeader forwardHeader(object, compressed);
-						Assert_MM_false(forwardHeader.isForwardedPointer());
-						if (forwardHeader.isReverseForwardedPointer()) {
-							omrobjectptr_t originalObject = forwardHeader.getReverseForwardedPointer();
-							Assert_MM_true(NULL != originalObject);
-							next = _extensions->accessBarrier->getContinuationLink(originalObject);
-							env->getGCEnvironment()->_continuationObjectBuffer->add(env, originalObject);
-						} else {
-							next = _extensions->accessBarrier->getContinuationLink(object);
-							env->getGCEnvironment()->_continuationObjectBuffer->add(env, object);
-						}
+		MM_Heap *heap = _extensions->heap;
+		MM_HeapRegionManager *regionManager = heap->getHeapRegionManager();
+		MM_HeapRegionDescriptorStandard *region = NULL;
+		bool const compressed = _extensions->compressObjectReferences();
+		GC_HeapRegionIteratorStandard regionIterator(regionManager);
 
-						object = next;
+		while (NULL != (region = regionIterator.nextRegion())) {
+			if (_scavenger->isObjectInEvacuateMemory((omrobjectptr_t )region->getLowAddress())) {
+				MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
+				for (uintptr_t i = 0; i < regionExtension->_maxListIndex; i++) {
+					MM_ContinuationObjectList *list = &regionExtension->_continuationObjectLists[i];
+					if (!list->wasEmpty()) {
+						omrobjectptr_t object = list->getPriorList();
+						while (NULL != object) {
+							omrobjectptr_t next = _extensions->accessBarrier->getContinuationLink(object);
+							MM_ForwardedHeader forwardHeader(object, compressed);
+							Assert_MM_false(forwardHeader.isForwardedPointer());
+							_scavenger->getDelegate()->scanContinuationNativeSlots(env, object, SCAN_REASON_BACKOUT);
+							object = next;
+						}
 					}
 				}
 			}
 		}
 	}
-
-	/* restore everything to a flushed state before exiting */
-	env->getGCEnvironment()->_continuationObjectBuffer->flush(env);
-
-	/* Done backout */
 }
 #endif /* defined(OMR_GC_MODRON_SCAVENGER) */

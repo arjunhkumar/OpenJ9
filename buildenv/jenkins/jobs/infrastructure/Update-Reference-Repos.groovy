@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 SETUP_LABEL = params.SETUP_LABEL
 if (!SETUP_LABEL) {
@@ -95,9 +95,12 @@ timeout(time: 6, unit: 'HOURS') {
                             continue
                         }
 
+                        def gc = true
                         def sNodeName = sNode.getDisplayName()
                         if (!sNode.toComputer().name) {
                             sNodeName = builtInLabel
+                            // Do not gc on aix or master. Seems to be problematic #20346
+                            gc = false
                         }
 
                         setupNodesNames.add(sNodeName)
@@ -105,7 +108,7 @@ timeout(time: 6, unit: 'HOURS') {
                         jobs["${sNodeName}"] = {
                             node("${sNodeName}") {
                                 stage("${sNodeName} - Update Reference Repo") {
-                                    refresh(sNodeName, get_cache_dir(), defaultRepos, true)
+                                    refresh(sNodeName, get_cache_dir(), defaultRepos, true, gc)
                                 }
                             }
                         }
@@ -123,7 +126,7 @@ timeout(time: 6, unit: 'HOURS') {
                         def nodeName = aNode.getDisplayName()
                         buildNodesNames.add(nodeName)
 
-                        def osLabels = ['sw.os.aix', 'sw.os.linux', 'sw.os.osx', 'sw.os.windows']
+                        def osLabels = ['sw.os.aix', 'sw.os.linux', 'sw.os.mac', 'sw.os.windows']
                         def foundLabel = false
                         def nodeLabels = aNode.getLabelString().tokenize(' ')
                         for (osLabel in osLabels) {
@@ -155,10 +158,15 @@ timeout(time: 6, unit: 'HOURS') {
                         // Remove any dups
                         repos.unique()
 
+                        def gc = true
+                        if (nodeLabels.contains('sw.os.aix')) {
+                            // Do not gc on aix or master. Seems to be problematic #20346
+                            gc = false
+                        }
                         jobs["${nodeName}"] = {
                             node("${nodeName}") {
                                 stage("${nodeName} - Update Reference Repo") {
-                                    refresh(nodeName, get_cache_dir(), repos, foundLabel)
+                                    refresh(nodeName, get_cache_dir(), repos, foundLabel, gc)
                                 }
                             }
                         }
@@ -173,14 +181,20 @@ timeout(time: 6, unit: 'HOURS') {
             }
         }
 
-        parallel jobs
+        if (params.PARALLEL) {
+            parallel jobs
+        } else {
+            jobs.each{ key, value ->
+                value()
+            }
+        }
     }
 }
 
 /*
  * Creates and updates the git reference repository cache on the node.
  */
-def refresh(node, cacheDir, repos, isKnownOs) {
+def refresh(node, cacheDir, repos, isKnownOs, gc) {
     if (CLEAN_CACHE_DIR) {
         sh "rm -fr ${cacheDir}"
     }
@@ -201,8 +215,10 @@ def refresh(node, cacheDir, repos, isKnownOs) {
                 sh "git fetch --all"
             }
         }
-        stage("${node} - GC Repo") {
-            sh "git gc --aggressive --prune=all"
+        if (gc) {
+            stage("${node} - GC Repo") {
+                sh "git gc --aggressive --prune=all"
+            }
         }
     }
 }

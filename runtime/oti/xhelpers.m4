@@ -16,7 +16,7 @@ dnl
 dnl [1] https://www.gnu.org/software/classpath/license.html
 dnl [2] https://openjdk.org/legal/assembly-exception.html
 dnl
-dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 include(jilvalues.m4)
 
@@ -93,7 +93,6 @@ define({SHORT_JMP},{short})
 
 define({FILE_START},{
 	.intel_syntax noprefix
-	.arch pentium4
 	.text
 })
 
@@ -111,7 +110,9 @@ define({START_PROC},{
 	GLOBAL_SYMBOL($1):
 })
 
-define({FILE_END})
+define({FILE_END},{ifdef({LINUX},{
+	.section .note.GNU-stack,"",@progbits
+})})
 
 define({END_PROC},{
 END_$1:

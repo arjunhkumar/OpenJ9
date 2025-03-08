@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "x/codegen/AllocPrefetchSnippet.hpp"
@@ -85,16 +85,19 @@ uint8_t *TR::X86AllocPrefetchSnippet::emitSnippetBody()
       }
    else
       {
-      TR_RuntimeHelper helper = (comp->getOption(TR_EnableNewX86PrefetchTLH)) ? TR_X86newPrefetchTLH : TR_X86prefetchTLH;
-      helperSymRef = cg()->symRefTab()->findOrCreateRuntimeHelper(helper);
+      helperSymRef = cg()->symRefTab()->findOrCreateRuntimeHelper(TR_X86prefetchTLH);
       disp32 = cg()->branchDisplacementToHelperOrTrampoline(buffer-1, helperSymRef);
       if (fej9->needRelocationsForHelpers())
          {
-         cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(buffer,
-                                                                                (uint8_t *)helperSymRef,
-                                                                                TR_HelperAddress,
-                                                                                cg()),
-                                   __FILE__, __LINE__, getNode());
+         cg()->addExternalRelocation(
+            TR::ExternalRelocation::create(
+               buffer,
+               (uint8_t *)helperSymRef,
+               TR_HelperAddress,
+               cg()),
+            __FILE__,
+            __LINE__,
+            getNode());
          }
       }
 
@@ -233,7 +236,7 @@ uint8_t* TR::X86AllocPrefetchSnippet::emitSharedBody(uint8_t* prefetchSnippetBuf
    for (int32_t lineOffset = 0; lineOffset < numLines; ++lineOffset)
       {
       prefetchSnippetBuffer[0] = 0x0F;
-      if (comp->target().cpu.is(OMR_PROCESSOR_X86_AMDFAMILY15H))
+      if (comp->target().cpu.is(OMR_PROCESSOR_X86_AMD_FAMILY15H))
          prefetchSnippetBuffer[1] = 0x0D;
       else
          prefetchSnippetBuffer[1] = 0x18;

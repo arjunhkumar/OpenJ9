@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "errormessage_internal.h"
@@ -356,10 +356,10 @@ prepareVerificationTypeBuffer(StackMapFrame* stackMapFrame, MethodContextInfo* m
 		cpInfo.bytes = (U_8*)methodInfo->signature.bytes;
 		cpInfo.slot1 = (U_32)methodInfo->signature.length;
 
-		/* Calls isInitOrClinitOrNewImpl() to determine whether the method is "<init>", "<clinit>", or "<vnew>".
-		 * It returns 0 if name is a normal name, CFR_METHOD_NAME_INIT if '<init>', CFR_METHOD_NAME_CLINIT if '<clinit>', and CFR_METHOD_NAME_NEW if '<vnew>'
+		/* Calls isInitOrClinitImpl() to determine whether the method is "<init>" or "<clinit>".
+		 * It returns 0 if name is a normal name, CFR_METHOD_NAME_INIT if '<init>' or CFR_METHOD_NAME_CLINIT if '<clinit>'
 		 */
-		if (CFR_METHOD_NAME_INIT == bcvIsInitOrClinitOrNew(&cpInfo)) {
+		if (CFR_METHOD_NAME_INIT == bcvIsInitOrClinit(&cpInfo)) {
 			vrfyType = CFR_STACKMAP_TYPE_INIT_OBJECT;  /* "this" of an <init> method (cfreader.h) */
 		} else {
 			vrfyType = CFR_STACKMAP_TYPE_OBJECT;
@@ -651,11 +651,6 @@ convertBcvToCfrType(MethodContextInfo* methodInfo, StackMapFrame* stackMapFrame,
 	default:
 		{
 			U_8 objTypeTag = CFR_STACKMAP_TYPE_OBJECT;
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-			if (J9_ARE_ALL_BITS_SET(bcvType, BCV_PRIMITIVE_VALUETYPE)) {
-				objTypeTag = CFR_STACKMAP_TYPE_PRIMITIVE_OBJECT;
-			}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 			*currentVerificationTypeEntry = pushVerificationTypeInfo(methodInfo, stackMapFrame, *currentVerificationTypeEntry, objTypeTag, INDEX_CLASSNAMELIST, bcvType);
 			break;
 		}
@@ -868,9 +863,6 @@ mapDataTypeToUTF8String(J9UTF8Ref* dataType, StackMapFrame* stackMapFrame, Metho
 		dataType->arity = (U_8)typeValue;
 		break;
 	case CFR_STACKMAP_TYPE_OBJECT:
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	case CFR_STACKMAP_TYPE_PRIMITIVE_OBJECT:
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	{
 		/* Set the name string for object reference.
 		 * Identify what the type index value is according to the index attribute.
@@ -889,8 +881,8 @@ mapDataTypeToUTF8String(J9UTF8Ref* dataType, StackMapFrame* stackMapFrame, Metho
 
 			dataType->bytes = methodInfo->signature.bytes + typeValue;
 			dataType->length = typeLength;
-			/* Ignore 'L', 'Q', and ';' to get the full string of argument in signature */
-			if (IS_REF_OR_VAL_SIGNATURE(*dataType->bytes)) {
+			/* Ignore 'L' and ';' to get the full string of argument in signature */
+			if (IS_CLASS_SIGNATURE(*dataType->bytes)) {
 				dataType->bytes += 1;
 				dataType->length -= 2;
 			}
@@ -1010,16 +1002,6 @@ printTypeInfoToBuffer(MessageBuffer* buf, U_8 tag, J9UTF8Ref* dataType, BOOLEAN 
 				(dataType->arity > 0) ? 1 : 0, ";"	/* class suffix ';' only when arity > 0 */
 				);
 		break;
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	case CFR_STACKMAP_TYPE_PRIMITIVE_OBJECT:
-		/* Object, init/new object and object 'reference' */
-		printMessage(buf, "'%.*s%.*s%.*s'",
-				 1, "Q",	/* class prefix 'Q' for the primitive object */
-				dataType->length, dataType->bytes,	/* class name */
-				 1, ";"	/* class suffix ';' */
-				);
-		break;
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	default:
 		Assert_VRB_ShouldNeverHappen();
 		break;

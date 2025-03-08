@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "fastJNI.h"
@@ -132,22 +132,12 @@ Fast_java_lang_Class_isPrimitive(J9VMThread *currentThread, j9object_t classObje
 }
 
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-/* java.lang.Class: private native boolean isPrimitiveClass(); */
-jboolean JNICALL
-Fast_java_lang_Class_isPrimitiveClass(J9VMThread *currentThread, j9object_t classObject)
-{
-	J9Class *receiverClazz = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, classObject);
-	bool isPrimitiveClass = J9_IS_J9CLASS_PRIMITIVE_VALUETYPE(receiverClazz);
-	return isPrimitiveClass ? JNI_TRUE : JNI_FALSE;
-}
-
 /* java.lang.Class: private native boolean isIdentity(); */
 jboolean JNICALL
 Fast_java_lang_Class_isIdentity(J9VMThread *currentThread, j9object_t classObject)
 {
 	J9Class *receiverClazz = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, classObject);
-	bool isIdentity = J9ROMCLASS_HAS_IDENTITY(receiverClazz->romClass);
-	return isIdentity ? JNI_TRUE : JNI_FALSE;
+	return J9_IS_J9CLASS_IDENTITY(receiverClazz) ? JNI_TRUE : JNI_FALSE;
 }
 
 /* java.lang.Class: private native int getClassFileVersion0(); */
@@ -261,9 +251,6 @@ J9_FAST_JNI_METHOD_TABLE(java_lang_Class)
 		J9_FAST_JNI_RETAIN_VM_ACCESS | J9_FAST_JNI_NOT_GC_POINT | J9_FAST_JNI_NO_NATIVE_METHOD_FRAME | J9_FAST_JNI_NO_EXCEPTION_THROW |
 		J9_FAST_JNI_NO_SPECIAL_TEAR_DOWN | J9_FAST_JNI_DO_NOT_WRAP_OBJECTS)
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	J9_FAST_JNI_METHOD("isPrimitiveClass", "()Z", Fast_java_lang_Class_isPrimitiveClass,
-		J9_FAST_JNI_RETAIN_VM_ACCESS | J9_FAST_JNI_NOT_GC_POINT | J9_FAST_JNI_NO_NATIVE_METHOD_FRAME | J9_FAST_JNI_NO_EXCEPTION_THROW |
-		J9_FAST_JNI_NO_SPECIAL_TEAR_DOWN | J9_FAST_JNI_DO_NOT_WRAP_OBJECTS)
 	J9_FAST_JNI_METHOD("isIdentity", "()Z", Fast_java_lang_Class_isIdentity,
 		J9_FAST_JNI_RETAIN_VM_ACCESS | J9_FAST_JNI_NOT_GC_POINT | J9_FAST_JNI_NO_NATIVE_METHOD_FRAME | J9_FAST_JNI_NO_EXCEPTION_THROW |
 		J9_FAST_JNI_NO_SPECIAL_TEAR_DOWN | J9_FAST_JNI_DO_NOT_WRAP_OBJECTS)

@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1991
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr;
 
 import static java.util.logging.Level.FINE;
@@ -49,7 +49,7 @@ import javax.imageio.stream.ImageInputStream;
 import com.ibm.j9ddr.logging.LoggerNames;
 
 // TODO: Lazy initializing has been removed.  Need to decide if it stays out.
-public class StructureReader {
+public final class StructureReader {
 	public static final int VERSION = 1;
 	public static final int J9_STRUCTURES_EYECATCHER = 0xFACEDEB8; // eyecatcher / magic identifier for a J9 structure file
 	private Map<String, StructureDescriptor> structures = null;
@@ -63,8 +63,7 @@ public class StructureReader {
 	private static final Logger logger = Logger.getLogger(LoggerNames.LOGGER_STRUCTURE_READER);
 	private StructureHeader header;
 
-	@SuppressWarnings("rawtypes")
-	public static final Class<?>[] STRUCTURE_CONSTRUCTOR_SIGNATURE = new Class[] { Long.TYPE };
+	public static final Class<?>[] STRUCTURE_CONSTRUCTOR_SIGNATURE = new Class<?>[] { Long.TYPE };
 	public static final byte BIT_FIELD_FORMAT_LITTLE_ENDIAN = 1;
 	public static final byte BIT_FIELD_FORMAT_BIG_ENDIAN = 2;
 	public static final int BIT_FIELD_CELL_SIZE = 32;

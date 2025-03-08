@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.diagnostics.utils.commands;
 
 import java.io.PrintStream;
@@ -37,7 +37,7 @@ public interface ICommand {
 	 * @return True if this command object can process the supplied command, commands should not assume that returning true will guarantee a subsequent invocation
 	 */
 	public boolean recognises(String command, IContext context);
-	
+
 	/**
 	 * Executes the command
 	 * @param command Command string e.g. !j9x
@@ -47,21 +47,20 @@ public interface ICommand {
 	 * @throws CommandException If there is any problem running the command (incorrect usage, CorruptData etc.)
 	 */
 	public void run(String command, String[] args, IContext context, PrintStream out) throws CommandException;
-	
+
 	/**
 	 * @return Strings to be inserted in help output
 	 */
 	public Collection<String> getCommandDescriptions();
-	
 
-    /**
-     * @return Strings containing command names
-     */
+	/**
+	 * @return Strings containing command names
+	 */
 	public Collection<String> getCommandNames();
-	
+
 	/**
 	 * Identifies the configuration from which this command was created.
-	 * 
+	 *
 	 * @return configuration for this command
 	 */
 	public PluginConfig getConfig();

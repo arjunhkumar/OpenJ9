@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "clang_comp.h"
@@ -59,7 +59,7 @@ getMethodName(J9PortLibrary *PORTLIB, J9Method *method, U_8 *pc, char *buffer)
 	char temp[1024];
 	buffer[0] = '\0';
 	if ((UDATA)pc <= J9SF_MAX_SPECIAL_FRAME_TYPE) {
-		j9str_printf(PORTLIB, temp, sizeof(temp), "SPECIAL %d", pc);
+		j9str_printf(temp, sizeof(temp), "SPECIAL %d", pc);
 		strcat(buffer, temp);
 #if defined(J9VM_OPT_METHOD_HANDLE)
 	} else if (((U_8*)-1 != pc) && (JBimpdep1 == *pc)) {
@@ -70,7 +70,7 @@ getMethodName(J9PortLibrary *PORTLIB, J9Method *method, U_8 *pc, char *buffer)
 	} else if (((U_8*)-1 != pc) && (((*pc >= JBretFromNative0) && (*pc <= JBreturnFromJ2I)) || (JBreturnFromJ2I == *pc))) {
 		strcat(buffer, "JITRETURN");
 	} else if (NULL == method->bytecodes) {
-		j9str_printf(PORTLIB, temp, sizeof(temp), "(no bytecodes) (%p)", method);
+		j9str_printf(temp, sizeof(temp), "(no bytecodes) (%p)", method);
 		strcat(buffer, temp);
 	} else {
 		J9UTF8 *className = J9ROMCLASS_CLASSNAME(J9_CLASS_FROM_METHOD(method)->romClass);
@@ -81,16 +81,16 @@ getMethodName(J9PortLibrary *PORTLIB, J9Method *method, U_8 *pc, char *buffer)
 			if ((UDATA)method->constantPool & J9_STARTPC_JNI_NATIVE) {
 				strcat(buffer, "JNI ");
 			} else {
-				strcat(buffer, "INL ");			
+				strcat(buffer, "INL ");
 			}
 		}
 		if (0 == ((UDATA)method->extra & 1)) {
 			strcat(buffer, "JITTED ");
 		}
-		j9str_printf(PORTLIB, temp, sizeof(temp), "%.*s.%.*s%.*s (%p)", J9UTF8_LENGTH(className), J9UTF8_DATA(className), J9UTF8_LENGTH(methodName), J9UTF8_DATA(methodName), J9UTF8_LENGTH(methodSig), J9UTF8_DATA(methodSig), method);
+		j9str_printf(temp, sizeof(temp), "%.*s.%.*s%.*s (%p)", J9UTF8_LENGTH(className), J9UTF8_DATA(className), J9UTF8_LENGTH(methodName), J9UTF8_DATA(methodName), J9UTF8_LENGTH(methodSig), J9UTF8_DATA(methodSig), method);
 		strcat(buffer, temp);
 		if ((U_8*)-1 != pc) {
-			j9str_printf(PORTLIB, temp, sizeof(temp), " @ %p (offset %d)", pc, pc - method->bytecodes);
+			j9str_printf(temp, sizeof(temp), " @ %p (offset %d)", pc, pc - method->bytecodes);
 			strcat(buffer, temp);
 		}
 	}

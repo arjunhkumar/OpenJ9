@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 
@@ -42,6 +42,9 @@ J9::StaticSymbol::makeMethodTypeTableEntry(int32_t methodTypeIndex)
    TR_ASSERT(self()->getDataType() == TR::Address, "MethodTypeTableEntries have historically had TR::Address as data type");
    _methodTypeIndex = methodTypeIndex;
    self()->setMethodTypeTableEntry();
+
+   // Needed so that the relo infra does not think this is a static field address
+   self()->setNotDataAddress();
    }
 
 inline void
@@ -50,6 +53,9 @@ J9::StaticSymbol::makeCallSiteTableEntry(int32_t callSiteIndex)
    TR_ASSERT(self()->getDataType() == TR::Address, "CallSiteTableEntries have historically had TR::Address as data type");
    _callSiteIndex = callSiteIndex;
    self()->setCallSiteTableEntry();
+
+   // Needed so that the relo infra does not think this is a static field address
+   self()->setNotDataAddress();
    }
 
 

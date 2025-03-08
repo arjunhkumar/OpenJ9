@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "codegen/AheadOfTimeCompile.hpp"
@@ -76,6 +76,43 @@ J9::ARM64::CodeGenerator::initialize()
       {
       comp->setOption(TR_EnableMonitorCacheLookup);
       }
+
+   static bool disableInlineVectorizedMismatch = feGetEnv("TR_disableInlineVectorizedMismatch") != NULL;
+   if (cg->getSupportsArrayCmpLen() &&
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+         !TR::Compiler->om.isOffHeapAllocationEnabled() &&
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
+         !disableInlineVectorizedMismatch)
+      {
+      cg->setSupportsInlineVectorizedMismatch();
+      }
+   if ((!TR::Compiler->om.canGenerateArraylets()) && (!comp->getOption(TR_DisableSIMDStringHashCode)) && !TR::Compiler->om.isOffHeapAllocationEnabled())
+      {
+      cg->setSupportsInlineStringHashCode();
+      }
+   if ((!TR::Compiler->om.canGenerateArraylets()) && (!comp->getOption(TR_DisableFastStringIndexOf)) && !TR::Compiler->om.isOffHeapAllocationEnabled())
+      {
+      cg->setSupportsInlineStringIndexOf();
+      }
+   static bool disableInlineStringLatin1Inflate = feGetEnv("TR_disableInlineStringLatin1Inflate") != NULL;
+   if ((!TR::Compiler->om.canGenerateArraylets()) && (!disableInlineStringLatin1Inflate) && !TR::Compiler->om.isOffHeapAllocationEnabled())
+      {
+      cg->setSupportsInlineStringLatin1Inflate();
+      }
+   if (comp->fej9()->hasFixedFrameC_CallingConvention())
+      cg->setHasFixedFrameC_CallingConvention();
+
+   static bool disableCASInlining = feGetEnv("TR_DisableCASInlining") != NULL;
+   if (!disableCASInlining)
+      {
+      cg->setSupportsInlineUnsafeCompareAndSet();
+      }
+
+   static bool disableCAEInlining = feGetEnv("TR_DisableCAEInlining") != NULL;
+   if (!disableCAEInlining)
+      {
+      cg->setSupportsInlineUnsafeCompareAndExchange();
+      }
    }
 
 TR::Linkage *
@@ -126,11 +163,15 @@ J9::ARM64::CodeGenerator::encodeHelperBranchAndLink(TR::SymbolReference *symRef,
                       "Target address is out of range");
       }
 
-   cg->addExternalRelocation(new (cg->trHeapMemory()) TR::ExternalRelocation(
-                             cursor,
-                             (uint8_t *)symRef,
-                             TR_HelperAddress, cg),
-                             __FILE__, __LINE__, node);
+   cg->addExternalRelocation(
+      TR::ExternalRelocation::create(
+         cursor,
+         (uint8_t *)symRef,
+         TR_HelperAddress,
+         cg),
+      __FILE__,
+      __LINE__,
+      node);
 
    uintptr_t distance = target - (uintptr_t)cursor;
    return TR::InstOpCode::getOpCodeBinaryEncoding(omitLink ? (TR::InstOpCode::b) : (TR::InstOpCode::bl)) | ((distance >> 2) & 0x3ffffff); /* imm26 */
@@ -237,7 +278,14 @@ J9::ARM64::CodeGenerator::suppressInliningOfRecognizedMethod(TR::RecognizedMetho
    if (method == TR::java_util_zip_CRC32C_updateBytes ||
        method == TR::java_util_zip_CRC32C_updateDirectByteBuffer)
       {
-      return (!TR::Compiler->om.canGenerateArraylets()) && comp->target().cpu.supportsFeature(OMR_FEATURE_ARM64_CRC32) && (!disableCRC32);
+      return (!TR::Compiler->om.canGenerateArraylets() && !TR::Compiler->om.isOffHeapAllocationEnabled()) && comp->target().cpu.supportsFeature(OMR_FEATURE_ARM64_CRC32) && (!disableCRC32);
       }
    return false;
+   }
+
+bool
+J9::ARM64::CodeGenerator::callUsesHelperImplementation(TR::Symbol *sym)
+   {
+   return sym && (!self()->comp()->getOption(TR_DisableInliningOfNatives) &&
+          sym->castToMethodSymbol()->getMandatoryRecognizedMethod() == TR::java_lang_invoke_ComputedCalls_dispatchJ9Method);
    }

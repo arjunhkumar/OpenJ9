@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdlib.h>
@@ -47,7 +47,7 @@ static void cfdumpBytecodePrintFunction (void *userData, char *format, ...);
 
 IDATA j9bcutil_dumpBytecodes(J9PortLibrary * portLib, J9ROMClass * romClass,
 							 U_8 * bytecodes, UDATA walkStartPC, UDATA walkEndPC,
-							 UDATA flags, void *printFunction, void *userData, char *indent)
+							 UDATA flags, void *printFunction, void *userData, UDATA indentLen)
 {
 	PORT_ACCESS_FROM_PORT(portLib);
 	DISASSEMBLY_PRINT_FN outputFunction = (DISASSEMBLY_PRINT_FN) printFunction;
@@ -166,7 +166,7 @@ IDATA j9bcutil_dumpBytecodes(J9PortLibrary * portLib, J9ROMClass * romClass,
 			}
 		}
 		_GETNEXT_U8(bc, bcIndex);
-		outputFunction(userData, "%s%5i %s ", indent, pc, JavaBCNames[bc]);
+		outputFunction(userData, "%*s%5i %s ", indentLen, "", pc, JavaBCNames[bc]);
 		start = pc;
 		pc++;
 		switch (bc) {
@@ -387,9 +387,6 @@ IDATA j9bcutil_dumpBytecodes(J9PortLibrary * portLib, J9ROMClass * romClass,
 		case JBputstatic:
 		case JBgetfield:
 		case JBputfield:
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		case JBwithfield:
-#endif
 			_GETNEXT_U16(index, bcIndex);
 			info = &constantPool[index];
 			outputFunction(userData, "%i ", index);
@@ -471,9 +468,6 @@ IDATA j9bcutil_dumpBytecodes(J9PortLibrary * portLib, J9ROMClass * romClass,
 		case JBanewarray:
 		case JBcheckcast:
 		case JBinstanceof:
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		case JBaconst_init:
-#endif
 			_GETNEXT_U16(index, bcIndex);
 			info = &constantPool[index];
 			outputFunction(userData, "%i ", index);
@@ -575,7 +569,7 @@ IDATA dumpBytecodes(J9PortLibrary * portLib, J9ROMClass * romClass, J9ROMMethod 
 	return j9bcutil_dumpBytecodes(portLib, romClass,
 								  J9_BYTECODE_START_FROM_ROM_METHOD(romMethod), 0,
 								  length - 1, flags,
-								  (void *) cfdumpBytecodePrintFunction, portLib, "");
+								  (void *) cfdumpBytecodePrintFunction, portLib, 0);
 }
 
 

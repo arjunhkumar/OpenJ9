@@ -18,7 +18,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <flags xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.ibm.com/j9/builder/flags" xsi:schemaLocation="http://www.ibm.com/j9/builder/flags flags-v1.xsd">
 	<flag id="arch_aarch64">
@@ -185,14 +185,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		<description>BuildSpec represents a Java 9x configuration.</description>
 		<ifRemoved></ifRemoved>
 	</flag>
-	<flag id="build_openj9">
-		<description>Buildspec compiles sources with openjdk.</description>
-		<ifRemoved>Openj9 clone,make jobs longer run on this buildspec.</ifRemoved>
-	</flag>
-	<flag id="build_openj9JDK8">
-		<description>Buildspec compiles sources with openjdk-jdk8.</description>
-		<ifRemoved>OpenJ9 compile job, sanity and extended tests no longer run on this buildspec.</ifRemoved>
-	</flag>
 	<flag id="build_ouncemake">
 		<description>Buildspec compiles source using ouncemake for appscan.</description>
 		<ifRemoved>Ouncemake compile jobs will no longer run on this buildspec.</ifRemoved>
@@ -353,7 +345,7 @@ Currently only available on linux_x86 and win_x96 32 bit builds.</description>
 		<description>Set on double map. Allows LINUX systems to double map arrays that are stored as arraylets.
 When enabled, a contiguous block of memory is created for each array which data surpasses the size of a region. This contiguous block represents the array as
 if the data was stored in a contiguous region of memory. All of the array data will be stored at their own region (not with spine); hence, all arraylets
-become discontiguous whenever this flag is enabled. Since there won’t be any empty arraylet leaves, then arrayoid NULL pointers are no longer required since
+become discontiguous whenever this flag is enabled. Since there won't be any empty arraylet leaves, then arrayoid NULL pointers are no longer required since
 all data is stored in their own region. It additionaly reduces footprint, mainly for JNI primitive array critical.</description>
 		<ifRemoved></ifRemoved>
 		<requires>
@@ -536,6 +528,13 @@ all data is stored in their own region. It additionaly reduces footprint, mainly
 		<description>Enable Segregated Heap model.</description>
 		<ifRemoved>The Segregated Heap model will not be used</ifRemoved>
 	</flag>
+	<flag id="gc_sparseHeapAllocation">
+		<description>Allows large arrays to be allocated off-heap</description>
+		<ifRemoved></ifRemoved>
+		<requires>
+			<require flag="env_data64"/>
+		</requires>
+	</flag>
 	<flag id="gc_strictOmr">
 		<description>Enable Strict OMR compile and link for testing</description>
 		<ifRemoved>Compile for JAVA</ifRemoved>
@@ -658,10 +657,6 @@ all data is stored in their own region. It additionaly reduces footprint, mainly
 		<ifRemoved>This spec will not run any tests and will be a "build only" spec</ifRemoved>
 	</flag>
 	<flag id="graph_enableTesting_Java8">
-		<description>Indicates that this spec should run automated testing jobs in the nightly build</description>
-		<ifRemoved>This spec will not run any tests and will be a "build only" spec</ifRemoved>
-	</flag>
-	<flag id="graph_enableTesting_Panama">
 		<description>Indicates that this spec should run automated testing jobs in the nightly build</description>
 		<ifRemoved>This spec will not run any tests and will be a "build only" spec</ifRemoved>
 	</flag>
@@ -1701,9 +1696,13 @@ Only available on zOS</description>
 		<description>Controls if the VM includes support for java.math.BigInteger natives.</description>
 		<ifRemoved>No java.math.BigInteger natives available.</ifRemoved>
 	</flag>
+	<flag id="opt_cracSupport">
+		<description>Enables support for CRaC Java APIs</description>
+		<ifRemoved>No support for CRaC Java APIs</ifRemoved>
+	</flag>
 	<flag id="opt_criuSupport">
-		<description>Enables support for CRIU Java API's</description>
-		<ifRemoved>No support for CRIU Java API's</ifRemoved>
+		<description>Enables support for CRIU Java APIs</description>
+		<ifRemoved>No support for CRIU Java APIs</ifRemoved>
 	</flag>
 	<flag id="opt_cuda">
 		<description>Add support for CUDA</description>
@@ -1757,6 +1756,10 @@ Only available on zOS</description>
 		<requires>
 			<require flag="module_ifa"/>
 		</requires>
+	</flag>
+	<flag id="opt_jfr">
+		<description>Enables support for JFR</description>
+		<ifRemoved>No support for JFR</ifRemoved>
 	</flag>
 	<flag id="opt_jitserver">
 		<description>JITServer support is enabled in the buildspec.</description>
@@ -1824,17 +1827,17 @@ Only available on zOS</description>
 		<description>Enables support for @Packed types (Structs)</description>
 		<ifRemoved>No support for @Packed types (Structs)</ifRemoved>
 	</flag>
-	<flag id="opt_panama">
-		<description>Enables support for Project Panama features such as native method handles</description>
-		<ifRemoved>No support for Project Panama features such as native method handles</ifRemoved>
-	</flag>
 	<flag id="opt_openjdkFfi">
 		<description>Enables support for Foreign Linker API (part of Project Panama) such as native invocations to ffi_call</description>
 		<ifRemoved>No support for Foreign Linker API</ifRemoved>
 	</flag>
 	<flag id="opt_valhallaValueTypes">
-		<description>Enables support for Project Valhalla L-World Value Types</description>
-		<ifRemoved>No support for Project Valhalla L-World Value Types</ifRemoved>
+		<description>Enables support for Project Valhalla Value Objects</description>
+		<ifRemoved>No support for Project Valhalla Value Objects</ifRemoved>
+	</flag>
+	<flag id="opt_valhallaFlattenableValueTypes">
+		<description>Enables support for Project Valhalla L-World Flattenable Value Types</description>
+		<ifRemoved>No support for Project Valhalla L-World Flattenable Value Types</ifRemoved>
 	</flag>
 	<flag id="opt_phpSupport">
 		<description>Support for PHP interpreter.</description>
@@ -1858,12 +1861,23 @@ Only available on zOS</description>
 			<require flag="interp_jniSupport"/>
 		</requires>
 	</flag>
+	<flag id="opt_shrMsyncSupport">
+		<description>Support for synchronizing memory with physical storage in shared classes cache</description>
+		<ifRemoved>No support for synchronizing memory with physical storage in shared classes cache</ifRemoved>
+		<requires>
+			<require flag="opt_sharedClasses"/>
+		</requires>
+	</flag>
 	<flag id="opt_sidecar">
 		<description>Determines if sidecar files are built.</description>
 		<ifRemoved>Standard J9 VM only - no sidecar support</ifRemoved>
 		<requires>
 			<require flag="interp_jniSupport"/>
 		</requires>
+	</flag>
+	<flag id="opt_snapshots">
+		<description>Enable support for RAM class snapshot images</description>
+		<ifRemoved>Disable support for RAM class snapshot images</ifRemoved>
 	</flag>
 	<flag id="opt_srpAvlTreeSupport">
 		<description>Include support for AVL trees with SRPs</description>
@@ -1946,6 +1960,10 @@ Pass J9PORT_SIG_OPTIONS_ZOS_USE_CEEHDLR into j9sig_set_options() before the firs
 		<requires>
 			<require flag="port_signalSupport"/>
 		</requires>
+	</flag>
+	<flag id="prof_continuationAllocation">
+		<description>display Continuation cache usage and timing</description>
+		<ifRemoved>no report of Continuation allocation timing</ifRemoved>
 	</flag>
 	<flag id="prof_countArgsTemps">
 		<description>display a count of args/temps usage for loaded methods</description>

@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.pointer.helper;
 
 import java.util.HashMap;
@@ -70,7 +70,7 @@ public class J9ClassLoaderHelper
 		
 		int arity = calculateClassArity(signature);
 
-		if ((arity > 0) && !J9ClassHelper.isRefOrValSignature(signature.charAt(arity))) {
+		if ((arity > 0) && !J9ClassHelper.isClassSignature(signature.charAt(arity))) {
 			return PRIMITIVE_TO_CLASS.get(signature.charAt(arity));			
 		} else {		
 			while (classIterator.hasNext()) {

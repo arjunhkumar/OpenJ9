@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9cfg.h"
@@ -48,20 +48,26 @@
 void
 MM_ScavengerRootScanner::startContinuationProcessing(MM_EnvironmentBase *env)
 {
-	if(J9MODRON_HANDLE_NEXT_WORK_UNIT(env)) {
+	if (J9MODRON_HANDLE_NEXT_WORK_UNIT(env)) {
 		_scavengerDelegate->setShouldScavengeContinuationObjects(false);
+		_scavengerDelegate->setShouldIterateContinuationObjects(false);
 
 		MM_HeapRegionDescriptorStandard *region = NULL;
 		GC_HeapRegionIteratorStandard regionIterator(env->getExtensions()->getHeap()->getHeapRegionManager());
-		while(NULL != (region = regionIterator.nextRegion())) {
-			if ((MEMORY_TYPE_NEW == (region->getTypeFlags() & MEMORY_TYPE_NEW))) {
-				MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
-				for (UDATA i = 0; i < regionExtension->_maxListIndex; i++) {
-					MM_ContinuationObjectList *list = &regionExtension->_continuationObjectLists[i];
+		while (NULL != (region = regionIterator.nextRegion())) {
+			MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
+			for (uintptr_t i = 0; i < regionExtension->_maxListIndex; i++) {
+				MM_ContinuationObjectList *list = &regionExtension->_continuationObjectLists[i];
+				if (!list->isEmpty()) {
+					_scavengerDelegate->setShouldIterateContinuationObjects(true);
+				}
+				if ((MEMORY_TYPE_NEW == (region->getTypeFlags() & MEMORY_TYPE_NEW))) {
 					list->startProcessing();
 					if (!list->wasEmpty()) {
 						_scavengerDelegate->setShouldScavengeContinuationObjects(true);
 					}
+				} else {
+					list->backupList();
 				}
 			}
 		}
@@ -72,15 +78,15 @@ MM_ScavengerRootScanner::startContinuationProcessing(MM_EnvironmentBase *env)
 void
 MM_ScavengerRootScanner::startUnfinalizedProcessing(MM_EnvironmentBase *env)
 {
-	if(J9MODRON_HANDLE_NEXT_WORK_UNIT(env)) {
+	if (J9MODRON_HANDLE_NEXT_WORK_UNIT(env)) {
 		_scavengerDelegate->setShouldScavengeUnfinalizedObjects(false);
 
 		MM_HeapRegionDescriptorStandard *region = NULL;
 		GC_HeapRegionIteratorStandard regionIterator(env->getExtensions()->getHeap()->getHeapRegionManager());
-		while(NULL != (region = regionIterator.nextRegion())) {
+		while (NULL != (region = regionIterator.nextRegion())) {
 			if ((MEMORY_TYPE_NEW == (region->getTypeFlags() & MEMORY_TYPE_NEW))) {
 				MM_HeapRegionDescriptorStandardExtension *regionExtension = MM_ConfigurationDelegate::getHeapRegionDescriptorStandardExtension(env, region);
-				for (UDATA i = 0; i < regionExtension->_maxListIndex; i++) {
+				for (uintptr_t i = 0; i < regionExtension->_maxListIndex; i++) {
 					MM_UnfinalizedObjectList *list = &regionExtension->_unfinalizedObjectLists[i];
 					list->startUnfinalizedProcessing();
 					if (!list->wasEmpty()) {
@@ -95,7 +101,7 @@ MM_ScavengerRootScanner::startUnfinalizedProcessing(MM_EnvironmentBase *env)
 void
 MM_ScavengerRootScanner::scavengeFinalizableObjects(MM_EnvironmentStandard *env)
 {
-	GC_FinalizeListManager * const finalizeListManager = _extensions->finalizeListManager;
+	GC_FinalizeListManager *const finalizeListManager = _extensions->finalizeListManager;
 	bool const compressed = _extensions->compressObjectReferences();
 
 	/* this code must be run single-threaded and we should only be here if work is actually required */
@@ -109,7 +115,7 @@ MM_ScavengerRootScanner::scavengeFinalizableObjects(MM_EnvironmentStandard *env)
 		omrobjectptr_t systemObject = finalizeListManager->resetSystemFinalizableObjects();
 		while (NULL != systemObject) {
 			omrobjectptr_t next = NULL;
-			if(_scavenger->isObjectInEvacuateMemory(systemObject)) {
+			if (_scavenger->isObjectInEvacuateMemory(systemObject)) {
 				MM_ForwardedHeader forwardedHeader(systemObject, compressed);
 				if (!forwardedHeader.isForwardedPointer()) {
 					next = _extensions->accessBarrier->getFinalizeLink(systemObject);
@@ -141,7 +147,7 @@ MM_ScavengerRootScanner::scavengeFinalizableObjects(MM_EnvironmentStandard *env)
 		omrobjectptr_t defaultObject = finalizeListManager->resetDefaultFinalizableObjects();
 		while (NULL != defaultObject) {
 			omrobjectptr_t next = NULL;
-			if(_scavenger->isObjectInEvacuateMemory(defaultObject)) {
+			if (_scavenger->isObjectInEvacuateMemory(defaultObject)) {
 				MM_ForwardedHeader forwardedHeader(defaultObject, compressed);
 				if (!forwardedHeader.isForwardedPointer()) {
 					next = _extensions->accessBarrier->getFinalizeLink(defaultObject);
@@ -173,7 +179,7 @@ MM_ScavengerRootScanner::scavengeFinalizableObjects(MM_EnvironmentStandard *env)
 		omrobjectptr_t referenceObject = finalizeListManager->resetReferenceObjects();
 		while (NULL != referenceObject) {
 			omrobjectptr_t next = NULL;
-			if(_scavenger->isObjectInEvacuateMemory(referenceObject)) {
+			if (_scavenger->isObjectInEvacuateMemory(referenceObject)) {
 				MM_ForwardedHeader forwardedHeader(referenceObject, compressed);
 				if (!forwardedHeader.isForwardedPointer()) {
 					next = _extensions->accessBarrier->getReferenceLink(referenceObject);

@@ -17,7 +17,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 
@@ -28,6 +28,10 @@ follow when reviewing and merging pull requests and issues. It also provides
 a checklist of items that committers must ensure have been completed prior to
 merging a pull request.
 
+Committers should be aware of the
+[Eclipse Foundation Generative Artificial Intelligence Usage Guidelines](https://www.eclipse.org/projects/guidelines/genai/)
+as well as the
+[Eclipse OpenJ9 Generative Artificial Intelligence Usage Guidelines](/CONTRIBUTING.md#Generative-Artificial-Intelligence-Usage-Guidelines).
 
 ## General Guidelines
 
@@ -131,16 +135,17 @@ possible between them.
     build.  This ensures that the two changes put together would pass
     an OMR Acceptance build if one were launched.
     ```
-    Jenkins test sanity all jdk8,jdk11,jdk17 depends eclipse/omr#{OMR PR number}
+    Jenkins test sanity.functional,sanity.openjdk all jdk8,jdk11,jdk17,jdk21 depends eclipse/omr#{OMR PR number}
     ```
     Before proceeding with the coordinated merge, you must ensure that
     the build is successful and that it was performed relatively
     recently (generally within a day of a successful build).
 
     It is strongly recommended that you check that the tips of the
-    `eclipse-openj9/openj9-omr` [`master`](https://github.com/eclipse-openj9/openj9-omr/tree/master)
-    and [`openj9`](https://github.com/eclipse-openj9/openj9-omr/tree/openj9)
-    branches are the same before proceeding.  If they are different,
+    `eclipse-openj9/openj9-omr` [`master`](https://github.com/eclipse-openj9/openj9-omr/tree/master),
+    `eclipse-openj9/openj9-omr` [`openj9`](https://github.com/eclipse-openj9/openj9-omr/tree/openj9)
+    and `eclipse-omr/omr` [`master`](https://github.com/eclipse-omr/omr/tree/master)
+    branches are all the same before proceeding.  If they are different,
     be aware that you will be introducing other OMR changes that have
     not yet passed an OMR Acceptance build.  While not strictly
     required for the following steps to succeed, you should use your
@@ -166,9 +171,10 @@ possible between them.
     necessary to wait for this build to finish because an equivalent
     of the OMR Acceptance Build was already tested in Step 1.
 
-7.  Verify that the `master` branch of the `eclipse-openj9/openj9-omr` repo
-    contains the Eclipse OMR commit you merged in Step 3.  Make note
-    of the commit SHA for Step 8.
+7.  Verify that the [master branch](https://github.com/eclipse-openj9/openj9-omr/commits/master)
+    of the [eclipse-openj9/openj9-omr](https://github.com/eclipse-openj9/openj9-omr)
+    repo contains the Eclipse OMR commit you merged in Step 3.
+    Make note of the commit SHA for Step 8.
 
 8.  Launch a ["Promote_OMR"](https://openj9-jenkins.osuosl.org/job/Promote_OMR/)
     job on the SHA of the commit that was just merged in the Eclipse

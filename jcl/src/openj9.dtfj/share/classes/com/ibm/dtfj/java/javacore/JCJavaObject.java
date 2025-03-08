@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.javacore;
 
 import java.util.Collections;
@@ -36,12 +36,12 @@ import com.ibm.dtfj.java.JavaHeap;
 import com.ibm.dtfj.java.JavaObject;
 
 public class JCJavaObject implements JavaObject {
-	
+
 	private final ImagePointer fAddress;
 	private final JavaClass fJavaClass;
-	
+
 	private Vector fSections;
-	
+
 	public JCJavaObject(ImagePointer address, JavaClass javaClass) throws JCInvalidArgumentsException {
 		if (address == null) {
 			throw new JCInvalidArgumentsException("Must have a valid object ID");
@@ -52,39 +52,35 @@ public class JCJavaObject implements JavaObject {
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	public void arraycopy(int arg0, Object arg1, int arg2, int arg3) throws CorruptDataException, MemoryAccessException {
 		throw new CorruptDataException(new JCCorruptData("No array support implemented", null));
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public int getArraySize() throws CorruptDataException {
 		throw new CorruptDataException(new JCCorruptData("No array support implemented", null));
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public long getHashcode() throws DataUnavailable, CorruptDataException {
 		throw new DataUnavailable("No hashCode for object");
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public ImagePointer getID() {
 		return fAddress;
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public JavaClass getJavaClass() throws CorruptDataException {
 		if (fJavaClass == null) {
@@ -93,32 +89,29 @@ public class JCJavaObject implements JavaObject {
 		return fJavaClass;
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public long getPersistentHashcode() throws DataUnavailable, CorruptDataException {
 		throw new DataUnavailable("No hashCode for object");
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public Iterator getSections() {
 		return fSections.iterator();
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	public long getSize() throws CorruptDataException {
 		throw new CorruptDataException(new JCCorruptData("Size computation not supported", null));
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public boolean isArray() throws CorruptDataException {
 		JavaClass type = getJavaClass();

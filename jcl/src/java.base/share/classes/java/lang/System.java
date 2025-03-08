@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang;
 
 import com.ibm.oti.util.Msg;
@@ -35,32 +35,42 @@ import java.security.*;
 import java.lang.reflect.Method;
 import java.lang.reflect.Constructor;
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+import jdk.internal.javac.Restricted;
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 import jdk.internal.misc.Unsafe;
-/*[IF JAVA_SPEC_VERSION >= 12]*/
+/*[IF JAVA_SPEC_VERSION > 11]*/
 import jdk.internal.access.SharedSecrets;
-/*[ELSE] JAVA_SPEC_VERSION >= 12
+/*[ELSE] JAVA_SPEC_VERSION > 11
 import jdk.internal.misc.SharedSecrets;
-/*[ENDIF] JAVA_SPEC_VERSION >= 12 */
+/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 import jdk.internal.misc.VM;
 import java.lang.StackWalker.Option;
 import jdk.internal.reflect.Reflection;
 import jdk.internal.reflect.CallerSensitive;
 import java.util.*;
 import java.util.function.*;
-/*[ELSE]
+import com.ibm.gpu.spi.GPUAssist;
+import com.ibm.gpu.spi.GPUAssistHolder;
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 import sun.misc.Unsafe;
 import sun.misc.SharedSecrets;
 import sun.misc.VM;
 import sun.reflect.CallerSensitive;
-/*[ENDIF]*/
-/*[IF Sidecar19-SE]*/
-import com.ibm.gpu.spi.GPUAssist;
-import com.ibm.gpu.spi.GPUAssistHolder;
-/*[ENDIF] Sidecar19-SE */
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 /*[IF PLATFORM-mz31 | PLATFORM-mz64 | !Sidecar18-SE-OpenJ9]*/
 import com.ibm.jvm.io.ConsolePrintStream;
 /*[ENDIF] PLATFORM-mz31 | PLATFORM-mz64 | !Sidecar18-SE-OpenJ9 */
+
+/*[IF JAVA_SPEC_VERSION >= 20]*/
+import java.lang.reflect.Field;
+import jdk.internal.util.SystemProps;
+/*[ENDIF] JAVA_SPEC_VERSION >= 20 */
+
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+import java.net.URL;
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
 /**
  * Class System provides a standard place for programs
@@ -92,14 +102,14 @@ public final class System {
 	 * Default error output stream
 	 */
 	public static final PrintStream err = null;
-	/*[IF JAVA_SPEC_VERSION >= 17] */
+	/*[IF JAVA_SPEC_VERSION >= 17]*/
 	// The initial err to print SecurityManager related warning messages
 	static PrintStream initialErr;
 	// Show only one setSecurityManager() warning message for each caller
 	private static Map<Class<?>, Object> setSMCallers;
 	/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
 
-	/*[IF JAVA_SPEC_VERSION > 11] */
+	/*[IF JAVA_SPEC_VERSION > 11]*/
 	/**
 	 * setSecurityManager() should throw UnsupportedOperationException
 	 * if throwUOEFromSetSM is set to true.
@@ -114,10 +124,12 @@ public final class System {
 	 */
 	private static Properties systemProperties;
 
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	/**
 	 * The System default SecurityManager.
 	 */
 	private static SecurityManager security;
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 	private static volatile Console console;
 	private static volatile boolean consoleInitialized;
@@ -126,22 +138,34 @@ public final class System {
 
 	private static boolean propertiesInitialized;
 
-	private static String platformEncoding;
-	private static String fileEncoding;
-	private static String osEncoding;
-
-	private static final int sysPropID_PlatformEncoding = 1;
-	private static final int sysPropID_FileEncoding = 2;
-	private static final int sysPropID_OSEncoding = 3;
 	/*[IF JAVA_SPEC_VERSION >= 17]*/
 	private static final int sysPropID_OSVersion = 0;
 	private static final String sysPropOSVersion;
 	/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
 
+	private static final int sysPropID_PlatformEncoding = 1;
+	private static String platformEncoding;
+
+	private static final int sysPropID_FileEncoding = 2;
+	private static String fileEncoding;
+
+	private static final int sysPropID_OSEncoding = 3;
+	private static String osEncoding;
+
+	private static final int sysPropID_DefaultTmpDir = 4;
+	private static String defaultTmpDir;
+
+	/*[IF (JAVA_SPEC_VERSION >= 21) & (PLATFORM-mz31 | PLATFORM-mz64)]*/
+	private static final int sysPropID_zOSAutoConvert = 5;
+	private static String zOSAutoConvert;
+	/*[ENDIF] (JAVA_SPEC_VERSION >= 21) & (PLATFORM-mz31 | PLATFORM-mz64) */
+
 	/*[IF JAVA_SPEC_VERSION >= 11]*/
 	private static boolean hasSetErrEncoding;
 	private static boolean hasSetOutEncoding;
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	private static String consoleDefaultEncoding;
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	/* The consoleDefaultCharset is different from the default console encoding when the encoding
 	 * doesn't exist, or isn't available at startup. Some character sets are not available in the
 	 * java.base module, there are more in the jdk.charsets module, and so are not used at startup.
@@ -153,9 +177,9 @@ public final class System {
 	private static String stderrProp;
 	/*[ENDIF] JAVA_SPEC_VERSION >= 19 */
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 	static java.lang.ModuleLayer	bootLayer;
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 	// Initialize all the slots in System on first use.
 	static {
@@ -189,6 +213,15 @@ public final class System {
 		if (osEncoding == null) {
 			osEncoding = definedOSEncoding;
 		}
+		defaultTmpDir = getSysPropBeforePropertiesInitialized(sysPropID_DefaultTmpDir);
+
+		/*[IF (JAVA_SPEC_VERSION >= 21) & (PLATFORM-mz31 | PLATFORM-mz64)]*/
+		/* As part of better handling of JEP400 constraints on z/OS, the com.ibm.autocvt property
+		 * determines whether we convert input file I/O based on file tagging. If not explicitly specified,
+		 * the property defaults to true, unless file.encoding is set to COMPAT.
+		 */
+		zOSAutoConvert = getSysPropBeforePropertiesInitialized(sysPropID_zOSAutoConvert);
+		/*[ENDIF] (JAVA_SPEC_VERSION >= 21) & (PLATFORM-mz31 | PLATFORM-mz64) */
 	}
 
 	/*[IF JAVA_SPEC_VERSION >= 11]*/
@@ -197,7 +230,9 @@ public final class System {
 	 * if different from the default console Charset.
 	 *
 	 * consoleDefaultCharset must be initialized before calling.
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * consoleDefaultEncoding must be initialized before calling with fallback set to true.
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
 	static Charset getCharset(boolean isStdout, boolean fallback) {
 		/*[IF JAVA_SPEC_VERSION >= 19]*/
@@ -217,6 +252,7 @@ public final class System {
 				// ignore unsupported or invalid encodings
 			}
 		}
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (fallback && (consoleDefaultEncoding != null)) {
 			try {
 				Charset newCharset = Charset.forName(consoleDefaultEncoding);
@@ -229,6 +265,7 @@ public final class System {
 				// ignore unsupported or invalid encodings
 			}
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		return null;
 	}
 
@@ -388,8 +425,12 @@ public final class System {
 		Properties props = internalGetProperties();
 		/*[IF JAVA_SPEC_VERSION >= 11]*/
 		/*[IF JAVA_SPEC_VERSION >= 18]*/
+		/*[IF JAVA_SPEC_VERSION >= 24]*/
+		consoleDefaultCharset = sun.nio.cs.UTF_8.INSTANCE;
+		/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 		consoleDefaultEncoding = props.getProperty("native.encoding"); //$NON-NLS-1$
 		consoleDefaultCharset = Charset.forName(consoleDefaultEncoding, sun.nio.cs.UTF_8.INSTANCE);
+		/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
 		String fileEncodingProp = props.getProperty("file.encoding"); //$NON-NLS-1$
 		// Do not call Charset.defaultEncoding() since this would initialize the default encoding
@@ -434,7 +475,7 @@ public final class System {
 		hasSetOutEncoding = stdoutCharset != null;
 		/* consoleDefaultCharset must be initialized before calling createConsole() */
 		/*[ENDIF] JAVA_SPEC_VERSION >= 11 */
-		/*[IF JAVA_SPEC_VERSION >= 17] */
+		/*[IF JAVA_SPEC_VERSION >= 17]*/
 		initialErr = createConsole(FileDescriptor.err, stderrCharset);
 		setErr(initialErr);
 		/*[ELSE] JAVA_SPEC_VERSION >= 17 */
@@ -451,7 +492,7 @@ public final class System {
 		setOut(createConsole(FileDescriptor.out));
 		/*[ENDIF] Sidecar18-SE-OpenJ9 */
 
-		/*[IF JAVA_SPEC_VERSION >= 17] */
+		/*[IF JAVA_SPEC_VERSION >= 17]*/
 		setSMCallers = Collections.synchronizedMap(new WeakHashMap<>());
 		/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
 	}
@@ -465,11 +506,11 @@ static void completeInitialization() {
 	Method hook;
 	try {
 		/*[PR 167854] - Please note the incorrect name of the class is correct - somewhere the spelling was wrong and we just need to use the incorrect spelling */
-		/*[IF Sidecar19-SE]*/
+		/*[IF JAVA_SPEC_VERSION >= 9]*/
 		systemInitialization = Class.forName("com.ibm.utils.SystemIntialization"); //$NON-NLS-1$
-		/*[ELSE]*/
+		/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 		systemInitialization = Class.forName("com.ibm.misc.SystemIntialization"); //$NON-NLS-1$
-		/*[ENDIF]*/
+		/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 	} catch (ClassNotFoundException e) {
 		// Assume this is a raw configuration and suppress the exception
 	} catch (Exception e) {
@@ -483,19 +524,19 @@ static void completeInitialization() {
 	} catch (Exception e) {
 		throw new InternalError(e.toString());
 	}
-	/*[ENDIF]*/ // Sidecar18-SE-OpenJ9
+	/*[ENDIF] !Sidecar18-SE-OpenJ9 */
 
-	/*[IF (Sidecar18-SE-OpenJ9|Sidecar19-SE)&!(PLATFORM-mz31|PLATFORM-mz64)]*/
+	/*[IF Sidecar18-SE-OpenJ9 & !( PLATFORM-mz31 | PLATFORM-mz64 )]*/
 	InputStream tempIn = new BufferedInputStream(new FileInputStream(FileDescriptor.in));
 	setIn(tempIn);
 	/*[IF JAVA_SPEC_VERSION >= 20]*/
 	initialIn = tempIn;
 	/*[ENDIF] JAVA_SPEC_VERSION >= 20 */
-	/*[ELSE]*/
+	/*[ELSE] Sidecar18-SE-OpenJ9 & !( PLATFORM-mz31 | PLATFORM-mz64 ) */
 	/*[PR 100718] Initialize System.in after the main thread*/
 	setIn(com.ibm.jvm.io.ConsoleInputStream.localize(new BufferedInputStream(new FileInputStream(FileDescriptor.in))));
-	/*[ENDIF]*/ //Sidecar18-SE-OpenJ9|Sidecar19-SE
-	/*[ENDIF]*/ //!Sidecar19-SE_RAWPLUSJ9
+	/*[ENDIF] Sidecar18-SE-OpenJ9 & !( PLATFORM-mz31 | PLATFORM-mz64 ) */
+	/*[ENDIF] !Sidecar19-SE_RAWPLUSJ9 */
 
 	/*[PR 102344] call Terminator.setup() after Thread init */
 	Terminator.setup();
@@ -510,9 +551,13 @@ static void completeInitialization() {
 		throw new InternalError(e.toString());
 	}
 	/*[ENDIF]*/	//!Sidecar19-SE_RAWPLUSJ9&!Sidecar18-SE-OpenJ9
+
+	/*[IF JFR_SUPPORT]*/
+	JFRHelpers.initJFR();
+	/*[ENDIF] JFR_SUPPORT */
 }
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 static void initGPUAssist() {
 	Properties props = internalGetProperties();
 
@@ -526,26 +571,42 @@ static void initGPUAssist() {
 		return;
 	}
 
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	PrivilegedAction<GPUAssist> finder = new PrivilegedAction<GPUAssist>() {
 		@Override
 		public GPUAssist run() {
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 			ServiceLoader<GPUAssist.Provider> loaded = ServiceLoader.load(GPUAssist.Provider.class);
-
+			GPUAssist assist = null;
 			for (GPUAssist.Provider provider : loaded) {
-				GPUAssist assist = provider.getGPUAssist();
+				assist = provider.getGPUAssist();
 
 				if (assist != null) {
-					return assist;
+					break;
 				}
 			}
 
-			return GPUAssist.NONE;
+			if (null == assist) {
+				assist = GPUAssist.NONE;
+			}
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+			GPUAssistHolder.instance = assist;
+	/*[ELSE] JAVA_SPEC_VERSION >= 24 */
+			return assist;
 		}
 	};
 
 	GPUAssistHolder.instance = AccessController.doPrivileged(finder);
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 }
-/*[ENDIF] Sidecar19-SE */
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
+
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+static URL codeSource(Class<?> callerClass) {
+	CodeSource codeSource = callerClass.getProtectionDomainInternal().getCodeSource();
+	return (codeSource == null) ? null : codeSource.getLocation();
+}
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
 /**
  * Sets the value of the static slot "in" in the receiver
@@ -554,12 +615,13 @@ static void initGPUAssist() {
  * @param		newIn 		the new value for in.
  */
 public static void setIn(InputStream newIn) {
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)	{
+	if (security != null) {
 		security.checkPermission(com.ibm.oti.util.RuntimePermissions.permissionSetIO);
 	}
-
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	setFieldImpl("in", newIn); //$NON-NLS-1$
 }
 
@@ -570,11 +632,13 @@ public static void setIn(InputStream newIn) {
  * @param		newOut 		the new value for out.
  */
 public static void setOut(java.io.PrintStream newOut) {
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)	{
+	if (security != null) {
 		security.checkPermission(com.ibm.oti.util.RuntimePermissions.permissionSetIO);
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	setFieldImpl("out", newOut); //$NON-NLS-1$
 }
 
@@ -585,12 +649,13 @@ public static void setOut(java.io.PrintStream newOut) {
  * @param		newErr  	the new value for err.
  */
 public static void setErr(java.io.PrintStream newErr) {
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)	{
+	if (security != null) {
 		security.checkPermission(com.ibm.oti.util.RuntimePermissions.permissionSetIO);
 	}
-
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	setFieldImpl("err", newErr); //$NON-NLS-1$
 }
 
@@ -634,7 +699,6 @@ private static void arraycopy(Object[] A1, int offset1, Object[] A2, int offset2
 	} else throw new ArrayIndexOutOfBoundsException();
 }
 
-
 /**
  * Answers the current time expressed as milliseconds since
  * the time 00:00:00 UTC on January 1, 1970.
@@ -664,11 +728,11 @@ private static void ensureProperties(boolean isInitialization) {
 	initProperties(new Properties());
 /*[ENDIF] OpenJ9-RawBuild */
 
-/*[IF JAVA_SPEC_VERSION >= 12]*/
+/*[IF JAVA_SPEC_VERSION > 11]*/
 	Map<String, String> initializedProperties = new Hashtable<String, String>();
-/*[ELSE] JAVA_SPEC_VERSION >= 12
+/*[ELSE] JAVA_SPEC_VERSION > 11
 	Properties initializedProperties = new Properties();
-/*[ENDIF] JAVA_SPEC_VERSION >= 12 */
+/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 
 	/*[IF JAVA_SPEC_VERSION >= 17]*/
 	initializedProperties.put("os.version", sysPropOSVersion); //$NON-NLS-1$
@@ -680,7 +744,9 @@ private static void ensureProperties(boolean isInitialization) {
 	/*[PR The launcher apparently needs sun.jnu.encoding property or it does not work]*/
 	initializedProperties.put("ibm.system.encoding", platformEncoding); //$NON-NLS-1$
 	initializedProperties.put("sun.jnu.encoding", platformEncoding); //$NON-NLS-1$
+	/*[IF JAVA_SPEC_VERSION == 8]*/
 	initializedProperties.put("file.encoding.pkg", "sun.io"); //$NON-NLS-1$ //$NON-NLS-2$
+	/*[ENDIF] JJAVA_SPEC_VERSION == 8 */
 	/*[IF JAVA_SPEC_VERSION < 12]*/
 	/* System property java.specification.vendor is set via VersionProps.init(systemProperties) since JDK12 */
 	initializedProperties.put("java.specification.vendor", "Oracle Corporation"); //$NON-NLS-1$ //$NON-NLS-2$
@@ -690,7 +756,18 @@ private static void ensureProperties(boolean isInitialization) {
 
 	/*[IF CRIU_SUPPORT]*/
 	initializedProperties.put("org.eclipse.openj9.criu.isCRIUCapable", "true"); //$NON-NLS-1$ //$NON-NLS-2$
-	/*[ENDIF] CRIU_SUPPORT*/
+	// CRIU support is required by CRaC
+	/*[IF CRAC_SUPPORT]*/
+	initializedProperties.put("org.eclipse.openj9.criu.isCRaCCapable", "true"); //$NON-NLS-1$ //$NON-NLS-2$
+	/*[ENDIF] CRAC_SUPPORT */
+	/*[ENDIF] CRIU_SUPPORT */
+
+	/*[IF JFR_SUPPORT]*/
+	/* Enables openj9 JFR tests. */
+	initializedProperties.put("org.eclipse.openj9.jfr.isJFREnabled", "true"); //$NON-NLS-1$ //$NON-NLS-2$
+	/* TODO disable JFR JCL APIs until JFR natives are implemented. */
+	initializedProperties.put("jfr.unsupported.vm", "true"); //$NON-NLS-1$ //$NON-NLS-2$
+	/*[ENDIF] JFR_SUPPORT */
 
 	String[] list = getPropertyList();
 	for (int i = 0; i < list.length; i += 2) {
@@ -707,6 +784,10 @@ private static void ensureProperties(boolean isInitialization) {
 	/* Set native.encoding after setting all the defined properties, it can't be modified by using -D on the command line */
 	initializedProperties.put("native.encoding", platformEncoding); //$NON-NLS-1$
 	/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
+
+	/*[IF (JAVA_SPEC_VERSION >= 21) & (PLATFORM-mz31 | PLATFORM-mz64)]*/
+	initializedProperties.put("com.ibm.autocvt", zOSAutoConvert); //$NON-NLS-1$
+	/*[ENDIF] (JAVA_SPEC_VERSION >= 21) & (PLATFORM-mz31 | PLATFORM-mz64) */
 
 	/*[IF JAVA_SPEC_VERSION >= 19]*/
 	if (null != stdoutProp) {
@@ -738,65 +819,66 @@ private static void ensureProperties(boolean isInitialization) {
 	/* java.lang.VersionProps.init() eventually calls into System.setProperty() where propertiesInitialized needs to be true */
 	propertiesInitialized = true;
 
-/*[IF JAVA_SPEC_VERSION >= 12]*/
+/*[IF JAVA_SPEC_VERSION > 11]*/
 	java.lang.VersionProps.init(initializedProperties);
-/*[ELSE] JAVA_SPEC_VERSION >= 12
+/*[ELSE] JAVA_SPEC_VERSION > 11
 	/* VersionProps.init requires systemProperties to be set */
 	systemProperties = initializedProperties;
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 	java.lang.VersionProps.init();
-/*[ELSE]
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 	sun.misc.Version.init();
 
 	StringBuffer.initFromSystemProperties(systemProperties);
 	StringBuilder.initFromSystemProperties(systemProperties);
-/*[ENDIF] Sidecar19-SE */
-/*[ENDIF] JAVA_SPEC_VERSION >= 12 */
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
+/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 
-/*[IF JAVA_SPEC_VERSION >= 12]*/
+/*[IF JAVA_SPEC_VERSION > 11]*/
 	String javaRuntimeVersion = initializedProperties.get("java.runtime.version"); //$NON-NLS-1$
-/*[ELSE] JAVA_SPEC_VERSION >= 12
+/*[ELSE] JAVA_SPEC_VERSION > 11
 	String javaRuntimeVersion = initializedProperties.getProperty("java.runtime.version"); //$NON-NLS-1$
-/*[ENDIF] JAVA_SPEC_VERSION >= 12 */
+/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 	if (null != javaRuntimeVersion) {
-	/*[IF JAVA_SPEC_VERSION >= 12]*/
+	/*[IF JAVA_SPEC_VERSION > 11]*/
 		String fullVersion = initializedProperties.get("java.fullversion"); //$NON-NLS-1$
-	/*[ELSE] JAVA_SPEC_VERSION >= 12
+	/*[ELSE] JAVA_SPEC_VERSION > 11
 		String fullVersion = initializedProperties.getProperty("java.fullversion"); //$NON-NLS-1$
-	/*[ENDIF] JAVA_SPEC_VERSION >= 12 */
+	/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 		if (null != fullVersion) {
 			initializedProperties.put("java.fullversion", (javaRuntimeVersion + "\n" + fullVersion)); //$NON-NLS-1$ //$NON-NLS-2$
 		}
 		rasInitializeVersion(javaRuntimeVersion);
 	}
 
-/*[IF JAVA_SPEC_VERSION >= 12]*/
+/*[IF JAVA_SPEC_VERSION > 11]*/
 	lineSeparator = initializedProperties.getOrDefault("line.separator", "\n"); //$NON-NLS-1$
-/*[ELSE] JAVA_SPEC_VERSION >= 12
+/*[ELSE] JAVA_SPEC_VERSION > 11
 	lineSeparator = initializedProperties.getProperty("line.separator", "\n"); //$NON-NLS-1$
-/*[ENDIF] JAVA_SPEC_VERSION >= 12 */
+/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 
 	if (isInitialization) {
 		/*[PR CMVC 179976] System.setProperties(null) throws IllegalStateException */
-		/*[IF JAVA_SPEC_VERSION >= 12]*/
+		/*[IF JAVA_SPEC_VERSION > 11]*/
 		VM.saveProperties(initializedProperties);
-		/*[ELSE] JAVA_SPEC_VERSION >= 12
+		/*[ELSE] JAVA_SPEC_VERSION > 11
 		VM.saveAndRemoveProperties(initializedProperties);
-		/*[ENDIF] JAVA_SPEC_VERSION >= 12 */
+		/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 	}
 
 	/* create systemProperties from properties Map */
-/*[IF JAVA_SPEC_VERSION >= 12]*/
+/*[IF JAVA_SPEC_VERSION > 11]*/
 	initializeSystemProperties(initializedProperties);
-/*[ELSE] JAVA_SPEC_VERSION >= 12
+/*[ELSE] JAVA_SPEC_VERSION > 11
 	systemProperties = initializedProperties;
-/*[ENDIF] JAVA_SPEC_VERSION >= 12 */
+/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 
 	/* Preload system property jdk.serialFilter to prevent later modification */
 	jdk.internal.util.StaticProperty.jdkSerialFilter();
 }
 
+/*[IF JAVA_SPEC_VERSION > 11]*/
 /* Converts a Map<String, String> to a properties object.
  *
  * The system properties will be initialized as a Map<String, String> type to be compatible
@@ -805,9 +887,22 @@ private static void ensureProperties(boolean isInitialization) {
 private static void initializeSystemProperties(Map<String, String> mapProperties) {
 	systemProperties = new Properties();
 	for (Map.Entry<String, String> property : mapProperties.entrySet()) {
-		systemProperties.put(property.getKey(), property.getValue());
+		String key = property.getKey();
+		/* Remove OpenJDK private properties that should not be System properties. */
+		switch (key) {
+		case "java.lang.Integer.IntegerCache.high": //$NON-NLS-1$
+		case "jdk.boot.class.path.append": //$NON-NLS-1$
+		case "sun.java.launcher.diag": //$NON-NLS-1$
+		case "sun.nio.MaxDirectMemorySize": //$NON-NLS-1$
+		case "sun.nio.PageAlignDirectMemory": //$NON-NLS-1$
+			continue;
+		default:
+			break;
+		}
+		systemProperties.put(key, property.getValue());
 	}
 }
+/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 
 private static native void rasInitializeVersion(String javaRuntimeVersion);
 
@@ -817,9 +912,11 @@ private static native void rasInitializeVersion(String javaRuntimeVersion);
  *
  * @param		code		the return code.
  *
+/*[IF JAVA_SPEC_VERSION < 24]
  * @throws		SecurityException 	if the running thread is not allowed to cause the vm to exit.
  *
  * @see			SecurityManager#checkExit
+/*[ENDIF] JAVA_SPEC_VERSION < 24
  */
 public static void exit(int code) {
 	RUNTIME.exit(code);
@@ -844,11 +941,13 @@ public static void gc() {
 @SuppressWarnings("dep-ann")
 public static String getenv(String var) {
 	if (var == null) throw new NullPointerException();
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)
+	if (security != null) {
 		security.checkPermission(new RuntimePermission("getenv." + var)); //$NON-NLS-1$
-
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	return ProcessEnvironment.getenv(var);
 }
 
@@ -857,19 +956,23 @@ public static String getenv(String var) {
  * not a copy, so that changes made to the returned
  * Properties object will be reflected in subsequent
  * calls to {@code getProperty()} and {@code getProperties()}.
+/*[IF JAVA_SPEC_VERSION < 24]
  * <p>
  * Security managers should restrict access to this
  * API if possible.
+/*[ENDIF] JAVA_SPEC_VERSION < 24
  *
  * @return		the system properties
  */
 public static Properties getProperties() {
 	if (!propertiesInitialized) throw new Error("bootstrap error, system property access before init"); //$NON-NLS-1$
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)
+	if (security != null) {
 		security.checkPropertiesAccess();
-
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	return systemProperties;
 }
 
@@ -930,10 +1033,13 @@ public static String getProperty(String prop) {
 public static String getProperty(String prop, String defaultValue) {
 	if (prop.length() == 0) throw new IllegalArgumentException();
 
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)
+	if (security != null) {
 		security.checkPropertyAccess(prop);
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 	if (!propertiesInitialized
 			&& !prop.equals("com.ibm.IgnoreMalformedInput") //$NON-NLS-1$
@@ -971,11 +1077,13 @@ public static String setProperty(String prop, String value) {
 	/*[PR CMVC 80288] should check for empty key */
 	if (prop.length() == 0) throw new IllegalArgumentException();
 
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)
-		security.checkPermission(
-			new PropertyPermission(prop, "write")); //$NON-NLS-1$
+	if (security != null) {
+		security.checkPermission(new PropertyPermission(prop, "write")); //$NON-NLS-1$
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 	return (String)systemProperties.setProperty(prop, value);
 }
@@ -1013,11 +1121,15 @@ private static native String getSysPropBeforePropertiesInitialized(int sysPropID
  *
  * @return		the system security manager object.
  */
-/*[IF (JAVA_SPEC_VERSION >= 17) & OPENJDK_METHODHANDLES] */
+/*[IF JAVA_SPEC_VERSION >= 17]*/
 @Deprecated(since="17", forRemoval=true)
-/*[ENDIF] (JAVA_SPEC_VERSION >= 17) & OPENJDK_METHODHANDLES */
+/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
 public static SecurityManager getSecurityManager() {
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+	return null;
+	/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 	return security;
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 }
 
 /**
@@ -1036,44 +1148,81 @@ public static int identityHashCode(Object anObject) {
 	if (anObject == null) {
 		return 0;
 	}
+/*[IF INLINE-TYPES]*/
+	if (anObject.getClass().isValue()) {
+		return J9VMInternals.valueHashCode(anObject);
+	}
+/*[ENDIF] INLINE-TYPES */
 	return J9VMInternals.fastIdentityHashCode(anObject);
 }
 
 /**
  * Loads the specified file as a dynamic library.
  *
- * @param 		pathName	the path of the file to be loaded
+ * @param pathName the path of the file to be loaded
+ *
+ * @throws UnsatisfiedLinkError if the library could not be loaded
+ * @throws NullPointerException if pathName is null
+/*[IF JAVA_SPEC_VERSION >= 24]
+ * @throws IllegalCallerException if the caller belongs to a module where native access is not enabled
+/*[ELSE] JAVA_SPEC_VERSION >= 24
+ * @throws SecurityException if the library was not allowed to be loaded
+/*[ENDIF] JAVA_SPEC_VERSION >= 24
  */
 @CallerSensitive
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+@Restricted
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 public static void load(String pathName) {
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+	Class<?> caller = Reflection.getCallerClass();
+	Reflection.ensureNativeAccess(caller, System.class, "load", false);
+	/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 	@SuppressWarnings("removal")
 	SecurityManager smngr = System.getSecurityManager();
 	if (smngr != null) {
 		smngr.checkLink(pathName);
 	}
-/*[IF JAVA_SPEC_VERSION >= 15]*/
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
+	/*[IF JAVA_SPEC_VERSION >= 15]*/
+	/*[IF PLATFORM-mz31 | PLATFORM-mz64]*/
+	ClassLoader.loadZOSLibrary(getCallerClass(), pathName);
+	/*[ELSE] PLATFORM-mz31 | PLATFORM-mz64 */
 	File fileName = new File(pathName);
-	if (fileName.isAbsolute()) {
-		ClassLoader.loadLibrary(getCallerClass(), fileName);
-	} else {
+	if (!fileName.isAbsolute()) {
 		/*[MSG "K0648", "Not an absolute path: {0}"]*/
 		throw new UnsatisfiedLinkError(Msg.getString("K0648", pathName));//$NON-NLS-1$
 	}
-/*[ELSE]
+	ClassLoader.loadLibrary(getCallerClass(), fileName);
+	/*[ENDIF] PLATFORM-mz31 | PLATFORM-mz64 */
+	/*[ELSE] JAVA_SPEC_VERSION >= 15 */
 	ClassLoader.loadLibraryWithPath(pathName, ClassLoader.callerClassLoader(), null);
-/*[ENDIF] JAVA_SPEC_VERSION >= 15 */
+	/*[ENDIF] JAVA_SPEC_VERSION >= 15 */
 }
 
 /**
  * Loads and links the library specified by the argument.
  *
- * @param		libName		the name of the library to load
+ * @param libName the name of the library to load
  *
- * @throws		UnsatisfiedLinkError	if the library could not be loaded
- * @throws		SecurityException 		if the library was not allowed to be loaded
+ * @throws UnsatisfiedLinkError if the library could not be loaded
+ * @throws NullPointerException if libName is null
+/*[IF JAVA_SPEC_VERSION >= 24]
+ * @throws IllegalCallerException if the caller belongs to a module where native access is not enabled
+/*[ELSE] JAVA_SPEC_VERSION >= 24
+ * @throws SecurityException if the library was not allowed to be loaded
+/*[ENDIF] JAVA_SPEC_VERSION >= 24
  */
 @CallerSensitive
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+@Restricted
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 public static void loadLibrary(String libName) {
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+	Class<?> caller = Reflection.getCallerClass();
+	Reflection.ensureNativeAccess(caller, System.class, "loadLibrary", false);
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
+
 	if (libName.indexOf(File.pathSeparator) >= 0) {
 		/*[MSG "K0B01", "Library name must not contain a file path: {0}"]*/
 		throw new UnsatisfiedLinkError(Msg.getString("K0B01", libName)); //$NON-NLS-1$
@@ -1084,17 +1233,38 @@ public static void loadLibrary(String libName) {
 			throw new UnsatisfiedLinkError(Msg.getString("K0B01", libName)); //$NON-NLS-1$
 		}
 	}
-
+/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager smngr = System.getSecurityManager();
 	if (smngr != null) {
 		smngr.checkLink(libName);
 	}
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 /*[IF JAVA_SPEC_VERSION >= 15]*/
-	ClassLoader.loadLibrary(getCallerClass(), libName);
+	Class<?> callerClass = getCallerClass();
 /*[ELSE]*/
-	ClassLoader.loadLibraryWithClassLoader(libName, ClassLoader.callerClassLoader());
+	ClassLoader callerClassLoader = ClassLoader.callerClassLoader();
 /*[ENDIF] JAVA_SPEC_VERSION >= 15 */
+	try {
+/*[IF JAVA_SPEC_VERSION >= 15]*/
+		ClassLoader.loadLibrary(callerClass, libName);
+/*[ELSE]*/
+		ClassLoader.loadLibraryWithClassLoader(libName, callerClassLoader);
+/*[ENDIF] JAVA_SPEC_VERSION >= 15 */
+	} catch (UnsatisfiedLinkError ule) {
+		String errorMessage = ule.getMessage();
+		if ((errorMessage != null) && errorMessage.contains("already loaded in another classloader")) { //$NON-NLS-1$
+			// attempt to unload the classloader, and retry
+			gc();
+/*[IF JAVA_SPEC_VERSION >= 15]*/
+			ClassLoader.loadLibrary(callerClass, libName);
+/*[ELSE]*/
+			ClassLoader.loadLibraryWithClassLoader(libName, callerClassLoader);
+/*[ENDIF] JAVA_SPEC_VERSION >= 15 */
+		} else {
+			throw ule;
+		}
+	}
 }
 
 /**
@@ -1102,7 +1272,7 @@ public static void loadLibrary(String libName) {
  * be useful to attempt to perform any outstanding
  * object finalizations.
  */
-/*[IF JAVA_SPEC_VERSION >= 18] */
+/*[IF JAVA_SPEC_VERSION >= 18]*/
 @Deprecated(forRemoval=true, since="18")
 /*[ENDIF] JAVA_SPEC_VERSION >= 18 */
 public static void runFinalization() {
@@ -1125,17 +1295,22 @@ public static void runFinalizersOnExit(boolean flag) {
  * Sets the system properties. Note that the object which is passed in
  * is not copied, so that subsequent changes made to it will be reflected
  * in calls to {@code getProperty()} and {@code getProperties()}.
+/*[IF JAVA_SPEC_VERSION < 24]
  * <p>
  * Security managers should restrict access to this
  * API if possible.
+/*[ENDIF] JAVA_SPEC_VERSION < 24
  *
  * @param		p			the properties to set
  */
 public static void setProperties(Properties p) {
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)
+	if (security != null) {
 		security.checkPropertiesAccess();
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	if (p == null) {
 		ensureProperties(false);
 	} else {
@@ -1143,20 +1318,66 @@ public static void setProperties(Properties p) {
 	}
 }
 
+static void checkTmpDir() {
+	/*[IF JAVA_SPEC_VERSION >= 20]*/
+	String tmpDir = internalGetProperties().getProperty("java.io.tmpdir"); //$NON-NLS-1$
+	if (!defaultTmpDir.equals(tmpDir)) {
+		try {
+			Field systemProps = SystemProps.class.getDeclaredField("customTmpdir"); //$NON-NLS-1$
+			systemProps.setAccessible(true);
+			systemProps.set(null, tmpDir);
+			if (SystemProps.isBadIoTmpdir()) {
+				System.err.println("WARNING: java.io.tmpdir directory does not exist"); //$NON-NLS-1$
+			}
+		} catch (IllegalAccessException | NoSuchFieldException e) {
+			throw new InternalError(e);
+		}
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION >= 20 */
+}
+
+/*[IF JAVA_SPEC_VERSION >= 9]*/
+/**
+ * Initialize the security manager according
+ * to the java.security.manager system property.
+ * @param applicationClassLoader
+ * @throws Error
+/*[IF JAVA_SPEC_VERSION >= 24]
+ *  if the user attempts to enable the security manager
+/*[ELSE] JAVA_SPEC_VERSION >= 24
+ *  if the security manager could not be initialized
+/*[ENDIF] JAVA_SPEC_VERSION >= 24
+ */
+/*[IF JAVA_SPEC_VERSION < 24]*/
+@SuppressWarnings("removal")
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 static void initSecurityManager(ClassLoader applicationClassLoader) {
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+	boolean throwErrorOnInit = false;
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 	String javaSecurityManager = internalGetProperties().getProperty("java.security.manager"); //$NON-NLS-1$
-	/*[IF JAVA_SPEC_VERSION > 11]*/
-	if ("allow".equals(javaSecurityManager)) {
-		/* Do nothing. */
-	} else if ("disallow".equals(javaSecurityManager) //$NON-NLS-1$
+	if (null == javaSecurityManager) {
 		/*[IF JAVA_SPEC_VERSION >= 18]*/
-		|| (null == javaSecurityManager)
-		/*[ENDIF] JAVA_SPEC_VERSION >= 18 */
-	) {
 		throwUOEFromSetSM = true;
-	} else
-	/*[ENDIF] JAVA_SPEC_VERSION > 11 */
-	if (null != javaSecurityManager) {
+		/*[ELSE] JAVA_SPEC_VERSION >= 18 */
+		/* Do nothing. */
+		/*[ENDIF] JAVA_SPEC_VERSION >= 18 */
+	} else if ("allow".equals(javaSecurityManager)) { //$NON-NLS-1$
+		/*[IF JAVA_SPEC_VERSION >= 24]*/
+		throwErrorOnInit = true;
+		/*[ELSE] JAVA_SPEC_VERSION >= 24 */
+		/* Do nothing. */
+		/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
+	} else if ("disallow".equals(javaSecurityManager)) { //$NON-NLS-1$
+		/*[IF JAVA_SPEC_VERSION > 11]*/
+		throwUOEFromSetSM = true;
+		/*[ELSE] JAVA_SPEC_VERSION > 11 */
+		/* Do nothing. */
+		/*[ENDIF] JAVA_SPEC_VERSION > 11 */
+	} else {
+		/*[IF JAVA_SPEC_VERSION >= 24]*/
+		throwErrorOnInit = true;
+		/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 		/*[IF JAVA_SPEC_VERSION >= 17]*/
 		initialErr.println("WARNING: A command line option has enabled the Security Manager"); //$NON-NLS-1$
 		initialErr.println("WARNING: The Security Manager is deprecated and will be removed in a future release"); //$NON-NLS-1$
@@ -1173,8 +1394,22 @@ static void initSecurityManager(ClassLoader applicationClassLoader) {
 				throw new Error(Msg.getString("K0631", e.toString()), e); //$NON-NLS-1$
 			}
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 	}
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+	if (throwErrorOnInit) {
+		/*[MSG "K0B04", "A command line option has attempted to allow or enable the Security Manager. Enabling a Security Manager is not supported."]*/
+		throw new Error(Msg.getString("K0B04")); //$NON-NLS-1$
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 }
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
+
+/*[IF (21 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24)]*/
+static boolean allowSecurityManager() {
+	return !throwUOEFromSetSM;
+}
+/*[ENDIF] (21 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 24) */
 
 /**
  * Sets the active security manager. Note that once
@@ -1184,19 +1419,25 @@ static void initSecurityManager(ClassLoader applicationClassLoader) {
  *
  * @param		s			the new security manager
  *
+/*[IF JAVA_SPEC_VERSION >= 24]
+ * @throws		UnsupportedOperationException	always
+/*[ELSE] JAVA_SPEC_VERSION >= 24
  * @throws		SecurityException 	if the security manager has already been set and its checkPermission method doesn't allow it to be replaced.
-/*[IF JAVA_SPEC_VERSION >= 12]
+/*[IF JAVA_SPEC_VERSION > 11]
  * @throws		UnsupportedOperationException 	if s is non-null and a special token "disallow" has been set for system property "java.security.manager"
  * 												which indicates that a security manager is not allowed to be set dynamically.
-/*[ENDIF] JAVA_SPEC_VERSION >= 12
+/*[ENDIF] JAVA_SPEC_VERSION > 11
+/*[ENDIF] JAVA_SPEC_VERSION >= 24
  */
-/*[IF JAVA_SPEC_VERSION >= 17] */
-/*[IF OPENJDK_METHODHANDLES] */
+/*[IF JAVA_SPEC_VERSION >= 17]*/
 @Deprecated(since="17", forRemoval=true)
-/*[ENDIF] OPENJDK_METHODHANDLES */
 @CallerSensitive
 /*[ENDIF] JAVA_SPEC_VERSION >= 17 */
 public static void setSecurityManager(final SecurityManager s) {
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+	/*[MSG "K0B03", "Setting a Security Manager is not supported"]*/
+	throw new UnsupportedOperationException(Msg.getString("K0B03")); //$NON-NLS-1$
+/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 /*[IF CRIU_SUPPORT]*/
 	if (openj9.internal.criu.InternalCRIUSupport.isCRIUSupportEnabled()) {
 		/*[MSG "K0B02", "Enabling a SecurityManager currently unsupported when -XX:+EnableCRIUSupport is specified"]*/
@@ -1221,7 +1462,7 @@ public static void setSecurityManager(final SecurityManager s) {
 	}
 	/*[ENDIF] JAVA_SPEC_VERSION > 11 */
 
-	/*[IF JAVA_SPEC_VERSION >= 17] */
+	/*[IF JAVA_SPEC_VERSION >= 17]*/
 	Class<?> callerClz = getCallerClass();
 	if (setSMCallers.putIfAbsent(callerClz, Boolean.TRUE) == null) {
 		String callerName = callerClz.getName();
@@ -1274,6 +1515,7 @@ public static void setSecurityManager(final SecurityManager s) {
 		currentSecurity.checkPermission(com.ibm.oti.util.RuntimePermissions.permissionSetSecurityManager);
 	}
 	security = s;
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 }
 
 /**
@@ -1329,10 +1571,13 @@ public static String clearProperty(String prop) {
 	if (!propertiesInitialized) throw new Error("bootstrap error, system property access before init: " + prop); //$NON-NLS-1$
 
 	if (prop.length() == 0) throw new IllegalArgumentException();
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)
+	if (security != null) {
 		security.checkPermission(new PropertyPermission(prop, "write")); //$NON-NLS-1$
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	return (String)systemProperties.remove(prop);
 }
 
@@ -1342,11 +1587,13 @@ public static String clearProperty(String prop) {
  * @return	an unmodifiable Map containing all of the system environment variables.
  */
 public static Map<String, String> getenv() {
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
 	SecurityManager security = System.getSecurityManager();
-	if (security != null)
+	if (security != null) {
 		security.checkPermission(new RuntimePermission("getenv.*")); //$NON-NLS-1$
-
+	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	return ProcessEnvironment.getenv();
 }
 
@@ -1523,7 +1770,7 @@ private static void simpleMultiLeafArrayCopy(Object src, int srcPos,
 			 if (isFwd)
 				iterLength = numOfElemsPerLeaf - destLeafPos;
 			 else
-		  		iterLength = destLeafPos + 1;
+				iterLength = destLeafPos + 1;
 		 }
 
 		 if (length - count < iterLength)
@@ -1532,7 +1779,7 @@ private static void simpleMultiLeafArrayCopy(Object src, int srcPos,
 		 if (isFwd)
 			offset = 0;
 		 else
-		  	offset = iterLength - 1;
+			offset = iterLength - 1;
 
 		 System.arraycopy(src, newSrcPos - offset, dest, newDestPos - offset, iterLength);
 
@@ -1605,7 +1852,7 @@ private static void multiLeafArrayCopy(Object src, int srcPos, Object dest,
 		if (isFwd)
 			iterLength1 = numOfElemsPerLeaf - firstPos;
 		else
-		  	iterLength1 = firstPos + 1;
+			iterLength1 = firstPos + 1;
 
 		if (length - count < iterLength1)
 			iterLength1 = length - count;
@@ -1655,7 +1902,6 @@ private static void multiLeafArrayCopy(Object src, int srcPos, Object dest,
 	}
 }
 
-
 /**
  * Return platform specific line separator character(s).
  * Unix is \n while Windows is \r\n as per the prop set by the VM.
@@ -1667,7 +1913,7 @@ public static String lineSeparator() {
 	 return lineSeparator;
 }
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 /**
  * Return an instance of Logger.
  *
@@ -1708,10 +1954,14 @@ public abstract static class LoggerFinder {
 	/**
 	 * Checks needed runtime permissions
 	 *
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException if RuntimePermission("loggerFinder") is not allowed
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
 	protected LoggerFinder() {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		verifyPermissions();
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	}
 
 	/**
@@ -1722,10 +1972,14 @@ public abstract static class LoggerFinder {
 	 * @param callerModule The module for which the logger is being requested
 	 * @return an instance of Logger
 	 * @throws NullPointerException if loggerName or callerModule is null
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException if RuntimePermission("loggerFinder") is not allowed
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
 	public Logger getLocalizedLogger(String loggerName, ResourceBundle bundle, Module callerModule) {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		verifyPermissions();
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		Objects.requireNonNull(loggerName);
 		Objects.requireNonNull(callerModule);
 		Logger logger = this.getLogger(loggerName, callerModule);
@@ -1740,7 +1994,9 @@ public abstract static class LoggerFinder {
 	 * @param callerModule The module for which the logger is being requested
 	 * @return a Logger suitable for use within the given module
 	 * @throws NullPointerException if loggerName or callerModule is null
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException if RuntimePermission("loggerFinder") is not allowed
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
 	public abstract Logger getLogger(String loggerName, Module callerModule);
 
@@ -1748,26 +2004,43 @@ public abstract static class LoggerFinder {
 	 * Returns the LoggerFinder instance
 	 *
 	 * @return the LoggerFinder instance.
+	/*[IF JAVA_SPEC_VERSION < 24]
 	 * @throws SecurityException if RuntimePermission("loggerFinder") is not allowed
+	/*[ENDIF] JAVA_SPEC_VERSION < 24
 	 */
 	public static LoggerFinder getLoggerFinder() {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		verifyPermissions();
-		if (loggerFinder == null) {
-			loggerFinder = AccessController.doPrivileged(
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
+		LoggerFinder localFinder = loggerFinder;
+		if (localFinder == null) {
+			/*[IF JAVA_SPEC_VERSION >= 24]*/
+			localFinder = jdk.internal.logger.LoggerFinderLoader.getLoggerFinder();
+			/*[ELSE] JAVA_SPEC_VERSION >= 24 */
+			localFinder = AccessController.doPrivileged(
 								(PrivilegedAction<LoggerFinder>) () -> jdk.internal.logger.LoggerFinderLoader.getLoggerFinder(),
 								AccessController.getContext(),
 								com.ibm.oti.util.RuntimePermissions.permissionLoggerFinder);
+			/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
+			/*[IF JAVA_SPEC_VERSION >= 11]*/
+			if (localFinder instanceof jdk.internal.logger.LoggerFinderLoader.TemporaryLoggerFinder) {
+				return localFinder;
+			}
+			/*[ENDIF] JAVA_SPEC_VERSION >= 11 */
+			loggerFinder = localFinder;
 		}
-		return loggerFinder;
+		return localFinder;
 	}
 
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	private static void verifyPermissions() {
 		@SuppressWarnings("removal")
 		SecurityManager securityManager = System.getSecurityManager();
-		if (securityManager != null)	{
+		if (securityManager != null) {
 			securityManager.checkPermission(com.ibm.oti.util.RuntimePermissions.permissionLoggerFinder);
 		}
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 }
 
 /**
@@ -1955,5 +2228,5 @@ public interface Logger {
 	 */
 	public void log(Level level, ResourceBundle bundle, String msg, Object... values);
 }
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 }

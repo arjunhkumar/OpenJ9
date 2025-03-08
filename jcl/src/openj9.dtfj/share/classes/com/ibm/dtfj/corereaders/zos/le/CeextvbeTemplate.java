@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2006
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders.zos.le;
 
 import javax.imageio.stream.ImageInputStream;
@@ -29,28 +29,33 @@ import java.io.IOException;
 
 public final class CeextvbeTemplate {
 
-    public static int length() {
-        return 8;
-    }
+	public static int length() {
+		return 8;
+	}
 
-    public static long getCeetvbekey(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 0);
-        return inputStream.readUnsignedInt() & 0xffffffffL;
-    }
-    public static int getCeetvbekey$offset() {
-        return 0;
-    }
-    public static int getCeetvbekey$length() {
-        return 32;
-    }
-    public static long getCeetvbevalue(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 4);
-        return inputStream.readUnsignedInt() & 0xffffffffL;
-    }
-    public static int getCeetvbevalue$offset() {
-        return 4;
-    }
-    public static int getCeetvbevalue$length() {
-        return 32;
-    }
+	public static long getCeetvbekey(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 0);
+		return inputStream.readUnsignedInt() & 0xffffffffL;
+	}
+
+	public static int getCeetvbekey$offset() {
+		return 0;
+	}
+
+	public static int getCeetvbekey$length() {
+		return 32;
+	}
+
+	public static long getCeetvbevalue(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 4);
+		return inputStream.readUnsignedInt() & 0xffffffffL;
+	}
+
+	public static int getCeetvbevalue$offset() {
+		return 4;
+	}
+
+	public static int getCeetvbevalue$length() {
+		return 32;
+	}
 }

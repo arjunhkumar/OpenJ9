@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,19 +18,18 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.framework.tag;
 
 import java.util.HashMap;
 import java.util.Iterator;
 
-
 public abstract class TagParser implements ITagParser {
-	
+
 	private HashMap fTagRuleMap;
 	private String fSectionName;
-	
+
 	public TagParser(String sectionName) {
 		fSectionName = sectionName;
 		fTagRuleMap = new HashMap();
@@ -54,29 +53,29 @@ public abstract class TagParser implements ITagParser {
 	 * 1. patterns that precedes a value (e.g., a ":", "=", etc..);
 	 * <br>
 	 * 2. patterns that match a value;
-	 * 
+	 *
 	 * <br>
-	 * If an attribute value in a line rule pertaining to some tag has more than one possible pattern 
+	 * If an attribute value in a line rule pertaining to some tag has more than one possible pattern
 	 * (e.g., "info" = (Class.java:23)  or "info" = (Native Method) ), list
-	 * all of the patterns for that value in its corresponding line rule. If the first doesn't match, nothing happens, so the line rule 
-	 * will check the next pattern until a match occurs. 
+	 * all of the patterns for that value in its corresponding line rule. If the first doesn't match, nothing happens, so the line rule
+	 * will check the next pattern until a match occurs.
 	 * <br>
 	 * Any other pattern occurring in the source string will be ignored.
-	 * 
+	 *
 	 * <br>
 	 * <br>
 	 * <br>
 	 * <b>For tags with no attributes, or meaningful values:</b>
-	 * <br> 
+	 * <br>
 	 * Specify null for line rules.
 	 *
 	 */
 	abstract protected void initTagAttributeRules();
-	
+
 	/**
 	 * If a Line rule is missing a pattern list, an exception will be thrown
 	 * indicating so, and the line rule will not be added.
-	 * 
+	 *
 	 * @param tag
 	 * @param rule
 	 */
@@ -86,37 +85,33 @@ public abstract class TagParser implements ITagParser {
 		}
 		fTagRuleMap.put(tag, lineRule);
 	}
-	
-	
+
 	/**
-	 * 
+	 *
 	 */
 	public ILineRule getLineRule(String tag) {
 		return (ILineRule) fTagRuleMap.get(tag);
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public String getSectionName() {
 		return fSectionName;
 	}
-	
+
 	/**
-	 * 
+	 *
 	 */
 	public boolean hasTag(String tag) {
 		return fTagRuleMap.containsKey(tag);
 	}
-	
-	
+
 	/**
-	 * 
+	 *
 	 */
 	public Iterator getTags() {
 		return fTagRuleMap.keySet().iterator();
 	}
-	
 
 }

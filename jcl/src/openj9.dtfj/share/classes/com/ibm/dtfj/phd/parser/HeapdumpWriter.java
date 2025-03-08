@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2002
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.phd.parser;
 
 import java.io.BufferedOutputStream;
@@ -134,10 +134,10 @@ public class HeapdumpWriter extends Base {
 
 	void addToCache(int classAddress) {
 		/* May consider this as a future change to the spec...
-        for (int i = 0; i < 4; i++) {
-            if (classAddressCache[i] == classAddress)
-                return;
-        }
+		for (int i = 0; i < 4; i++) {
+			if (classAddressCache[i] == classAddress)
+				return;
+		}
 		 */
 		classAddressCache[classAddressCacheIndex] = classAddress;
 		classAddressCacheIndex = (classAddressCacheIndex + 1) % 4;
@@ -157,13 +157,13 @@ public class HeapdumpWriter extends Base {
 		try {
 			if (absgap < 0x8000) {
 				int cacheIndex = -1;
-				if (classAddress == classAddressCache[0]) 
+				if (classAddress == classAddressCache[0])
 					cacheIndex = 0;
-				else if (classAddress == classAddressCache[1]) 
+				else if (classAddress == classAddressCache[1])
 					cacheIndex = 1;
-				else if (classAddress == classAddressCache[2]) 
+				else if (classAddress == classAddressCache[2])
 					cacheIndex = 2;
-				else if (classAddress == classAddressCache[3]) 
+				else if (classAddress == classAddressCache[3])
 					cacheIndex = 3;
 				if (cacheIndex != -1 && numRefs < 4) {
 					// short object record

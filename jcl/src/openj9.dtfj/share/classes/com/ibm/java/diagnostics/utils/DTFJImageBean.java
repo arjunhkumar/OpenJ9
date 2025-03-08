@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.diagnostics.utils;
 
 import java.net.URI;
@@ -35,13 +35,13 @@ import com.ibm.dtfj.image.Image;
  * Simple Java bean which contains the data from the Image interface.
  * This allows commands to access this information without being given
  * a handle to the Image object itself
- * 
+ *
  * @author adam
  *
  */
 public class DTFJImageBean implements Image {
 	private final Image image;
-	
+
 	public DTFJImageBean(Image image) {
 		this.image = image;
 	}
@@ -81,7 +81,7 @@ public class DTFJImageBean implements Image {
 	public String getSystemType() throws DataUnavailable, CorruptDataException {
 		return image.getSystemType();
 	}
-	
+
 	public Properties getProperties() {
 		return image.getProperties();
 	}
@@ -113,7 +113,7 @@ public class DTFJImageBean implements Image {
 
 	/* (non-Javadoc)
 	 * @see com.ibm.dtfj.image.Image#getAddressSpaces()
-	 * 
+	 *
 	 * This call is not supported so that plugins are not able to 'escape'
 	 * from their context and into other address spaces / processes.
 	 */

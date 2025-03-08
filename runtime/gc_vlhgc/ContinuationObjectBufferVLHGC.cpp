@@ -18,18 +18,23 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
 #include "j9cfg.h"
 #include "ModronAssertions.h"
 
-#include "ContinuationObjectBufferVLHGC.hpp"
 #include "HeapRegionManager.hpp"
-
 #include "HeapRegionDescriptorVLHGC.hpp"
+#include "HeapRegionIteratorVLHGC.hpp"
+
+#include "ContinuationObjectBufferVLHGC.hpp"
 #include "ContinuationObjectList.hpp"
+#include "ParallelTask.hpp"
+#if JAVA_SPEC_VERSION >= 19
+#include "ContinuationHelpers.hpp"
+#endif /* JAVA_SPEC_VERSION >= 19 */
 
 MM_ContinuationObjectBufferVLHGC::MM_ContinuationObjectBufferVLHGC(MM_GCExtensions *extensions, uintptr_t maxObjectCount)
 	: MM_ContinuationObjectBuffer(extensions, maxObjectCount)
@@ -106,4 +111,40 @@ MM_ContinuationObjectBufferVLHGC::addForOnlyCompactedRegion(MM_EnvironmentBase* 
 			_region = region;
 		}
 	}
+}
+
+void
+MM_ContinuationObjectBufferVLHGC::iterateAllContinuationObjects(MM_EnvironmentBase *env)
+{
+#if JAVA_SPEC_VERSION >= 19
+	MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env);
+	MM_HeapRegionManager *regionManager = extensions->getHeap()->getHeapRegionManager();
+	MM_HeapRegionDescriptorVLHGC *region = NULL;
+	GC_HeapRegionIteratorVLHGC regionIterator(regionManager);
+	MM_EnvironmentVLHGC *envVLHGC = (MM_EnvironmentVLHGC *) env;
+
+	/* to make sure that previous pruning phase of continuation list(scanContinuationObjects()) is complete */
+	env->_currentTask->synchronizeGCThreads(env, UNIQUE_ID);
+
+	while (NULL != (region = regionIterator.nextRegion())) {
+		if (region->containsObjects()) {
+			if (NULL != region->getContinuationObjectList()->getHeadOfList()) {
+				if (J9MODRON_HANDLE_NEXT_WORK_UNIT(env)) {
+					omrobjectptr_t object = region->getContinuationObjectList()->getHeadOfList();
+					while (NULL != object) {
+						Assert_MM_true(region->isAddressInRegion(object));
+						envVLHGC->_continuationStats._total += 1;
+						omrobjectptr_t next = extensions->accessBarrier->getContinuationLink(object);
+						ContinuationState volatile *continuationStatePtr = VM_ContinuationHelpers::getContinuationStateAddress((J9VMThread *)env->getLanguageVMThread(), object);
+						if (VM_ContinuationHelpers::isActive(*continuationStatePtr)) {
+							envVLHGC->_continuationStats._started += 1;
+							TRIGGER_J9HOOK_MM_WALKCONTINUATION(extensions->hookInterface, (J9VMThread *)env->getLanguageVMThread(), object);
+						}
+						object = next;
+					}
+				}
+			}
+		}
+	}
+#endif /* JAVA_SPEC_VERSION >= 19 */
 }

@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 #
 
 # j9shr.nls
@@ -2203,12 +2203,7 @@ J9NLS_SHRC_INFO_DESTROYING_FOR_CACHEDIR.system_action=None
 J9NLS_SHRC_INFO_DESTROYING_FOR_CACHEDIR.user_response=None
 # END NON-TRANSLATABLE
 
-J9NLS_CC_OSPAGE_SIZE_MISMATCH=The page size of the operating system is incompatible with this cache. Attempting to re-create the cache.
-# START NON-TRANSLATABLE
-J9NLS_CC_OSPAGE_SIZE_MISMATCH.explanation=The cache is divided up on page boundaries. If there is a page size mismatch, the cache is unusable
-J9NLS_CC_OSPAGE_SIZE_MISMATCH.system_action=The JVM will try to destroy the incompatible cache and re-create it
-J9NLS_CC_OSPAGE_SIZE_MISMATCH.user_response=None
-# END NON-TRANSLATABLE
+J9NLS_CC_OSPAGE_SIZE_MISMATCH=
 
 J9NLS_SHRC_SHRINIT_HELPTEXT_READONLY=Open the cache with read-only permissions
 # START NON-TRANSLATABLE
@@ -4543,6 +4538,8 @@ J9NLS_SHRC_SHRINIT_HELPTEXT_CHECK_STRINGTABLE_RESET.user_response=
 
 J9NLS_SHRC_SHRINIT_CHECK_STRING_TABLE_RESET_MAY_FAIL=-Xshareclasses:checkStringTableReset may fail. String table is not large enough. It needs to be more than to OS page size. Table size = %d, Page size = %d
 # START NON-TRANSLATABLE
+J9NLS_SHRC_SHRINIT_CHECK_STRING_TABLE_RESET_MAY_FAIL.sample_input_1=256
+J9NLS_SHRC_SHRINIT_CHECK_STRING_TABLE_RESET_MAY_FAIL.sample_input_2=4096
 J9NLS_SHRC_SHRINIT_CHECK_STRING_TABLE_RESET_MAY_FAIL.explanation=An error has occurred in shared class processing.
 J9NLS_SHRC_SHRINIT_CHECK_STRING_TABLE_RESET_MAY_FAIL.system_action=The JVM terminates.
 J9NLS_SHRC_SHRINIT_CHECK_STRING_TABLE_RESET_MAY_FAIL.user_response=Contact your service representative.
@@ -4555,14 +4552,14 @@ J9NLS_SHRC_SHRINIT_CHECK_STRINGTABLE_RESET_MISSING_FLAG.system_action=The JVM te
 J9NLS_SHRC_SHRINIT_CHECK_STRINGTABLE_RESET_MISSING_FLAG.user_response=Contact your service representative.
 # END NON-TRANSLATABLE
 
-J9NLS_SHRC_CM_CACHE_FULL=Cache \"%s\" is marked as full. Failed to allocate block size = %d.
+J9NLS_SHRC_CM_CACHE_FULL=
 # START NON-TRANSLATABLE
 J9NLS_SHRC_CM_CACHE_FULL.explanation=The JVM failed to store requested data in the cache as it is marked as full.
 J9NLS_SHRC_CM_CACHE_FULL.system_action=The JVM terminates.
 J9NLS_SHRC_CM_CACHE_FULL.user_response=Contact your service representative.
 # END NON-TRANSLATABLE
 
-J9NLS_SHRC_CM_INSUFFICIENT_FREE_BLOCK=Cannot allocate requested block size for cache \"%s\". Available bytes = %d, Requested bytes = %d
+J9NLS_SHRC_CM_INSUFFICIENT_FREE_BLOCK=
 # START NON-TRANSLATABLE
 J9NLS_SHRC_CM_INSUFFICIENT_FREE_BLOCK.explanation=There is not enough free memory in shared class cache to store requested amount of data.
 J9NLS_SHRC_CM_INSUFFICIENT_FREE_BLOCK.system_action=The JVM terminates.
@@ -4613,6 +4610,7 @@ J9NLS_SHRC_SHRINIT_HELPTEXT_PRINTSTATS_HELP.user_response=
 
 J9NLS_SHRC_OSCACHE_CREATECACHEDIR_FAILED_V2=Failed to create a directory \"%s\" for the shared class cache
 # START NON-TRANSLATABLE
+J9NLS_SHRC_OSCACHE_CREATECACHEDIR_FAILED_V2.sample_input_1=/home/user/cachedir
 J9NLS_SHRC_OSCACHE_CREATECACHEDIR_FAILED_V2.explanation=The directory specified for the shared class cache could not be created
 J9NLS_SHRC_OSCACHE_CREATECACHEDIR_FAILED_V2.system_action=The JVM terminates, unless you have specified the nonfatal option with "-Xshareclasses:nonfatal", in which case the JVM continues without using Shared Classes.
 J9NLS_SHRC_OSCACHE_CREATECACHEDIR_FAILED_V2.user_response=Make sure you have the right permissions for the controldir or cachedir chosen.
@@ -4625,8 +4623,10 @@ J9NLS_SHRC_OSCACHE_BAD_CACHENAME_ERROR.system_action=The JVM terminates, unless 
 J9NLS_SHRC_OSCACHE_BAD_CACHENAME_ERROR.user_response=Contact your service representative.
 # END NON-TRANSLATABLE
 
-J9NLS_SHRC_OSCACHE_MMAP_DISK_FULL=Failed to initialize the shared classes cache, there is not enough space in the file system. Available free disk space bytes = %lld, requested bytes = %lld.
+J9NLS_SHRC_OSCACHE_MMAP_DISK_FULL=Failed to initialize the shared classes cache, there is not enough space in the file system. Available free disk space bytes = %llu, requested bytes = %llu.
 # START NON-TRANSLATABLE
+J9NLS_SHRC_OSCACHE_MMAP_DISK_FULL.sample_input_1=157286400
+J9NLS_SHRC_OSCACHE_MMAP_DISK_FULL.sample_input_2=314572800
 J9NLS_SHRC_OSCACHE_MMAP_DISK_FULL.explanation=An error has occurred within Shared Classes.
 J9NLS_SHRC_OSCACHE_MMAP_DISK_FULL.system_action=The JVM terminates, unless you have specified the nonfatal option with "-Xshareclasses:nonfatal", in which case the JVM continues without using Shared Classes.
 J9NLS_SHRC_OSCACHE_MMAP_DISK_FULL.user_response=Clean the file system. If the file system doesn't support free space reporting, see the "-Xshareclasses:noPersistentDiskSpaceCheck" option.
@@ -4708,9 +4708,8 @@ J9NLS_SHRC_OSCACHE_VIRT_ATTACH_ATTACHED.system_action=The JVM continues.
 J9NLS_SHRC_OSCACHE_VIRT_ATTACH_ATTACHED.user_response=No action required.
 # END NON-TRANSLATABLE
 
-J9NLS_SHRC_OSCACHE_CORRUPT_CACHE_HEADER_INCORRECT_TARGET=Incorrect target specification found. Target specified in cache header is: %s, but expected is: %s.
+J9NLS_SHRC_OSCACHE_CORRUPT_CACHE_HEADER_INCORRECT_TARGET=
 # START NON-TRANSLATABLE
-J9NLS_SHRC_OSCACHE_CORRUPT_CACHE_HEADER_INCORRECT_TARGET.sample_input_1=0
 J9NLS_SHRC_OSCACHE_CORRUPT_CACHE_HEADER_INCORRECT_TARGET.explanation=An error has occurred in shared class processing.
 J9NLS_SHRC_OSCACHE_CORRUPT_CACHE_HEADER_INCORRECT_TARGET.system_action=The cache is marked as corrupt and the JVM continues.
 J9NLS_SHRC_OSCACHE_CORRUPT_CACHE_HEADER_INCORRECT_TARGET.user_response=Contact your service representative.
@@ -5566,18 +5565,18 @@ J9NLS_SHRC_OSCACHE_ERROR_MAX_OPEN_FILES_REACHED.system_action=If -Xshareclasses:
 J9NLS_SHRC_OSCACHE_ERROR_MAX_OPEN_FILES_REACHED.user_response=Contact your system admin to increase the system limit on maximum open files or close any unused files and restart the JVM.
 # END NON-TRANSLATABLE
 
-J9NLS_SHRC_OSCACHE_SEMAPHORE_OPFAILED_CONTROL_FILE_LOCK_FAILED=An error has occurred while opening semaphore. Control file could not be locked.
+J9NLS_SHRC_OSCACHE_SEMAPHORE_OPFAILED_CONTROL_FILE_LOCK_FAILED=An error has occurred while opening semaphore. Control file could not be open or locked. Please ensure the current user has right permissions on the cache directory and control file.
 # START NON-TRANSLATABLE
 J9NLS_SHRC_OSCACHE_SEMAPHORE_OPFAILED_CONTROL_FILE_LOCK_FAILED.explanation=An error has occurred in shared class processing. Further messages may follow providing more detail.
 J9NLS_SHRC_OSCACHE_SEMAPHORE_OPFAILED_CONTROL_FILE_LOCK_FAILED.system_action=If -Xshareclasses:nonfatal is specified JVM will try to use an existing shared class cache in read-only mode. But if the cache does not exist, then JVM will continue without shared class cache. In absence of -Xshareclasses:nonfatal, JVM will terminate.
-J9NLS_SHRC_OSCACHE_SEMAPHORE_OPFAILED_CONTROL_FILE_LOCK_FAILED.user_response=Contact your service representative, unless subsequent messages indicate otherwise.
+J9NLS_SHRC_OSCACHE_SEMAPHORE_OPFAILED_CONTROL_FILE_LOCK_FAILED.user_response=Correct the permissions if they are set improperly and retry. If the situation persists, contact your service representative, unless subsequent messages indicate otherwise.
 # END NON-TRANSLATABLE
 
-J9NLS_SHRC_OSCACHE_SHMEM_OPFAILED_CONTROL_FILE_LOCK_FAILED=An error has occurred while opening shared memory. Control file could not be locked.
+J9NLS_SHRC_OSCACHE_SHMEM_OPFAILED_CONTROL_FILE_LOCK_FAILED=An error has occurred while opening shared memory. Control file could not be open or locked. Please ensure the current user has right permissions on the cache directory and control file.
 # START NON-TRANSLATABLE
 J9NLS_SHRC_OSCACHE_SHMEM_OPFAILED_CONTROL_FILE_LOCK_FAILED.explanation=An error has occurred in shared class processing. Further messages may follow providing more detail.
 J9NLS_SHRC_OSCACHE_SHMEM_OPFAILED_CONTROL_FILE_LOCK_FAILED.system_action=If -Xshareclasses:nonfatal is specified JVM will continue without shared class cache, otherwise it will terminate.
-J9NLS_SHRC_OSCACHE_SHMEM_OPFAILED_CONTROL_FILE_LOCK_FAILED.user_response=Contact your service representative, unless subsequent messages indicate otherwise.
+J9NLS_SHRC_OSCACHE_SHMEM_OPFAILED_CONTROL_FILE_LOCK_FAILED.user_response=Correct the permissions if they are set improperly and retry. If the situation persists, contact your service representative, unless subsequent messages indicate otherwise.
 # END NON-TRANSLATABLE
 
 J9NLS_SHRC_SHRINIT_FAILED_NONFATAL_PRESENT=Failed to startup shared class cache. Continue without using it as -Xshareclasses:nonfatal is specified
@@ -6017,7 +6016,8 @@ J9NLS_SHRC_SHRINIT_HELPTEXT_METHOD_SPEC.user_response=
 
 J9NLS_SHRC_SHRINIT_INFOTEXT_METHOD_SPEC=IMPORTANT: You can pass in multiple method specifications separated by commas. Where an option value contains comma(s), it must be enclosed in curly braces. \n\tYou may need to enclose options in quotation marks to prevent the shell intercepting and fragmenting comma-separated command lines, e.g.: \n\n\t\"-Xshareclasses:name=Cache1,%s{java/util/*.*(),java/lang/Object.*(*)}\" or\n\t-Xshareclasses:name=Cache1,%s\'{java/util/*.*(),!java/util/*.*()}\'\n
 # START NON-TRANSLATABLE
-J9NLS_SHRC_SHRINIT_INFOTEXT_METHOD_SPEC.sample_input_1=findAotMethods=
+J9NLS_SHRC_SHRINIT_INFOTEXT_METHOD_SPEC.sample_input_1=hashCode
+J9NLS_SHRC_SHRINIT_INFOTEXT_METHOD_SPEC.sample_input_2=hashCode
 J9NLS_SHRC_SHRINIT_INFOTEXT_METHOD_SPEC.explanation=NOTAG
 J9NLS_SHRC_SHRINIT_INFOTEXT_METHOD_SPEC.system_action=
 J9NLS_SHRC_SHRINIT_INFOTEXT_METHOD_SPEC.user_response=
@@ -6895,4 +6895,98 @@ J9NLS_SHRC_CM_PRINTSTATS_PROCESSOR_FEATURES.sample_input_1=default
 J9NLS_SHRC_CM_PRINTSTATS_PROCESSOR_FEATURES.explanation=NOTAG
 J9NLS_SHRC_CM_PRINTSTATS_PROCESSOR_FEATURES.system_action=
 J9NLS_SHRC_CM_PRINTSTATS_PROCESSOR_FEATURES.user_response=
+# END NON-TRANSLATABLE
+
+J9NLS_CC_MSYNC_UNSUPPORTED=The system does not support synchronizing memory with physical storage.
+# START NON-TRANSLATABLE
+J9NLS_CC_MSYNC_UNSUPPORTED.explanation=Synchronization between memory and physical storage is not supported on the runtime platform, so the feature is disabled.
+J9NLS_CC_MSYNC_UNSUPPORTED.system_action=The JVM won't force the operating system to flush changes in memory to the physical storage.
+J9NLS_CC_MSYNC_UNSUPPORTED.user_response=No action required.
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_SHRINIT_HELPTEXT_MAP31=Map the shared class cache below the 2G addressing range.
+# START NON-TRANSLATABLE
+J9NLS_SHRC_SHRINIT_HELPTEXT_MAP31.explanation=NOTAG
+J9NLS_SHRC_SHRINIT_HELPTEXT_MAP31.system_action=
+J9NLS_SHRC_SHRINIT_HELPTEXT_MAP31.user_response=
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_OSCACHE_MMAP_MSYNC_ERROR=Error Synchronizing memory.
+# START NON-TRANSLATABLE
+J9NLS_SHRC_OSCACHE_MMAP_MSYNC_ERROR.explanation=An error has occurred in shared class processing.
+J9NLS_SHRC_OSCACHE_MMAP_MSYNC_ERROR.system_action=The JVM terminates, unless you have specified the non-fatal option with "-Xshareclasses:nonfatal", in which case the JVM continues without using shared classes.
+J9NLS_SHRC_OSCACHE_MMAP_MSYNC_ERROR.user_response=Contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_OSCACHE_MMAP_STARTUP_JITSERVER_LAYER_FILE_DELETE_ERROR=The temporary cache layer file could not be removed.
+# START NON-TRANSLATABLE
+J9NLS_SHRC_OSCACHE_MMAP_STARTUP_JITSERVER_LAYER_FILE_DELETE_ERROR.explanation=The JITServer AOT cache created a temporary shared class cache layer in order to function, but the underlying file could not be removed.
+J9NLS_SHRC_OSCACHE_MMAP_STARTUP_JITSERVER_LAYER_FILE_DELETE_ERROR.system_action=The JVM continues.
+J9NLS_SHRC_OSCACHE_MMAP_STARTUP_JITSERVER_LAYER_FILE_DELETE_ERROR.user_response=Contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_CC_OSPAGE_SIZE_MISMATCH_V1=The page size (%1$zu) of the operating system is different from the page size (%2$zu) of the system on which layer %3$d cache is created.
+# START NON-TRANSLATABLE
+J9NLS_CC_OSPAGE_SIZE_MISMATCH_V1.sample_input_1=1024
+J9NLS_CC_OSPAGE_SIZE_MISMATCH_V1.sample_input_2=4096
+J9NLS_CC_OSPAGE_SIZE_MISMATCH_V1.sample_input_3=0
+J9NLS_CC_OSPAGE_SIZE_MISMATCH_V1.explanation=The cache is divided up on page boundaries according to the page size of system on which it was created. If there is a page size mismatch, the data might not be page aligned anymore.
+J9NLS_CC_OSPAGE_SIZE_MISMATCH_V1.system_action=The JVM continues, but with memory page protection disabled if data is not page aligned anymore.
+J9NLS_CC_OSPAGE_SIZE_MISMATCH_V1.user_response=No action required
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_CM_PRINTSTATS_PAGESIZEE=Memory Page size                     = %zu (Current OS page size %zu)
+# START NON-TRANSLATABLE
+J9NLS_SHRC_CM_PRINTSTATS_PAGESIZEE.sample_input_1=4096
+J9NLS_SHRC_CM_PRINTSTATS_PAGESIZEE.sample_input_2=4096
+J9NLS_SHRC_CM_PRINTSTATS_PAGESIZEE.explanation=NOTAG
+J9NLS_SHRC_CM_PRINTSTATS_PAGESIZEE.system_action=
+J9NLS_SHRC_CM_PRINTSTATS_PAGESIZEE.user_response=
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_SHRINIT_FAILURE_CREATE_ROMTORAMHASHTABLE=Cannot allocate ROM to RAM class hash table in shrinit
+# START NON-TRANSLATABLE
+J9NLS_SHRC_SHRINIT_FAILURE_CREATE_ROMTORAMHASHTABLE.explanation=The system is unable to obtain sufficient native memory to allocate internal data structures.
+J9NLS_SHRC_SHRINIT_FAILURE_CREATE_ROMTORAMHASHTABLE.system_action=The JVM terminates, unless you have specified the nonfatal option with "-Xshareclasses:nonfatal", in which case the JVM attempts to start up without using Shared Classes.
+J9NLS_SHRC_SHRINIT_FAILURE_CREATE_ROMTORAMHASHTABLE.user_response=System is running low on memory resource for the JVM to start up properly. Check system memory configuration. If the situation persists, contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_SHRINIT_FAILURE_CREATE_ROMTORAMMUTEX=Cannot allocate ROM to RAM class mutex in shrinit
+# START NON-TRANSLATABLE
+J9NLS_SHRC_SHRINIT_FAILURE_CREATE_ROMTORAMMUTEX.explanation=The system is unable to obtain sufficient native memory to allocate internal data structures.
+J9NLS_SHRC_SHRINIT_FAILURE_CREATE_ROMTORAMMUTEX.system_action=The JVM terminates, unless you have specified the nonfatal option with "-Xshareclasses:nonfatal", in which case the JVM attempts to start up without using Shared Classes.
+J9NLS_SHRC_SHRINIT_FAILURE_CREATE_ROMTORAMMUTEX.user_response=System is running low on memory resource for the JVM to start up properly. Check system memory configuration. If the situation persists, contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_SHRINIT_HELPTEXT_EXTRA_STARTUPHINTS_EQUALS=Adjust the number of additional startup hints allowed to be stored into the shared classes cache to <number>.
+# START NON-TRANSLATABLE
+J9NLS_SHRC_SHRINIT_HELPTEXT_EXTRA_STARTUPHINTS_EQUALS.explanation=NOTAG
+J9NLS_SHRC_SHRINIT_HELPTEXT_EXTRA_STARTUPHINTS_EQUALS.system_action=
+J9NLS_SHRC_SHRINIT_HELPTEXT_EXTRA_STARTUPHINTS_EQUALS.user_response=
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_SHRINIT_OPTION_INVALID_PARAM=Invalid parameter passed to option \"%s\".
+# START NON-TRANSLATABLE
+J9NLS_SHRC_SHRINIT_OPTION_INVALID_PARAM.sample_input_1=extraStartupHints=
+J9NLS_SHRC_SHRINIT_OPTION_INVALID_PARAM.explanation=An incorrect parameter has been used in the command-line option
+J9NLS_SHRC_SHRINIT_OPTION_INVALID_PARAM.system_action=The JVM terminates.
+J9NLS_SHRC_SHRINIT_OPTION_INVALID_PARAM.user_response=Correct or remove the invalid command-line option and rerun.
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_CC_EXTRA_STARTUPHINTS_SET=The number of additional startup hints that can be stored into the shared cache is set to %u.
+# START NON-TRANSLATABLE
+J9NLS_SHRC_CC_EXTRA_STARTUPHINTS_SET.sample_input_1=64
+J9NLS_SHRC_CC_EXTRA_STARTUPHINTS_SET.explanation=The number of additional startup hints allowed to be stored to the shared classes cache has been adjusted.
+J9NLS_SHRC_CC_EXTRA_STARTUPHINTS_SET.system_action=The JVM continues.
+J9NLS_SHRC_CC_EXTRA_STARTUPHINTS_SET.user_response=No action required. This message is for information only.
+# END NON-TRANSLATABLE
+
+J9NLS_SHRC_CM_PRINTSTATS_NUM_EXTRA_STARTUP_HINTS=# Additional startup hints allowed  %*.c= %u
+# START NON-TRANSLATABLE
+J9NLS_SHRC_CM_PRINTSTATS_NUM_EXTRA_STARTUP_HINTS.sample_input_1=0
+J9NLS_SHRC_CM_PRINTSTATS_NUM_EXTRA_STARTUP_HINTS.sample_input_2=
+J9NLS_SHRC_CM_PRINTSTATS_NUM_EXTRA_STARTUP_HINTS.sample_input_3=8
+J9NLS_SHRC_CM_PRINTSTATS_NUM_EXTRA_STARTUP_HINTS.explanation=NOTAG
+J9NLS_SHRC_CM_PRINTSTATS_NUM_EXTRA_STARTUP_HINTS.system_action=
+J9NLS_SHRC_CM_PRINTSTATS_NUM_EXTRA_STARTUP_HINTS.user_response=
 # END NON-TRANSLATABLE

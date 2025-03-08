@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.tools.ddrinteractive.commands;
 
 import java.io.PrintStream;
@@ -61,7 +61,7 @@ public class DumpRomClassCommand extends Command {
 			if (args.length == 2 && args[1].equals("maps")) {
 				maps |= J9BCTranslationData.BCT_DumpMaps;
 			}
-			if (J9BuildFlags.env_littleEndian) {
+			if (J9BuildFlags.J9VM_ENV_LITTLE_ENDIAN) {
 				maps |= J9BCTranslationData.BCT_LittleEndianOutput;
 			} else {
 				maps |= J9BCTranslationData.BCT_BigEndianOutput;
@@ -96,7 +96,7 @@ public class DumpRomClassCommand extends Command {
 						searchClassName));
 			} else {
 				/* treat argument as address */
-				long addr = CommandUtils.parsePointer(args[0], J9BuildFlags.env_data64);
+				long addr = CommandUtils.parsePointer(args[0], J9BuildFlags.J9VM_ENV_DATA64);
 
 				J9ROMClassPointer clazz = J9ROMClassPointer.cast(addr);
 				J9BCUtil.j9bcutil_dumpRomClass(out, clazz, maps);

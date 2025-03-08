@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2016
  *
  * This program and the accompanying materials are made available under
@@ -18,14 +18,16 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management.internal;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.MemoryType;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.management.NotificationFilter;
@@ -79,14 +81,20 @@ public final class ExtendedMemoryMXBeanImpl extends MemoryMXBeanImpl implements 
 	@Override
 	protected void startNotificationThread() {
 		if (!notificationThreadStarted.getAndSet(true)) {
+			Thread notifier;
+			/*[IF JAVA_SPEC_VERSION >= 24]*/
+			notifier = VM.getVMLangAccess().createThread(new MemoryNotificationThread(this),
+					"MemoryMXBean notification dispatcher", true, false, true, ClassLoader.getSystemClassLoader()); //$NON-NLS-1$
+			notifier.setPriority(Thread.NORM_PRIORITY + 1);
+			/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 			PrivilegedAction<Thread> createThread = () -> {
 				Thread thread = VM.getVMLangAccess().createThread(new MemoryNotificationThread(this),
 					"MemoryMXBean notification dispatcher", true, false, true, ClassLoader.getSystemClassLoader()); //$NON-NLS-1$
 				thread.setPriority(Thread.NORM_PRIORITY + 1);
 				return thread;
 			};
-
-			Thread notifier = java.security.AccessController.doPrivileged(createThread);
+			notifier = java.security.AccessController.doPrivileged(createThread);
+			/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 			notifier.start();
 		}
 	}

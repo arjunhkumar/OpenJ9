@@ -17,8 +17,9 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
+
 #ifndef JITSERVER_ROMCLASS_HASH_H
 #define JITSERVER_ROMCLASS_HASH_H
 
@@ -28,7 +29,10 @@
 
 #include "infra/Assert.hpp"
 
+struct J9Class;
 struct J9ROMClass;
+class TR_J9VMBase;
+class TR_Memory;
 
 
 // Assuming a 256-bit hash such as SHA-256
@@ -44,8 +48,28 @@ static_assert(ROMCLASS_HASH_BITS % (CHAR_BIT * sizeof(size_t)) == 0,
 struct JITServerROMClassHash
    {
 public:
-   JITServerROMClassHash() { memset(_data, 0, sizeof(_data)); }
-   JITServerROMClassHash(const J9ROMClass *romClass);
+   JITServerROMClassHash() : _data() { }
+
+   // Computes the hash of romClass assuming it is already packed (only possible on the server side)
+   JITServerROMClassHash(const J9ROMClass *romClass) { init(romClass, romClass->romSize); }
+
+   // Builds a hash for an array class by combining the ROMClass hash of the "[L" object array class,
+   // the ROMClass hash of the base component class, and the number of array dimensions.
+   JITServerROMClassHash(const JITServerROMClassHash &objectArrayHash,
+                         const JITServerROMClassHash &baseComponentHash, size_t numDimensions)
+      {
+      init(objectArrayHash, baseComponentHash, numDimensions);
+      }
+
+   // Computes the hash of romClass, packing it if needed, using trMemory for scratch allocations.
+   // A NULL fej9 means that romClass is already packed (only possible on the server side).
+   // If checkGenerated is true and romClass is a recognized runtime-generated class (e.g., a lambda),
+   // it is re-packed to exclude non-deterministic parts of all instances of the class name string.
+   JITServerROMClassHash(const J9ROMClass *romClass, TR_Memory &trMemory, TR_J9VMBase *fej9,
+                         bool checkGenerated = false, size_t prefixLength = 0)
+      {
+      init(romClass, trMemory, fej9, checkGenerated, prefixLength);
+      }
 
    bool operator==(const JITServerROMClassHash &h) const
       {
@@ -62,7 +86,20 @@ public:
 
    const char *toString(char *buffer, size_t size) const;
 
+   // Returns the hash of the "[L" ROMClass. Caches the result for reuse in future invocations. Only used on the client.
+   static const JITServerROMClassHash &getObjectArrayHash(const J9ROMClass *objectArrayROMClass,
+                                                          TR_Memory &trMemory, TR_J9VMBase *fej9);
+
 private:
+   void init(const void *data, size_t size);
+   void init(const J9ROMClass *romClass, TR_Memory &trMemory,
+             TR_J9VMBase *fej9, bool checkGenerated, size_t prefixLength);
+   void init(const JITServerROMClassHash &objectArrayHash,
+             const JITServerROMClassHash &baseComponentHash, size_t numDimensions);
+
+   static volatile bool _cachedObjectArrayHash;
+   static JITServerROMClassHash _objectArrayHash;
+
    size_t _data[ROMCLASS_HASH_WORDS];
    };
 

@@ -17,12 +17,13 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jni.h"
 #include "j9.h"
 #include "j2sever.h"
+#include "ut_j9jcl.h"
 
 jobject JNICALL
 Java_com_ibm_java_lang_management_internal_RuntimeMXBeanImpl_getNameImpl(JNIEnv *env, jobject beanInstance)
@@ -35,7 +36,7 @@ Java_com_ibm_java_lang_management_internal_RuntimeMXBeanImpl_getNameImpl(JNIEnv 
 
 	pid = j9sysinfo_get_pid();
 	omrsysinfo_get_hostname( hostname, 256 );
-	j9str_printf( PORTLIB, result, 256, "%zu@%s", pid, hostname );
+	j9str_printf(result, sizeof(result), "%zu@%s", pid, hostname);
 
 	return (*env)->NewStringUTF( env, result );
 }
@@ -51,9 +52,17 @@ Java_com_ibm_java_lang_management_internal_RuntimeMXBeanImpl_getStartTimeImpl(JN
 jlong JNICALL
 Java_com_ibm_java_lang_management_internal_RuntimeMXBeanImpl_getUptimeImpl(JNIEnv *env, jobject beanInstance)
 {
-	J9JavaVM *javaVM = ((J9VMThread *) env)->javaVM;
-	PORT_ACCESS_FROM_JAVAVM( javaVM );
-	return (jlong)( j9time_current_time_millis() - javaVM->managementData->vmStartTime );
+	J9JavaVM *javaVM = ((J9VMThread*)env)->javaVM;
+	PORT_ACCESS_FROM_JAVAVM(javaVM);
+	I_64 criuTimeDeltaMillis = 0;
+	I_64 timeNow = j9time_current_time_millis();
+
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+	criuTimeDeltaMillis = javaVM->checkpointState.checkpointRestoreTimeDelta / J9PORT_TIME_NS_PER_MS;
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+	Trc_JCL_MXBean_getUptimeImpl(env, timeNow, javaVM->managementData->vmStartTime, criuTimeDeltaMillis);
+
+	return (jlong)(timeNow - javaVM->managementData->vmStartTime - criuTimeDeltaMillis);
 }
 
 jboolean JNICALL

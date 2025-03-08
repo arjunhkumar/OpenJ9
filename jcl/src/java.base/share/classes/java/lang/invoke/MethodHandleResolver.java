@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
+/*
  * Copyright IBM Corp. and others 2020
  *
  * This program and the accompanying materials are made available under
@@ -18,9 +18,11 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
+
+import static java.lang.invoke.MethodHandles.Lookup.IMPL_LOOKUP;
 
 import java.lang.invoke.MethodHandles.Lookup;
 import java.util.ArrayList;
@@ -30,19 +32,24 @@ import com.ibm.oti.util.Msg;
 import com.ibm.oti.vm.VM;
 import com.ibm.oti.vm.VMLangAccess;
 
-/*[IF Sidecar19-SE]
+/*[IF JAVA_SPEC_VERSION >= 9]
 import jdk.internal.misc.Unsafe;
 import jdk.internal.reflect.ConstantPool;
-/*[ELSE]*/
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 import sun.misc.Unsafe;
 import sun.reflect.ConstantPool;
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 import com.ibm.jit.JITHelpers;
 
 /*[IF JAVA_SPEC_VERSION >= 16]*/
 import java.lang.invoke.MethodHandleInfo;
 /*[ENDIF] JAVA_SPEC_VERSION >= 16 */
+
+/*[IF OPENJDK_METHODHANDLES & (JAVA_SPEC_VERSION < 9)]*/
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Method;
+/*[ENDIF] OPENJDK_METHODHANDLES & (JAVA_SPEC_VERSION < 9) */
 
 /**
  * Static methods for the MethodHandle class.
@@ -51,7 +58,7 @@ final class MethodHandleResolver {
 	static final Unsafe UNSAFE = Unsafe.getUnsafe();
 
 	static final JITHelpers JITHELPERS = JITHelpers.getHelpers();
-	
+
 	private static final int BSM_ARGUMENT_SIZE = Short.SIZE / Byte.SIZE;
 	private static final int BSM_ARGUMENT_COUNT_OFFSET = BSM_ARGUMENT_SIZE;
 	private static final int BSM_ARGUMENTS_OFFSET = BSM_ARGUMENT_SIZE * 2;
@@ -60,34 +67,37 @@ final class MethodHandleResolver {
 	private static final int BSM_TYPE_ARGUMENT_INDEX = 2;
 	private static final int BSM_OPTIONAL_ARGUMENTS_START_INDEX = 3;
 
+/*[IF OPENJDK_METHODHANDLES & (JAVA_SPEC_VERSION < 9)]*/
+	private static final int VARARGS = 0x80;
+/*[ENDIF] OPENJDK_METHODHANDLES & (JAVA_SPEC_VERSION < 9) */
+
 	/*
 	 * Return the result of J9_CP_TYPE(J9Class->romClass->cpShapeDescription, index)
 	 */
 	private static final native int getCPTypeAt(Object internalConstantPool, int index);
 
 	/*
-	 * sun.reflect.ConstantPool doesn't have a getMethodTypeAt method.  This is the 
+	 * sun.reflect.ConstantPool doesn't have a getMethodTypeAt method.  This is the
 	 * equivalent for MethodType.
 	 */
 	private static final native MethodType getCPMethodTypeAt(Object internalConstantPool, int index);
 
 	/*
-	 * sun.reflect.ConstantPool doesn't have a getMethodHandleAt method.  This is the 
+	 * sun.reflect.ConstantPool doesn't have a getMethodHandleAt method.  This is the
 	 * equivalent for MethodHandle.
 	 */
 	private static final native MethodHandle getCPMethodHandleAt(Object internalConstantPool, int index);
 
-	
 	/**
 	 * Get the class name from a constant pool class element, which is located
 	 * at the specified <i>index</i> in <i>internalConstantPool</i>.
-	 * 
+	 *
 	 * @param   internalConstantPool the constant pool as an InternalConstantPool object
 	 * @param   index the constant pool index
-	 * 
+	 *
 	 * @return  instance of String which contains the class name or NULL in
 	 *          case of error
-	 * 
+	 *
 	 * @throws  NullPointerException if <i>internalConstantPool</i> is null
 	 * @throws  IllegalArgumentException if <i>index</i> has wrong constant pool type
 	 */
@@ -95,7 +105,7 @@ final class MethodHandleResolver {
 
 /*[IF JAVA_SPEC_VERSION >= 11]*/
 	/*
-	 * sun.reflect.ConstantPool doesn't have a getConstantDynamicAt method.  This is the 
+	 * sun.reflect.ConstantPool doesn't have a getConstantDynamicAt method.  This is the
 	 * equivalent for ConstantDynamic.
 	 */
 	private static final native Object getCPConstantDynamicAt(Object internalConstantPool, int index);
@@ -129,7 +139,7 @@ final class MethodHandleResolver {
 		 */
 		if (bsmTypeArgCount < 1 || MethodHandles.Lookup.class != bsm.type().parameterType(0)) {
 			/*[MSG "K0A01", "Constant_Dynamic references bootstrap method '{0}' does not have java.lang.invoke.MethodHandles.Lookup as first parameter."]*/
-			throw new BootstrapMethodError(Msg.getString("K0A01", Lookup.IMPL_LOOKUP.revealDirect(bsm).getName())); //$NON-NLS-1$
+			throw new BootstrapMethodError(Msg.getString("K0A01", IMPL_LOOKUP.revealDirect(bsm).getName())); //$NON-NLS-1$
 		}
 
 /*[IF OPENJDK_METHODHANDLES]*/
@@ -174,7 +184,7 @@ final class MethodHandleResolver {
 				throw new BootstrapMethodError(msg, e);
 			}
 		}
-		
+
 		return result;
 	}
 /*[ENDIF] JAVA_SPEC_VERSION >= 11*/
@@ -226,7 +236,7 @@ final class MethodHandleResolver {
 		return result;
 	}
 /*[ENDIF] !OPENJDK_METHODHANDLES*/
-	
+
 	@SuppressWarnings("unused")
 	private static final Object resolveInvokeDynamic(long j9class, String name, String methodDescriptor, long bsmData) throws Throwable {
 /*[IF OPENJDK_METHODHANDLES]*/
@@ -234,57 +244,95 @@ final class MethodHandleResolver {
 		Object internalConstantPool = access.getInternalConstantPoolFromJ9Class(j9class);
 		Class<?> classObject = getClassFromJ9Class(j9class);
 
-		MethodType type;
+		MethodType type = null;
+		Object[] result = new Object[2];
 /*[IF JAVA_SPEC_VERSION >= 11]*/
 		type = MethodTypeHelper.vmResolveFromMethodDescriptorString(methodDescriptor, access.getClassloader(classObject), null);
-		final MethodHandles.Lookup lookup = new MethodHandles.Lookup(classObject);
+		final MethodHandles.Lookup lookup = IMPL_LOOKUP.in(classObject);
 		inaccessibleTypeCheck(lookup, type);
 /*[ELSE] JAVA_SPEC_VERSION >= 11*/
 		try {
 			type = MethodTypeHelper.vmResolveFromMethodDescriptorString(methodDescriptor, access.getClassloader(classObject), null);
-		} catch(Throwable e) {
-			throw new BootstrapMethodError(e);
+/*[ENDIF] JAVA_SPEC_VERSION >= 11*/
+
+			int bsmIndex = UNSAFE.getShort(bsmData);
+			int bsmArgCount = UNSAFE.getShort(bsmData + BSM_ARGUMENT_COUNT_OFFSET);
+			long bsmArgs = bsmData + BSM_ARGUMENTS_OFFSET;
+			MethodHandle bsm = getCPMethodHandleAt(internalConstantPool, bsmIndex);
+			if (bsm == null) {
+				/*[MSG "K05cd", "unable to resolve 'bootstrap_method_ref' in '{0}' at index {1}"]*/
+				throw new NullPointerException(Msg.getString("K05cd", classObject.toString(), bsmIndex)); //$NON-NLS-1$
+			}
+
+			Object[] staticArgs = new Object[bsmArgCount];
+			/* Static optional arguments */
+			int bsmTypeArgCount = bsm.type().parameterCount();
+			for (int i = 0; i < bsmArgCount; i++) {
+				staticArgs[i] = getAdditionalBsmArg(access, internalConstantPool, classObject, bsm, bsmArgs, bsmTypeArgCount, i);
+			}
+
+			Object[] appendixResult = new Object[1];
+
+/*[IF JAVA_SPEC_VERSION >= 11]*/
+		try {
+/*[ENDIF] JAVA_SPEC_VERSION >= 11*/
+			/* result[0] stores a MemberName object, which specifies the caller method (generated bytecodes). */
+			result[0] = MethodHandleNatives.linkCallSite(classObject,
+					/* The second parameter is not used in Java 8 and Java 18+ (JDK bug: 8272614). */
+					/*[IF (JAVA_SPEC_VERSION > 8) & (JAVA_SPEC_VERSION < 18)]*/
+					0,
+					/*[ENDIF] (JAVA_SPEC_VERSION > 8) & (JAVA_SPEC_VERSION < 18) */
+					bsm, name, type, (Object)staticArgs, appendixResult);
+
+			/* result[1] stores a MethodHandle object, which is used as the last argument to the caller method. */
+			result[1] = appendixResult[0];
+		} catch (Throwable e) {
+/*[IF JAVA_SPEC_VERSION < 11]*/
+			/* Before Java 11, if linkCallSite throws a BootstrapMethodError due to the CallSite binding
+			 * resolving to null, throw it at resolution time. This ensures that resolution will be
+			 * reattempted on the subsequent visit to the invokedynamic instruction in the interpreter.
+			 */
+			if (e instanceof BootstrapMethodError) {
+				throw e;
+			}
+/*[ENDIF] JAVA_SPEC_VERSION < 11*/
+
+			if (type == null) {
+				throw new BootstrapMethodError(e);
+			}
+
+			/* Any throwables are wrapped in an invoke-time BootstrapMethodError exception throw. */
+			try {
+				MethodHandle thrower = MethodHandles.throwException(type.returnType(), BootstrapMethodError.class);
+				MethodHandle constructor = IMPL_LOOKUP.findConstructor(BootstrapMethodError.class, MethodType.methodType(void.class, Throwable.class));
+
+				MethodHandle combiner = null;
+				if (e instanceof BootstrapMethodError) {
+					Throwable cause = e.getCause();
+					if (cause == null) {
+						combiner = constructor.bindTo(e.getMessage());
+					} else {
+						combiner = constructor.bindTo(cause);
+					}
+				} else {
+					combiner = constructor.bindTo(e);
+				}
+
+				MethodHandle resultHandle = MethodHandles.foldArguments(thrower, combiner);
+/*[IF JAVA_SPEC_VERSION >= 11]*/
+				result[0] = resultHandle.internalForm().vmentry;
+/*[ELSE] JAVA_SPEC_VERSION >= 11*/
+				result[0] = resultHandle.internalForm().compileToBytecode();
+/*[ENDIF] JAVA_SPEC_VERSION >= 11*/
+				result[1] = resultHandle;
+			} catch (IllegalAccessException iae) {
+				throw new Error(iae);
+			} catch (NoSuchMethodException nsme) {
+				throw new Error(nsme);
+			}
 		}
-/*[ENDIF] JAVA_SPEC_VERSION >= 11 */
-
-		int bsmIndex = UNSAFE.getShort(bsmData);
-		int bsmArgCount = UNSAFE.getShort(bsmData + BSM_ARGUMENT_COUNT_OFFSET);
-		long bsmArgs = bsmData + BSM_ARGUMENTS_OFFSET;
-		MethodHandle bsm = getCPMethodHandleAt(internalConstantPool, bsmIndex);
-		if (null == bsm) {
-			/*[MSG "K05cd", "unable to resolve 'bootstrap_method_ref' in '{0}' at index {1}"]*/
-			throw new NullPointerException(Msg.getString("K05cd", classObject.toString(), bsmIndex)); //$NON-NLS-1$
-		}
-
-		Object[] staticArgs = new Object[bsmArgCount];
-		/* Static optional arguments */
-		int bsmTypeArgCount = bsm.type().parameterCount();
-		for (int i = 0; i < bsmArgCount; i++) {
-			staticArgs[i] = getAdditionalBsmArg(access, internalConstantPool, classObject, bsm, bsmArgs, bsmTypeArgCount, i);
-		}
-
-		Object[] appendixResult = new Object[1];
-		Object[] result = new Object[2];
-
-		/* result[0] stores a MemberName object, which specifies the caller method (generated bytecodes), or a Throwable.
-		 *
-		 * This leads to a type check in the interpreter for the object stored in result[0].
-		 *
-		 * TODO: Investigate if the Throwable can be wrapped in a MemberName. This will help prevent type checks in the
-		 * interpreter since result[0] will always be a MemberName. This will improve performance.
-		 */
-		result[0] = MethodHandleNatives.linkCallSite(classObject,
-				/* The second parameter is not used in Java 8 and Java 18+ (JDK bug: 8272614). */
-				/*[IF (JAVA_SPEC_VERSION > 8) & (JAVA_SPEC_VERSION < 18)]*/
-				0,
-				/*[ENDIF] (JAVA_SPEC_VERSION > 8) & (JAVA_SPEC_VERSION < 18) */
-				bsm, name, type, (Object)staticArgs, appendixResult);
-
-		/* result[1] stores a MethodHandle object, which is used as the last argument to the caller method. */
-		result[1] = appendixResult[0];
-
 		return (Object)result;
-/*[ELSE] OPENJDK_METHODHANDLES*/	
+/*[ELSE] OPENJDK_METHODHANDLES*/
 		MethodHandle result = null;
 		MethodType type = null;
 
@@ -294,7 +342,7 @@ final class MethodHandleResolver {
 			VMLangAccess access = VM.getVMLangAccess();
 			Object internalConstantPool = access.getInternalConstantPoolFromJ9Class(j9class);
 			Class<?> classObject = getClassFromJ9Class(j9class);
-			
+
 			type = MethodTypeHelper.vmResolveFromMethodDescriptorString(methodDescriptor, access.getClassloader(classObject), null);
 			final MethodHandles.Lookup lookup = new MethodHandles.Lookup(classObject, false);
 			try {
@@ -308,7 +356,7 @@ final class MethodHandleResolver {
 			int bsmArgCount = UNSAFE.getShort(bsmData + BSM_ARGUMENT_COUNT_OFFSET);
 			long bsmArgs = bsmData + BSM_ARGUMENTS_OFFSET;
 			MethodHandle bsm = getCPMethodHandleAt(internalConstantPool, bsmIndex);
-			if (null == bsm) {
+			if (bsm == null) {
 				/*[MSG "K05cd", "unable to resolve 'bootstrap_method_ref' in '{0}' at index {1}"]*/
 				throw new NullPointerException(Msg.getString("K05cd", classObject.toString(), bsmIndex)); //$NON-NLS-1$
 			}
@@ -317,7 +365,7 @@ final class MethodHandleResolver {
 			staticArgs[BSM_LOOKUP_ARGUMENT_INDEX] = lookup;
 			staticArgs[BSM_NAME_ARGUMENT_INDEX] = name;
 			staticArgs[BSM_TYPE_ARGUMENT_INDEX] = type;
-		
+
 			/* Static optional arguments */
 			int bsmTypeArgCount = bsm.type().parameterCount();
 			for (int i = 0; i < bsmArgCount; i++) {
@@ -349,29 +397,29 @@ final class MethodHandleResolver {
 /*[ENDIF] JAVA_SPEC_VERSION >= 11 */
 		} catch(Throwable e) {
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 			if (e instanceof Error) {
 				throw e;
 			}
-/*[ENDIF] Sidecar19-SE */
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 			if (type == null) {
 				throw new BootstrapMethodError(e);
 			}
-			
+
 			/* create an exceptionHandle with appropriate drop adapter and install that */
 			try {
 				MethodHandle thrower = MethodHandles.throwException(type.returnType(), BootstrapMethodError.class);
-				MethodHandle constructor = MethodHandles.Lookup.IMPL_LOOKUP.findConstructor(BootstrapMethodError.class, MethodType.methodType(void.class, Throwable.class));
+				MethodHandle constructor = IMPL_LOOKUP.findConstructor(BootstrapMethodError.class, MethodType.methodType(void.class, Throwable.class));
 				result = MethodHandles.foldArguments(thrower, constructor.bindTo(e));
-				result = MethodHandles.dropArguments(result, 0, type.parameterList()); 
+				result = MethodHandles.dropArguments(result, 0, type.parameterList());
 			} catch (IllegalAccessException iae) {
 				throw new Error(iae);
 			} catch (NoSuchMethodException nsme) {
 				throw new Error(nsme);
 			}
 		}
-		
+
 		return result;
 /*[ENDIF] OPENJDK_METHODHANDLES*/
 	}
@@ -379,10 +427,10 @@ final class MethodHandleResolver {
 /*[IF OPENJDK_METHODHANDLES & (JAVA_SPEC_VERSION >= 11)]*/
 	/**
 	 * Check access to the parameter and return classes within incoming MethodType.
-	 * 
+	 *
 	 * @param lookup the Lookup object used for the access check.
 	 * @param type the incoming MethodType.
-	 * 
+	 *
 	 * @throws IllegalAccessError if an inaccessible class is found.
 	 */
 	private static final void inaccessibleTypeCheck(Lookup lookup, MethodType type) throws IllegalAccessError {
@@ -440,7 +488,7 @@ final class MethodHandleResolver {
 		}
 
 /*[IF JAVA_SPEC_VERSION >= 11]*/
-		final MethodHandles.Lookup lookup = new MethodHandles.Lookup(currentClass);
+		final MethodHandles.Lookup lookup = IMPL_LOOKUP.in(currentClass);
 		inaccessibleTypeCheck(lookup, mt);
 /*[ENDIF] JAVA_SPEC_VERSION >= 11 */
 
@@ -474,7 +522,7 @@ final class MethodHandleResolver {
 				lookup.accessCheckArgRetTypes(type);
 				result = lookup.findStatic(referenceClazz, name, type);
 				break;
-			case 7: /* invokeSpecial */ 
+			case 7: /* invokeSpecial */
 				type = MethodTypeHelper.vmResolveFromMethodDescriptorString(typeDescriptor, loader, null);
 				lookup.accessCheckArgRetTypes(type);
 				result = lookup.findSpecial(referenceClazz, name, type, currentClass);
@@ -502,9 +550,9 @@ final class MethodHandleResolver {
 		}
 /*[ENDIF] OPENJDK_METHODHANDLES*/
 	}
-	
+
 /*[IF !OPENJDK_METHODHANDLES]*/
-	/* Convert the field type descriptor into a MethodType so we can reuse the parsing logic in 
+	/* Convert the field type descriptor into a MethodType so we can reuse the parsing logic in
 	 * #fromMethodDescriptorString().  The verifier checks to ensure that the typeDescriptor is
 	 * a valid field descriptor so adding the "()V" around it is valid.
 	 */
@@ -515,7 +563,6 @@ final class MethodHandleResolver {
 	}
 /*[ENDIF] !OPENJDK_METHODHANDLES*/
 
-	
 	/**
 	 * Gets class object from RAM class address
 	 * @param j9class RAM class address
@@ -532,7 +579,7 @@ final class MethodHandleResolver {
 		Objects.requireNonNull(classObject);
 		return classObject;
 	}
-	
+
 	private static final Class<?> fromFieldDescriptorString(String fieldDescriptor, ClassLoader classLoader) {
 		ArrayList<Class<?>> classList = new ArrayList<Class<?>>();
 		int length = fieldDescriptor.length();
@@ -548,7 +595,7 @@ final class MethodHandleResolver {
 
 		return classList.get(0);
 	}
-	
+
 	/**
 	 * Retrieve a static argument of the bootstrap method at argIndex from constant pool
 	 * @param access
@@ -557,7 +604,7 @@ final class MethodHandleResolver {
 	 * @param bsm bootstrap method
 	 * @param bsmArgs starting address of bootstrap arguments in the RAM class call site
 	 * @param bsmTypeArgCount number of bootstrap arguments
-	 * @param argIndex index of bsm argument starting from zero. Argument should be in addition to the first three 
+	 * @param argIndex index of bsm argument starting from zero. Argument should be in addition to the first three
 	 * 	mandatory arguments (3+): MethodHandles.Lookup, String, MethodType
 	 * @return additional argument from the constant pool
 	 * @throws Throwable any throwable will be handled by the caller
@@ -566,7 +613,7 @@ final class MethodHandleResolver {
 		/* Check if we need to treat the last parameter specially when handling primitives.
 		 * The type of the varargs array will determine how primitive ints from the constantpool
 		 * get boxed: {Boolean, Byte, Short, Character or Integer}.
-		 */ 
+		 */
 		boolean treatLastArgAsVarargs = bsm.isVarargsCollector();
 
 		/* The ConstantPool natives expect an InternalConstantPool to extract the j9constantpool
@@ -594,7 +641,7 @@ final class MethodHandleResolver {
 			if (treatLastArgAsVarargs && (staticArgIndex >= (bsmTypeArgCount - 1))) {
 				argClass = bsm.type().lastParameterType().getComponentType(); /* varargs component type */
 			} else {
-				/* Verify that a call to MethodType.parameterType will not cause an ArrayIndexOutOfBoundsException. 
+				/* Verify that a call to MethodType.parameterType will not cause an ArrayIndexOutOfBoundsException.
 				* If the number of static arguments is greater than the number of argument slots in the bsm
 				* leave argClass unset. A more meaningful user error WrongMethodTypeException will be thrown later on.
 				*/
@@ -638,31 +685,31 @@ final class MethodHandleResolver {
 		default:
 			// Do nothing. The null check below will throw the appropriate exception.
 		}
-		
+
 		cpEntry.getClass();	// Implicit NPE
 		return cpEntry;
 	}
-	
+
 	/**
 	 * Retrieve the class name of the constant pool class element located at the specified
 	 * index in internalConstantPool. Then, throw a NoClassDefFoundError with the cause
-	 * set as ClassNotFoundException. The message of NoClassDefFoundError and 
+	 * set as ClassNotFoundException. The message of NoClassDefFoundError and
 	 * ClassNotFoundException contains the name of the class, which couldn't be found.
-	 * 
+	 *
 	 * @param   internalConstantPool the constant pool as an InternalConstantPool object
 	 * @param   index the integer value of the constant pool index
-	 * 
+	 *
 	 * @return  Throwable to prevent any fall through case
-	 * 
+	 *
 	 * @throws  NoClassDefFoundError with the cause set as ClassNotFoundException
 	 */
 	private static final Throwable throwNoClassDefFoundError(Object internalConstantPool, int index) {
 		String className = getCPClassNameAt(internalConstantPool, index);
 		NoClassDefFoundError noClassDefFoundError = new NoClassDefFoundError(className);
 		noClassDefFoundError.initCause(new ClassNotFoundException(className));
-		throw noClassDefFoundError;	
+		throw noClassDefFoundError;
 	}
-	
+
 	static long getJ9ClassFromClass(Class<?> c) {
 		if (JITHELPERS.is32Bit()) {
 			return JITHELPERS.getJ9ClassFromClass32(c);
@@ -715,7 +762,7 @@ final class MethodHandleResolver {
 
 /*[IF JAVA_SPEC_VERSION >= 16]*/
 	/**
-	 * This method is intended for resolving calls to the MethodHandle methods prior to the upcall,
+	 * This method is intended for resolving calls to the MethodHandle methods prior to the downcall/upcall,
 	 * which yields two values in a two element array. The first array element is a MemberName
 	 * object which specifies the upcall method to be invoked. The second array element is a
 	 * MethodType object given the defining class is a MethodHandle.
@@ -731,7 +778,7 @@ final class MethodHandleResolver {
 	 * @throws InternalError if invoked for the OpenJ9 MethodHandles
 	 */
 	@SuppressWarnings("unused")
-	private static final Object upcallLinkCallerMethod(Class<?> callerClass, MethodType calleeType) throws Throwable {
+	private static final Object ffiCallLinkCallerMethod(Class<?> callerClass, MethodType calleeType) throws Throwable {
 /*[IF OPENJDK_METHODHANDLES]*/
 		Object[] result = new Object[2];
 		Object[] appendixResult = new Object[1];
@@ -749,4 +796,51 @@ final class MethodHandleResolver {
 /*[ENDIF] OPENJDK_METHODHANDLES*/
 	}
 /*[ENDIF] JAVA_SPEC_VERSION >= 16 */
+
+/*[IF OPENJDK_METHODHANDLES & (JAVA_SPEC_VERSION < 9)]*/
+	/**
+	 * Create a MethodHandle to throw an AbstractMethodError if the error conditions
+	 * are met. Used in MethodHandles.unreflect for OpenJDK MethodHandles to match
+	 * the RI behaviour for JDK8 for private interface methods.
+	 *
+	 * @param m the Method whose modifiers determine if an AbstractMethodError
+	 *        thrower should be installed
+	 *
+	 * @return an AbstractMethodError-thrower MethodHandle or null
+	 *
+	 * @throws InternalError if the AbstractMethodError constructor cannot be found
+	 */
+	@SuppressWarnings("unused")
+	public static final MethodHandle maybeCreateAbstractMethodErrorThrower(Method m) {
+		MethodHandle result = null;
+		Class<?> declaringClass = m.getDeclaringClass();
+		int methodModifiers = m.getModifiers();
+
+		if (declaringClass.isInterface()
+			&& !Modifier.isStatic(methodModifiers)
+			&& Modifier.isPrivate(methodModifiers)
+		) {
+			MethodType type = MethodType.methodType(m.getReturnType(), m.getParameterTypes());
+			type = type.insertParameterTypes(0, declaringClass);
+
+			MethodHandle thrower = MethodHandles.throwException(type.returnType(), AbstractMethodError.class);
+			MethodHandle constructor;
+			try {
+				constructor = IMPL_LOOKUP.findConstructor(
+						AbstractMethodError.class,
+						MethodType.methodType(void.class));
+			} catch (IllegalAccessException | NoSuchMethodException e) {
+				throw new InternalError("Unable to find AbstractMethodError.<init>()"); //$NON-NLS-1$
+			}
+			result = MethodHandles.foldArguments(thrower, constructor);
+			result = MethodHandles.dropArguments(result, 0, type.parameterList());
+
+			if ((methodModifiers & VARARGS) != 0) {
+				Class<?> lastClass = result.type().lastParameterType();
+				result = result.asVarargsCollector(lastClass);
+			}
+		}
+		return result;
+	}
+/*[ENDIF] OPENJDK_METHODHANDLES & (JAVA_SPEC_VERSION < 9) */
 }

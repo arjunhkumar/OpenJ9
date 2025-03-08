@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "bcvcfr.h"
@@ -628,19 +628,19 @@ _inconsistentStack2:
 			 * when the verification error related to stack underflow occurs.
 			 */
 			verboseErrorCode = BCV_ERR_STACK_UNDERFLOW;
-			/* Given that the actual data type involved has not yet been located 
-			 * through pop operation when stack underflow occurs,
-			 * it needs to step back by 1 slot to the actual data type to be manipulated by the opcode.
+			/* Set the error index to the maximal local variable instead of the 1st type
+			 * data on the stack to prevent displaying anything in the case of the stack
+			 * underflow when the garbage data on the empty stack is decoded in generating
+			 * the detailed error message so as to match the RI's behavior.
+			 *
+			 * Note:
+			 * liveStack->stackElements[0] represents the 1st local variable in 'locals'
+			 * while stackBase points to the 1st slot on the 'stack'. Thus, errorStackIndex
+			 * is set to 0 if stackBase points to liveStack->stackElements[0], which means
+			 * there is no variable in 'locals'.
 			 */
-			errorStackIndex = (stackTop - liveStack->stackElements) - 1;
-			/* Always set to the location of the 1st data type on 'stack' to show up if stackTop <= stackBase
-			 * Note: this setup is disabled to avoid decoding the garbage data in the error messages
-			 * if the current stack frame is loaded from the next stack (without data on the stack)
-			 * of the stackmaps.
-			 */
-			if ((stackTop <= stackBase) && !isNextStack) {
-				errorStackIndex = stackBase - liveStack->stackElements;
-			}
+			errorStackIndex = (stackBase > liveStack->stackElements) ?
+					((U_32)(stackBase - liveStack->stackElements) - 1) : 0;
 			goto _miscError;
 		}
 		/* Reset as the flag is only used for the current bytecode */
@@ -1397,12 +1397,8 @@ _illegalPrimitiveReturn:
 
 			receiver = BCV_BASE_TYPE_NULL; /* makes class compare work with statics */
 
-			if ((bc & 1)
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-				|| (bc == JBwithfield)
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
-			) {
-				/* case for JBwithfield and odd bc's which are JBputfield/JBpustatic  */
+			if (bc & 1) {
+				/* case for odd bc's which are JBputfield/JBpustatic  */
 				type = POP;
 				if ((*J9UTF8_DATA(utf8string) == 'D') || (*J9UTF8_DATA(utf8string) == 'J')) {
 					inconsistentStack |= (type != BCV_BASE_TYPE_TOP);
@@ -1763,28 +1759,24 @@ _illegalPrimitiveReturn:
 					}
 					break;
 				}
+				utf8string = J9ROMSTRINGREF_UTF8DATA(classRef);
 
-				if (bc != JBinvokeinterface) {
-					utf8string = J9ROMSTRINGREF_UTF8DATA(classRef);
-
-					rc = isClassCompatibleByName (verifyData, type, J9UTF8_DATA(utf8string), J9UTF8_LENGTH(utf8string), &reasonCode);
-					if (FALSE == rc) {
-						if (BCV_ERR_INSUFFICIENT_MEMORY == reasonCode) {
-							goto _outOfMemoryError;
-						}
-						errorType = J9NLS_BCV_ERR_RECEIVER_NOT_COMPATIBLE__ID;
-						/* Jazz 82615: Store the index of the expected data type for later retrieval in classNameList */
-						errorTargetType = convertClassNameToStackMapType(verifyData, J9UTF8_DATA(utf8string), J9UTF8_LENGTH(utf8string), 0, 0);
-						errorStackIndex = stackTop - liveStack->stackElements;
-						goto _inconsistentStack2;
+				rc = isClassCompatibleByName(verifyData, type, J9UTF8_DATA(utf8string), J9UTF8_LENGTH(utf8string), &reasonCode);
+				if (FALSE == rc) {
+					if (BCV_ERR_INSUFFICIENT_MEMORY == reasonCode) {
+						goto _outOfMemoryError;
 					}
-				} else {
-					/* Need to ensure that there is at least an Object reference on the stack for the 
-					 * invokeinterface receiver.  If the top of stack is a base type or TOP, then 
-					 * throw a verify error.  The check for the receiver to be an interface occurs in
-					 * the invokeinterface bytecode.
-					 * Note: we need to check whether the Object reference on the stack is initialized
-					 * so as to stop an uninitialized object from being addressed here by invokeinterface.
+					errorType = J9NLS_BCV_ERR_RECEIVER_NOT_COMPATIBLE__ID;
+					/* Jazz 82615: Store the index of the expected data type for later retrieval in classNameList */
+					errorTargetType = convertClassNameToStackMapType(verifyData, J9UTF8_DATA(utf8string), J9UTF8_LENGTH(utf8string), 0, 0);
+					errorStackIndex = stackTop - liveStack->stackElements;
+					goto _inconsistentStack2;
+				}
+				if (JBinvokeinterface == bc) {
+					/* Throw a verify error for any of the following invokeinterface scenarios:
+					 * 1. The top of the stack holds a base type or TOP
+					 * 2. The Object reference on the stack is uninitialized
+					 * The check for the receiver to be an interface occurs in the bytecode interpreter.
 					 */
 					if ((BCV_TAG_BASE_TYPE_OR_TOP == (type & BCV_TAG_MASK))
 						|| J9_ARE_ANY_BITS_SET(type, BCV_SPECIAL)
@@ -1806,15 +1798,6 @@ _illegalPrimitiveReturn:
 
 		case RTV_PUSH_NEW:
 			switch (bc) {
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-			case JBaconst_init:
-				index = PARAM_16(bcIndex, 1);
-				info = &constantPool[index];
-				utf8string = J9ROMSTRINGREF_UTF8DATA((J9ROMStringRef *) info);
-				stackTop = pushClassType(verifyData, utf8string, stackTop);
-				break;
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
-
 			case JBnew:
 			case JBnewdup:
 				index = PARAM_16(bcIndex, 1);
@@ -1894,14 +1877,19 @@ _illegalPrimitiveReturn:
 					errorType = J9NLS_BCV_ERR_STACK_UNDERFLOW__ID;
 					/* Jazz 82615: Set the error code when the verification error related to stack underflow occurs */
 					verboseErrorCode = BCV_ERR_STACK_UNDERFLOW;
-					/* Given that the actual data type involved has not yet been located through pop operation when stack underflow occurs,
-					 * step back by one slot to the actual data type to be manipulated by the opcode.
+					/* Set the error index to the maximal local variable instead of the 1st type
+					 * data on the stack to prevent displaying anything in the case of the stack
+					 * underflow when the garbage data on the empty stack is decoded in generating
+					 * the detailed error message so as to match the RI's behavior.
+					 *
+					 * Note:
+					 * liveStack->stackElements[0] represents the 1st local variable in 'locals'
+					 * while stackBase points to the 1st slot on the 'stack'. Thus, errorStackIndex
+					 * is set to 0 if stackBase points to liveStack->stackElements[0], which means
+					 * there is no variable in 'locals'.
 					 */
-					errorStackIndex = (stackTop - liveStack->stackElements) - 1;
-					/* Always set to the location of the 1st data type on 'stack' to show up if stackTop <= stackBase */
-					if (stackTop <= stackBase) {
-						errorStackIndex = stackBase - liveStack->stackElements;
-					}
+					errorStackIndex = (stackBase > liveStack->stackElements) ?
+							((U_32)(stackBase - liveStack->stackElements) - 1) : 0;
 					goto _miscError;
 				}
 
@@ -2459,8 +2447,19 @@ _verifyError:
 
 	/* Jazz 82615: Store the error code in the case of CHECK_STACK_UNDERFLOW */
 	if ((stackTop < stackBase) && (J9NLS_BCV_ERR_STACK_UNDERFLOW__ID == errorType)) {
-		/* Reset to the location of the 1st data type on 'stack' in the case of stack underflow to show up */
-		errorStackIndex = stackBase - liveStack->stackElements;
+		/* Set the error index to the maximal local variable instead of the 1st type
+		 * data on the stack to prevent displaying anything in the case of the stack
+		 * underflow when the garbage data on the empty stack is decoded in generating
+		 * the detailed error message so as to match the RI's behavior.
+		 *
+		 * Note:
+		 * liveStack->stackElements[0] represents the 1st local variable in 'locals'
+		 * while stackBase points to the 1st slot on the 'stack'. Thus, errorStackIndex
+		 * is set to 0 if stackBase points to liveStack->stackElements[0], which means
+		 * there is no variable in 'locals'.
+		 */
+		errorStackIndex = (stackBase > liveStack->stackElements) ?
+				((U_32)(stackBase - liveStack->stackElements) - 1) : 0;
 		storeVerifyErrorData(verifyData, BCV_ERR_STACK_UNDERFLOW, (U_32)errorStackIndex, (UDATA)-1, (UDATA)-1, start);
 	}
 
@@ -2629,17 +2628,16 @@ j9rtv_verifyArguments (J9BytecodeVerificationData *verifyData, J9UTF8 * utf8stri
 		}
 
 		/* Object or array */
-		if (IS_REF_OR_VAL_SIGNATURE(*signature) || arity) {
+		if (IS_CLASS_SIGNATURE(*signature) || arity) {
 			IDATA reasonCode = 0;
 
 			/* Object array */
-			if (IS_REF_OR_VAL_SIGNATURE(*signature)) {
-				UDATA type = BCV_GET_TYPE_FROM_CHAR(*signature);
+			if (IS_CLASS_SIGNATURE(*signature)) {
 				signature++;
 				string = signature;	/* remember the start of the string */
 				while (*signature++ != ';');
 				length = (U_16) (signature - string - 1);
-				objectType = convertClassNameToStackMapType(verifyData, string, length, type, arity);
+				objectType = convertClassNameToStackMapType(verifyData, string, length, 0, arity);
 
 			/* Base type array */
 			} else {

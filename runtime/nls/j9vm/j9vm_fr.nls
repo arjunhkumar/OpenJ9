@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 #
 
 # Externalised messages for the VM module.
@@ -275,17 +275,12 @@ J9NLS_VM_CHECK_JAVA_HOME.system_action=The JVM will terminate.
 J9NLS_VM_CHECK_JAVA_HOME.user_response=Check that JAVA_HOME environment variable is properly set.
 # END NON-TRANSLATABLE
 
-# Note: this message ends with a single space
-# This message will be followed by the exception's class name and
-# (if non-null) the exception's detail message
-# e.g. Exception in thread "main" java/lang/StackOverflowError: An overflow occurred
-J9NLS_VM_STACK_TRACE_EXCEPTION_IN=Exception dans l'unit\u00e9 d'ex\u00e9cution "%.*s"\u0020
+J9NLS_VM_STACK_TRACE_EXCEPTION_IN=Exception dans le thread "%s"
 # START NON-TRANSLATABLE
-J9NLS_VM_STACK_TRACE_EXCEPTION_IN.sample_input_1=57
-J9NLS_VM_STACK_TRACE_EXCEPTION_IN.sample_input_2=\"main\" java/lang/StackOverflowError: An overflow occurred
-J9NLS_VM_STACK_TRACE_EXCEPTION_IN.explanation=An exception has occurred.
-J9NLS_VM_STACK_TRACE_EXCEPTION_IN.system_action=The system will process the exception, which may result in JVM termination, or simply continuing the execution of the application.
-J9NLS_VM_STACK_TRACE_EXCEPTION_IN.user_response=Investigate cause of exception.
+J9NLS_VM_STACK_TRACE_EXCEPTION_IN.sample_input_1=main
+J9NLS_VM_STACK_TRACE_EXCEPTION_IN.explanation=NOTAG
+J9NLS_VM_STACK_TRACE_EXCEPTION_IN.system_action=
+J9NLS_VM_STACK_TRACE_EXCEPTION_IN.user_response=
 # END NON-TRANSLATABLE
 
 # first argument is the class name
@@ -1892,7 +1887,7 @@ J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE=type d'objet incorrect : 
 J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE.sample_input_1=3
 J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE.sample_input_2=Foo
 J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE.explanation=The class has specified the bytecode monitorenter or monitorexit operation which cannot be performed on a value type but the object on stack is a value type.
-J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE.system_action=The JVM will throw an IllegalMonitorStateException.
+J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE.system_action=The JVM will throw an IdentityException.
 J9NLS_VM_ERROR_BYTECODE_OBJECTREF_CANNOT_BE_VALUE_TYPE.user_response=Contact the provider of the classfile for a corrected version.
 # END NON-TRANSLATABLE
 
@@ -2104,4 +2099,334 @@ J9NLS_VM_CRIU_SINGLETHREADMODE_JVMCRIUEXCEPTION=L'op\u00e9ration de blocage n'es
 J9NLS_VM_CRIU_SINGLETHREADMODE_JVMCRIUEXCEPTION.explanation=Blocking operation is not allowed in CRIU single thread mode.
 J9NLS_VM_CRIU_SINGLETHREADMODE_JVMCRIUEXCEPTION.system_action=The JVM will throw a JVMCRIUException.
 J9NLS_VM_CRIU_SINGLETHREADMODE_JVMCRIUEXCEPTION.user_response=View CRIU documentation to determine how to resolve the exception.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_RESTORE_INITIALIZE_TRACE_FAILED=La machine virtuelle Java n'a pas pu initialiser Xtrace lors de la restauration de la JVM
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_RESTORE_INITIALIZE_TRACE_FAILED.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_RESTORE_INITIALIZE_TRACE_FAILED.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_RESTORE_INITIALIZE_TRACE_FAILED.user_response=Check documentation for CRIUSupport restore options.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_RESTORE_RESEED_INVALID_SEEDOFFSET=La machine virtuelle Java n'a pas pu red\u00e9finir la valeur de d\u00e9part j.u.Random.seed.value en raison d'un d\u00e9calage de valeur de d\u00e9part non valide
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_RESTORE_RESEED_INVALID_SEEDOFFSET.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_RESTORE_RESEED_INVALID_SEEDOFFSET.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_RESTORE_RESEED_INVALID_SEEDOFFSET.user_response=View CRIU documentation to determine how to resolve the exception.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_RESTORE_RESEED_ATOMICLONG_CNF=La machine virtuelle Java n'a pas pu red\u00e9finir la valeur de d\u00e9part j.u.Random.seed.value car j.u.c.a.AtomicLong est introuvable
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_RESTORE_RESEED_ATOMICLONG_CNF.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_RESTORE_RESEED_ATOMICLONG_CNF.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_RESTORE_RESEED_ATOMICLONG_CNF.user_response=View CRIU documentation to determine how to resolve the exception.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_RESTORE_RESEED_INVALID_VALUEOFFSET=La machine virtuelle Java n'a pas pu red\u00e9finir la valeur de d\u00e9part j.u.Random.seed.value en raison d'un d\u00e9calage de valeur non valide
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_RESTORE_RESEED_INVALID_VALUEOFFSET.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_RESTORE_RESEED_INVALID_VALUEOFFSET.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_RESTORE_RESEED_INVALID_VALUEOFFSET.user_response=View CRIU documentation to determine how to resolve the exception.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_RESTORE_INITIALIZE_DUMP_FAILED=La machine virtuelle Java n'a pas pu initialiser Xdump lors de la restauration de la JVM
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_RESTORE_INITIALIZE_DUMP_FAILED.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_RESTORE_INITIALIZE_DUMP_FAILED.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_RESTORE_INITIALIZE_DUMP_FAILED.user_response=Check documentation for CRIUSupport restore options.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_ILLEGAL_THREAD_STATE_UPCALL=La JVM n'a pas r\u00e9ussi \u00e0 proc\u00e9der en raison d'un mauvais \u00e9tat des threads pour l'appel ascendant
+# START NON-TRANSLATABLE
+J9NLS_VM_ILLEGAL_THREAD_STATE_UPCALL.explanation=An error occurred when the JVM attempted to perform upcall in the trivial downcall
+J9NLS_VM_ILLEGAL_THREAD_STATE_UPCALL.system_action=The JVM will throw a IllegalThreadStateException.
+J9NLS_VM_ILLEGAL_THREAD_STATE_UPCALL.user_response=Ensure the specified linker options for downcall are valid.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_FORKJOINPOOL_CNF=La JVM n'a pas pu r\u00e9initialiser java.lang.VirtualThread.ForkJoinPool.parallelism \u00e0 cause de la classe java.util.concurrent.ForkJoinPool non trouv\u00e9e
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_FORKJOINPOOL_CNF.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_FORKJOINPOOL_CNF.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_FORKJOINPOOL_CNF.user_response=View CRIU documentation to determine how to resolve the exception.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_INVALID_DEFAULT_SCHEDULER_ADDRESS=La JVM n'a pas pu r\u00e9initialiser java.lang.VirtualThread.ForkJoinPool.parallelism en raison d'une adresse DEFAULT_SCHEDULER invalide
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_INVALID_DEFAULT_SCHEDULER_ADDRESS.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_INVALID_DEFAULT_SCHEDULER_ADDRESS.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_INVALID_DEFAULT_SCHEDULER_ADDRESS.user_response=View CRIU documentation to determine how to resolve the exception.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_INVALID_PARALLELISM_OFFSET=La JVM n'a pas pu r\u00e9initialiser java.lang.VirtualThread.ForkJoinPool.parallelism en raison d'un offset de parall\u00e9lisme invalide
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_INVALID_PARALLELISM_OFFSET.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_INVALID_PARALLELISM_OFFSET.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_RESTORE_RESET_VIRTUALTHREAD_FORKJOINPOOL_PARALLELISM_INVALID_PARALLELISM_OFFSET.user_response=View CRIU documentation to determine how to resolve the exception.
+# END NON-TRANSLATABLE
+
+# NullRestricted is not translatable
+J9NLS_VM_NULLRESTRICTED_MUST_BE_IN_DEFAULT_IMPLICITCREATION_VALUE_CLASS=Un champ d'instance avec un attribut NullRestricted doit \u00eatre dans une classe de valeur avec un constructeur implicite
+# START NON-TRANSLATABLE
+J9NLS_VM_NULLRESTRICTED_MUST_BE_IN_DEFAULT_IMPLICITCREATION_VALUE_CLASS.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_VM_NULLRESTRICTED_MUST_BE_IN_DEFAULT_IMPLICITCREATION_VALUE_CLASS.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_VM_NULLRESTRICTED_MUST_BE_IN_DEFAULT_IMPLICITCREATION_VALUE_CLASS.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# NullRestricted is not translatable
+J9NLS_VM_STATIC_NULLRESTRICTED_MUST_BE_IN_DEFAULT_IMPLICITCREATION_VALUE_CLASS=Un champ statique avec un attribut NullRestricted doit \u00eatre dans une classe de valeur avec un constructeur implicite
+# START NON-TRANSLATABLE
+J9NLS_VM_STATIC_NULLRESTRICTED_MUST_BE_IN_DEFAULT_IMPLICITCREATION_VALUE_CLASS.explanation=Please consult the Java Virtual Machine Specification for a detailed explanation.
+J9NLS_VM_STATIC_NULLRESTRICTED_MUST_BE_IN_DEFAULT_IMPLICITCREATION_VALUE_CLASS.system_action=The JVM will throw a verification or classloading related exception such as java.lang.ClassFormatError.
+J9NLS_VM_STATIC_NULLRESTRICTED_MUST_BE_IN_DEFAULT_IMPLICITCREATION_VALUE_CLASS.user_response=Contact the provider of the classfile for a corrected version.
+# END NON-TRANSLATABLE
+
+# Note: -XX:Compatibility= is a command-line option and should not be translated.
+J9NLS_VM_COMPATIBILITY_REPEATED=L'option de ligne de commande -XX:Compatibility=[mode] n'est autoris\u00e9e qu'une seule fois.
+# START NON-TRANSLATABLE
+J9NLS_VM_COMPATIBILITY_REPEATED.explanation=The specified command-line option may not be repeated.
+J9NLS_VM_COMPATIBILITY_REPEATED.system_action=The JVM will fail to start.
+J9NLS_VM_COMPATIBILITY_REPEATED.user_response=Remove the repetition of the option from the command line.
+# END NON-TRANSLATABLE
+
+# Note: -XX:Compatibility= is a command-line option and should not be translated.
+J9NLS_VM_COMPATIBILITY_UNSUPPORTED=Le mode de compatibilit\u00e9 sp\u00e9cifi\u00e9 dans "-XX:Compatibility=%s" n'est pas pris en charge.
+# START NON-TRANSLATABLE
+J9NLS_VM_COMPATIBILITY_UNSUPPORTED.sample_input_1=unsupported
+J9NLS_VM_COMPATIBILITY_UNSUPPORTED.explanation=The specified compatibility mode is not supported.
+J9NLS_VM_COMPATIBILITY_UNSUPPORTED.system_action=The JVM will fail to start.
+J9NLS_VM_COMPATIBILITY_UNSUPPORTED.user_response=Remove the option from the command line.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_CANNOT_SET_UNPRIVILEGED=Impossible de d\u00e9finir le mode non privil\u00e9gi\u00e9 CRIU ; num\u00e9ro d'erreur=%li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_CANNOT_SET_UNPRIVILEGED.sample_input_1=-8
+J9NLS_VM_CRIU_CANNOT_SET_UNPRIVILEGED.explanation=An error occurred when the JVM attempted set CRIU unprivileged mode.
+J9NLS_VM_CRIU_CANNOT_SET_UNPRIVILEGED.system_action=The JVM will throw a SystemCheckpointException.
+J9NLS_VM_CRIU_CANNOT_SET_UNPRIVILEGED.user_response=Ensure that CRIU supports unprivileged mode.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_DUMP_FAILED=Impossible de vider les processus JVM ; erreur=%li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_DUMP_FAILED.sample_input_1=-7
+J9NLS_VM_CRIU_DUMP_FAILED.explanation=An error occurred when the JVM attempted to dump the process via criu_dump.
+J9NLS_VM_CRIU_DUMP_FAILED.system_action=The JVM will throw a SystemCheckpointException.
+J9NLS_VM_CRIU_DUMP_FAILED.user_response=View CRIU documentation to determine how to resolve the error.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_FAILED_DELAY_LOCK_RELATED_OPS=Impossible d'ex\u00e9cuter les op\u00e9rations de verrouillage diff\u00e9r\u00e9, errno=%li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_FAILED_DELAY_LOCK_RELATED_OPS.sample_input_1=-6
+J9NLS_VM_CRIU_FAILED_DELAY_LOCK_RELATED_OPS.explanation=An error occurred when the JVM attempted to run delayed identity operations.
+J9NLS_VM_CRIU_FAILED_DELAY_LOCK_RELATED_OPS.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_FAILED_DELAY_LOCK_RELATED_OPS.user_response=View CRIU documentation to determine how to resolve the error.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_FAILED_TO_CONVERT_JAVA_STRING=Impossible de convertir la cha\u00eene java en codage natif, err=%li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_FAILED_TO_CONVERT_JAVA_STRING.sample_input_1=-5
+J9NLS_VM_CRIU_FAILED_TO_CONVERT_JAVA_STRING.explanation=An error occurred when the JVM attempted to convert a java string to native encoding.
+J9NLS_VM_CRIU_FAILED_TO_CONVERT_JAVA_STRING.system_action=The JVM will throw a JVMCheckpointException.
+J9NLS_VM_CRIU_FAILED_TO_CONVERT_JAVA_STRING.user_response=Ensure the specified input strings are valid.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_FAILED_TO_ENABLE_ALL_RESTORE_OPTIONS=La machine virtuelle Java n'a pas pu activer toutes les options de restauration sp\u00e9cifi\u00e9es
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_FAILED_TO_ENABLE_ALL_RESTORE_OPTIONS.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_FAILED_TO_ENABLE_ALL_RESTORE_OPTIONS.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_FAILED_TO_ENABLE_ALL_RESTORE_OPTIONS.user_response=Check documentation to see which options are allowed on restore.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_DIR=Impossible de fermer le r\u00e9pertoire de donn\u00e9es du point de contr\u00f4le, errno=%li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_DIR.sample_input_1=-4
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_DIR.explanation=An error occurred when the JVM attempted to close the specified directory.
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_DIR.system_action=The JVM will throw a SystemRestoreException or SystemCheckpointException.
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_DIR.user_response=Ensure the specified directory is accessible.
+
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_WORK_DIR=Could not close the work directory, errno=%li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_WORK_DIR.sample_input_1=-3
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_WORK_DIR.explanation=An error occurred when the JVM attempted to close the specified directory.
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_WORK_DIR.system_action=The JVM will throw a SystemRestoreException or SystemCheckpointException.
+J9NLS_VM_CRIU_FAILED_TO_CLOSE_WORK_DIR.user_response=Ensure the specified directory is accessible.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_FAILED_TO_OPEN_DIR=Impossible d'ouvrir le r\u00e9pertoire de donn\u00e9es du point de contr\u00f4le, errno=%li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_FAILED_TO_OPEN_DIR.sample_input_1=-2
+J9NLS_VM_CRIU_FAILED_TO_OPEN_DIR.explanation=An error occurred when the JVM attempted to open the specified directory.
+J9NLS_VM_CRIU_FAILED_TO_OPEN_DIR.system_action=The JVM will throw a JVMCheckpointException.
+J9NLS_VM_CRIU_FAILED_TO_OPEN_DIR.user_response=Ensure the specified directory is accessible.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_FAILED_TO_OPEN_WORK_DIR=Impossible d'ouvrir le r\u00e9pertoire de travail, errno=%li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_FAILED_TO_OPEN_WORK_DIR.sample_input_1=-22
+J9NLS_VM_CRIU_FAILED_TO_OPEN_WORK_DIR.explanation=An error occurred when the JVM attempted to open the specified directory.
+J9NLS_VM_CRIU_FAILED_TO_OPEN_WORK_DIR.system_action=The JVM will throw a JVMCheckpointException.
+J9NLS_VM_CRIU_FAILED_TO_OPEN_WORK_DIR.user_response=Ensure the specified directory is accessible.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_INIT_FAILED=Impossible d'initialiser les options CRIU, err=%li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_INIT_FAILED.sample_input_1=-4
+J9NLS_VM_CRIU_INIT_FAILED.explanation=An error occurred when the JVM attempted to initialize CRIU options.
+J9NLS_VM_CRIU_INIT_FAILED.system_action=The JVM will throw a SystemCheckpointException.
+J9NLS_VM_CRIU_INIT_FAILED.user_response=View CRIU documentation to determine how to resolve the error.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_J9_CURRENT_TIME_NANOS_FAILURE=j9time_current_time_nanos a \u00e9chou\u00e9 avec le num\u00e9ro d'erreur %li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_J9_CURRENT_TIME_NANOS_FAILURE.sample_input_1=-8
+J9NLS_VM_CRIU_J9_CURRENT_TIME_NANOS_FAILURE.explanation=j9time_current_time_nanos failed.
+J9NLS_VM_CRIU_J9_CURRENT_TIME_NANOS_FAILURE.system_action=The JVM will throw a JVMCheckpointException.
+J9NLS_VM_CRIU_J9_CURRENT_TIME_NANOS_FAILURE.user_response=View CRIU documentation to determine how to resolve the error.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FAILED=La machine virtuelle Java a tent\u00e9 de charger libcriu.so mais n'y est pas parvenu : %li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FAILED.sample_input_1=-12
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FAILED.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FAILED.system_action=The JVM will throw a SystemCheckpointException.
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FAILED.user_response=Make sure libcriu is installed on your system and is on the library load path.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FUNCTIONS_FAILED=La machine virtuelle Java n'a pas trouv\u00e9 de fonctions criu critiques dans libcriu.so : %li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FUNCTIONS_FAILED.sample_input_1=-16
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FUNCTIONS_FAILED.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FUNCTIONS_FAILED.system_action=The JVM will throw a SystemCheckpointException.
+J9NLS_VM_CRIU_LOADING_LIBCRIU_FUNCTIONS_FAILED.user_response=Check your installation of criu with `criu check`.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_LOADING_OPTIONS_FILE_FAILED=La machine virtuelle Java n'a pas pu charger le fichier d'options
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_LOADING_OPTIONS_FILE_FAILED.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_LOADING_OPTIONS_FILE_FAILED.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_LOADING_OPTIONS_FILE_FAILED.user_response=Check the arguments to CRIUSupport::registerRestoreOptionsFile.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_MAX_RETRY_FOR_NOTCHECKPOINTSAFE_REACHED=La machine virtuelle Java a tent\u00e9 d'appliquer un point de contr\u00f4le mais n'y est pas parvenu en raison de l'ex\u00e9cution de code dans les trames @NotCheckpointSafe. Nouvelles tentatives : %li
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_MAX_RETRY_FOR_NOTCHECKPOINTSAFE_REACHED.sample_input_1=5
+J9NLS_VM_CRIU_MAX_RETRY_FOR_NOTCHECKPOINTSAFE_REACHED.explanation=CRIUSupport::checkpointJVM failed.
+J9NLS_VM_CRIU_MAX_RETRY_FOR_NOTCHECKPOINTSAFE_REACHED.system_action=The JVM will throw a JVMCheckpointException.
+J9NLS_VM_CRIU_MAX_RETRY_FOR_NOTCHECKPOINTSAFE_REACHED.user_response=View CRIU documentation to determine how to resolve the error.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_NEGATIVE_CHECKPOINT_RESTORE_TIME_DELTA=Une valeur n\u00e9gative calcul\u00e9e pour checkpointRestoreTimeDelta =%zd
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_NEGATIVE_CHECKPOINT_RESTORE_TIME_DELTA.sample_input_1=-12345
+J9NLS_VM_CRIU_NEGATIVE_CHECKPOINT_RESTORE_TIME_DELTA.explanation=checkpointRestoreTimeDelta is expected not to be negative.
+J9NLS_VM_CRIU_NEGATIVE_CHECKPOINT_RESTORE_TIME_DELTA.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_NEGATIVE_CHECKPOINT_RESTORE_TIME_DELTA.user_response=View CRIU documentation to determine how to resolve the error.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_CRAC_INCOMPATIBLE_SETTING=Les options de ligne de commande -XX:+EnableCRIUSupport et -XX:CRaCCheckpointTo=[DIR] ne sont pas compatibles.
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_CRAC_INCOMPATIBLE_SETTING.explanation=-XX:+EnableCRIUSupport and -XX:CRaCCheckpointTo=[DIR] are specified at the same time.
+J9NLS_VM_CRIU_CRAC_INCOMPATIBLE_SETTING.system_action=The JVM will fail to start.
+J9NLS_VM_CRIU_CRAC_INCOMPATIBLE_SETTING.user_response=Remove one of the options from the command line.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_J9_GET_PROCESS_START_TIME_FAILURE=j9sysinfo_get_process_start_time a \u00e9chou\u00e9 avec errno=%zi
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_J9_GET_PROCESS_START_TIME_FAILURE.sample_input_1=-34
+J9NLS_VM_CRIU_J9_GET_PROCESS_START_TIME_FAILURE.explanation=j9sysinfo_get_process_start_time failed.
+J9NLS_VM_CRIU_J9_GET_PROCESS_START_TIME_FAILURE.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_J9_GET_PROCESS_START_TIME_FAILURE.user_response=View CRIU documentation to determine how to resolve the error.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_MODULARITY_GENERAL_FAILURE=\u00c9chec g\u00e9n\u00e9ral
+# START NON-TRANSLATABLE
+J9NLS_VM_MODULARITY_GENERAL_FAILURE.explanation=The specified modularity operation failed.
+J9NLS_VM_MODULARITY_GENERAL_FAILURE.system_action=The JVM will fail to start.
+J9NLS_VM_MODULARITY_GENERAL_FAILURE.user_response=Contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_MODULARITY_PACKAGE_ALREADY_DEFINED=Un paquet de la liste a d\u00e9j\u00e0 \u00e9t\u00e9 d\u00e9fini
+# START NON-TRANSLATABLE
+J9NLS_VM_MODULARITY_PACKAGE_ALREADY_DEFINED.explanation=The specified module package has already been defined.
+J9NLS_VM_MODULARITY_PACKAGE_ALREADY_DEFINED.system_action=The JVM will fail to start.
+J9NLS_VM_MODULARITY_PACKAGE_ALREADY_DEFINED.user_response=Contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_MODULARITY_MODULE_ALREADY_DEFINED=Le module a d\u00e9j\u00e0 \u00e9t\u00e9 d\u00e9fini
+# START NON-TRANSLATABLE
+J9NLS_VM_MODULARITY_MODULE_ALREADY_DEFINED.explanation=The specified module has already been defined.
+J9NLS_VM_MODULARITY_MODULE_ALREADY_DEFINED.system_action=The JVM will fail to start.
+J9NLS_VM_MODULARITY_MODULE_ALREADY_DEFINED.user_response=Contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_MODULARITY_HASH_OPERATION_FAILED=L'op\u00e9ration de hachage de la modularit\u00e9 a \u00e9chou\u00e9
+# START NON-TRANSLATABLE
+J9NLS_VM_MODULARITY_HASH_OPERATION_FAILED.explanation=The modularity hash operation failed.
+J9NLS_VM_MODULARITY_HASH_OPERATION_FAILED.system_action=The JVM will fail to start.
+J9NLS_VM_MODULARITY_HASH_OPERATION_FAILED.user_response=Contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_MODULARITY_DUPLICATED_PACKAGE_FOUND=La liste contient des paquets en double
+# START NON-TRANSLATABLE
+J9NLS_VM_MODULARITY_DUPLICATED_PACKAGE_FOUND.explanation=The list contains duplicate packages.
+J9NLS_VM_MODULARITY_DUPLICATED_PACKAGE_FOUND.system_action=The JVM will fail to start.
+J9NLS_VM_MODULARITY_DUPLICATED_PACKAGE_FOUND.user_response=Contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_MODULARITY_MODULE_NOT_FOUND=Le module sp\u00e9cifi\u00e9 n'a pas \u00e9t\u00e9 trouv\u00e9
+# START NON-TRANSLATABLE
+J9NLS_VM_MODULARITY_MODULE_NOT_FOUND.explanation=The specified module was not found.
+J9NLS_VM_MODULARITY_MODULE_NOT_FOUND.system_action=The JVM will fail to start.
+J9NLS_VM_MODULARITY_MODULE_NOT_FOUND.user_response=Contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_MODULARITY_PACKAGE_NOT_FOUND=Le paquet sp\u00e9cifi\u00e9 n'a pas \u00e9t\u00e9 trouv\u00e9
+# START NON-TRANSLATABLE
+J9NLS_VM_MODULARITY_PACKAGE_NOT_FOUND.explanation=The specified package was not found.
+J9NLS_VM_MODULARITY_PACKAGE_NOT_FOUND.system_action=The JVM will fail to start.
+J9NLS_VM_MODULARITY_PACKAGE_NOT_FOUND.user_response=Contact your service representative.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_DEPRECATED_OPTION=%s avertissement : L'option %s est obsol\u00e8te dans le JDK 22 et sera probablement supprim\u00e9e dans une prochaine version.
+# START NON-TRANSLATABLE
+J9NLS_VM_DEPRECATED_OPTION.sample_input_1=Eclipse OpenJ9 VM
+J9NLS_VM_DEPRECATED_OPTION.sample_input_2=-Xdebug
+J9NLS_VM_DEPRECATED_OPTION.explanation=The command line option is deprecated.
+J9NLS_VM_DEPRECATED_OPTION.system_action=The JVM will print a deprecation warning.
+J9NLS_VM_DEPRECATED_OPTION.user_response=Remove the command line option from the command line.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CRIU_CHECK_TRANSITION_TO_DEBUG_INTERPRETER_FAILED=La v\u00e9rification du passage \u00e0 l'interpr\u00e9teur de d\u00e9bogage a \u00e9chou\u00e9
+# START NON-TRANSLATABLE
+J9NLS_VM_CRIU_CHECK_TRANSITION_TO_DEBUG_INTERPRETER_FAILED.explanation=checkTransitionToDebugInterpreter failed.
+J9NLS_VM_CRIU_CHECK_TRANSITION_TO_DEBUG_INTERPRETER_FAILED.system_action=The JVM will throw a JVMRestoreException.
+J9NLS_VM_CRIU_CHECK_TRANSITION_TO_DEBUG_INTERPRETER_FAILED.user_response=View CRIU documentation to determine how to resolve the error.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_UNRECOGNISED_SUN_MISC_UNSAFE_MEMORY_ACCESS_VALUE=Valeur sp\u00e9cifi\u00e9e dans --sun-misc-unsafe-memory-access non reconnue : '%s'
+# START NON-TRANSLATABLE
+J9NLS_VM_UNRECOGNISED_SUN_MISC_UNSAFE_MEMORY_ACCESS_VALUE.sample_input_1=disallow
+J9NLS_VM_UNRECOGNISED_SUN_MISC_UNSAFE_MEMORY_ACCESS_VALUE.explanation=The value specified is not known.
+J9NLS_VM_UNRECOGNISED_SUN_MISC_UNSAFE_MEMORY_ACCESS_VALUE.system_action=The JVM will fail to start.
+J9NLS_VM_UNRECOGNISED_SUN_MISC_UNSAFE_MEMORY_ACCESS_VALUE.user_response=Change the value to one of "allow", "warn", "debug" or "deny".
+# END NON-TRANSLATABLE
+
+J9NLS_VM_OPENJ9_JFR_METADATA_FILE_NOT_FOUND=Soit la variable d'environnement %s n'est pas d\u00e9finie, soit le fichier n'existe pas \u00e0 l'emplacement sp\u00e9cifi\u00e9.
+# START NON-TRANSLATABLE
+J9NLS_VM_OPENJ9_JFR_METADATA_FILE_NOT_FOUND.explanation=Couldn't find JFR metadata blob file.
+J9NLS_VM_OPENJ9_JFR_METADATA_FILE_NOT_FOUND.system_action=The JVM will not generate a JFR file.
+J9NLS_VM_OPENJ9_JFR_METADATA_FILE_NOT_FOUND.user_response=Set the required environment variables.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_CLASS_NAME_EXCEEDS_MAX_LENGTH=Le nom de la classe d\u00e9passe la longueur maximale
+# START NON-TRANSLATABLE
+J9NLS_VM_CLASS_NAME_EXCEEDS_MAX_LENGTH.explanation=Class name cannot be longer than 65535 characters.
+J9NLS_VM_CLASS_NAME_EXCEEDS_MAX_LENGTH.system_action=The JVM will throw a ClassNotFoundException.
+J9NLS_VM_CLASS_NAME_EXCEEDS_MAX_LENGTH.user_response=Shorten the class name.
+# END NON-TRANSLATABLE
+
+J9NLS_VM_OPENJ9_JFR_METADATA_FILE_NOT_LOAD=Soit le fichier $java.home/lib/metadata.blob n'existe pas, soit il ne peut pas \u00eatre charg\u00e9.
+# START NON-TRANSLATABLE
+J9NLS_VM_OPENJ9_JFR_METADATA_FILE_NOT_LOAD.explanation=Couldn't find or load JFR metadata blob file.
+J9NLS_VM_OPENJ9_JFR_METADATA_FILE_NOT_LOAD.system_action=The JVM will not generate a JFR file.
+J9NLS_VM_OPENJ9_JFR_METADATA_FILE_NOT_LOAD.user_response=Contact your service representative.
 # END NON-TRANSLATABLE

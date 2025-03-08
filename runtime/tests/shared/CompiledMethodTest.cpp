@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
  
 /* Includes */
@@ -250,11 +250,11 @@ IDATA storeAndFindTest(J9JavaVM* vm)
 	/* Set the method name and signature */
 	methodNameAndSigMem = (BlockPtr)((UDATA)romMethod1 + sizeof(J9ROMMethod));
 	J9UTF8_SET_LENGTH(methodNameAndSigMem, (U_16)strlen(TEST_METHOD_NAME));
-	j9str_printf(PORTLIB, (BlockPtr) (J9UTF8_DATA(methodNameAndSigMem)), sizeof(TEST_METHOD_NAME), "%s", TEST_METHOD_NAME);
+	j9str_printf((BlockPtr) (J9UTF8_DATA(methodNameAndSigMem)), sizeof(TEST_METHOD_NAME), "%s", TEST_METHOD_NAME);
 	NNSRP_SET(romMethod1->nameAndSignature.name, (J9UTF8*)methodNameAndSigMem);
 
 	J9UTF8_SET_LENGTH((methodNameAndSigMem + METHOD_NAME_SIZE), (U_16)strlen(TEST_METHOD_SIG));
-	j9str_printf(PORTLIB, (BlockPtr) (J9UTF8_DATA(methodNameAndSigMem + METHOD_NAME_SIZE)), sizeof(TEST_METHOD_SIG), "%s",TEST_METHOD_SIG);
+	j9str_printf((BlockPtr) (J9UTF8_DATA(methodNameAndSigMem + METHOD_NAME_SIZE)), sizeof(TEST_METHOD_SIG), "%s",TEST_METHOD_SIG);
 	NNSRP_SET(romMethod1->nameAndSignature.signature, (J9UTF8*)(methodNameAndSigMem + METHOD_NAME_SIZE));
 
 	/* PHASE 1
@@ -534,4 +534,3 @@ cleanup:
 
 	return rc;
 }
-

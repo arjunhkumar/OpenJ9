@@ -17,34 +17,39 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 if(OMR_OS_AIX)
-	# We need to set the libpath on aix, so that when we run constgen it can find
-	# the thread library
+	# We need to set LIBPATH on AIX, so that when we run constgen it can find
+	# the thread library.
 	set(CMAKE_INSTALL_RPATH .)
 endif()
+
 j9vm_add_executable(constgen
-    jilconsts.c
+	jilconsts.c
 )
 
-target_link_libraries(constgen 
+target_link_libraries(constgen
 	PRIVATE
 		j9vm_interface
-
 		omrport
 		j9thr
 )
 
-# Add target to generate jilconsts.inc/jilvalues.m4 from the constgen program
+# Add command and target to generate jilconsts.inc/jilvalues.m4 via the constgen program.
+
 add_custom_command(
 	OUTPUT ${j9vm_BINARY_DIR}/oti/jilconsts.inc ${j9vm_BINARY_DIR}/oti/jilvalues.m4
+	DEPENDS $<TARGET_FILE:constgen>
 	COMMAND ${CMAKE_COMMAND} -E make_directory ${j9vm_BINARY_DIR}/oti
 	COMMAND ${OMR_EXE_LAUNCHER} $<TARGET_FILE:constgen>
 	VERBATIM
 	WORKING_DIRECTORY ${j9vm_BINARY_DIR}
 )
+
 add_custom_target(run_constgen
-	DEPENDS ${j9vm_BINARY_DIR}/oti/jilconsts.inc ${j9vm_BINARY_DIR}/oti/jilvalues.m4
+	DEPENDS
+		${j9vm_BINARY_DIR}/oti/jilconsts.inc
+		${j9vm_BINARY_DIR}/oti/jilvalues.m4
 )

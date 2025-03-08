@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+
+<!--
+Copyright IBM Corp. and others 2024
+
+This program and the accompanying materials are made available under
+the terms of the Eclipse Public License 2.0 which accompanies this
+distribution and is available at https://www.eclipse.org/legal/epl-2.0/
+or the Apache License, Version 2.0 which accompanies this distribution and
+is available at https://www.apache.org/licenses/LICENSE-2.0.
+
+This Source Code may also be made available under the following
+Secondary Licenses when the conditions for such availability set
+forth in the Eclipse Public License, v. 2.0 are satisfied: GNU
+General Public License, version 2 with the GNU Classpath
+Exception [1] and GNU General Public License, version 2 with the
+OpenJDK Assembly Exception [2].
+
+[1] https://www.gnu.org/software/classpath/license.html
+[2] https://openjdk.org/legal/assembly-exception.html
+
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+-->
+
+<!DOCTYPE suite SYSTEM "cmdlinetester.dtd">
+
+<suite id="JFR Tests" timeout="3000">
+	<envvar name="OPENJ9_METADATA_BLOB_FILE_PATH" value="$METADATA_BLOB_PATH$" />
+	<test id="triggerExecutionSample">
+		<command>$EXE$ -XX:StartFlightRecording --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.TriggerExecutionSample</command>
+		<return type="success" value="0" />
+	</test>
+	<test id="runWorkload - approx 30seconds">
+		<command>$EXE$ -XX:StartFlightRecording --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.WorkLoad</command>
+		<output type="success" caseSensitive="yes" regex="no">All runs complete.</output>
+		<output type="failure" caseSensitive="yes" regex="no">Exception</output>
+	</test>
+	<test id="runWorkload 2 - approx 2mins">
+		<command>$EXE$ -XX:StartFlightRecording --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.WorkLoad 200 20000 200</command>
+		<output type="success" caseSensitive="yes" regex="no">All runs complete.</output>
+		<output type="failure" caseSensitive="yes" regex="no">Exception</output>
+	</test>
+	<test id="VM API Test - approx 2mins">
+		<command>$EXE$ --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.VMAPITest</command>
+		<output type="success" caseSensitive="yes" regex="no">All runs complete.</output>
+		<output type="failure" caseSensitive="yes" regex="no">Failed</output>
+	</test>
+	<test id="VM API Test aggressive start and stop - approx 2mins">
+		<command>$EXE$ --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.VMAPITest 1</command>
+		<output type="success" caseSensitive="yes" regex="no">All runs complete.</output>
+		<output type="failure" caseSensitive="yes" regex="no">Failed</output>
+	</test>
+	<test id="VM API Test2 - approx 2mins">
+		<command>$EXE$ --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.VMAPITest2</command>
+		<output type="success" caseSensitive="yes" regex="no">All runs complete.</output>
+		<output type="failure" caseSensitive="yes" regex="no">Failed</output>
+	</test>
+	<test id="Test JFR enablement 1">
+		<command>$EXE$ --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.JFRCMDLineTest</command>
+		<output type="required" caseSensitive="yes" regex="no">All runs complete</output>
+		<output type="failure" caseSensitive="yes" regex="no">JFR recording has started</output>
+		<output type="success" caseSensitive="yes" regex="no">JFR is enabled</output>
+	</test>
+	<test id="Test JFR enablement 2">
+		<command>$EXE$  -XX:+FlightRecorder --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.JFRCMDLineTest</command>
+		<output type="required" caseSensitive="yes" regex="no">All runs complete</output>
+		<output type="failure" caseSensitive="yes" regex="no">JFR recording has started</output>
+		<output type="success" caseSensitive="yes" regex="no">JFR is enabled</output>
+	</test>
+	<test id="Test JFR enablement 3">
+		<command>$EXE$  -XX:-FlightRecorder --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.JFRCMDLineTest</command>
+		<output type="required" caseSensitive="yes" regex="no">All runs complete</output>
+		<output type="failure" caseSensitive="yes" regex="no">JFR recording has started</output>
+		<output type="failure" caseSensitive="yes" regex="no">JFR is enabled</output>
+		<output type="success" caseSensitive="yes" regex="no">JFR is not enabled</output>
+	</test>
+	<test id="Test Start flight recording 1">
+		<command>$EXE$  -XX:-FlightRecorder -XX:StartFlightRecording --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.JFRCMDLineTest</command>
+		<output type="required" caseSensitive="yes" regex="no">All runs complete</output>
+		<output type="failure" caseSensitive="yes" regex="no">JFR recording has started</output>
+		<output type="failure" caseSensitive="yes" regex="no">JFR is enabled</output>
+		<output type="success" caseSensitive="yes" regex="no">JFR is not enabled</output>
+	</test>
+	<test id="Test Start flight recording 2">
+		<command>$EXE$ -XX:StartFlightRecording --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -cp $RESJAR$ org.openj9.test.JFRCMDLineTest</command>
+		<output type="required" caseSensitive="yes" regex="no">All runs complete</output>
+		<output type="success" caseSensitive="yes" regex="no">JFR recording has started</output>
+		<output type="success" caseSensitive="yes" regex="no">JFR is enabled</output>
+		<output type="failure" caseSensitive="yes" regex="no">JFR is not enabled</output>
+	</test>
+	<test id="JFR File name test - approx 5mins">
+		<command>$EXE$ --add-exports java.base/com.ibm.oti.vm=ALL-UNNAMED -Xint -Xgcpolicy:nogc -Xcheck:memory -Dibm.java9.forceCommonCleanerShutdown=true -cp $RESJAR$ org.openj9.test.JFRFileNameTest</command>
+		<output type="success" caseSensitive="yes" regex="no">All allocated blocks were freed</output>
+		<output type="failure" caseSensitive="yes" regex="no">unfreed blocks remaining at shutdown</output>
+	</test>
+</suite>

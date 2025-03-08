@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(COMPOSITECACHEIMPL_H_INCLUDED)
@@ -140,7 +140,7 @@ public:
 
 	bool crashDetected(UDATA* localCrashCntr);
 
-	void reset(J9VMThread* currentThread);
+	void reset(J9VMThread* currentThread, bool canUnlockCache = true);
 
 	BlockPtr nextEntry(J9VMThread* currentThread, UDATA* staleItems);
 	
@@ -284,6 +284,8 @@ public:
 
 	UDATA getOSPageSize(void);
 
+	UDATA getOSPageSizeInHeader(void);
+
 	bool getContainsCachelets(void);
 
 	void setStringTableInitialized(bool);
@@ -395,6 +397,10 @@ public:
 	
 	bool hasReadMutex(J9VMThread* currentThread) const;
 
+	U_32 getExtraStartupHints(void) const;
+
+	void setExtraStartupHints(J9VMThread* currentThread, U_32 val);
+
 private:
 	J9SharedClassConfig* _sharedClassConfig;
 	SH_OSCache* _oscache;
@@ -464,11 +470,11 @@ private:
 	bool _doMetaProtect;
 	bool _doPartialPagesProtect;
 	bool _readOnlyOSCache;
-#if defined (J9SHR_MSYNC_SUPPORT)
+#if defined(J9VM_OPT_SHR_MSYNC_SUPPORT)
 	bool _doMetaSync;
 	bool _doHeaderSync;
 	bool _doSegmentSync;
-#endif
+#endif /* defined(J9VM_OPT_SHR_MSYNC_SUPPORT) */
 	
 	IDATA _headerProtectCntr;
 	IDATA _readWriteProtectCntr;
@@ -547,6 +553,11 @@ private:
 
 	void unsetCacheHeaderFullFlags(J9VMThread *currentThread, UDATA flagsToUnset);
 
+	void updateMprotectRuntimeFlags(void);
+#if defined(J9VM_OPT_SHR_MSYNC_SUPPORT)
+	void updateMsyncRuntimeFlags(void);
+#endif /* defined(J9VM_OPT_SHR_MSYNC_SUPPORT) */
+
 	BlockPtr getRomClassProtectEnd() {
 		return _romClassProtectEnd;
 	}
@@ -574,4 +585,3 @@ private:
 };
 
 #endif /* !defined(COMPOSITECACHEIMPL_H_INCLUDED) */
-

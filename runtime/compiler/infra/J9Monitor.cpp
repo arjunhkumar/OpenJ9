@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "infra/J9Monitor.hpp"
@@ -32,7 +32,7 @@
 TR::MonitorTable *OMR::MonitorTable::_instance = 0;
 
 TR::Monitor *
-J9::Monitor::create(char *name)
+J9::Monitor::create(const char *name)
    {
    return TR::MonitorTable::get()->create(name);
    }
@@ -44,7 +44,7 @@ J9::Monitor::destroy(TR::Monitor *monitor)
    }
 
 bool
-J9::Monitor::init(char *name)
+J9::Monitor::init(const char *name)
    {
    setNext(0);
    if (j9thread_monitor_init_with_name((J9ThreadMonitor**)&_monitor, 0, name))

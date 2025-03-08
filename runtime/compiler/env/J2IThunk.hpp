@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef TR_J2ITHUNK_INCL
@@ -72,8 +72,7 @@ class TR_MHJ2IThunkTable
          case 'J': return TC_LONG;
          case 'F': return TC_FLOAT;
          case 'D': return TC_DOUBLE;
-         case 'L':
-         case 'Q': return TC_REFERENCE;
+         case 'L': return TC_REFERENCE;
          default:
             TR_ASSERT(0, "Unknown type char '%c'", typeChar);
             return -1;
@@ -94,7 +93,7 @@ class TR_MHJ2IThunkTable
 
    private: // Fields
 
-   char *_name;
+   const char *_name;
    TR::Monitor *_monitor;
    TR_PersistentArray<Node> _nodes;
 
@@ -116,7 +115,7 @@ class TR_MHJ2IThunkTable
    int16_t terseSignatureLength(char *signature);
    void getTerseSignature(char *buf, int16_t bufLength, char *signature);
 
-   TR_MHJ2IThunkTable(TR_PersistentMemory *m, char *name);
+   TR_MHJ2IThunkTable(TR_PersistentMemory *m, const char *name);
    TR_PERSISTENT_ALLOC(TR_Memory::JSR292)
 
    void dumpTo(TR_FrontEnd *fe, TR::FILE *file);

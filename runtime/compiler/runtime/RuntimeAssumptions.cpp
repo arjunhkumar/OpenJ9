@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "runtime/RuntimeAssumptions.hpp"
@@ -61,7 +61,7 @@ TR_PatchNOPedGuardSiteOnClassPreInitialize::hashCode(char *sig, uint32_t sigLen)
    bool skipFirstAndLastChars = false;
    if (sigLen > 0)
       {
-      if ((sig[0] == 'L' || sig[0] == 'Q') && (sig[sigLen-1] == ';'))
+      if ((sig[0] == 'L') && (sig[sigLen-1] == ';'))
          skipFirstAndLastChars = true;
       }
 
@@ -129,7 +129,8 @@ TR_PreXRecompile::compensate(TR_FrontEnd *fe, bool, void *)
    TR_J9VMBase *fej9 = (TR_J9VMBase *)fe;
 
 #if (defined(TR_HOST_X86) || defined(TR_HOST_POWER) || defined(TR_HOST_S390) || defined(TR_HOST_ARM) || defined(TR_HOST_ARM64))
-   TR::Recompilation::invalidateMethodBody(_startPC, fe);
+   TR::Recompilation::invalidateMethodBody(
+      _startPC, fe, TR_JitBodyInvalidations::Preexistence);
    // Generate a trace point
    fej9->reportPrexInvalidation(_startPC);
 #else
@@ -176,7 +177,7 @@ TR_PersistentCHTable::classGotUnloadedPost(
    bool p = TR::Options::getVerboseOption(TR_VerboseHookDetailsClassUnloading);
    if (p)
       {
-      TR_VerboseLog::writeLineLocked(TR_Vlog_HD, "subClasses clean up for unloaded class 0x%p \n", classId);
+      TR_VerboseLog::writeLineLocked(TR_Vlog_HD, "subClasses clean up for unloaded class 0x%p", classId);
       }
 
    cl = findClassInfo(classId);

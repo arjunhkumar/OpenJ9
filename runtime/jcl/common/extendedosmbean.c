@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <assert.h>
@@ -138,12 +138,12 @@ handle_error(JNIEnv *env, IDATA error, jint type)
 					J9NLS_PORT_SYSINFO_USAGE_RETRIEVAL_ERROR_MSG,
 					NULL);
 	/* Add in the specific error and the type. */
-	j9str_printf(PORTLIB,
-		exceptionMessage,
-		sizeof(exceptionMessage),
-		(char *)formatString,
-		error,
-		objType[type].name);
+	j9str_printf(
+			exceptionMessage,
+			sizeof(exceptionMessage),
+			(char *)formatString,
+			error,
+			objType[type].name);
 
 	if (PROCESSOR_USAGE_ERROR == type) {
 		exceptionClass = (*env)->FindClass(env, "com/ibm/lang/management/ProcessorUsageRetrievalException");
@@ -516,6 +516,20 @@ Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_getHardw
 	}
 
 	return (NULL == str) ? NULL : (*env)->NewStringUTF(env, str);
+}
+
+/**
+ * Check if the CpuLoadCompatibility flag is set.
+ *
+ * @param env instance of JNIEnv
+ * @param unusedClass
+ *
+ * @return if the CpuLoadCompatibility flag is set
+ */
+jboolean JNICALL
+Java_com_ibm_lang_management_internal_ExtendedOperatingSystemMXBeanImpl_hasCpuLoadCompatibilityFlag(JNIEnv *env, jclass unusedClass) {
+	J9JavaVM *vm = ((J9VMThread *)env)->javaVM;
+	return J9_ARE_ALL_BITS_SET(vm->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_CPU_LOAD_COMPATIBILITY);
 }
 
 /**

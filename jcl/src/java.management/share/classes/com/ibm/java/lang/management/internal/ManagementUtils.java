@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.lang.management.internal;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
-/*[IF !Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION == 8]*/
 import java.lang.management.ManagementFactory;
 import java.lang.management.PlatformManagedObject;
 import java.util.Collections;
@@ -46,7 +46,7 @@ import java.util.LinkedList;
 import java.util.Objects;
 import java.util.logging.LogManager;
 import com.ibm.lang.management.internal.ExtendedMemoryMXBeanImpl;
-/*[ENDIF] !Sidecar19-SE*/
+/*[ENDIF] JAVA_SPEC_VERSION == 8*/
 
 import javax.management.InstanceNotFoundException;
 import javax.management.MBeanServerConnection;
@@ -88,7 +88,7 @@ public final class ManagementUtils {
 	public static final boolean VERBOSE_MODE;
 
 	static {
-		Properties properties = com.ibm.oti.vm.VM.getVMLangAccess().internalGetProperties();
+		Properties properties = com.ibm.oti.vm.VM.internalGetProperties();
 		String thisOs = properties.getProperty("os.name"); //$NON-NLS-1$
 
 		isUnix = "aix".equalsIgnoreCase(thisOs) //$NON-NLS-1$
@@ -433,65 +433,6 @@ public final class ManagementUtils {
 	}
 
 	/**
-	 * Convenience method that sets out to return the {@link Class} object for
-	 * the specified type named <code>name</code>. Unlike the
-	 * {@link Class#forName(java.lang.String)} method, this will work even for
-	 * primitive types.
-	 *
-	 * @param name
-	 *            the name of a Java type
-	 * @return the <code>Class</code> object for the type <code>name</code>
-	 * @throws ClassNotFoundException
-	 *             if <code>name</code> does not correspond to any known type
-	 *             (including primitive types).
-	 */
-	public static Class<?> getClassMaybePrimitive(String name) throws ClassNotFoundException {
-		int i = name.lastIndexOf('.');
-
-		if (i != -1) {
-			@SuppressWarnings("removal")
-			SecurityManager sm = System.getSecurityManager();
-			if (sm != null) {
-				sm.checkPackageAccess(name.substring(0, i));
-			}
-		}
-
-		Class<?> result = null;
-
-		try {
-			result = Class.forName(name);
-		} catch (ClassNotFoundException e) {
-			if (name.equals(boolean.class.getName())) {
-				result = boolean.class;
-			} else if (name.equals(char.class.getName())) {
-				result = char.class;
-			} else if (name.equals(byte.class.getName())) {
-				result = byte.class;
-			} else if (name.equals(short.class.getName())) {
-				result = short.class;
-			} else if (name.equals(int.class.getName())) {
-				result = int.class;
-			} else if (name.equals(long.class.getName())) {
-				result = long.class;
-			} else if (name.equals(float.class.getName())) {
-				result = float.class;
-			} else if (name.equals(double.class.getName())) {
-				result = double.class;
-			} else if (name.equals(void.class.getName())) {
-				result = void.class;
-			} else {
-				if (ManagementUtils.VERBOSE_MODE) {
-					e.printStackTrace(System.err);
-				}
-				// Rethrow the original ClassNotFoundException
-				throw e;
-			}
-		}
-
-		return result;
-	}
-
-	/**
 	 * Convenience method to determine if the <code>wrapper</code>
 	 * <code>Class</code>
 	 * object is really the wrapper class for the
@@ -724,7 +665,7 @@ public final class ManagementUtils {
 		private static final String OPENJ9_DIAGNOSTICS_MXBEAN_NAME = "openj9.lang.management:type=OpenJ9Diagnostics"; //$NON-NLS-1$
 
 		static void registerAll() {
-			// register standard singleton beans
+			// Register standard singleton beans for JDK8.
 			create(ManagementFactory.CLASS_LOADING_MXBEAN_NAME, ClassLoadingMXBeanImpl.getInstance())
 				.addInterface(java.lang.management.ClassLoadingMXBean.class)
 				.validateAndRegister();
@@ -757,7 +698,7 @@ public final class ManagementUtils {
 				.addInterface(java.lang.management.ThreadMXBean.class)
 				.validateAndRegister();
 
-			// register OpenJ9-specific singleton beans
+			// Register OpenJ9-specific singleton beans for JDK8.
 			create(GUEST_OPERATING_SYSTEM_MXBEAN_NAME, com.ibm.virtualization.management.internal.GuestOS.getInstance())
 				.addInterface(com.ibm.virtualization.management.GuestOSMXBean.class)
 				.validateAndRegister();
@@ -774,12 +715,18 @@ public final class ManagementUtils {
 				.addInterface(openj9.lang.management.OpenJ9DiagnosticsMXBean.class)
 				.validateAndRegister();
 
-			// register standard optional beans
+/*[IF CRAC_SUPPORT]*/
+			create(jdk.crac.management.CRaCMXBean.CRAC_MXBEAN_NAME, jdk.crac.management.internal.CRaCMXBeanImpl.getInstance())
+				.addInterface(jdk.crac.management.CRaCMXBean.class)
+				.validateAndRegister();
+/*[ENDIF] CRAC_SUPPORT */
+
+			// Register standard optional beans for JDK8.
 			create(ManagementFactory.COMPILATION_MXBEAN_NAME, CompilationMXBeanImpl.getInstance())
 				.addInterface(java.lang.management.CompilationMXBean.class)
 				.validateAndRegister();
 
-			// register beans with zero or more instances
+			// Register beans with zero or more instances for JDK8.
 			create(BUFFERPOOL_MXBEAN_DOMAIN_TYPE, BufferPoolMXBeanImpl.getBufferPoolMXBeans())
 				.addInterface(java.lang.management.BufferPoolMXBean.class)
 				.validateAndRegister();
@@ -792,7 +739,7 @@ public final class ManagementUtils {
 				.validateAndRegister();
 
 			create(ManagementFactory.MEMORY_MANAGER_MXBEAN_DOMAIN_TYPE,
-					// exclude garbage collector beans handled above
+					// Exclude garbage collector beans handled above.
 					excluding(ExtendedMemoryMXBeanImpl.getInstance().getMemoryManagerMXBeans(false), java.lang.management.GarbageCollectorMXBean.class))
 				.addInterface(java.lang.management.MemoryManagerMXBean.class)
 				.validateAndRegister();

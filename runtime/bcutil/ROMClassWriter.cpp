@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 /*
  * ROMClassWriter.cpp
@@ -321,7 +321,11 @@ ROMClassWriter::ROMClassWriter(BufferManager *bufferManager, ClassFileOracle *cl
 #endif /* defined(J9VM_OPT_METHOD_HANDLE) */
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 	_injectedInterfaceInfoSRPKey(srpKeyProducer->generateKey()),
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+	_loadableDescriptorsInfoSRPKey(srpKeyProducer->generateKey()),
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	_implicitCreationSRPKey(srpKeyProducer->generateKey()),
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	_permittedSubclassesInfoSRPKey(srpKeyProducer->generateKey())
 {
 	_methodNotes = (MethodNotes *) _bufferManager->alloc(classFileOracle->getMethodsCount() * sizeof(MethodNotes));
@@ -456,7 +460,11 @@ ROMClassWriter::writeROMClass(Cursor *cursor,
 	writePermittedSubclasses(cursor, markAndCountOnly);
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
 	writeInjectedInterfaces(cursor, markAndCountOnly);
+	writeloadableDescriptors(cursor, markAndCountOnly);
 #endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	writeImplicitCreation(cursor, markAndCountOnly);
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	writeOptionalInfo(cursor);
 	writeCallSiteData(cursor, markAndCountOnly);
 #if defined(J9VM_OPT_METHOD_HANDLE)
@@ -649,6 +657,11 @@ ROMClassWriter::writeFields(Cursor *cursor, bool markAndCountOnly)
 			if (iterator.hasTypeAnnotation()) {
 				modifiers |= J9FieldFlagHasTypeAnnotations;
 			}
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+			if (iterator.isNullRestricted()) {
+				modifiers |= J9FieldFlagIsNullRestricted;
+			}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 			cursor->writeU32(modifiers, Cursor::GENERIC);
 		}
@@ -1231,7 +1244,8 @@ ROMClassWriter::writeMethods(Cursor *cursor, Cursor *lineNumberCursor, Cursor *v
 	 *  - nextROMMethod() in util/mthutil.c
 	 *  - allSlotsInROMMethodsSectionDo() in util/romclasswalk.c
 	 *  - dbgNextROMMethod() in dbgext/j9dbgext.c
-	 *  - createBreakpointedMethod() in jvmti/jvmtiHelpers.c
+	 *  - createBreakpointedMethod() in jvmti/jvmtiHelpers.cpp
+	 *  - JITServerHelpers::packROMClass() in compiler/control/JITServerHelpers.cpp
 	 * All the above are involved in walking or walking over ROMMethods.
 	 *
 	 */
@@ -1290,7 +1304,7 @@ ROMClassWriter::writeMethods(Cursor *cursor, Cursor *lineNumberCursor, Cursor *v
 			 *                          + AccStrict
 			 *
 			 *                        + AccSynthetic
-			 *                       + AccForwarderMethod * (Not currently used by specification)
+			 *                       + UNUSED
 			 *                      + AccEmptyMethod * (Not currently used by specification)
 			 *                     + UNUSED
 			 *
@@ -1876,7 +1890,58 @@ ROMClassWriter::writePermittedSubclasses(Cursor *cursor, bool markAndCountOnly)
 	}
 }
 
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+/*
+ * ImplicitCreation ROM class layout:
+ * 4 bytes for flags (actually takes up two, but use 4 for alignment)
+ */
+void
+ROMClassWriter::writeImplicitCreation(Cursor *cursor, bool markAndCountOnly)
+{
+	if (_classFileOracle->hasImplicitCreation()) {
+		cursor->mark(_implicitCreationSRPKey);
+
+		U_16 flags = _classFileOracle->getImplicitCreationFlags();
+		if (markAndCountOnly) {
+			cursor->skip(sizeof(U_32));
+		} else {
+			cursor->writeU32(flags, Cursor::GENERIC);
+		}
+	}
+}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
+
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+/*
+ * LoadableDescriptors ROM class layout:
+ * 4 bytes for number of descriptors (actually takes up two, but use 4 for alignment)
+ * for number of descriptors:
+ *   4 byte SRP to descriptor
+ */
+void
+ROMClassWriter::writeloadableDescriptors(Cursor *cursor, bool markAndCountOnly)
+{
+	if (_classFileOracle->hasLoadableDescriptors()) {
+		cursor->mark(_loadableDescriptorsInfoSRPKey);
+
+		U_16 descriptorCount = _classFileOracle->getLoadableDescriptorsCount();
+		if (markAndCountOnly) {
+			cursor->skip(sizeof(U_32));
+		} else {
+			cursor->writeU32(descriptorCount, Cursor::GENERIC);
+		}
+
+		for (U_16 index = 0; index < descriptorCount; index++) {
+			if (markAndCountOnly) {
+				cursor->skip(sizeof(J9SRP));
+			} else {
+				U_16 descriptorCpIndex = _classFileOracle->getLoadableDescriptorAtIndex(index);
+				cursor->writeSRP(_srpKeyProducer->mapCfrConstantPoolIndexToKey(descriptorCpIndex), Cursor::SRP_TO_UTF8);
+			}
+		}
+	}
+}
+
 void
 ROMClassWriter::writeInjectedInterfaces(Cursor *cursor, bool markAndCountOnly)
 {
@@ -1928,6 +1993,8 @@ ROMClassWriter::writeOptionalInfo(Cursor *cursor)
 	 * SRP to record class component attributes
 	 * SRP to PermittedSubclasses attribute
 	 * SRP to injected interfaces info
+	 * SRP to LoadableDescriptors attribute
+	 * SRP to ImplicitCreation attribute
 	 */
 	cursor->mark(_optionalInfoSRPKey);
 
@@ -1973,7 +2040,15 @@ ROMClassWriter::writeOptionalInfo(Cursor *cursor)
 	if (_interfaceInjectionInfo->numOfInterfaces > 0) {
 		cursor->writeSRP(_injectedInterfaceInfoSRPKey, Cursor::SRP_TO_GENERIC);
 	}
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+	if (_classFileOracle->hasLoadableDescriptors()) {
+		cursor->writeSRP(_loadableDescriptorsInfoSRPKey, Cursor::SRP_TO_GENERIC);
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	if (_classFileOracle->hasImplicitCreation()) {
+		cursor->writeSRP(_implicitCreationSRPKey, Cursor::SRP_TO_GENERIC);
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 }
 
 void
@@ -2146,7 +2221,7 @@ ROMClassWriter::writeNativeSignature(Cursor *cursor, U_8 *methodDescriptor, U_8 
 		} else {
 			cursor->writeU8(nativeArgCharConversion[methodDescriptor[index] - 'A'], Cursor::GENERIC);
 		}
-		if (IS_REF_OR_VAL_SIGNATURE(methodDescriptor[index])) {
+		if (IS_CLASS_SIGNATURE(methodDescriptor[index])) {
 			while (';' != methodDescriptor[index]) {
 				++index;
 			}

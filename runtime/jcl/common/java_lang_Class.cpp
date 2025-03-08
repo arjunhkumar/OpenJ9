@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "jni.h"
@@ -44,6 +44,9 @@ typedef enum {
 	STATE_IMPLIED = 1
 } StackWalkingStates;
 
+#define STACK_WALK_STATE_MAGIC ((void *)1)
+
+#if JAVA_SPEC_VERSION < 24
 typedef enum {
 	OBJS_ARRAY_IDX_ACC = 0,
 	OBJS_ARRAY_IDX_PDS = 1,
@@ -51,17 +54,18 @@ typedef enum {
 	OBJS_ARRAY_SIZE = 3
 } ObjsArraySizeNindex;
 
-#define 	STACK_WALK_STATE_MAGIC 		(void *)1
-#define 	STACK_WALK_STATE_LIMITED_DOPRIVILEGED		(void *)2
-#define 	STACK_WALK_STATE_FULL_DOPRIVILEGED		(void *)3
+#define STACK_WALK_STATE_LIMITED_DOPRIVILEGED ((void *)2)
+#define STACK_WALK_STATE_FULL_DOPRIVILEGED ((void *)3)
 
 static UDATA isPrivilegedFrameIterator(J9VMThread * currentThread, J9StackWalkState * walkState);
 static UDATA isPrivilegedFrameIteratorGetAccSnapshot(J9VMThread * currentThread, J9StackWalkState * walkState);
 static UDATA frameIteratorGetAccSnapshotHelper(J9VMThread * currentThread, J9StackWalkState * walkState, j9object_t acc, j9object_t perm);
 static j9object_t storePDobjectsHelper(J9VMThread* vmThread, J9Class* arrayClass, J9StackWalkState* walkState, j9object_t contextObject, U_32 arraySize, UDATA framesWalked, I_32 startPos, BOOLEAN dupCallerPD);
+#endif /* JAVA_SPEC_VERSION < 24 */
+
 static BOOLEAN checkInnerClassHelper(J9Class* declaringClass, J9Class* declaredClass);
 
-jobject JNICALL 
+jobject JNICALL
 Java_java_lang_Class_getDeclaredAnnotationsData(JNIEnv *env, jobject jlClass)
 {
 	jobject result = NULL;
@@ -80,6 +84,7 @@ Java_java_lang_Class_getDeclaredAnnotationsData(JNIEnv *env, jobject jlClass)
 	return result;
 }
 
+#if JAVA_SPEC_VERSION < 24
 static UDATA
 isPrivilegedFrameIterator(J9VMThread * currentThread, J9StackWalkState * walkState)
 {
@@ -129,6 +134,7 @@ isPrivilegedFrameIterator(J9VMThread * currentThread, J9StackWalkState * walkSta
 
 	return J9_STACKWALK_KEEP_ITERATING;
 }
+#endif /* JAVA_SPEC_VERSION < 24 */
 
 jobject JNICALL
 Java_java_lang_Class_getStackClasses(JNIEnv *env, jclass jlHeapClass, jint maxDepth, jboolean stopAtPrivileged)
@@ -165,10 +171,12 @@ Java_java_lang_Class_getStackClasses(JNIEnv *env, jclass jlHeapClass, jint maxDe
 	walkState.maxFrames = maxDepth;
 	walkState.walkThread = vmThread;
 
+#if JAVA_SPEC_VERSION < 24
 	if (stopAtPrivileged) {
 		walkFlags |= J9_STACKWALK_ITERATE_FRAMES;
 		walkState.frameWalkFunction = isPrivilegedFrameIterator;
 	}
+#endif /* JAVA_SPEC_VERSION < 24 */
 	walkState.flags = walkFlags;
 
 	if (vm->walkStackFrames(vmThread, &walkState) != J9_STACKWALK_RC_NONE) {
@@ -403,11 +411,11 @@ Java_java_lang_Class_getGenericSignature(JNIEnv *env, jobject recv)
 }
 
 /**
- * Determines if a method is a normal method (not <clinit>, <init>, or <vnew>).
+ * Determines if a method is a normal method (not <clinit> or <init>).
  *
  * @param romMethod[in] the ROM method
  *
- * @returns true if the method is <init>, <clinit> or <vnew>, false if not
+ * @returns true if the method is <init> or <clinit>, false if not
  */
 static VMINLINE bool
 isSpecialMethod(J9ROMMethod *romMethod)
@@ -426,11 +434,6 @@ static VMINLINE bool
 isConstructor(J9ROMMethod *romMethod)
 {
 	bool rc = (!J9ROMMETHOD_IS_STATIC(romMethod)) && isSpecialMethod(romMethod);
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	if (!rc) {
-		rc = J9ROMMETHOD_IS_UNNAMED_FACTORY(romMethod);
-	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	return rc;
 }
 
@@ -439,7 +442,7 @@ isConstructor(J9ROMMethod *romMethod)
  *
  * @param romMethod[in] the ROM method
  *
- * @returns true if this is public, static and not <clinit> or <vnew>, false if not
+ * @returns true if this is public, static and not <clinit>, false if not
  */
 static VMINLINE bool
 isNormalStaticMethod(J9ROMMethod *romMethod)
@@ -473,7 +476,7 @@ retry:
 	J9ROMClass *romClass = clazz->romClass;
 	U_32 size = 0;
 	UDATA preCount = vm->hotSwapCount;
-	
+
 	/* primitives/arrays don't have local methods */
 	if (!J9ROMCLASS_IS_PRIMITIVE_OR_ARRAY(romClass)) {
 		J9Method *currentMethod = clazz->ramMethods;
@@ -486,7 +489,7 @@ retry:
 			currentMethod += 1;
 		}
 	}
-	
+
 	if (NULL != arrayClass) {
 		resultObject = mmFuncs->J9AllocateIndexableObject(currentThread, arrayClass, size, J9_GC_ALLOCATE_OBJECT_NON_INSTRUMENTABLE);
 		if (vm->hotSwapCount != preCount) {
@@ -638,7 +641,7 @@ retry:
 	J9ROMClass *romClass = clazz->romClass;
 	U_32 size = romClass->innerClassCount;
 	UDATA preCount = vm->hotSwapCount;
-	
+
 	if (NULL != arrayClass) {
 		resultObject = mmFuncs->J9AllocateIndexableObject(currentThread, arrayClass, size, J9_GC_ALLOCATE_OBJECT_NON_INSTRUMENTABLE);
 		if (vm->hotSwapCount != preCount) {
@@ -690,7 +693,7 @@ Java_java_lang_Class_getDeclaredMethodImpl(JNIEnv *env, jobject recv, jobject na
 	J9InternalVMFunctions *vmFuncs = vm->internalVMFunctions;
 	j9object_t resultObject = NULL;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
-	
+
 retry:
 	J9Class *clazz = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, J9_JNI_UNWRAP_REFERENCE(recv));
 	if ((NULL == name) || (NULL == partialSignature)) {
@@ -748,13 +751,13 @@ Java_java_lang_Class_getDeclaredMethodsImpl(JNIEnv *env, jobject recv)
 	j9object_t resultObject = NULL;
 	vmFuncs->internalEnterVMFromJNI(currentThread);
 	J9Class *arrayClass = fetchArrayClass(currentThread, J9VMJAVALANGREFLECTMETHOD_OR_NULL(vm));
-	
+
 retry:
 	J9Class *clazz = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, J9_JNI_UNWRAP_REFERENCE(recv));
 	J9ROMClass *romClass = clazz->romClass;
 	U_32 size = 0;
 	UDATA preCount = vm->hotSwapCount;
-	
+
 	/* primitives/arrays don't have local methods */
 	if (!J9ROMCLASS_IS_PRIMITIVE_OR_ARRAY(romClass)) {
 		J9Method *currentMethod = clazz->ramMethods;
@@ -767,7 +770,7 @@ retry:
 			currentMethod += 1;
 		}
 	}
-	
+
 	if (NULL != arrayClass) {
 		resultObject = mmFuncs->J9AllocateIndexableObject(currentThread, arrayClass, size, J9_GC_ALLOCATE_OBJECT_NON_INSTRUMENTABLE);
 		if (vm->hotSwapCount != preCount) {
@@ -904,7 +907,7 @@ Java_java_lang_Class_getFieldsImpl(JNIEnv *env, jobject recv)
 }
 
 jobject JNICALL
-Java_java_lang_Class_getMethodImpl(JNIEnv *env, jobject recv, jobject name, jobject parameterTypes, jobject partialSignature)
+Java_java_lang_Class_getMethodImpl(JNIEnv *env, jobject recv, jobject name, jobject parameterTypes, jobject partialSignature, jboolean mustBePublic)
 {
 	J9VMThread *currentThread = (J9VMThread*)env;
 	J9JavaVM *vm = currentThread->javaVM;
@@ -968,7 +971,9 @@ _done:
 
 			if (NULL != currentMethod) {
 				J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(currentMethod);
-				if (J9_ARE_ALL_BITS_SET(romMethod->modifiers, J9AccPublic) && !isSpecialMethod(romMethod)) {
+				if ((!mustBePublic || J9_ARE_ALL_BITS_SET(romMethod->modifiers, J9AccPublic))
+					&& !isSpecialMethod(romMethod)
+				) {
 					j9object_t parameterTypesObject = NULL;
 					if (NULL != parameterTypes) {
 						parameterTypesObject = J9_JNI_UNWRAP_REFERENCE(parameterTypes);
@@ -1204,6 +1209,7 @@ Java_java_lang_Class_permittedSubclassesImpl(JNIEnv *env, jobject cls)
 	return permittedSubclassesHelper(env, cls);
 }
 
+#if JAVA_SPEC_VERSION < 24
 static UDATA
 frameIteratorGetAccSnapshotHelper(J9VMThread * currentThread, J9StackWalkState * walkState, j9object_t acc, j9object_t perm)
 {
@@ -1228,7 +1234,7 @@ frameIteratorGetAccSnapshotHelper(J9VMThread * currentThread, J9StackWalkState *
 
 /**
  * PrivilegedFrameIterator method to perform stack walking for doPrivileged & doPrivilegedWithCombiner methods
- * For doPrivileged methods, this finds the callers of each doPrivileged method and the AccessControlContext discovered during stack walking, 
+ * For doPrivileged methods, this finds the callers of each doPrivileged method and the AccessControlContext discovered during stack walking,
  * 		either from a privilege frame or the contextObject from current thread
  * For doPrivilegedWithCombiner, this finds the caller of doPrivilegedWithCombiner method, and the AccessControlContext
  * 		discovered during stack walking, either from a privilege frame or the contextObject from current thread
@@ -1364,8 +1370,8 @@ isPrivilegedFrameIteratorGetAccSnapshot(J9VMThread * currentThread, J9StackWalkS
  * 	ProtectionDomain elements after AccessControlContext object could be in one of following two formats:
  * 	For doPrivileged methods - flag forDoPrivilegedWithCombiner is false:
  * 		the ProtectionDomain element might be null, first ProtectionDomain element is a duplicate of the ProtectionDomain of the caller of doPrivileged
- * 		rest of ProtectionDomain elements are from the callers discovered during stack walking 
- * 		the start index of the actual ProtectionDomain element is 2 of the object array returned 		
+ * 		rest of ProtectionDomain elements are from the callers discovered during stack walking
+ * 		the start index of the actual ProtectionDomain element is 2 of the object array returned
  * 	For doPrivilegedWithCombiner methods - flag forDoPrivilegedWithCombiner is true:
  * 		there are only two ProtectionDomain elements, first one is the ProtectionDomain of the caller of doPrivileged
  * 		and the other is the ProtectionDomain of the caller of doPrivilegedWithCombiner
@@ -1381,11 +1387,11 @@ isPrivilegedFrameIteratorGetAccSnapshot(J9VMThread * currentThread, J9StackWalkS
  * 				the start index of the actual ProtectionDomain element is 1 of this ProtectionDomain objects array
  * 			For doPrivilegedWithCombiner methods - flag forDoPrivilegedWithCombiner is true:
  * 				an array of ProtectionDomain objects with only two elements
- * 				first one is the ProtectionDomain of the caller of doPrivileged 
+ * 				first one is the ProtectionDomain of the caller of doPrivileged
  * 				and the other is the ProtectionDomain of the caller of doPrivilegedWithCombiner
  * 		Third element is an array of Limited Permission objects
  * 		Repeating this format:
- * 			AccessControlContext object, 
+ * 			AccessControlContext object,
  * 			ProtectionDomain objects array with same format above when flag forDoPrivilegedWithCombiner is false
  * 			 or just the ProtectionDomain of the caller of doPrivileged in case of flag forDoPrivilegedWithCombiner is true
  * 			Permission object array
@@ -1822,7 +1828,7 @@ storePDobjectsHelper(J9VMThread* vmThread, J9Class* arrayClass, J9StackWalkState
 	}
 	return arrayObject;
 }
-
+#endif /* JAVA_SPEC_VERSION < 24 */
 
 jobject JNICALL
 Java_java_lang_Class_getNestHostImpl(JNIEnv *env, jobject recv)
@@ -1836,9 +1842,7 @@ Java_java_lang_Class_getNestHostImpl(JNIEnv *env, jobject recv)
 	J9Class *nestHost = clazz->nestHost;
 
 	if (NULL == nestHost) {
-		if (J9_VISIBILITY_ALLOWED == vmFuncs->loadAndVerifyNestHost(currentThread, clazz, J9_LOOK_NO_THROW)) {
-			nestHost = clazz->nestHost;
-		} else {
+		if (J9_VISIBILITY_ALLOWED != vmFuncs->loadAndVerifyNestHost(currentThread, clazz, J9_LOOK_NO_THROW, &nestHost)) {
 			/* If there is a failure loading or accessing the nest host, or if this class or interface does
 			 * not specify a nest, then it is considered to belong to its own nest and this is returned as
 			 * the host */
@@ -1882,10 +1886,9 @@ Java_java_lang_Class_getNestMembersImpl(JNIEnv *env, jobject recv)
 	J9Class *nestHost = clazz->nestHost;
 
 	if (NULL == nestHost) {
-		if (J9_VISIBILITY_ALLOWED != vmFuncs->loadAndVerifyNestHost(currentThread, clazz, 0)) {
+		if (J9_VISIBILITY_ALLOWED != vmFuncs->loadAndVerifyNestHost(currentThread, clazz, 0, &nestHost)) {
 			goto _done;
 		}
-		nestHost = clazz->nestHost;
 	}
 	romHostClass = nestHost->romClass;
 	nestMemberCount = romHostClass->nestMemberCount;
@@ -1920,18 +1923,20 @@ Java_java_lang_Class_getNestMembersImpl(JNIEnv *env, jobject recv)
 			PUSH_OBJECT_IN_SPECIAL_FRAME(currentThread, resultObject);
 			J9Class *nestMember = vmFuncs->internalFindClassUTF8(currentThread, J9UTF8_DATA(nestMemberName), J9UTF8_LENGTH(nestMemberName), classLoader, J9_FINDCLASS_FLAG_THROW_ON_FAIL);
 			resultObject = POP_OBJECT_IN_SPECIAL_FRAME(currentThread);
-
 			if (NULL == nestMember) {
 				/* If internalFindClassUTF8 fails to find the nest member, it sets
 				 * a NoClassDefFoundError
 				 */
 				goto _done;
-			} else if (NULL == nestMember->nestHost) {
-				if (J9_VISIBILITY_ALLOWED != vmFuncs->loadAndVerifyNestHost(currentThread, nestMember, 0)) {
+			}
+			nestMember = VM_VMHelpers::currentClass(nestMember);
+			J9Class *memberNestHost = nestMember->nestHost;
+			if (NULL == memberNestHost) {
+				if (J9_VISIBILITY_ALLOWED != vmFuncs->loadAndVerifyNestHost(currentThread, nestMember, 0, &memberNestHost)) {
 					goto _done;
 				}
 			}
-			if (nestMember->nestHost != nestHost) {
+			if (memberNestHost != nestHost) {
 				vmFuncs->setNestmatesError(currentThread, nestMember, nestHost, J9_VISIBILITY_NEST_MEMBER_NOT_CLAIMED_ERROR);
 				goto _done;
 			}
@@ -1950,7 +1955,7 @@ _done:
 #endif /* JAVA_SPEC_VERSION >= 11 */
 }
 
-jboolean JNICALL 
+jboolean JNICALL
 Java_java_lang_Class_isHiddenImpl(JNIEnv *env, jobject recv)
 {
 #if JAVA_SPEC_VERSION >= 15

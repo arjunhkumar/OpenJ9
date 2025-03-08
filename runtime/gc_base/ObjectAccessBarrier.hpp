@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -83,6 +83,49 @@ private:
 protected:
 	virtual bool initialize(MM_EnvironmentBase *env);
 	virtual void tearDown(MM_EnvironmentBase *env);
+
+	/**
+	 * Copy array data to an allocated native memory.
+	 *
+	 * @param vmThread[in] the current J9VMThread.
+	 * @param data[out] the pointer of copied Array Data address.
+	 * @param arrayObject[in] the array object
+	 * @param isCopy[out] if it true, the array is successfully copied.
+	 */
+	void copyArrayCritical(J9VMThread *vmThread, void **data,
+				J9IndexableObject *arrayObject, jboolean *isCopy);
+	/**
+	 * Copy back array data from the native memory and might free the native memory.
+	 *
+	 * @param vmThread[in]	the current J9VMThread.
+	 * @param elems[in] the pointer of native memory.
+	 * @param arrayObject[in] the pointer of array object
+	 * @param mode[in] JNIMode(JNI_COMMIT, JNI_ABORT...).
+	 */
+	void copyBackArrayCritical(J9VMThread *vmThread, void *elems,
+				J9IndexableObject **arrayObject, jint mode);
+
+	/**
+	 * Copy string bytes to the allocated native memory.
+	 *
+	 * @param vmThread[in] the current J9VMThread.
+	 * @param data[in] the pointer of native memory address.
+	 * @param valueObject[in] the pointer of array object
+	 * @param stringObject[in] Java String
+	 * @param isCopy[out] if it true, the array is successfully copied.
+	 * @param isCompressed[in] if it is compressed.
+	 */
+	void copyStringCritical(J9VMThread *vmThread, jchar **data,
+				J9IndexableObject *valueObject, J9Object *stringObject,
+				jboolean *isCopy, bool isCompressed);
+
+	/**
+	 * Free the native memory for java char array.
+	 *
+	 * @param vmThread[in] the current J9VMThread.
+	 * @param elems[in] the pointer of native memory.
+	 */
+	void freeStringCritical(J9VMThread *vmThread, const jchar *elems);
 
 	/**
 	 * Find the finalize link field in the specified object.
@@ -226,6 +269,10 @@ public:
 	virtual void staticStoreU64(J9VMThread *vmThread, J9Class *clazz, U_64 *destSlot, U_64 value, bool isVolatile=false);
 	virtual void staticStoreI64(J9VMThread *vmThread, J9Class *clazz, I_64 *destSlot, I_64 value, bool isVolatile=false);
 
+	MMINLINE virtual IDATA indexableDataDisplacement(J9StackWalkState *walkState, J9IndexableObject *src, J9IndexableObject *dst)
+	{
+		return (IDATA)(((UDATA)dst) - ((UDATA)src));
+	}
 	virtual U_8 *getArrayObjectDataAddress(J9VMThread *vmThread, J9IndexableObject *arrayObject);
 	virtual j9objectmonitor_t *getLockwordAddress(J9VMThread *vmThread, J9Object *object);
 	virtual void cloneObject(J9VMThread *vmThread, J9Object *srcObject, J9Object *destObject);

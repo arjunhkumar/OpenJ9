@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands;
 
 import java.io.PrintStream;
@@ -32,9 +32,8 @@ import com.ibm.jvm.dtfjview.commands.helpers.Utils;
 @DTFJPlugin(version="1.*", runtime=false)
 public class FindNextCommand extends BaseJdmpviewCommand{
 	{
-		addCommand("findnext", "", "finds the next instance of the last string passed to \"find\"");	
+		addCommand("findnext", "", "finds the next instance of the last string passed to \"find\"");
 	}
-	
 
 	public void run(String command, String[] args, IContext context, PrintStream out) throws CommandException {
 		if(initCommand(command, args, context, out)) {
@@ -45,11 +44,11 @@ public class FindNextCommand extends BaseJdmpviewCommand{
 			out.println("No find command has been executed.");
 			return;
 		}
-		
+
 		String startAddress = Long.toHexString((findAtt.lastMatch + 1));
 		String endAddress = Long.toHexString(findAtt.endAddress);
-		
-		ctx.execute("find" + " " 
+
+		ctx.execute("find" + " "
 				+ findAtt.pattern + "," + startAddress + ","
 				+ endAddress + "," + findAtt.boundary + ","
 				+ findAtt.numBytesToPrint + "," + findAtt.numMatchesToDisplay, out);

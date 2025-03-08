@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17 & !OPENJDK_METHODHANDLES]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 /*[IF JAVA_SPEC_VERSION >= 15]*/
@@ -29,25 +29,25 @@ import java.util.List;
 final class PermuteHandle extends MethodHandle {
 	@VMCONSTANTPOOL_FIELD
 	private final MethodHandle next;
-	
+
 	@VMCONSTANTPOOL_FIELD
 	private final int[] permute;
 
 	PermuteHandle(MethodType type, MethodHandle next, int[] permute) {
 		super(type, KIND_PERMUTE, permute); //$NON-NLS-1$
- 		this.next    = next;
- 		this.permute = permute;
+		this.next    = next;
+		this.permute = permute;
 	}
-	
+
 	PermuteHandle(PermuteHandle originalHandle, MethodType newType) {
 		super(originalHandle, newType);
 		this.next = originalHandle.next;
 		this.permute = originalHandle.permute;
 	}
-	
+
 	/*
 	 * Create a combined permute.  This removes a MH from the chain when
-	 * we have a permute(permute(handle, ...) ...). 
+	 * we have a permute(permute(handle, ...) ...).
 	 */
 	@Override
 	MethodHandle permuteArguments(MethodType permuteType, int... permute2) {
@@ -105,20 +105,20 @@ final class PermuteHandle extends MethodHandle {
 	MethodHandle cloneWithNewType(MethodType newType) {
 		return new PermuteHandle(this, newType);
 	}
- 
- 	final void compareWith(MethodHandle right, Comparator c) {
- 		if (right instanceof PermuteHandle) {
- 			((PermuteHandle)right).compareWithPermute(this, c);
- 		} else {
- 			c.fail();
- 		}
- 	}
- 
- 	final void compareWithPermute(PermuteHandle left, Comparator c) {
- 		c.compareStructuralParameter(left.permute.length, this.permute.length);
- 		for (int i = 0; (i < left.permute.length) && (i < this.permute.length); i++) {
- 			c.compareStructuralParameter(left.permute[i], this.permute[i]);
- 		}
- 		c.compareChildHandle(left.next, this.next);
- 	}
+
+	final void compareWith(MethodHandle right, Comparator c) {
+		if (right instanceof PermuteHandle) {
+			((PermuteHandle)right).compareWithPermute(this, c);
+		} else {
+			c.fail();
+		}
+	}
+
+	final void compareWithPermute(PermuteHandle left, Comparator c) {
+		c.compareStructuralParameter(left.permute.length, this.permute.length);
+		for (int i = 0; (i < left.permute.length) && (i < this.permute.length); i++) {
+			c.compareStructuralParameter(left.permute[i], this.permute[i]);
+		}
+		c.compareChildHandle(left.next, this.next);
+	}
 }

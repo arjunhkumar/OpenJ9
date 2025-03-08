@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.openj9.test.unsafe;
 
 import java.lang.reflect.Array;
@@ -967,7 +967,12 @@ public class TestUnsafeCopyMemory extends UnsafeTestBase {
 			Array.setByte(array, i, (byte) (i % Byte.SIZE));
 		}
 
-		for (long arrayOffset = baseOffset; arrayOffset < (baseOffset + maxNumBytes); arrayOffset = arrayOffset * 11 - 1) {
+		/*
+			For off-heap eanbled case initial arrayOffset would be 0 (baseOffset=0),
+			cause the next arrayOffset in loop become to negative (arrayOffset*11-1),
+			update logic for the next arrayOffset to avoid negative offset test case.
+		*/
+		for (long arrayOffset = baseOffset; arrayOffset < (baseOffset + maxNumBytes); arrayOffset = ((arrayOffset==0) ? 16 : arrayOffset) * 11 - 1 ) {
 			long maxNumBytesLeft = ((baseOffset + maxNumBytes) - arrayOffset);
 			for (long numBytesToCopy = 1; numBytesToCopy < maxNumBytesLeft; numBytesToCopy = (numBytesToCopy + 1)
 					* numBytesToCopy) {

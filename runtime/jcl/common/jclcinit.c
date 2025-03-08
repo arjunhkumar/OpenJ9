@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -141,7 +141,7 @@ jint computeFullVersionString(J9JavaVM* vm)
 	#define VENDOR_INFO ""
 #endif /* VENDOR_SHORT_NAME && VENDOR_SHA */
 
-	if (BUFFER_SIZE <= j9str_printf(PORTLIB, vminfo, BUFFER_SIZE + 1,
+	if (BUFFER_SIZE <= j9str_printf(vminfo, BUFFER_SIZE + 1,
 			"JRE %s %s %s-%s %s" JIT_INFO J9VM_VERSION_STRING OMR_INFO VENDOR_INFO OPENJDK_INFO,
 			j2se_version_info,
 			(NULL != osname ? osname : " "),
@@ -150,7 +150,7 @@ jint computeFullVersionString(J9JavaVM* vm)
 			EsBuildVersionString,
 			jitEnabled,
 			aotEnabled)) {
-		j9tty_err_printf(PORTLIB, "\n%s - %d: %s: Error: Java VM info string exceeds buffer size\n", __FILE__, __LINE__, __FUNCTION__);
+		j9tty_err_printf("\n%s - %d: %s: Error: Java VM info string exceeds buffer size\n", __FILE__, __LINE__, __FUNCTION__);
 		return JNI_ERR;
 	}
 
@@ -655,8 +655,8 @@ initializeRequiredClasses(J9VMThread *vmThread, char* dllName)
 		return 1;
 	}
 
-	/* Stores a non-zero value if the virtual thread is suspended by JVMTI. */
-	if (0 != vmFuncs->addHiddenInstanceField(vm, "java/lang/VirtualThread", "isSuspendedByJVMTI", "I", &vm->isSuspendedByJVMTIOffset)) {
+	/* Stores the carrier J9VMThread if thread is in transition, and bit flags for suspend state in the last 8 bits. */
+	if (0 != vmFuncs->addHiddenInstanceField(vm, "java/lang/Thread", "internalSuspendState", "J", &vm->internalSuspendStateOffset)) {
 		return 1;
 	}
 #endif /* JAVA_SPEC_VERSION >= 19 */
@@ -725,8 +725,10 @@ initializeRequiredClasses(J9VMThread *vmThread, char* dllName)
 	 */
 	vm->extendedRuntimeFlags |= J9_EXTENDED_RUNTIME_CLASS_OBJECT_ASSIGNED;
 
-	if (vmFuncs->internalCreateBaseTypePrimitiveAndArrayClasses(vmThread) != 0) {
-		return 1;
+	if (!IS_RESTORE_RUN(vm)) {
+		if (0 != vmFuncs->internalCreateBaseTypePrimitiveAndArrayClasses(vmThread)) {
+			return 1;
+		}
 	}
 
 	/* Initialize early since sendInitialize() uses this */ 
@@ -808,13 +810,13 @@ initializeRequiredClasses(J9VMThread *vmThread, char* dllName)
 				/* this is implicitly an unused property */
 				vmFuncs->setSystemProperty(vm, systemProperty, moduleName);
 			} else {
-				UDATA indexLen = j9str_printf(PORTLIB, NULL, 0, "%zu", vm->addModulesCount); /* get the length of the number string */
+				UDATA indexLen = j9str_printf(NULL, 0, "%zu", vm->addModulesCount); /* get the length of the number string */
 				char *propNameBuffer = j9mem_allocate_memory(sizeof(ADDMODS_PROPERTY_BASE) + indexLen, OMRMEM_CATEGORY_VM);
 				if (NULL == propNameBuffer) {
 					Trc_JCL_initializeRequiredClasses_addAgentModuleOutOfMemory(vmThread);
 					return 1;
 				}
-				j9str_printf(PORTLIB, propNameBuffer, sizeof(ADDMODS_PROPERTY_BASE) + indexLen, ADDMODS_PROPERTY_BASE "%zu", vm->addModulesCount);
+				j9str_printf(propNameBuffer, sizeof(ADDMODS_PROPERTY_BASE) + indexLen, ADDMODS_PROPERTY_BASE "%zu", vm->addModulesCount);
 				Trc_JCL_initializeRequiredClasses_addAgentModuleSetProperty(vmThread, propNameBuffer, moduleName);
 				vmFuncs->addSystemProperty(vm, propNameBuffer, moduleName, J9SYSPROP_FLAG_NAME_ALLOCATED);
 			}
@@ -847,13 +849,13 @@ initializeRequiredClasses(J9VMThread *vmThread, char* dllName)
 				/* this is implicitly an unused property */
 				vmFuncs->setSystemProperty(vm, systemProperty, moduleName);
 			} else {
-				UDATA indexLen = j9str_printf(PORTLIB, NULL, 0, "%zu", vm->addModulesCount); /* get the length of the number string */
+				UDATA indexLen = j9str_printf(NULL, 0, "%zu", vm->addModulesCount); /* get the length of the number string */
 				char *propNameBuffer = j9mem_allocate_memory(sizeof(ADDMODS_PROPERTY_BASE) + indexLen, OMRMEM_CATEGORY_VM);
 				if (NULL == propNameBuffer) {
 					Trc_JCL_initializeRequiredClasses_addAgentModuleOutOfMemory(vmThread);
 					return 1;
 				}
-				j9str_printf(PORTLIB, propNameBuffer, sizeof(ADDMODS_PROPERTY_BASE) + indexLen, ADDMODS_PROPERTY_BASE "%zu", vm->addModulesCount);
+				j9str_printf(propNameBuffer, sizeof(ADDMODS_PROPERTY_BASE) + indexLen, ADDMODS_PROPERTY_BASE "%zu", vm->addModulesCount);
 				Trc_JCL_initializeRequiredClasses_addAgentModuleSetProperty(vmThread, propNameBuffer, moduleName);
 				vmFuncs->addSystemProperty(vm, propNameBuffer, moduleName, J9SYSPROP_FLAG_NAME_ALLOCATED);
 			}

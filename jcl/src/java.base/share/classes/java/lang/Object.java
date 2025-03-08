@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -18,13 +18,13 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang;
 
-/*[IF JAVA_SPEC_VERSION >= 19] */
+/*[IF (JAVA_SPEC_VERSION >= 19) & (JAVA_SPEC_VERSION < 24)]*/
 import jdk.internal.misc.Blocker;
-/*[ENDIF] JAVA_SPEC_VERSION >= 19 */
+/*[ENDIF] (JAVA_SPEC_VERSION >= 19) & (JAVA_SPEC_VERSION < 24) */
 
 /**
  * Object is the root of the java class hierarchy. All non-base types
@@ -96,10 +96,10 @@ public boolean equals(Object o) {
  *					The virtual machine ignores any exceptions
  *					which are thrown during finalization.
  *
-/*[IF Sidecar19-SE]
+/*[IF JAVA_SPEC_VERSION >= 9]
  * @deprecated  May cause performance issues, deadlocks and hangs.
  *              Errors in  finalizers can lead to resource leaks.
-/*[ENDIF]
+/*[ENDIF] JAVA_SPEC_VERSION >= 9
  */
 /*[IF]
 	We leave this one in even if no Thread flag because the user can still
@@ -107,9 +107,9 @@ public boolean equals(Object o) {
 	but he can still invoke it. Since this method is empty, the space cost for it
 	is negligible, so we leave it in.
 /*[ENDIF]*/
-/*[IF JAVA_SPEC_VERSION >= 18] */
+/*[IF JAVA_SPEC_VERSION >= 18]*/
 @Deprecated(forRemoval=true, since="9")
-/*[ELSEIF JAVA_SPEC_VERSION >= 9] */
+/*[ELSEIF JAVA_SPEC_VERSION >= 9]*/
 @Deprecated(forRemoval=false, since="9")
 /*[ENDIF] JAVA_SPEC_VERSION >= 18 */
 protected void finalize () throws Throwable {
@@ -274,16 +274,42 @@ public final void wait(long time) throws InterruptedException {
  * @see			java.lang.Thread
  */
 public final void wait(long time, int frac) throws InterruptedException {
-/*[IF JAVA_SPEC_VERSION >= 19] */
+/*[IF JAVA_SPEC_VERSION < 19]*/
+	waitImpl(time, frac);
+/*[ELSEIF JAVA_SPEC_VERSION < 23]*/
 	long blockerRC = Blocker.begin();
 	try {
 		waitImpl(time, frac);
 	} finally {
 		Blocker.end(blockerRC);
 	}
-/*[ELSE] JAVA_SPEC_VERSION >= 19 */
-	waitImpl(time, frac);
-/*[ENDIF] JAVA_SPEC_VERSION >= 19 */
+/*[ELSEIF JAVA_SPEC_VERSION < 24] */
+	if (!Thread.currentThread().isVirtual()) {
+		waitImpl(time, frac);
+	} else {
+		boolean blocking = Blocker.begin();
+		try {
+			waitImpl(time, frac);
+		} finally {
+			Blocker.end(blocking);
+		}
+	}
+/*[ELSE] JAVA_SPEC_VERSION < 24 */
+	if ((time < 0) || (frac < 0)) {
+		throw new IllegalArgumentException("timeout value is negative");
+	}
+	if (!Thread.currentThread().isVirtual()) {
+		waitImpl(time, frac);
+	} else {
+		try {
+			waitImpl(time, frac);
+		} catch (InterruptedException e) {
+			// Clear virtual thread's interrupt status
+			Thread.currentThread().getAndClearInterrupt();
+			throw e;
+		}
+	}
+/*[ENDIF] JAVA_SPEC_VERSION < 19 */
 }
 
 private final native void waitImpl(long time, int frac) throws InterruptedException;

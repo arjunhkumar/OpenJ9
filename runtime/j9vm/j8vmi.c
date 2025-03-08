@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -129,7 +129,7 @@ JVM_CopySwapMemory(JNIEnv *env, jobject srcObj, jlong srcOffset, jobject dstObj,
 		/* The java caller has added Unsafe.arrayBaseOffset() to the offset. Remove it
 		 * here as GetPrimitiveArrayCritical returns a pointer to the first element.
 		 */
-		srcOffset -= J9VMTHREAD_CONTIGUOUS_INDEXABLE_HEADER_SIZE((J9VMThread*)env);
+		srcOffset -= J9VMTHREAD_UNSAFE_INDEXABLE_HEADER_SIZE((J9VMThread*)env);
 	}
 	if (NULL != dstObj) {
 		dstBytes = (*env)->GetPrimitiveArrayCritical(env, dstObj, NULL);
@@ -137,7 +137,7 @@ JVM_CopySwapMemory(JNIEnv *env, jobject srcObj, jlong srcOffset, jobject dstObj,
 		/* The java caller has added Unsafe.arrayBaseOffset() to the offset. Remove it
 		 * here as GetPrimitiveArrayCritical returns a pointer to the first element.
 		 */
-		dstOffset -= J9VMTHREAD_CONTIGUOUS_INDEXABLE_HEADER_SIZE((J9VMThread*)env);
+		dstOffset -= J9VMTHREAD_UNSAFE_INDEXABLE_HEADER_SIZE((J9VMThread*)env);
 	}
 	dstAddr += (UDATA)dstOffset;
 	/* First copy the bytes unmodified to the new location (memmove handles the overlap case) */

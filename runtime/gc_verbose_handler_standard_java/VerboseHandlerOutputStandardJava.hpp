@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(VERBOSEHANDLEROUTPUTSTANDARDJAVA_HPP_)
@@ -55,6 +55,7 @@ private:
 	 */
 	void outputOwnableSynchronizerInfo(MM_EnvironmentBase *env, uintptr_t indent, uintptr_t ownableSynchronizerCandidates, uintptr_t ownableSynchronizerCleared);
 	void outputContinuationInfo(MM_EnvironmentBase *env, uintptr_t indent, uintptr_t continuationCandidates, uintptr_t continuationCleared);
+	void outputContinuationObjectInfo(MM_EnvironmentBase *env, uintptr_t indent);
 
 	/**
 	 * Output reference processing summary.

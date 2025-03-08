@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -472,6 +472,9 @@ j9gc_get_collector_id(OMR_VMThread *omrVMThread)
 	case OMR_GC_CYCLE_TYPE_VLHGC_PARTIAL_GARBAGE_COLLECT :
 		id = J9_GC_MANAGEMENT_COLLECTOR_PGC;
 		break;
+	case OMR_GC_CYCLE_TYPE_VLHGC_GLOBAL_MARK_PHASE :
+		id = J9_GC_MANAGEMENT_COLLECTOR_GGC;
+		break;
 	case OMR_GC_CYCLE_TYPE_VLHGC_GLOBAL_GARBAGE_COLLECT :
 		id = J9_GC_MANAGEMENT_COLLECTOR_GGC;
 		break;
@@ -837,6 +840,92 @@ j9gc_get_maximum_heap_size(J9JavaVM *javaVM)
 }
 
 /**
+ * API to return the minimum young generation memory size
+ * for all GC policies that apply:
+ * - Nursery minimum size for Gencon
+ * - Eden minimum size for Balanced
+ * - 0 for all other policies
+ */
+UDATA
+j9gc_get_minimum_young_generation_size(J9JavaVM *javaVM)
+{
+	MM_GCExtensions *ext = MM_GCExtensions::getExtensions(javaVM);
+	OMR_VM *omrVM = javaVM->omrVM;
+	UDATA result = 0;
+
+	switch (omrVM->gcPolicy) {
+	case OMR_GC_POLICY_OPTTHRUPUT:
+		break;
+
+	case OMR_GC_POLICY_OPTAVGPAUSE:
+		break;
+
+	case OMR_GC_POLICY_GENCON:
+		result = ext->minNewSpaceSize;
+		break;
+
+	case OMR_GC_POLICY_METRONOME:
+		break;
+
+	case OMR_GC_POLICY_BALANCED:
+		result = ext->tarokIdealEdenMinimumBytes;
+		break;
+
+	case OMR_GC_POLICY_NOGC:
+		break;
+
+	default:
+		/* Undefined or unknown GC policy */
+		Assert_MM_unreachable();
+		break;
+	}
+	return result;
+}
+
+/**
+ * API to return the maximum young generation memory size
+ * for all GC policies that apply:
+ * - Nursery maximum size for Gencon
+ * - Eden maximum size for Balanced
+ * - 0 for all other policies
+ */
+UDATA
+j9gc_get_maximum_young_generation_size(J9JavaVM *javaVM)
+{
+	MM_GCExtensions *ext = MM_GCExtensions::getExtensions(javaVM);
+	OMR_VM *omrVM = javaVM->omrVM;
+	UDATA result = 0;
+
+	switch (omrVM->gcPolicy) {
+	case OMR_GC_POLICY_OPTTHRUPUT:
+		break;
+
+	case OMR_GC_POLICY_OPTAVGPAUSE:
+		break;
+
+	case OMR_GC_POLICY_GENCON:
+		result = ext->maxNewSpaceSize;
+		break;
+
+	case OMR_GC_POLICY_METRONOME:
+		break;
+
+	case OMR_GC_POLICY_BALANCED:
+		result = ext->tarokIdealEdenMaximumBytes;
+		break;
+
+	case OMR_GC_POLICY_NOGC:
+		break;
+
+	default:
+		/* Undefined or unknown GC policy */
+		Assert_MM_unreachable();
+		break;
+	}
+	return result;
+}
+
+/**
  * API to return a string representing the current GC mode.
  * Examples of the string returned are "optthruput", and "gencon".
  */
@@ -870,6 +959,18 @@ UDATA
 j9gc_get_object_total_footprint_in_bytes(J9JavaVM *javaVM, j9object_t objectPtr)
 {
 	return MM_GCExtensions::getExtensions(javaVM)->objectModel.getTotalFootprintInBytes(objectPtr);
+}
+
+/**
+ * API to return is explicit GC disabled
+ *
+ * @parm[in] javaVM The J9JavaVM
+ * @return true if explicit GC is disabled
+ */
+BOOLEAN
+j9gc_get_explicit_GC_disabled(J9JavaVM *javaVM)
+{
+	return MM_GCExtensions::getExtensions(javaVM)->disableExplicitGC;
 }
 
 /**
@@ -965,6 +1066,31 @@ j9gc_get_bytes_allocated_by_thread(J9VMThread *vmThread)
 }
 
 /**
+ * @param[in] vmThread the vmThread we are querying about
+ * @param[out] cumulativeValue pointer to a variable where to store cumulative number of bytes allocated by a thread since the start of VM
+ * @return false if the value just rolled over or if cumulativeValue pointer is null, otherwise true
+ */
+BOOLEAN
+j9gc_get_cumulative_bytes_allocated_by_thread(J9VMThread *vmThread, UDATA *cumulativeValue)
+{
+	return MM_EnvironmentBase::getEnvironment(vmThread->omrVMThread)->_objectAllocationInterface->getAllocationStats()->bytesAllocatedCumulative(cumulativeValue);
+}
+
+/**
+ * @param[in] vmThread the vmThread we are querying about
+ * @param[out] anonymous cumulative value pointer for unloaded anonymous classes
+ * @param[out] classes cumulative value pointer for unloaded classes (including anonymous)
+ * @param[out] classloaders cumulative value pointer for unloaded classesloaders
+ */
+BOOLEAN
+j9gc_get_cumulative_class_unloading_stats(J9VMThread *vmThread, UDATA *anonymous, UDATA *classes, UDATA *classloaders)
+{
+	MM_GCExtensions *ext = MM_GCExtensions::getExtensions(vmThread->javaVM);
+	ext->globalGCStats.classUnloadStats.getUnloadedCountersCumulative(anonymous, classes, classloaders);
+	return true;
+}
+
+/**
  * Return information about the total CPU time consumed by GC threads, as well
  * as the number of GC threads. The time for the main and worker threads is
  * reported separately, with the worker threads returned as a total.
@@ -1041,16 +1167,41 @@ continuationObjectCreated(J9VMThread *vmThread, j9object_t object)
 	Assert_MM_true(NULL != object);
 	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(vmThread->omrVMThread);
 
-	if (MM_GCExtensions::disable_continuation_list != MM_GCExtensions::getExtensions(env)->continuationListOption) {
+	if (MM_GCExtensions::onCreated == MM_GCExtensions::getExtensions(env)->timingAddContinuationInList) {
+		addContinuationObjectInList(env, object);
+	}
+	MM_ObjectAllocationInterface *objectAllocation = env->_objectAllocationInterface;
 
-		env->getGCEnvironment()->_continuationObjectBuffer->add(env, object);
-		MM_ObjectAllocationInterface *objectAllocation = env->_objectAllocationInterface;
-
-		if (NULL != objectAllocation) {
-			objectAllocation->getAllocationStats()->_continuationObjectCount += 1;
-		}
+	if (NULL != objectAllocation) {
+		objectAllocation->getAllocationStats()->_continuationObjectCount += 1;
 	}
 	return 0;
+}
+
+UDATA
+continuationObjectStarted(J9VMThread *vmThread, j9object_t object)
+{
+	Assert_MM_true(NULL != object);
+	MM_EnvironmentBase *env = MM_EnvironmentBase::getEnvironment(vmThread->omrVMThread);
+	if (MM_GCExtensions::onStarted == MM_GCExtensions::getExtensions(env)->timingAddContinuationInList) {
+		addContinuationObjectInList(env, object);
+	}
+	return 0;
+}
+
+UDATA
+continuationObjectFinished(J9VMThread *vmThread, j9object_t object)
+{
+	Assert_MM_true(NULL != object);
+	return 0;
+}
+
+void
+addContinuationObjectInList(MM_EnvironmentBase *env, j9object_t object)
+{
+	if (MM_GCExtensions::disable_continuation_list != MM_GCExtensions::getExtensions(env)->continuationListOption) {
+		env->getGCEnvironment()->_continuationObjectBuffer->add(env, object);
+	}
 }
 
 void
@@ -1119,7 +1270,7 @@ j9gc_prepare_for_checkpoint(J9VMThread *vmThread)
 
 	/* Threads being terminated may trigger a hook that may acquire exclusive VM access via JVMTI callback */
 	releaseVMAccess(vmThread);
-	extensions->configuration->adjustGCThreadCountForCheckpoint(env);
+	extensions->dispatcher->prepareForCheckpoint(env, extensions->checkpointGCthreadCount);
 	acquireVMAccess(vmThread);
 }
 
@@ -1131,32 +1282,35 @@ j9gc_reinitialize_for_restore(J9VMThread *vmThread, const char **nlsMsgFormat)
 	J9JavaVM *vm = vmThread->javaVM;
 	J9MemoryManagerVerboseInterface *mmFuncTable = (J9MemoryManagerVerboseInterface *)vm->memoryManagerFunctions->getVerboseGCFunctionTable(vm);
 
+	Assert_MM_true(NULL != extensions->getGlobalCollector());
+	Assert_MM_true(NULL != extensions->configuration);
+
 	PORT_ACCESS_FROM_JAVAVM(vm);
 
-	if (!j9gc_reinitializeDefaults(vmThread)) {
+	if (!gcReinitializeDefaultsForRestore(vmThread)) {
 		*nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE,
 				J9NLS_GC_FAILED_TO_REINITIALIZE_PARSING_RESTORE_OPTIONS, NULL);
 		goto _error;
 	}
 
-	/* The checkpoint thread must release VM access for the duration of reinitializeGCThreadCountForRestore,
-	 * since new GC threads could be started and the startup/attach of a new GC thread involves allocation and may trigger GC. */
-	releaseVMAccess(vmThread);
-	if (!extensions->configuration->reinitializeGCThreadCountForRestore(env)) {
-		*nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE,
-				J9NLS_GC_FAILED_TO_INSTANTIATE_TASK_DISPATCHER, NULL);
-		acquireVMAccess(vmThread);
-		goto _error;
-	}
-	acquireVMAccess(vmThread);
-
-	Assert_MM_true(NULL != extensions->getGlobalCollector());
+	extensions->configuration->reinitializeForRestore(env);
 
 	if (!extensions->getGlobalCollector()->reinitializeForRestore(env)) {
 		*nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE,
 				J9NLS_GC_FAILED_TO_INSTANTIATE_GLOBAL_GARBAGE_COLLECTOR, NULL);
 		goto _error;
 	}
+
+	/* The checkpoint thread must release VM access for the duration of dispatcher->reinitializeForRestore,
+	 * since new GC threads could be started and the startup/attach of a new GC thread involves allocation and may trigger GC. */
+	releaseVMAccess(vmThread);
+	if (!extensions->dispatcher->reinitializeForRestore(env)) {
+		*nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE,
+				J9NLS_GC_FAILED_TO_INSTANTIATE_TASK_DISPATCHER, NULL);
+		acquireVMAccess(vmThread);
+		goto _error;
+	}
+	acquireVMAccess(vmThread);
 
 	if (!mmFuncTable->checkOptsAndInitVerbosegclog(vm, vm->checkpointState.restoreArgsList)) {
 		*nlsMsgFormat = j9nls_lookup_message(J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE,

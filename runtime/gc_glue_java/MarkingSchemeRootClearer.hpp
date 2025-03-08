@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(MARKINGSCHEMEROOTCLEARER_HPP_)
@@ -65,6 +65,7 @@ public:
 	virtual CompletePhaseCode scanUnfinalizedObjectsComplete(MM_EnvironmentBase *env);
 	virtual void scanOwnableSynchronizerObjects(MM_EnvironmentBase *env);
 	virtual void scanContinuationObjects(MM_EnvironmentBase *env);
+	virtual void iterateAllContinuationObjects(MM_EnvironmentBase *env);
 	virtual void doMonitorReference(J9ObjectMonitor *objectMonitor, GC_HashTableIterator *monitorReferenceIterator);
 	virtual CompletePhaseCode scanMonitorReferencesComplete(MM_EnvironmentBase *envBase);
 	virtual void doJNIWeakGlobalReference(omrobjectptr_t *slotPtr);

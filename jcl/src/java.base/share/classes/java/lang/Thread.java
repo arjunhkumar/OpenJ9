@@ -1,5 +1,5 @@
-/*[INCLUDE-IF (JAVA_SPEC_VERSION >= 8) & (JAVA_SPEC_VERSION < 19)]*/
-/*******************************************************************************
+/*[INCLUDE-IF (8 <= JAVA_SPEC_VERSION) & (JAVA_SPEC_VERSION < 19)]*/
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang;
 
 import java.lang.reflect.Method;
@@ -84,7 +84,7 @@ public class Thread implements Runnable {
 	static final long NO_REF = 0;				// Symbolic constant, no threadRef assigned or already cleaned up
 
 	// Instance variables
-	private long threadRef;									// Used by the VM
+	private volatile long threadRef; // Used by the VM
 	long stackSize = 0;
 	/*[IF JAVA_SPEC_VERSION >= 14]*/
 	/* deadInterrupt tracks the thread interrupt state when threadRef has no reference (ie thread is not alive).
@@ -258,7 +258,6 @@ public Thread(Runnable runnable, String threadName) {
 	this(null, runnable, threadName, null, true);
 }
 
-
 /**
  * Constructs a new Thread with no runnable object and the name provided.
  * The new Thread will belong to the same ThreadGroup as the Thread calling
@@ -320,7 +319,7 @@ public Thread(ThreadGroup group, Runnable runnable, String threadName, long stac
 	this.stackSize = stack;
 }
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 /**
  * Constructs a new Thread with a runnable object, the given name, the thread stack size,
  * the flag to inherit initial values for inheritable thread-local variables and
@@ -342,7 +341,7 @@ public Thread(ThreadGroup group, Runnable runnable, String threadName, long stac
 	this(group, runnable, threadName, null, inheritThreadLocals);
 	this.stackSize = stack;
 }
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 /**
  * Constructs a new Thread with a runnable object, the given name and
@@ -397,7 +396,6 @@ private Thread(ThreadGroup group, Runnable runnable, String threadName, AccessCo
 		// Same group as Thread that created us
 		group = currentThread.getThreadGroup();
 
-
 	/*[PR 1FEVFSU] The rest of the configuration/initialization is shared between this constructor and the private one */
 	initialize(false, group, currentThread, acc, inheritThreadLocals);
 
@@ -423,11 +421,9 @@ private void initialize(boolean booting, ThreadGroup threadGroup, Thread parentT
 	/*[PR 96408]*/
 	this.group = threadGroup;
 
-
 	if (booting) {
 		System.afterClinitInitialization();
 	}
-
 
 	// initialize the thread local storage before making other calls
 	if (parentThread != null) { // Non-main thread
@@ -525,7 +521,6 @@ public static int activeCount(){
 	return currentThread().getThreadGroup().activeCount();
 }
 
-
 /**
  * This method is used for operations that require approval from
  * a SecurityManager. If there's none installed, this method is a no-op.
@@ -582,11 +577,11 @@ public static native Thread currentThread();
  *
  * @deprecated May cause deadlocks.
  */
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 @Deprecated(forRemoval=true, since="1.5")
-/*[ELSE]*/
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 @Deprecated
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 public void destroy() {
 	/*[PR 121318] Should throw NoSuchMethodError */
 	throw new NoSuchMethodError();
@@ -619,7 +614,6 @@ public static void dumpStack() {
 public static int enumerate(Thread[] threads) {
 	return currentThread().getThreadGroup().enumerate(threads, true);
 }
-
 
 /**
  * Returns the context ClassLoader for the receiver.
@@ -677,7 +671,6 @@ public final ThreadGroup getThreadGroup() {
 	return group;
 }
 
-
 /**
  * Posts an interrupt request to the receiver
  *
@@ -711,7 +704,6 @@ public void interrupt() {
 		}
 	}
 }
-
 
 /**
  * Answers a <code>boolean</code> indicating whether the current Thread
@@ -754,13 +746,10 @@ private native void interruptImpl();
  * @see			Thread#start
  */
 public final boolean isAlive() {
-	synchronized (lock) {
-		/*[PR CMVC 88976] the Thread is alive until cleanup() is called */
-		return threadRef != NO_REF;
-	}
+	/*[PR CMVC 88976] the Thread is alive until cleanup() is called */
+	return threadRef != NO_REF;
 }
 
-/*[PR 1FJMO7Q] A Thread can be !isAlive() and still be in its ThreadGroup */
 /**
  * Answers <code>true</code> if the receiver has
  * already died and been removed from the ThreadGroup
@@ -772,10 +761,8 @@ public final boolean isAlive() {
  * @see			Thread#isAlive
  */
 private boolean isDead() {
-	// Has already started, is not alive anymore, and has been removed from the ThreadGroup
-	synchronized(lock) {
-		return started && threadRef == NO_REF;
-	}
+	/* Has already started and is not alive anymore. */
+	return (started && (threadRef == NO_REF));
 }
 
 /**
@@ -809,7 +796,6 @@ public boolean isInterrupted() {
 }
 
 private native boolean isInterruptedImpl();
-
 
 /**
  * Blocks the current Thread (<code>Thread.currentThread()</code>) until the
@@ -1112,14 +1098,14 @@ public static void sleep(long time, int nanos) throws InterruptedException {
 
 private static native void sleepImpl(long time, int nanos) throws InterruptedException;
 
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 /**
  * Hints to the run-time that a spin loop is being performed
  * which helps the thread in the spin loop not to use as much power.
  *
  */
 public static native void onSpinWait();
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 
 /**
  * Starts the new Thread of execution. The <code>run()</code> method of the receiver
@@ -1196,11 +1182,11 @@ public final void stop() {
  *
  * @deprecated
  */
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 @Deprecated(forRemoval=true, since="1.2")
-/*[ELSE]*/
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 @Deprecated
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 public final void stop(Throwable throwable) {
 	throw new UnsupportedOperationException();
 }
@@ -1333,7 +1319,6 @@ void blockedOn(Interruptible interruptible) {
 		currentThread.blockOn = interruptible;
 	}
 }
-
 
 private native Throwable getStackTraceImpl();
 
@@ -1550,29 +1535,32 @@ void uncaughtException(Throwable e) {
  * @see J9VMInternals#threadCleanup()
  */
 void exit() {
+	try {
 /*[IF JAVA_SPEC_VERSION >= 14]*/
-	/* Refresh deadInterrupt value so it is accurate when thread reference is removed. */
-	deadInterrupt = interrupted();
+		/* Refresh deadInterrupt value so it is accurate when thread reference is removed. */
+		deadInterrupt = interrupted();
 /*[ENDIF] JAVA_SPEC_VERSION >= 14 */
 
 /*[IF Sidecar18-SE-OpenJ9]*/
-	if ((threadLocals != null) && TerminatingThreadLocal.REGISTRY.isPresent()) {
-		TerminatingThreadLocal.threadTerminated();
-	}
+		if ((threadLocals != null) && TerminatingThreadLocal.REGISTRY.isPresent()) {
+			TerminatingThreadLocal.threadTerminated();
+		}
 /*[ENDIF] Sidecar18-SE-OpenJ9 */
 
-	/*[PR 97317]*/
-	group = null;
+		/*[PR 97317]*/
+		group = null;
 
-	/*[PR CVMC 118827] references are not removed in dead threads */
-	runnable = null;
-	inheritedAccessControlContext = null;
+		/*[PR CVMC 118827] references are not removed in dead threads. */
+		runnable = null;
+		inheritedAccessControlContext = null;
 
-	threadLocals = null;
-	inheritableThreadLocals = null;
-
-	synchronized(lock) {
-		threadRef = Thread.NO_REF;				// So that isAlive() can work
+		threadLocals = null;
+		inheritableThreadLocals = null;
+	} finally {
+		synchronized(lock) {
+			// So that isAlive() can work.
+			threadRef = Thread.NO_REF;
+		}
 	}
 }
 

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "bcutil_api.h"
@@ -25,11 +25,6 @@
 #include "jimagereader.h"
 #include "ut_j9bcu.h"
 #include "util_api.h"
-
-
-#if !defined(OMRPORT_MMAP_FLAG_ZOS_READ_MAPFILE)
-#define OMRPORT_MMAP_FLAG_ZOS_READ_MAPFILE 0
-#endif /* !defined(OMRPORT_MMAP_FLAG_ZOS_READ_MAPFILE) */
 
 VMINLINE static U_32 hashFn(const char *name, I_32 baseValue);
 VMINLINE static I_32 getRedirectTableValue(const char *name, I_32 *redirectTable, U_32 redirectTableSize);
@@ -172,7 +167,7 @@ j9bcutil_loadJImage(J9PortLibrary *portlib, const char *fileName, J9JImage **pji
 	memset(jimage, 0, sizeof(J9JImage));
 	jimage->fd = jimagefd;
 	jimage->fileName = (char *)(jimage + 1);
-	j9str_printf(PORTLIB, jimage->fileName, fileNameLen + 1, "%s", fileName);
+	j9str_printf(jimage->fileName, fileNameLen + 1, "%s", fileName);
 	jimage->fileLength = fileSize;
 	j9jimageHeader = jimage->j9jimageHeader = (J9JImageHeader *)((U_8 *)jimage + sizeof(J9JImage) + (fileNameLen + 1));
 
@@ -189,7 +184,7 @@ j9bcutil_loadJImage(J9PortLibrary *portlib, const char *fileName, J9JImage **pji
 	/*
 	 * With OMRPORT_MMAP_FLAG_ZOS_READ_MAPFILE, j9mmap_map_file() has the old bahaviour that reads the file content into allocated private memory.
 	 */
-	mmapflag |= OMRPORT_MMAP_FLAG_ZOS_READ_MAPFILE;
+	mmapflag = OMRPORT_MMAP_FLAG_ZOS_READ_MAPFILE;
 #endif /* defined(J9ZOS390) */
 	jimage->jimageMmap = j9mmap_map_file(jimagefd, 0, mapSize, fileName, mmapflag, J9MEM_CATEGORY_CLASSES);
 	if (NULL == jimage->jimageMmap) {
@@ -708,20 +703,20 @@ j9bcutil_getJImageResourceName(J9PortLibrary *portlib, J9JImage *jimage, const c
 	cursor = fullName;
 	spaceLeft = fullNameLen;
 	if (NULL != module) {
-		count = j9str_printf(PORTLIB, cursor, spaceLeft, "/%s/", module);
+		count = j9str_printf(cursor, spaceLeft, "/%s/", module);
 		cursor += count;
 		spaceLeft -= count;
 	}
 	if (NULL != parent) {
-		count = j9str_printf(PORTLIB, cursor, spaceLeft, "%s/", parent);
+		count = j9str_printf(cursor, spaceLeft, "%s/", parent);
 		cursor += count;
 		spaceLeft -= count;
 	}
-	count = j9str_printf(PORTLIB, cursor, spaceLeft, "%s", base);
+	count = j9str_printf(cursor, spaceLeft, "%s", base);
 	cursor += count;
 	spaceLeft -= count;
 	if (NULL != extension) {
-		count = j9str_printf(PORTLIB, cursor, spaceLeft, ".%s", extension);
+		count = j9str_printf(cursor, spaceLeft, ".%s", extension);
 	}
 
 	*resourceName = fullName;
@@ -766,7 +761,7 @@ j9bcutil_findModuleForPackage(J9PortLibrary *portlib, J9JImage *jimage, const ch
 		goto _end;
 	}
 
-	j9str_printf(PORTLIB, packageName, packageNameLen, "%s", packagePrefix);
+	j9str_printf(packageName, packageNameLen, "%s", packagePrefix);
 
 	for (i = 0; i <= strlen(package); i++) { /* include '\0' character as well */
 		/* convert any '/' to '.' */

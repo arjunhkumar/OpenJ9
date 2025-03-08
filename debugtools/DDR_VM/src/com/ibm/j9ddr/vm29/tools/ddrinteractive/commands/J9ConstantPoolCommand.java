@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2022
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.tools.ddrinteractive.commands;
 
 import java.io.PrintStream;
@@ -79,7 +79,7 @@ import com.ibm.j9ddr.vm29.pointer.helper.J9UTF8Helper;
 import com.ibm.j9ddr.vm29.structure.J9Class;
 import com.ibm.j9ddr.vm29.structure.J9ConstantPool;
 import com.ibm.j9ddr.vm29.structure.J9Consts;
-import com.ibm.j9ddr.vm29.structure.J9NonbuilderConstants;
+import com.ibm.j9ddr.vm29.structure.J9DescriptionBits;
 import com.ibm.j9ddr.vm29.structure.J9VTableHeader;
 import com.ibm.j9ddr.vm29.structure.J9VmconstantpoolConstants;
 import com.ibm.j9ddr.vm29.types.UDATA;
@@ -131,8 +131,8 @@ public class J9ConstantPoolCommand extends Command {
 			&& (0 != J9Consts.J9_ITABLE_INDEX_SHIFT)
 			&& (0 != J9Consts.J9_ITABLE_INDEX_TAG_BITS)
 			&& (0 != J9Consts.J9_ITABLE_INDEX_UNRESOLVED)
-			&& (0 != J9NonbuilderConstants.J9DescriptionCpBsmIndexMask)
-			&& (0 != J9NonbuilderConstants.J9DescriptionCpTypeShift);
+			&& (0 != J9DescriptionBits.J9DescriptionCpBsmIndexMask)
+			&& (0 != J9DescriptionBits.J9DescriptionCpTypeShift);
 	}
 
 	private static J9ClassPointer findClassByName(J9JavaVMPointer vm, String name) throws CorruptDataException {
@@ -182,7 +182,7 @@ public class J9ConstantPoolCommand extends Command {
 			final J9JavaVMPointer vm = J9RASHelper.getVM(DataType.getJ9RASPointer());
 			final J9InitializerMethodsPointer initializerMethods = vm.initialMethods();
 
-			long address = CommandUtils.parsePointer(args[0], J9BuildFlags.env_data64);
+			long address = CommandUtils.parsePointer(args[0], J9BuildFlags.J9VM_ENV_DATA64);
 			final J9ClassPointer ramClass = J9ClassPointer.cast(address);
 			final J9ROMClassPointer romClass = ramClass.romClass();
 
@@ -485,7 +485,7 @@ public class J9ConstantPoolCommand extends Command {
 						long callSiteCount = romClass.callSiteCount().longValue();
 						U16Pointer bsmIndicies = U16Pointer.cast(callSiteData.addOffset(4 * callSiteCount));
 						U16Pointer bsmData = bsmIndicies.add(callSiteCount);
-						long bsmIndex = romRef.bsmIndexAndCpType().rightShift((int)J9NonbuilderConstants.J9DescriptionCpTypeShift).bitAnd(J9NonbuilderConstants.J9DescriptionCpBsmIndexMask).longValue();
+						long bsmIndex = romRef.bsmIndexAndCpType().rightShift((int)J9DescriptionBits.J9DescriptionCpTypeShift).bitAnd(J9DescriptionBits.J9DescriptionCpBsmIndexMask).longValue();
 
 						long argCount;
 						for (long j = 0; j < bsmIndex; j++) {

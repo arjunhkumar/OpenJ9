@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j2sever.h"
@@ -26,7 +26,6 @@
 
 #if JAVA_SPEC_VERSION >= 11
 
-static J9Package* hashPackageTableAtWithUTF8Name(J9VMThread *currentThread, J9ClassLoader *classLoader, J9UTF8 *packageName);
 static BOOLEAN isPackageExportedToModuleHelper(J9VMThread *currentThread, J9Module *fromModule, J9Package *j9package, J9Module *toModule, BOOLEAN toUnnamed);
 
 /* All the helper functions below assume that:
@@ -149,7 +148,21 @@ addUTFNameToPackage(J9VMThread *currentThread, J9Package *j9package, const char 
 	return TRUE;
 }
 
-static J9Package*
+J9Module *
+hashModuleTableAtWithUTF8Name(J9VMThread *currentThread, J9ClassLoader *classLoader, J9UTF8 *moduleName)
+{
+	J9Module module = {0};
+	J9Module *modulePtr = &module;
+	J9Module **targetPtr = NULL;
+
+	modulePtr->moduleName = moduleName;
+	modulePtr->classLoader = classLoader;
+	Assert_Util_notNull(modulePtr->moduleName);
+	targetPtr = hashTableFind(classLoader->moduleHashTable, &modulePtr);
+	return (NULL != targetPtr) ? *targetPtr : NULL;
+}
+
+J9Package *
 hashPackageTableAtWithUTF8Name(J9VMThread *currentThread, J9ClassLoader *classLoader, J9UTF8 *packageName)
 {
 	J9Package package = {0};

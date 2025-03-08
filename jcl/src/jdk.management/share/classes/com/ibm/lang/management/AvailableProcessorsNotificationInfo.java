@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2005
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management;
 
 import javax.management.openmbean.CompositeData;
@@ -44,7 +44,7 @@ public class AvailableProcessorsNotificationInfo {
 
 	/**
 	 * Constructs a new instance of this object.
-	 * 
+	 *
 	 * @param newAvailableProcessors
 	 *            the new number of processors available
 	 */
@@ -56,7 +56,7 @@ public class AvailableProcessorsNotificationInfo {
 	/**
 	 * Returns the new number of available processors after the change that
 	 * initiated this notification.
-	 * 
+	 *
 	 * @return the number of available processors
 	 */
 	public int getNewAvailableProcessors() {
@@ -68,7 +68,7 @@ public class AvailableProcessorsNotificationInfo {
 	 * <code>AvailableProcessorsNotificationInfo</code> object and attempts to
 	 * return the root <code>AvailableProcessorsNotificationInfo</code>
 	 * instance.
-	 * 
+	 *
 	 * @param cd
 	 *            a <code>CompositeDate</code> that represents a
 	 *            <code>AvailableProcessorsNotificationInfo</code>.
@@ -94,7 +94,7 @@ public class AvailableProcessorsNotificationInfo {
 			// following method invocations will exit on an
 			// IllegalArgumentException...
 			ManagementUtils.verifyFieldNumber(cd, 1);
-			String[] attributeNames = { "newAvailableProcessors" }; //$NON-NLS-1$ 
+			String[] attributeNames = { "newAvailableProcessors" }; //$NON-NLS-1$
 			ManagementUtils.verifyFieldNames(cd, attributeNames);
 			String[] attributeTypes = { "java.lang.Integer" }; //$NON-NLS-1$
 			ManagementUtils.verifyFieldTypes(cd, attributeNames, attributeTypes);

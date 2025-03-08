@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef RUNTIME_ASSUMPTIONS_INCL
@@ -142,6 +142,9 @@ class TR_PersistentClassInfo : public TR_Link0<TR_PersistentClassInfo>
    bool shouldNotBeNewlyExtended(int32_t ID)         { return _shouldNotBeNewlyExtended.testAny(1 << ID); }
    flags16_t getShouldNotBeNewlyExtendedMask() const { return _shouldNotBeNewlyExtended; }
 
+   virtual void setAlreadyScannedForFinalPutstatic() { _flags.set(_alreadyScannedForFinalPutstatic, true); }
+   bool alreadyScannedForFinalPutstatic() { return _flags.testAny(_alreadyScannedForFinalPutstatic); }
+
    virtual void setHasRecognizedAnnotations(bool v = true){ _flags.set(_containsRecognizedAnnotations, v); }
    bool hasRecognizedAnnotations()                { return _flags.testAny(_containsRecognizedAnnotations); }
    virtual void setAlreadyCheckedForAnnotations(bool v = true){ _flags.set(_alreadyScannedForAnnotations, v); }
@@ -161,6 +164,7 @@ class TR_PersistentClassInfo : public TR_Link0<TR_PersistentClassInfo>
 
    enum // flag bits
       {
+      _alreadyScannedForFinalPutstatic      = 0x01,
       _isReservable                         = 0x02,
       _containsRecognizedAnnotations        = 0x04,
       _alreadyScannedForAnnotations         = 0x08,
@@ -222,9 +226,9 @@ class TR_AddressSet
    int32_t          _numAddressRanges;
    int32_t          _maxAddressRanges;
 
-   static void trace(char *format, ...);
+   static void trace(const char *format, ...);
    static bool enableTraceDetails();
-   static void traceDetails(char *format, ...);
+   static void traceDetails(const char *format, ...);
 
    void moveAddressRanges(int32_t desiredHole, int32_t currentHole);
    void moveAddressRangesBy(int32_t low, int32_t high, int32_t distance);

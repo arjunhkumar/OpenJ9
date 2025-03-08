@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(VMHELPERS_HPP_)
@@ -40,10 +40,10 @@
 #include "j9vmconstantpool.h"
 #include "j9modifiers_api.h"
 #include "j9cp.h"
+#include "vm_api.h"
 #include "ute.h"
 #include "AtomicSupport.hpp"
 #include "ObjectAllocationAPI.hpp"
-#include "objhelp.h"
 
 typedef enum {
 	J9_BCLOOP_SEND_TARGET_INITIAL_STATIC = 0,
@@ -76,7 +76,6 @@ typedef enum {
 	J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_ARRAY,
 	J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_PRIMITIVE,
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_PRIMITIVE_CLASS,
 	J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_VALUE,
 	J9_BCLOOP_SEND_TARGET_INL_CLASS_IS_IDENTITY,
 	J9_BCLOOP_SEND_TARGET_INL_INTERNALS_POSITIVE_ONLY_HASHCODES,
@@ -159,15 +158,17 @@ typedef enum {
 	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_COMPAREANDSWAPLONG,
 	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_COMPAREANDSWAPINT,
 #if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_GETVALUE,
-	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_PUTVALUE,
 	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_UNINITIALIZEDDEFAULTVALUE,
 	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_VALUEHEADERSIZE,
-	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATTENEDARRAY,
-	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATTENED,
 	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_GETOBJECTSIZE,
-	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFIELDATOFFSETFLATTENED,
 #endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_GETVALUE,
+	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_PUTVALUE,
+	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATARRAY,
+	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFLATFIELD,
+	J9_BCLOOP_SEND_TARGET_INL_UNSAFE_ISFIELDATOFFSETFLATTENED,
+#endif /* J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES */
 	J9_BCLOOP_SEND_TARGET_INL_INTERNALS_GET_INTERFACES,
 	J9_BCLOOP_SEND_TARGET_INL_ARRAY_NEW_ARRAY_IMPL,
 	J9_BCLOOP_SEND_TARGET_INL_CLASSLOADER_FIND_LOADED_CLASS_IMPL,
@@ -204,6 +205,9 @@ typedef enum {
 	J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOSTATICSPECIAL,
 	J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOVIRTUAL,
 	J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTOINTERFACE,
+#if JAVA_SPEC_VERSION >= 22
+	J9_BCLOOP_SEND_TARGET_METHODHANDLE_LINKTONATIVE,
+#endif /* JAVA_SPEC_VERSION >= 22 */
 	J9_BCLOOP_SEND_TARGET_MEMBERNAME_DEFAULT_CONFLICT,
 #endif /* defined(J9VM_OPT_OPENJDK_METHODHANDLE) */
 #if JAVA_SPEC_VERSION >= 16
@@ -644,13 +648,22 @@ cacheCastable:
 							/* check the [[O -> [[O case.  Don't allow [[I -> [[O */
 							if (instanceArity == castArity) {
 								J9Class *instanceClassLeafComponent = ((J9ArrayClass*)instanceClass)->leafComponentType;
-								if (J9CLASS_IS_MIXED(instanceClassLeafComponent)) {
-									/* we know arities are the same, so skip directly to the terminal case */
-									instanceClass = instanceClassLeafComponent;
-									castClass = castClassLeafComponent;
-									didRetry = true;
-									goto retry;
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+								if (J9_IS_J9ARRAYCLASS_NULL_RESTRICTED(instanceClass)
+									|| !J9_IS_J9ARRAYCLASS_NULL_RESTRICTED(castClass)
+								) {
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
+									if (J9CLASS_IS_MIXED(instanceClassLeafComponent)) {
+										/* we know arities are the same, so skip directly to the terminal case */
+										instanceClass = instanceClassLeafComponent;
+										castClass = castClassLeafComponent;
+										didRetry = true;
+										goto retry;
+									}
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 								}
+								/* else fail since a nullable array class cannot be cast to a null-restricted class */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 							}
 							/* else the arity of the instance wasn't high enough, so we fail */
 						}
@@ -796,7 +809,7 @@ done:
 	static VMINLINE bool
 	immediateAsyncPending(J9VMThread *currentThread)
 	{
-		return (0 != (currentThread->publicFlags & J9_PUBLIC_FLAGS_POP_FRAMES_INTERRUPT));
+		return J9_ARE_ANY_BITS_SET(currentThread->publicFlags, J9_PUBLIC_FLAGS_POP_FRAMES_INTERRUPT);
 	}
 
 	/**
@@ -853,11 +866,11 @@ done:
 	{
 		j9object_t instance = NULL;
 
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 		if (J9_IS_J9CLASS_FLATTENED(arrayClass)) {
 			instance = objectAllocate->inlineAllocateIndexableValueTypeObject(currentThread, arrayClass, size, initializeSlots, memoryBarrier, sizeCheck);
 		} else if (J9_ARE_NO_BITS_SET(arrayClass->classFlags, J9ClassContainsUnflattenedFlattenables))
-#endif /* J9VM_OPT_VALHALLA_VALUE_TYPES */
+#endif /* J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES */
 		{
 			instance = objectAllocate->inlineAllocateIndexableObject(currentThread, arrayClass, size, initializeSlots, memoryBarrier, sizeCheck);
 		}
@@ -1403,8 +1416,24 @@ done:
 	{
 		J9VMThread *targetThread = J9VMJAVALANGTHREAD_THREADREF(currentThread, threadObject);
 		bool result = false;
+#if JAVA_SPEC_VERSION >= 19
+		/* Check if the mounted thread is suspended. */
+		bool isSuspended = false;
+		if (NULL != targetThread) {
+			isSuspended = isThreadSuspended(currentThread, targetThread->threadObject);
+		}
+#endif /* JAVA_SPEC_VERSION >= 19 */
 		/* If the thread is alive, ask the OS thread.  Otherwise, answer false. */
-		if (J9VMJAVALANGTHREAD_STARTED(currentThread, threadObject) && (NULL != targetThread)) {
+		if ((NULL != targetThread)
+		&& J9VMJAVALANGTHREAD_STARTED(currentThread, threadObject)
+#if JAVA_SPEC_VERSION >= 19
+		/* Thread.deadInterrupt is Thread.interrupted in OJDK's Thread implementation.
+		 * In JDK19+, OJDK's Thread implementation is used. If the mounted thread is
+		 * suspended, use Thread.interrupted to derive if the thread is interrupted.
+		 */
+		&& (!isSuspended)
+#endif /* JAVA_SPEC_VERSION >= 19 */
+		) {
 			if (omrthread_interrupted(targetThread->osThread)) {
 				result = true;
 			}
@@ -1766,9 +1795,10 @@ exit:
 	objectArrayStoreAllowed(J9VMThread const *currentThread, j9object_t array, j9object_t storeValue)
 	{
 		bool rc = true;
+		J9ArrayClass *arrayClass = (J9ArrayClass *)J9OBJECT_CLAZZ(currentThread, array);
 		if (NULL != storeValue) {
 			J9Class *valueClass = J9OBJECT_CLAZZ(currentThread, storeValue);
-			J9Class *componentType = ((J9ArrayClass*)J9OBJECT_CLAZZ(currentThread, array))->componentType;
+			J9Class *componentType = arrayClass->componentType;
 			/* quick check -- is this a store of a C into a C[]? */
 			if (valueClass != componentType) {
 				/* quick check -- is this a store of a C into a java.lang.Object[]? */
@@ -1776,6 +1806,10 @@ exit:
 					rc = inlineCheckCast(valueClass, componentType);
 				}
 			}
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+		} else if (J9_IS_J9ARRAYCLASS_NULL_RESTRICTED(arrayClass)) {
+			rc = FALSE;
+#endif /* if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		}
 		return rc;
 	}
@@ -1962,7 +1996,6 @@ exit:
 		currentThread->arg0EA = sp - 1;
 		currentThread->pc = (U_8 *)J9SF_FRAME_TYPE_JIT_RESOLVE;
 		currentThread->literals = NULL;
-		currentThread->jitStackFrameFlags = 0;
 		return oldPC;
 	}
 
@@ -2037,8 +2070,26 @@ exit:
 	threadInterruptImpl(J9VMThread *currentThread, j9object_t targetObject)
 	{
 		J9VMThread *targetThread = J9VMJAVALANGTHREAD_THREADREF(currentThread, targetObject);
-		if (J9VMJAVALANGTHREAD_STARTED(currentThread, targetObject) && (NULL != targetThread)) {
-			void (*sidecarInterruptFunction)(J9VMThread*) = currentThread->javaVM->sidecarInterruptFunction;
+		J9JavaVM *vm = currentThread->javaVM;
+#if JAVA_SPEC_VERSION >= 19
+		/* Check if the mounted thread is suspended. */
+		bool isSuspended = false;
+		if (NULL != targetThread) {
+			isSuspended = isThreadSuspended(currentThread, targetThread->threadObject);
+		}
+#endif /* JAVA_SPEC_VERSION >= 19 */
+		if ((NULL != targetThread)
+		&& J9VMJAVALANGTHREAD_STARTED(currentThread, targetObject)
+#if JAVA_SPEC_VERSION >= 19
+		/* Thread.deadInterrupt is Thread.interrupted in OJDK's Thread implementation.
+		 * In JDK19+, OJDK's Thread implementation is used. If the mounted thread is
+		 * suspended, only set Thread.interrupted to TRUE and do not wake/interrupt
+		 * the thread.
+		 */
+		&& (!isSuspended)
+#endif /* JAVA_SPEC_VERSION >= 19 */
+		) {
+			void (*sidecarInterruptFunction)(J9VMThread*) = vm->sidecarInterruptFunction;
 			if (NULL != sidecarInterruptFunction) {
 				sidecarInterruptFunction(targetThread);
 			}
@@ -2051,224 +2102,6 @@ exit:
 #endif /* JAVA_SPEC_VERSION > 11 */
 	}
 
-#if JAVA_SPEC_VERSION >= 19
-	static VMINLINE ContinuationState volatile *
-	getContinuationStateAddress(J9VMThread *vmThread , j9object_t object)
-	{
-		return (ContinuationState volatile *) ((uintptr_t) object + J9VMJDKINTERNALVMCONTINUATION_STATE_OFFSET(vmThread));
-	}
-
-	static VMINLINE bool
-	isStarted(ContinuationState continuationState)
-	{
-		return J9_ARE_ALL_BITS_SET(continuationState, J9_GC_CONTINUATION_STATE_STARTED);
-	}
-
-	static VMINLINE void
-	setContinuationStarted(ContinuationState volatile *continuationStatePtr)
-	{
-		*continuationStatePtr |= J9_GC_CONTINUATION_STATE_STARTED;
-	}
-
-	static VMINLINE bool
-	isFinished(ContinuationState continuationState)
-	{
-		return J9_ARE_ALL_BITS_SET(continuationState, J9_GC_CONTINUATION_STATE_FINISHED);
-	}
-
-	static VMINLINE void
-	setContinuationFinished(ContinuationState volatile *continuationStatePtr)
-	{
-		*continuationStatePtr |= J9_GC_CONTINUATION_STATE_FINISHED;
-	}
-
-	static VMINLINE bool
-	isActive(ContinuationState continuationState)
-	{
-		return isStarted(continuationState) && !isFinished(continuationState);
-	}
-
-	static VMINLINE uintptr_t
-	getConcurrentGCMask(bool isGlobalGC)
-	{
-		if (isGlobalGC) {
-			return J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_GLOBAL;
-		} else {
-			return J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_LOCAL;
-		}
-	}
-
-	/**
-	 * Check if the related J9VMContinuation is concurrently scaned from the state
-	 * 2 variants with and without bool isGlobalGC param.
-	 * without isGlobalGC param, return true if it is either local concurrent scanning case or global concurrent scanning case.
-	 * with isGlobalGC param, if isGlobalGC == true, only check if global concurrent scanning case.
-	 * 						  if isGlobalGC == false, only check if local concurrent scanning case.
-	 */
-	static VMINLINE bool
-	isConcurrentlyScanned(ContinuationState continuationState)
-	{
-		return J9_ARE_ANY_BITS_SET(continuationState, J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_ANY);
-	}
-
-	static VMINLINE bool
-	isConcurrentlyScanned(ContinuationState continuationState, bool isGlobalGC)
-	{
-		uintptr_t concurrentGCMask = getConcurrentGCMask(isGlobalGC);
-		return J9_ARE_ALL_BITS_SET(continuationState, concurrentGCMask);
-	}
-
-	static VMINLINE void
-	setConcurrentlyScanned(ContinuationState *continuationStatePtr, bool isGlobalGC)
-	{
-		*continuationStatePtr |= getConcurrentGCMask(isGlobalGC);
-	}
-
-	static VMINLINE void
-	resetConcurrentlyScanned(ContinuationState *continuationStatePtr, bool isGlobalGC)
-	{
-		*continuationStatePtr &= ~getConcurrentGCMask(isGlobalGC);
-	}
-
-	static VMINLINE bool
-	isPendingToBeMounted(ContinuationState continuationState)
-	{
-		return J9_ARE_ALL_BITS_SET(continuationState, J9_GC_CONTINUATION_STATE_PENDING_TO_BE_MOUNTED);
-	}
-
-	static VMINLINE void
-	resetPendingState(ContinuationState *continuationStatePtr)
-	{
-		*continuationStatePtr &= ~J9_GC_CONTINUATION_STATE_PENDING_TO_BE_MOUNTED;
-	}
-
-	/**
-	 * Check if the related J9VMContinuation is mounted to carrier thread
-	 * if carrierThreadID has been set in j9vmcontinuation->state, the continuation might be mounted,
-	 * there also is pending to be mounted case, when the mounting is blocked by the concurrent continuation
-	 * scanning or related vm access.
-	 *
-	 * @param[in] continuationState the related J9VMContinuation->state
-	 * @return true if it is mounted.
-	 */
-	static VMINLINE bool
-	isContinuationFullyMounted(ContinuationState continuationState)
-	{
-		bool mounted = J9_ARE_ANY_BITS_SET(continuationState, J9_GC_CONTINUATION_STATE_CARRIERID_MASK);
-		if (mounted && isPendingToBeMounted(continuationState)) {
-			mounted = false;
-		}
-		return mounted;
-	}
-
-	static VMINLINE J9VMThread *
-	getCarrierThread(ContinuationState continuationState)
-	{
-		return (J9VMThread *)(continuationState & J9_GC_CONTINUATION_STATE_CARRIERID_MASK);
-	}
-
-	static VMINLINE bool
-	isContinuationMountedWithCarrierThread(ContinuationState continuationState, J9VMThread *carrierThread)
-	{
-		return carrierThread == getCarrierThread(continuationState);
-	}
-
-	static VMINLINE void
-	settingCarrierAndPendingState(ContinuationState *continuationStatePtr, J9VMThread *carrierThread)
-	{
-		/* also set PendingToBeMounted */
-		*continuationStatePtr |= (uintptr_t)carrierThread | J9_GC_CONTINUATION_STATE_PENDING_TO_BE_MOUNTED;
-	}
-
-	static VMINLINE void
-	resetContinuationCarrierID(ContinuationState volatile *continuationStatePtr)
-	{
-		*continuationStatePtr &= ~J9_GC_CONTINUATION_STATE_CARRIERID_MASK;
-	}
-
-/*
- *
- * param[in] checkConcurrentState can be J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_LOCAL or J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_GLOBAL
- *
- *  There is no need scanning before continuation is started or after continuation is finished.
- *  If WinningConcurrentGCScan set J9_GC_CONTINUATION_bit3:STATE_CONCURRENT_SCAN_LOCAL or bit4:J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_GLOBAL in the state base on checkConcurrentState
- *	If low tagging(bit3 or bit4) failed due to either
- *
- *   a carrier thread winning to mount, we don't need to do anything, since it will be compensated by pre/post mount actions
- *   if it is pending to be mounted case(another concurrent scanning block the mounting),
- *   another GC thread winning to scan(bit3/bit4,bit3 and bit4 is irrelevant and independent), again don't do anything, and let the winning thread do the work, instead
- */
-	static VMINLINE bool
-	tryWinningConcurrentGCScan(ContinuationState volatile *continuationStatePtr, bool isGlobalGC, bool beingMounted)
-	{
-		do {
-			ContinuationState oldContinuationState = *continuationStatePtr;
-			if (VM_VMHelpers::isActive(oldContinuationState)) {
-
-				/* If it's being concurrently scanned within the same type of GC by another thread , it's unnecessary to do it again */
-				if (!isConcurrentlyScanned(oldContinuationState, isGlobalGC)) {
-					/* If it's fully mounted, it's unnecessary to scan now, since it will be compensated by pre/post mount actions.
-					   If it's being mounted by this thread, we must be in pre/post mount (would be nice, but not trivial to assert it),
-					   therefore we must scan to aid concurrent GC.
-					 */
-					if (beingMounted || !isContinuationFullyMounted(oldContinuationState)) {
-						/* Try to set scan bit for this GC type */
-						ContinuationState newContinuationState = oldContinuationState;
-						setConcurrentlyScanned(&newContinuationState, isGlobalGC);
-						ContinuationState returnedState = VM_AtomicSupport::lockCompareExchange(continuationStatePtr, oldContinuationState, newContinuationState);
-						/* If no other thread changed anything (mounted or won scanning for any GC), we succeeded, otherwise retry */
-						if (oldContinuationState == returnedState) {
-							return true;
-						} else {
-							continue;
-						}
-					}
-				}
-			}
-		} while (false);
-		/* We did not even try to win, since it was either mounted or already being scanned */
-		return false;
-	}
-
-	/**
-	 * clear CONCURRENTSCANNING flag bit3:for LocalConcurrentScanning /bit4:for GlobalConcurrentScanning base on checkConcurrentState,
-	 * if all CONCURRENTSCANNING bits(bit3 and bit4) are cleared and the continuation mounting is blocked by concurrent scanning, notify it.
-	 * @param [in] checkConcurrentState can be J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_LOCAL or J9_GC_CONTINUATION_STATE_CONCURRENT_SCAN_GLOBAL
-	 */
-	static VMINLINE void
-	exitConcurrentGCScan(ContinuationState volatile *continuationStatePtr, bool isGlobalGC)
-	{
-		/* clear CONCURRENTSCANNING flag bit3:LocalConcurrentScanning /bit4:GlobalConcurrentScanning */
-		ContinuationState oldContinuationState = 0;
-		ContinuationState returnContinuationState = 0;
-		do {
-			oldContinuationState = *continuationStatePtr;
-			ContinuationState newContinuationState = oldContinuationState;
-			resetConcurrentlyScanned(&newContinuationState, isGlobalGC);
-			returnContinuationState = VM_AtomicSupport::lockCompareExchange(continuationStatePtr, oldContinuationState, newContinuationState);
-		} while (returnContinuationState != oldContinuationState);
-
-		if (!isConcurrentlyScanned(returnContinuationState, !isGlobalGC)) {
-			J9VMThread *carrierThread = getCarrierThread(returnContinuationState);
-			if (NULL != carrierThread) {
-				omrthread_monitor_enter(carrierThread->publicFlagsMutex);
-				/* notify the waiting carrierThread that we just finished scanning and we were the only/last GC to scan it, so that it can proceed with mounting. */
-				omrthread_monitor_notify_all(carrierThread->publicFlagsMutex);
-				omrthread_monitor_exit(carrierThread->publicFlagsMutex);
-			}
-		}
-	}
-#endif /* JAVA_SPEC_VERSION >= 19 */
-
-	static VMINLINE void
-	exitConcurrentGCScan(J9VMThread *vmThread, j9object_t continuationObject, bool isGlobalGC)
-	{
-#if JAVA_SPEC_VERSION >= 19
-		ContinuationState volatile *continuationStatePtr = getContinuationStateAddress(vmThread, continuationObject);
-		exitConcurrentGCScan(continuationStatePtr, isGlobalGC);
-#endif /* JAVA_SPEC_VERSION >= 19 */
-	}
-
 	static VMINLINE UDATA
 	setVMState(J9VMThread *currentThread, UDATA newState)
 	{
@@ -2277,6 +2110,171 @@ exit:
 		return oldState;
 	}
 
+#if JAVA_SPEC_VERSION >= 20
+	static VMINLINE void
+	virtualThreadHideFrames(J9VMThread *currentThread, jboolean hide)
+	{
+		if (hide) {
+			currentThread->privateFlags |= J9_PRIVATE_FLAGS_VIRTUAL_THREAD_HIDDEN_FRAMES;
+		} else {
+			currentThread->privateFlags &= ~(UDATA)J9_PRIVATE_FLAGS_VIRTUAL_THREAD_HIDDEN_FRAMES;
+		}
+	}
+
+	/**
+	 * Check if thread is in the suspended state.
+	 *
+	 * Current thread must have VM access.
+	 *
+	 * @param[in] currentThread the current J9VMThread
+	 * @param[in] thread the target Thread object
+	 * @return true if thread is suspended, false otherwise
+	 */
+	static VMINLINE bool
+	isThreadSuspended(J9VMThread *currentThread, j9object_t thread)
+	{
+		U_64 internalSuspendState = J9OBJECT_U64_LOAD(currentThread, thread, currentThread->javaVM->internalSuspendStateOffset);
+		return J9_ARE_ANY_BITS_SET(internalSuspendState, J9_VIRTUALTHREAD_INTERNAL_STATE_SUSPENDED);
+	}
+
+	/**
+	 * Get the linked carrier J9VMThread from vthread object.
+	 *
+	 * Current thread must have VM access.
+	 *
+	 * @param[in] currentThread the current J9VMThread
+	 * @param[in] thread the target vthread object
+	 * @return J9VMThread of the linked carrier thread, or NULL
+	 */
+	static VMINLINE J9VMThread *
+	getCarrierVMThread(J9VMThread *currentThread, j9object_t thread)
+	{
+		U_64 internalSuspendState = J9OBJECT_U64_LOAD(currentThread, thread, currentThread->javaVM->internalSuspendStateOffset);
+		return (J9VMThread *)(internalSuspendState & J9_VIRTUALTHREAD_INTERNAL_STATE_CARRIERID_MASK);
+	}
+#endif /* JAVA_SPEC_VERSION >= 20 */
+
+	/**
+	 * Get a static field object within a defining class.
+	 *
+	 * Current thread must have VM access.
+	 *
+	 * @param[in] currentThread the current J9VMThread
+	 * @param[in] definingClassName the defining class name
+	 * @param[in] fieldName the field name
+	 * @param[in] signature the field signature
+	 *
+	 * @return the field object if successs, otherwise NULL
+	 */
+	static VMINLINE j9object_t
+	getStaticFieldObject(J9VMThread *currentThread, const char *definingClassName, const char *fieldName, const char *signature)
+	{
+		J9JavaVM *vm = currentThread->javaVM;
+		j9object_t fieldObject = NULL;
+		J9InternalVMFunctions const *vmFuncs = vm->internalVMFunctions;
+		J9Class *definingClass = vmFuncs->peekClassHashTable(currentThread, vm->systemClassLoader, (U_8 *)definingClassName, strlen(definingClassName));
+		void *fieldAddress = vmFuncs->staticFieldAddress(currentThread, definingClass, (U_8*)fieldName, strlen(fieldName), (U_8*)signature, strlen(signature), NULL, NULL, 0, NULL);
+		if (NULL != fieldAddress) {
+			MM_ObjectAccessBarrierAPI objectAccessBarrier = MM_ObjectAccessBarrierAPI(currentThread);
+			fieldObject = objectAccessBarrier.inlineStaticReadObject(currentThread, definingClass, (j9object_t*)fieldAddress, FALSE);
+		}
+		return fieldObject;
+	}
+
+	/**
+	 * Find the offset of an instance field.
+	 *
+	 * @param[in] currentThread the current J9VMThread
+	 * @param[in] instanceType the instance class
+	 * @param[in] fieldName the field name
+	 * @param[in] fieldSig the field signature
+	 *
+	 * @return the offset
+	 */
+	static VMINLINE IDATA
+	findinstanceFieldOffset(J9VMThread *currentThread, J9Class *instanceType, const char *fieldName, const char *fieldSig)
+	{
+		J9JavaVM *vm = currentThread->javaVM;
+
+		IDATA offset = (UDATA)vm->internalVMFunctions->instanceFieldOffset(
+			currentThread, instanceType,
+			(U_8 *)fieldName, strlen(fieldName),
+			(U_8 *)fieldSig, strlen(fieldSig),
+			NULL, NULL, 0);
+
+		if (-1 != offset) {
+			offset += J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
+		}
+
+		return offset;
+	}
+
+#if defined(J9VM_OPT_CRIU_SUPPORT)
+	/**
+	 * Reset java.util.concurrent.ForkJoinPool.parallelism with a value supplied.
+	 *
+	 * Current thread must have VM access.
+	 *
+	 * @param[in] currentThread the current J9VMThread
+	 * @param[in] instanceObject a java.util.concurrent.ForkJoinPool instance object
+	 * @param[in] value the I_32 value to be set into the parallelism field
+	 *
+	 * @return true if the value has been set into the field within the instance object, false if not
+	 */
+	static VMINLINE bool
+	resetJUCForkJoinPoolParallelism(J9VMThread *currentThread, j9object_t instanceObject, I_32 value)
+	{
+		bool result = false;
+		J9JavaVM *vm = currentThread->javaVM;
+		IDATA fieldOffset = vm->checkpointState.jucForkJoinPoolParallelismOffset;
+
+		if (0 == fieldOffset) {
+#define JUC_FORKJOINPOOL "java/util/concurrent/ForkJoinPool"
+			J9Class *definingClass = vm->internalVMFunctions->peekClassHashTable(currentThread, vm->systemClassLoader, (U_8 *)JUC_FORKJOINPOOL, LITERAL_STRLEN(JUC_FORKJOINPOOL));
+#undef JUC_FORKJOINPOOL
+			if (NULL != definingClass) {
+				fieldOffset = findinstanceFieldOffset(currentThread, definingClass, "parallelism", "I");
+			} else {
+				fieldOffset = -1;
+			}
+		}
+		if (-1 != fieldOffset) {
+			MM_ObjectAccessBarrierAPI objectAccessBarrier = MM_ObjectAccessBarrierAPI(currentThread);
+			objectAccessBarrier.inlineMixedObjectStoreI32(currentThread, instanceObject, fieldOffset, value, false);
+			vm->checkpointState.jucForkJoinPoolParallelismOffset = fieldOffset;
+			result = true;
+		}
+		return result;
+	}
+#endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+
+	/**
+	 * Query and reset the current thread's interpreter re-entry flag.
+	 *
+	 * @param[in] currentThread the current J9VMThread
+	 *
+	 * @return true if re-entry requested, false if not
+	 */
+	static VMINLINE bool
+	interpreterReentryRequested(J9VMThread *currentThread)
+	{
+		bool rc = J9_ARE_ANY_BITS_SET(currentThread->privateFlags2, J9_PRIVATE_FLAGS2_REENTER_INTERPRETER);
+		currentThread->privateFlags2 &= ~(UDATA)J9_PRIVATE_FLAGS2_REENTER_INTERPRETER;
+		return rc;
+	}
+
+	/**
+	 * Request interpreter re-entry on a J9VMThread. The target thread must either be
+	 * the current thread or not have VM access (e.g. halted by exclusive VM access).
+	 *
+	 * @param[in] targetThread the target J9VMThread
+	 */
+	static VMINLINE void
+	requestInterpreterReentry(J9VMThread *targetThread)
+	{
+		targetThread->privateFlags2 |= J9_PRIVATE_FLAGS2_REENTER_INTERPRETER;
+		indicateAsyncMessagePending(targetThread);
+	}
 };
 
 #endif /* VMHELPERS_HPP_ */

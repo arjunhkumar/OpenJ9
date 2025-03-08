@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2006
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders.zos.mvs;
 
 import javax.imageio.stream.ImageInputStream;
@@ -29,48 +29,59 @@ import java.io.IOException;
 
 public final class LsestateTemplate {
 
-    public static int length() {
-        return 168;
-    }
+	public static int length() {
+		return 168;
+	}
 
-    public static long getLsesgrs(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 0);
-        throw new Error("request for long value for field lsesgrs which has length of 64");
-    }
-    public static int getLsesgrs$offset() {
-        return 0;
-    }
-    public static int getLsesgrs$length() {
-        return 512;
-    }
-    public static long getLsespsw(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 136);
-        return inputStream.readLong();
-    }
-    public static int getLsespsw$offset() {
-        return 136;
-    }
-    public static int getLsespsw$length() {
-        return 64;
-    }
-    public static long getLsestarg(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 148);
-        return inputStream.readUnsignedInt() & 0xffffffffL;
-    }
-    public static int getLsestarg$offset() {
-        return 148;
-    }
-    public static int getLsestarg$length() {
-        return 32;
-    }
-    public static long getLses_ed(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 160);
-        return inputStream.readLong();
-    }
-    public static int getLses_ed$offset() {
-        return 160;
-    }
-    public static int getLses_ed$length() {
-        return 64;
-    }
+	public static long getLsesgrs(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 0);
+		throw new Error("request for long value for field lsesgrs which has length of 64");
+	}
+
+	public static int getLsesgrs$offset() {
+		return 0;
+	}
+
+	public static int getLsesgrs$length() {
+		return 512;
+	}
+
+	public static long getLsespsw(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 136);
+		return inputStream.readLong();
+	}
+
+	public static int getLsespsw$offset() {
+		return 136;
+	}
+
+	public static int getLsespsw$length() {
+		return 64;
+	}
+
+	public static long getLsestarg(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 148);
+		return inputStream.readUnsignedInt() & 0xffffffffL;
+	}
+
+	public static int getLsestarg$offset() {
+		return 148;
+	}
+
+	public static int getLsestarg$length() {
+		return 32;
+	}
+
+	public static long getLses_ed(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 160);
+		return inputStream.readLong();
+	}
+
+	public static int getLses_ed$offset() {
+		return 160;
+	}
+
+	public static int getLses_ed$length() {
+		return 64;
+	}
 }

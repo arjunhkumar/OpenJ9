@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.nativememory;
 
 import com.ibm.dtfj.javacore.parser.framework.tag.LineRule;
@@ -36,50 +36,50 @@ public class NativeMemoryTagParser extends TagParser implements INativeMemoryTyp
 
 	/**
 	 * Line rule to cope with all *MEMUSER lines.
-	 * 
+	 *
 	 * Unusual in that it adds a pseudo depth token
 	 * @author andhall
 	 */
 	private static class NativeMemoryUserLineRule extends LineRule
 	{
 		private final int depth;
-		
+
 		NativeMemoryUserLineRule(int depth)
 		{
 			this.depth = depth;
 		}
-		
+
 		//Line format: 3MEMUSER       |  +--Classes: 2,468,456 bytes / 69 allocations
 		protected void processLine(String source, int startingOffset)
 		{
 			/* Add pseudo-token containing the depth */
 			addToken(A_DEPTH, Integer.toString(depth));
-			
+
 			/* Strip off any | | |*/
 			final boolean foundPipes = consumeUntilFirstMatch(NativeMemoryPatternMatchers.pipes);
-			
+
 			final boolean foundCrossMinusMinus = consumeUntilFirstMatch(NativeMemoryPatternMatchers.crossminusminus);
-			
-			//Only worth looking on if either this is a level 1 
+
+			//Only worth looking on if either this is a level 1
 			//memuser with no foundPipes, or foundCrossMinusMinus is set
 			final boolean level1WithData = depth == 1 && foundPipes;
-			
+
 			if (level1WithData || foundCrossMinusMinus) {
 				addToken(A_NAME, NativeMemoryPatternMatchers.categoryName);
-				
+
 				consumeUntilFirstMatch(CommonPatternMatchers.colon);
-				
+
 				addToken(A_DEEP_BYTES, NativeMemoryPatternMatchers.commaDelimitedNumeric);
-				
+
 				consumeUntilFirstMatch(NativeMemoryPatternMatchers.bytesAndSeparator);
-				
+
 				addToken(A_DEEP_ALLOCATIONS, NativeMemoryPatternMatchers.commaDelimitedNumeric);
 			}
 
 		}
-		
+
 	}
-	
+
 	protected void initTagAttributeRules()
 	{
 		addTag(T_0MEMUSER, null);
@@ -88,5 +88,4 @@ public class NativeMemoryTagParser extends TagParser implements INativeMemoryTyp
 		}
 	}
 
-	
 }

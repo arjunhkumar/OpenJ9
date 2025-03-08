@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 set(OMR_ENHANCED_WARNINGS OFF)
@@ -42,7 +42,10 @@ target_link_libraries(jvmti_test_agent
 		jvmti_test_src
 )
 
-
 if(OMR_OS_ZOS)
-	target_compile_options(jvmti_test_agent PRIVATE -Wc,DLL,EXPORTALL)
+	if(OMR_TOOLCONFIG STREQUAL "openxl")
+		target_compile_options(jvmti_test_agent PRIVATE -fvisibility=default)
+	else()
+		target_compile_options(jvmti_test_agent PRIVATE -Wc,DLL,EXPORTALL)
+	endif()
 endif()

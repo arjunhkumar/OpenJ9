@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if 0
@@ -121,6 +121,7 @@ typedef enum gc_policy{
 #endif /* defined(AIXPPC) */
 
 #if defined(J9ZOS390)
+#include <dlfcn.h>
 #include <dll.h>
 #include "atoe.h"
 #include <stdlib.h>
@@ -935,6 +936,12 @@ JNI_GetDefaultJavaVMInitArgs(void *vm_args)
 #if JAVA_SPEC_VERSION >= 20
 		case JNI_VERSION_20:
 #endif /* JAVA_SPEC_VERSION >= 20 */
+#if JAVA_SPEC_VERSION >= 21
+		case JNI_VERSION_21:
+#endif /* JAVA_SPEC_VERSION >= 21 */
+#if JAVA_SPEC_VERSION >= 24
+		case JNI_VERSION_24:
+#endif /* JAVA_SPEC_VERSION >= 24 */
 			return JNI_OK;
 		default:
 			break;

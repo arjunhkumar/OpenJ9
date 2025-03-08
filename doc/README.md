@@ -17,7 +17,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 
@@ -34,6 +34,6 @@ This directory contains the following types of documentation:
 | `processes`          | Process documentation for the OpenJ9 project.                                |
 | `release-notes`      | OpenJ9 release notes.                                                        |
 
-:pencil: Developer documentation about OpenJ9 technology or components is best considered in tandem with the [documentation from Eclipse OMR](https://github.com/eclipse/omr/tree/master/doc), as OpenJ9 is built upon the foundational technologies provided by OMR.
+:pencil: Developer documentation about OpenJ9 technology or components is best considered in tandem with the [documentation from Eclipse OMR](https://github.com/eclipse-omr/omr/tree/master/doc), as OpenJ9 is built upon the foundational technologies provided by OMR.
 
 :pencil: User documentation for OpenJ9 is published at the [OpenJ9 website](https://www.eclipse.org/openj9/docs/)

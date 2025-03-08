@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9cfg.h"
@@ -66,7 +66,7 @@ J9::Node::Node(TR::Node *originatingByteCodeNode, TR::ILOpCodes op, uint16_t num
        + self()->hasBranchDestinationNode()
        + self()->hasBlock()
        + self()->hasArrayStride()
-       + self()->hasPinningArrayPointer()
+       + (self()->hasPinningArrayPointer() && !self()->supportsPinningArrayPointerInNodeExtension())
        + self()->hasDataType() <= 1,
          "_unionPropertyA union is not disjoint for this node %s (%p):\n"
          "  has({SymbolReference, ...}, ..., DataType) = ({%1d,%1d},%1d,%1d,%1d,%1d,%1d)\n",
@@ -76,7 +76,7 @@ J9::Node::Node(TR::Node *originatingByteCodeNode, TR::ILOpCodes op, uint16_t num
          self()->hasBranchDestinationNode(),
          self()->hasBlock(),
          self()->hasArrayStride(),
-         self()->hasPinningArrayPointer(),
+         (self()->hasPinningArrayPointer() && !self()->supportsPinningArrayPointerInNodeExtension()),
          self()->hasDataType());
 
    // check that _unionPropertyB union is disjoint
@@ -316,6 +316,13 @@ J9::Node::processJNICall(TR::TreeTop *callNodeTreeTop, TR::ResolvedMethodSymbol 
       return self();
       }
 
+   if (methodSymbol->getRecognizedMethod() == TR::java_lang_Thread_onSpinWait)
+      {
+      static char *disableOSW = feGetEnv("TR_noPauseOnSpinWait");
+      if (!disableOSW)
+         return self();
+      }
+
    if (methodSymbol->canReplaceWithHWInstr())
       return self();
 
@@ -353,7 +360,7 @@ J9::Node::processJNICall(TR::TreeTop *callNodeTreeTop, TR::ResolvedMethodSymbol 
           ((methodSymbol->getRecognizedMethod() == TR::java_util_zip_CRC32_updateBytes0) ||
            (methodSymbol->getRecognizedMethod() == TR::java_util_zip_CRC32_updateByteBuffer0)) &&
 #endif
-          (!TR::Compiler->om.canGenerateArraylets()))))
+          (!TR::Compiler->om.canGenerateArraylets() && !TR::Compiler->om.isOffHeapAllocationEnabled()))))
       {
       return self();
       }
@@ -373,8 +380,8 @@ J9::Node::processJNICall(TR::TreeTop *callNodeTreeTop, TR::ResolvedMethodSymbol 
         (methodSymbol->getRecognizedMethod() == TR::java_util_zip_CRC32_updateBytes0) ||
         (methodSymbol->getRecognizedMethod() == TR::java_util_zip_CRC32_updateByteBuffer0)) &&
 #endif
-       !comp->requiresSpineChecks()  &&
-       !comp->compileRelocatableCode()
+       !comp->requiresSpineChecks() &&
+       !TR::Compiler->om.isOffHeapAllocationEnabled()
       #ifdef J9VM_OPT_JITSERVER
          && !comp->isOutOfProcessCompilation()
       #endif
@@ -423,7 +430,7 @@ J9::Node::processJNICall(TR::TreeTop *callNodeTreeTop, TR::ResolvedMethodSymbol 
       TR::Node * n = self()->getChild(i);
       if (n->getDataType() == TR::Address)
          {
-         if (n->getOpCode().hasSymbolReference() && n->getSymbol()->isAutoOrParm())
+         if (n->getOpCode().hasSymbolReference() && n->getSymbol()->isAutoOrParm() && n->getReferenceCount() == 1)
             {
             n->decReferenceCount();
             self()->setAndIncChild(i, TR::Node::createWithSymRef(n, TR::loadaddr, 0, n->getSymbolReference()));
@@ -2164,7 +2171,6 @@ J9::Node::isUnsafeGetPutCASCallOnNonArray()
    if (!symbol)
       return false;
 
-   //TR_ASSERT(symbol->castToResolvedMethodSymbol()->getResolvedMethod()->isUnsafeWithObjectArg(), "Attempt to check flag on a method that is not JNI Unsafe that needs special care for arraylets\n");
    TR_ASSERT(symbol->getMethod()->isUnsafeWithObjectArg() || symbol->getMethod()->isUnsafeCAS(),"Attempt to check flag on a method that is not JNI Unsafe that needs special care for arraylets\n");
    return _flags.testAny(unsafeGetPutOnNonArray);
    }
@@ -2543,4 +2549,13 @@ J9::Node::canGCandReturn(TR::Compilation *comp)
          }
       }
    return OMR::NodeConnector::canGCandReturn();
+   }
+
+bool
+J9::Node::isJitDispatchJ9MethodCall(TR::Compilation *comp)
+   {
+   return self()->getOpCode().isCallDirect()
+      && comp->getSymRefTab()->isNonHelper(
+            self()->getSymbolReference(),
+            TR::SymbolReferenceTable::jitDispatchJ9MethodSymbol);
    }

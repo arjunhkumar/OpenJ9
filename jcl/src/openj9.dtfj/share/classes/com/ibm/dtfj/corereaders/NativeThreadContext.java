@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders;
 
 /**
@@ -27,38 +27,37 @@ package com.ibm.dtfj.corereaders;
  * basically used to help try and generalize stack traversal
  */
 public class NativeThreadContext {
-	
+
 	long ee;
-    long pc;
-    long lr;
-    long sp;
-    long bp;
+	long pc;
+	long lr;
+	long sp;
+	long bp;
 
+	public NativeThreadContext () {}
 
-    public NativeThreadContext () {}
+	public NativeThreadContext (int size, long ee, long pc, long lr, long sp, long bp ) {
+		long anderFlag = 0x00000000ffffffffL;
+		if (size == 64) {
+			anderFlag = 0xffffffffffffffffL;
+		}
+		this.ee = ee & anderFlag;
+		this.pc = pc & anderFlag;
+		this.lr = lr & anderFlag;
+		this.sp = sp & anderFlag;
+		this.bp = bp & anderFlag;
+	}
 
-    public NativeThreadContext (int size, long ee, long pc, long lr, long sp, long bp ) {
-        long anderFlag = 0x00000000ffffffffL;
-        if (size == 64) {
-        	anderFlag = 0xffffffffffffffffL;
-        }
-    	this.ee = ee & anderFlag;
-        this.pc = pc & anderFlag;
-        this.lr = lr & anderFlag;
-        this.sp = sp & anderFlag;
-        this.bp = bp & anderFlag;
-    }
+	public void setEE(long ee) { this.ee = ee; }
+	public void setPc(long pc) { this.pc = pc; }
+	public void setLr(long lr) { this.lr = lr; }
+	public void setSp(long sp) { this.sp = sp; }
+	public void setBp(long bp) { this.bp = bp; }
 
-    public void setEE(long ee) { this.ee = ee; }
-    public void setPc(long pc) { this.pc = pc; }
-    public void setLr(long lr) { this.lr = lr; }
-    public void setSp(long sp) { this.sp = sp; }
-    public void setBp(long bp) { this.bp = bp; }
-
-    public long getEE() { return ee; }
-    public long getPc() { return pc; }
-    public long getSp() { return sp; }
-    public long getBp() { return bp; }
-    public long getLr() { return lr; }
+	public long getEE() { return ee; }
+	public long getPc() { return pc; }
+	public long getSp() { return sp; }
+	public long getBp() { return bp; }
+	public long getLr() { return lr; }
 
 }

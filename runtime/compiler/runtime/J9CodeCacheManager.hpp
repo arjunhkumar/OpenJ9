@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9_CODECACHEMANAGER_INCL
@@ -29,7 +29,7 @@ namespace J9 { class CodeCacheManager; }
 namespace J9 { typedef CodeCacheManager CodeCacheManagerConnector; }
 #endif
 
-
+#include "control/Options.hpp"
 #include "env/jittypes.h"
 //#include "runtime/CodeCacheMemorySegment.hpp"
 //#include "runtime/CodeCache.hpp"
@@ -56,6 +56,7 @@ public:
       _fe(fe)
       {
       _codeCacheManager = reinterpret_cast<TR::CodeCacheManager *>(this);
+      _disclaimEnabled = TR::Options::getCmdLineOptions()->getOption(TR_EnableCodeCacheDisclaiming);
       }
 
    void *operator new(size_t s, TR::CodeCacheManager *m) { return m; }
@@ -70,6 +71,7 @@ public:
 
    TR::CodeCache *initialize(bool useConsolidatedCache, uint32_t numberOfCodeCachesToCreateAtStartup);
 
+   bool isSufficientPhysicalMemoryAvailableForAllocation(size_t requestedCodeCacheSize);
    void addCodeCache(TR::CodeCache *codeCache);
 
    TR::CodeCacheMemorySegment *allocateCodeCacheSegment(size_t segmentSize,
@@ -151,12 +153,16 @@ public:
     * @brief Print occupancy stats for each code cache
     */
    void printOccupancyStats();
+   bool isDisclaimEnabled() const { return _disclaimEnabled; }
+   void setDisclaimEnabled(bool value)  { _disclaimEnabled = value; }
+   int32_t disclaimAllCodeCaches();
 
 private :
    TR_FrontEnd *_fe;
    static TR::CodeCacheManager *_codeCacheManager;
    static J9JITConfig *_jitConfig;
    static J9JavaVM *_javaVM;
+   bool  _disclaimEnabled; // If true, code cache can be disclaimed to a file or swap
    };
 
 } // namespace J9

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "il/J9DataTypes.hpp"
@@ -147,7 +147,7 @@ const int32_t packedDecimalPrecisionToByteLengthMap[TR_MAX_DECIMAL_PRECISION+1]
 
 
 
-char *J9::DataType::_TR_RawBCDSignCodeNames[num_raw_bcd_sign_codes] =
+const char *J9::DataType::_TR_RawBCDSignCodeNames[num_raw_bcd_sign_codes] =
    {
    "raw_bcd_sign_unknown",
    "0xc",
@@ -163,7 +163,7 @@ int32_t J9::DataType::_TR_RawBCDSignCodeValues[num_raw_bcd_sign_codes] =
    0xf,                                  // raw_bcd_sign_0xf
    };
 
-char *J9::DataType::_TR_BCDSignCodeNames[num_bcd_sign_codes] =
+const char *J9::DataType::_TR_BCDSignCodeNames[num_bcd_sign_codes] =
    {
    "bcd_sign_unknown",
    "plus",

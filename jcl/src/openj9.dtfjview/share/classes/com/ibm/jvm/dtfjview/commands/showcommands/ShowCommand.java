@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands.showcommands;
 
 import java.io.PrintStream;
@@ -29,12 +29,12 @@ import com.ibm.jvm.dtfjview.commands.SimpleRedirectorCommand;
 
 @DTFJPlugin(version="1.*", runtime=false)
 public class ShowCommand extends SimpleRedirectorCommand {
-	private static final String CMD_NAME = "show";	
+	private static final String CMD_NAME = "show";
 
 	{
 		addCommand(CMD_NAME, "[logging|heapdump]", "Displays the current set options for a command");
 	}
-	
+
 	@Override
 	public void printDetailedHelp(PrintStream out) {
 		out.println("Show the options for the specified command");
@@ -44,5 +44,5 @@ public class ShowCommand extends SimpleRedirectorCommand {
 	protected String getCmdName() {
 		return CMD_NAME;
 	}
-	
+
 }

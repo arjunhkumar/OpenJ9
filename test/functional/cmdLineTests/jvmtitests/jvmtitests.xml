@@ -19,7 +19,7 @@
   [1] https://www.gnu.org/software/classpath/license.html
   [2] https://openjdk.org/legal/assembly-exception.html
 
-  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 <!DOCTYPE suite SYSTEM "cmdlinetester.dtd">
@@ -348,7 +348,7 @@
 		<command>$EXE$ $JVM_OPTS$ $AGENTLIB$=test:rbc001 -cp $Q$$JAR$$Q$ $TESTRUNNER$</command>
 		<return type="success" value="0"/>
 	</test>
-	
+
 	<test id="nmr001">
 		<command>$EXE$ $JVM_OPTS$ $AGENTLIB$=test:nmr001 -cp $Q$$JAR$$Q$ $TESTRUNNER$</command>
 		<return type="success" value="0"/>
@@ -392,7 +392,7 @@
 	</test>
 
 	<test id="rnwr001">
-		<command>$EXE$ $JVM_OPTS$ $AGENTLIB$=test:rnwr001 -cp $Q$$JAR$$Q$ $TESTRUNNER$</command>
+		<command>$EXE$ $JVM_OPTS$ $AGENTLIB$=test:rnwr001 -XX:+EnableExtendedHCR -cp $Q$$JAR$$Q$ $TESTRUNNER$</command>
 		<return type="success" value="0"/>
 	</test>
 

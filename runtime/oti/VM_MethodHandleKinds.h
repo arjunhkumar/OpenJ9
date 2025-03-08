@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef VM_METHODHANDLEKINDS_H_
@@ -55,8 +55,5 @@
 #define J9_METHOD_HANDLE_KIND_FILTER_ARGUMENTS 0x1D
 #define J9_METHOD_HANDLE_KIND_VARHANDLE_INVOKE_EXACT 0x1E
 #define J9_METHOD_HANDLE_KIND_VARHANDLE_INVOKE_GENERIC 0x1F
-#ifdef J9VM_OPT_PANAMA
-#define J9_METHOD_HANDLE_KIND_NATIVE 0x20
-#endif
 
 #endif /* VM_METHODHANDLEKINDS_H_ */

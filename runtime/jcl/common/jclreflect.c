@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -28,12 +28,12 @@ compareJavaStringToPartialUTF8(J9VMThread * vmThread, j9object_t string, U_8 * u
 {
 	UDATA unicodeLength = J9VMJAVALANGSTRING_LENGTH(vmThread, string);
 	j9object_t unicodeBytes = J9VMJAVALANGSTRING_VALUE(vmThread, string);
-	UDATA i;
+	UDATA i = 0;
 
 	if (IS_STRING_COMPRESSED(vmThread, string)) {
 		for (i = 0; i < unicodeLength; i++) {
-			U_16 utfChar;
-			U_32 count;
+			U_16 utfChar = 0;
+			U_32 count = 0;
 
 			/* If the String is longer than the UTF, then they don't match */
 
@@ -51,14 +51,14 @@ compareJavaStringToPartialUTF8(J9VMThread * vmThread, j9object_t string, U_8 * u
 			if (utfChar == '/') {
 				utfChar = '.';
 			}
-			if (utfChar != J9JAVAARRAYOFBYTE_LOAD(vmThread, unicodeBytes, i)) {
+			if (utfChar != (U_8)J9JAVAARRAYOFBYTE_LOAD(vmThread, unicodeBytes, i)) {
 				return FALSE;
 			}
 		}
 	} else {
 		for (i = 0; i < unicodeLength; i++) {
-			U_16 utfChar;
-			U_32 count;
+			U_16 utfChar = 0;
+			U_32 count = 0;
 
 			/* If the String is longer than the UTF, then they don't match */
 
@@ -84,5 +84,3 @@ compareJavaStringToPartialUTF8(J9VMThread * vmThread, j9object_t string, U_8 * u
 
 	return TRUE;
 }
-
-

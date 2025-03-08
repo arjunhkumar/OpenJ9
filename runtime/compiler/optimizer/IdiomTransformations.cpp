@@ -17,20 +17,20 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <map>
 #include "codegen/CodeGenerator.hpp"
 #include "env/FrontEnd.hpp"
 #include "compile/Compilation.hpp"
 #include "compile/SymbolReferenceTable.hpp"
 #include "control/Options.hpp"
 #include "control/Options_inlines.hpp"
-#include "cs2/bitvectr.h"
 #include "env/CompilerEnv.hpp"
 #include "env/TRMemory.hpp"
 #include "env/jittypes.h"
@@ -54,6 +54,7 @@
 #include "optimizer/IdiomRecognitionUtils.hpp"
 #include "optimizer/Optimization_inlines.hpp"
 #include "optimizer/Optimizer.hpp"
+#include "optimizer/Structure.hpp"
 #include "optimizer/UseDefInfo.hpp"
 #include "ras/Debug.hpp"
 
@@ -745,7 +746,7 @@ IANDSpecialNodeTransformer(TR_CISCTransformer *trans)
 static void
 findIndexLoad(TR::Node *aiaddNode, TR::Node *&index1, TR::Node *&index2, TR::Node *&topLevelIndex)
    {
-   // iiload
+   // iloadi
    //      aiadd              <-- aiaddNode
    //           aload
    //           isub
@@ -755,7 +756,7 @@ findIndexLoad(TR::Node *aiaddNode, TR::Node *&index1, TR::Node *&index2, TR::Nod
    //              iconst -16
    //
    // -or-
-   // iiload
+   // iloadi
    //      aiadd
    //           aload
    //           isub
@@ -763,7 +764,7 @@ findIndexLoad(TR::Node *aiaddNode, TR::Node *&index1, TR::Node *&index2, TR::Nod
    //              iconst
    //
    // -or-
-   // iiload
+   // iloadi
    //      aiadd              <-- aiaddNode
    //           aload
    //           isub
@@ -775,7 +776,7 @@ findIndexLoad(TR::Node *aiaddNode, TR::Node *&index1, TR::Node *&index2, TR::Nod
    //              iconst -16
    //
    // -or-
-   // iiload
+   // iloadi
    //      aiadd
    //           aload
    //           isub
@@ -1016,6 +1017,199 @@ areArraysInvariant(TR::Compilation *comp, TR::Node *inputNode, TR::Node *outputN
    return true;
    }
 
+namespace { // file-local
+
+class AutoLoopInvarianceInfo
+   {
+   TR::Compilation * const _comp;
+   TR::Region &_region;
+   TR_UseDefInfo * const _useDefInfo;
+   TR_BitVector _storedAutos; // autos defined in the loop
+   TR::NodeChecklist _autoStores; // stores to autos in the loop
+   TR::NodeChecklist _autoLoads; // loads of autos in the loop
+   TR::NodeChecklist _defsOnStack; // to check for cyclic definition chasing
+
+   // Memoize successful results of invariantExprImpl() to avoid exponential walks.
+   // This is reset for every top-level call to invariantExpr().
+   typedef TR::typed_allocator<std::pair<TR::Node * const, TR::Node*>, TR::Region&> MemoMapAlloc;
+   std::map<TR::Node*, TR::Node*, std::less<TR::Node*>, MemoMapAlloc> _invariantExprMemo;
+
+   public:
+   AutoLoopInvarianceInfo(
+      TR::Compilation *comp, TR_UseDefInfo *ud, TR_RegionStructure *loop);
+
+   TR::Node *invariantExpr(TR::Node *node);
+
+   private:
+   void findAutoStoresAndLoads(TR_RegionStructure *region, TR::NodeChecklist &visited);
+   void findAutoLoads(TR::Node *node, TR::NodeChecklist &visited);
+   TR::Node *invariantExprImpl(TR::Node *node);
+   TR::Node *invariantExprFromDef(TR::Node *defNode);
+   };
+
+AutoLoopInvarianceInfo::AutoLoopInvarianceInfo(
+   TR::Compilation *comp, TR_UseDefInfo *ud, TR_RegionStructure *loop)
+   : _comp(comp)
+   , _region(comp->trMemory()->currentStackRegion())
+   , _useDefInfo(ud)
+   , _storedAutos(comp->getSymRefCount(), _region)
+   , _autoStores(comp)
+   , _autoLoads(comp)
+   , _defsOnStack(comp)
+   , _invariantExprMemo(std::less<TR::Node*>(), _region)
+   {
+   TR::NodeChecklist visited(comp);
+   findAutoStoresAndLoads(loop, visited);
+   }
+
+void AutoLoopInvarianceInfo::findAutoStoresAndLoads(
+   TR_RegionStructure *region, TR::NodeChecklist &visited)
+   {
+   TR_RegionStructure::Cursor it(*region);
+   for (auto *subNode = it.getFirst(); subNode != NULL; subNode = it.getNext())
+      {
+      TR_Structure *structure = subNode->getStructure();
+      TR_RegionStructure *childRegion = structure->asRegion();
+      if (childRegion != NULL)
+         {
+         findAutoStoresAndLoads(childRegion, visited);
+         continue;
+         }
+
+      TR::Block *block = structure->asBlock()->getBlock();
+      TR::TreeTop *entry = block->getEntry();
+      TR::TreeTop *exit = block->getExit();
+      for (TR::TreeTop *tt = entry; tt != exit; tt = tt->getNextTreeTop())
+         {
+         TR::Node *node = tt->getNode();
+         findAutoLoads(node, visited);
+         if (node->getOpCode().isStoreDirect() && node->getSymbol()->isAutoOrParm())
+            {
+            _storedAutos.set(node->getSymbolReference()->getReferenceNumber());
+            _autoStores.add(node);
+            }
+         }
+      }
+   }
+
+void AutoLoopInvarianceInfo::findAutoLoads(TR::Node *node, TR::NodeChecklist &visited)
+   {
+   if (visited.contains(node))
+      return;
+
+   visited.add(node);
+   if (node->getOpCode().isLoadVarDirect() && node->getSymbol()->isAutoOrParm())
+      _autoLoads.add(node);
+
+   int32_t numChildren = node->getNumChildren();
+   for (int32_t i = 0; i < numChildren; i++)
+      findAutoLoads(node->getChild(i), visited);
+   }
+
+TR::Node *AutoLoopInvarianceInfo::invariantExpr(TR::Node *node)
+   {
+   _invariantExprMemo.clear();
+   if (node->getOpCode().isStore())
+      return invariantExprFromDef(node);
+   else
+      return invariantExprImpl(node);
+   }
+
+TR::Node *AutoLoopInvarianceInfo::invariantExprImpl(TR::Node *node)
+   {
+
+   if (node->getOpCode().isLoadVarDirect() && node->getSymbol()->isAutoOrParm())
+      {
+      TR_ASSERT_FATAL_WITH_NODE(
+         node, _autoLoads.contains(node), "expected auto load to be in the loop");
+
+      if (_storedAutos.isSet(node->getSymbolReference()->getReferenceNumber()))
+         {
+         // Because the auto is defined within the loop, and because node is
+         // within the loop, at least one definition from inside the loop
+         // reaches node. But node is still invariant if there is exactly one
+         // such definition and if its RHS is invariant.
+
+         uint16_t useIndex = node->getUseDefIndex();
+         if (useIndex == 0 || !_useDefInfo->isUseIndex(useIndex))
+            return NULL;
+
+         TR_UseDefInfo::BitVector defs(_comp->allocator());
+         if (!_useDefInfo->getUseDef(defs, useIndex) || defs.PopulationCount() != 1)
+            return NULL;
+
+         TR_UseDefInfo::BitVector::Cursor cursor(defs);
+         cursor.SetToFirstOne();
+         TR_ASSERT_FATAL_WITH_NODE(
+            node, cursor.Valid(), "single def missing from cursor");
+
+         int32_t defIndex = cursor;
+         TR_ASSERT_FATAL_WITH_NODE(
+            node,
+            defIndex >= _useDefInfo->getFirstRealDefIndex(),
+            "despite in-loop definition, param reaches this use");
+
+         return invariantExprFromDef(_useDefInfo->getNode(defIndex));
+         }
+      }
+   else if (node->getOpCode().hasSymbolReference()
+            && node->getOpCodeValue() != TR::loadaddr)
+      {
+      return NULL; // not handled - treat as non-invariant
+      }
+
+   static const int32_t maxChildren = 3;
+   int32_t numChildren = node->getNumChildren();
+   if (numChildren > maxChildren)
+      return NULL; // not handled - treat as non-invariant
+
+   auto memoInsertResult = _invariantExprMemo.insert(
+      std::make_pair(node, (TR::Node*)NULL));
+
+   auto memoEntry = memoInsertResult.first;
+   if (!memoInsertResult.second) // already present in the map
+      return memoEntry->second;
+
+   TR::Node *children[maxChildren] = {};
+   for (int32_t i = 0; i < numChildren; i++)
+      {
+      children[i] = invariantExprImpl(node->getChild(i));
+      if (children[i] == NULL)
+         return NULL;
+      }
+
+   bool duplicateChildren = false;
+   TR::Node *result = node->duplicateTree(duplicateChildren);
+   for (int32_t i = 0; i < numChildren; i++)
+      {
+      node->getChild(i)->decReferenceCount(); // undo duplicateTree() increment
+      result->setAndIncChild(i, children[i]);
+      }
+
+   memoEntry->second = result;
+   return result;
+   }
+
+TR::Node *AutoLoopInvarianceInfo::invariantExprFromDef(TR::Node *defNode)
+   {
+   TR_ASSERT_FATAL_WITH_NODE(
+      defNode,
+      _autoStores.contains(defNode),
+      "expected an auto store in the loop");
+
+   TR_ASSERT_FATAL_WITH_NODE(
+      defNode,
+      !_defsOnStack.contains(defNode),
+      "circular single-definition dependency");
+
+   _defsOnStack.add(defNode);
+   TR::Node *result = invariantExprImpl(defNode->getChild(0));
+   _defsOnStack.remove(defNode);
+   return result;
+   }
+
+
+} // anonymous namespace
 
 // used for a TRTO reduction in java/io/DataOutputStream.writeUTF(String)
 //
@@ -1153,7 +1347,7 @@ checkByteToChar(TR::Compilation *comp, TR::Node *iorNode, TR::Node *&inputNode, 
    //   ior
    //     imul
    //        bu2i
-   //          ibload #261  Shadow[<array-shadow>]
+   //          bloadi #261  Shadow[<array-shadow>]
    //            aiadd   <flags:"0x8000" (internalPtr )/>
    //              aload #523  Auto[<temp slot 10>]
    //              isub
@@ -1161,7 +1355,7 @@ checkByteToChar(TR::Compilation *comp, TR::Node *iorNode, TR::Node *&inputNode, 
    //                iconst -17
    //        iconst 256
    //      bu2i
-   //        ibload #261  Shadow[<array-shadow>]
+   //        bloadi #261  Shadow[<array-shadow>]
    //          aiadd   <flags:"0x8000" (internalPtr )/>
    //            ==>aload at #523
    //            isub
@@ -1189,18 +1383,18 @@ checkByteToChar(TR::Compilation *comp, TR::Node *iorNode, TR::Node *&inputNode, 
       {
       // find the index to be either i, i+1
       // if (le)
-      //       if index is i+1 then inputNode = other ibload of the ior
+      //       if index is i+1 then inputNode = other bloadi of the ior
       //       else fail
       // if (be)
-      //       if index is i then inputNode = ibload child of imul
+      //       if index is i then inputNode = bloadi child of imul
       //       else fail
       //
-      TR::Node *ibloadNode = imulNode->getFirstChild()->skipConversions();
+      TR::Node *bloadiNode = imulNode->getFirstChild()->skipConversions();
       bool plusOne = false;
       bool matchPattern = false;
-      if (ibloadNode->getOpCodeValue() == TR::bloadi)
+      if (bloadiNode->getOpCodeValue() == TR::bloadi)
          {
-         TR::Node *subNode = ibloadNode->getFirstChild()->getSecondChild();
+         TR::Node *subNode = bloadiNode->getFirstChild()->getSecondChild();
          int32_t hdrSize = TR::Compiler->om.contiguousArrayHeaderSizeInBytes() + 1;
          if (subNode->getOpCode().isSub() &&
                subNode->getSecondChild()->getOpCode().isLoadConst())
@@ -1230,7 +1424,7 @@ checkByteToChar(TR::Compilation *comp, TR::Node *iorNode, TR::Node *&inputNode, 
                   {
                   if (!plusOne)
                      {
-                     inputNode = ibloadNode->getFirstChild();
+                     inputNode = bloadiNode->getFirstChild();
                      return true;
                      }
                   else
@@ -1571,8 +1765,22 @@ CISCTransform2FindBytes(TR_CISCTransformer *trans)
 
    if (count == -1)           // single delimiter which is not constant value
       {
+      AutoLoopInvarianceInfo inv(
+         trans->comp(), trans->optimizer()->getUseDefInfo(), trans->getCurrentLoop());
+
       TR_CISCNode *tableCISCNode = tBoolTable->getChild(1);
-      tableNode = createLoad(tableCISCNode->getHeadOfTrNodeInfo()->_node);
+      TR::Node *origComparand = tableCISCNode->getHeadOfTrNodeInfo()->_node;
+      tableNode = inv.invariantExpr(origComparand);
+      if (tableNode == NULL)
+         {
+         traceMsg(
+            comp,
+            "Abandoning reduction: failed to create loop-invariant expression for n%un [%p]\n",
+            origComparand->getGlobalIndex(),
+            origComparand);
+         return false;
+         }
+
       if (disptrace) traceMsg(comp, "Single non-constant delimiter found.  Setting %p as tableNode.\n", comp->getDebug()->getName(tableCISCNode->getHeadOfTrNodeInfo()->_node));
       }
    else if (count == 1)      // single delimiter
@@ -2036,8 +2244,11 @@ CISCTransform2NestedArrayFindBytes(TR_CISCTransformer *trans)
 
    TR_ASSERT(trans->getP()->getVersionLength() == 0, "Versioning code is not implemented yet");
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -3223,9 +3434,10 @@ TR_PCISCGraph *
 makeCopyingTROxGraph(TR::Compilation *c, int32_t ctrl, int pattern)
    {
    TR_ASSERT(pattern == 0 || pattern == 1, "not implemented");
-   char *name = (char *)TR_MemoryBase::jitPersistentAlloc(16);
-   sprintf(name, "CopyingTROx(%d)",pattern);
-   TR_PCISCGraph *tgt = new (PERSISTENT_NEW) TR_PCISCGraph(c->trMemory(), name, 0, 16);
+   size_t nameSize = 16;
+   char *name = (char *)TR_MemoryBase::jitPersistentAlloc(nameSize);
+   snprintf(name, nameSize, "CopyingTROx(%d)",pattern);
+   TR_PCISCGraph *tgt = new (PERSISTENT_NEW) TR_PCISCGraph(c->trMemory(), name, 0, nameSize);
    /****************************************************************************    opc               id        dagId #cfg #child other/pred/children */
    TR_PCISCNode *byteArray  = new (PERSISTENT_NEW) TR_PCISCNode(c->trMemory(), TR_arraybase, TR::NoType,  tgt->incNumNodes(),16,   0,   0,    0);
    tgt->addNode(byteArray); // src array base
@@ -3330,9 +3542,10 @@ TR_PCISCGraph *
 makeCopyingTROTInduction1Graph(TR::Compilation *c, int32_t ctrl, int32_t pattern)
    {
    TR_ASSERT(pattern == 0 || pattern == 1, "not implemented");
-   char *name = (char *)TR_MemoryBase::jitPersistentAlloc(26);
-   sprintf(name, "CopyingTROTInduction1(%d)",pattern);
-   TR_PCISCGraph *tgt = new (PERSISTENT_NEW) TR_PCISCGraph(c->trMemory(), name, 0, 16);
+   size_t nameSize = 26;
+   char *name = (char *)TR_MemoryBase::jitPersistentAlloc(nameSize);
+   snprintf(name, nameSize, "CopyingTROTInduction1(%d)",pattern);
+   TR_PCISCGraph *tgt = new (PERSISTENT_NEW) TR_PCISCGraph(c->trMemory(), name, 0, nameSize);
    /*********************************************************************    opc               id        dagId #cfg #child other/pred/children */
    TR_PCISCNode *v0  = new (PERSISTENT_NEW) TR_PCISCNode(c->trMemory(), TR_arraybase, TR::NoType, tgt->incNumNodes(), 13,   0,   0,    0);  tgt->addNode(v0); // src array base
    TR_PCISCNode *v1  = new (PERSISTENT_NEW) TR_PCISCNode(c->trMemory(), TR_variable, TR::NoType,  tgt->incNumNodes(), 12,   0,   0,    0);  tgt->addNode(v1); // src array index
@@ -3416,8 +3629,11 @@ CISCTransform2TROTArray(TR_CISCTransformer *trans)
    List<TR_CISCNode> *P2T = trans->getP2T();
    TR::Compilation *comp = trans->comp();
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -4397,9 +4613,10 @@ TR_PCISCGraph *
 makeCopyingTRTxGraph(TR::Compilation *c, int32_t ctrl, int pattern)
    {
    TR_ASSERT(pattern == 0 || pattern == 1 || pattern == 2, "not implemented");
-   char *name = (char *)TR_MemoryBase::jitPersistentAlloc(16);
-   sprintf(name, "CopyingTRTx(%d)",pattern);
-   TR_PCISCGraph *tgt = new (PERSISTENT_NEW) TR_PCISCGraph(c->trMemory(), name, 0, 16);
+   size_t nameSize = 16;
+   char *name = (char *)TR_MemoryBase::jitPersistentAlloc(nameSize);
+   snprintf(name, nameSize, "CopyingTRTx(%d)",pattern);
+   TR_PCISCGraph *tgt = new (PERSISTENT_NEW) TR_PCISCGraph(c->trMemory(), name, 0, nameSize);
    /***************************************************************************    opc               id        dagId #cfg #child other/pred/children */
    TR_PCISCNode *charArray  = new (PERSISTENT_NEW) TR_PCISCNode(c->trMemory(), TR_arraybase, TR::NoType, tgt->incNumNodes(), 15,   0,   0,    0);
    tgt->addNode(charArray); // src array base
@@ -4641,9 +4858,10 @@ TR_PCISCGraph *
 makeCopyingTRTOInduction1Graph(TR::Compilation *c, int32_t ctrl, int32_t pattern)
    {
    TR_ASSERT(pattern == 0 || pattern == 1 || pattern == 2, "not implemented");
-   char *name = (char *)TR_MemoryBase::jitPersistentAlloc(26);
-   sprintf(name, "CopyingTRTOInduction1(%d)",pattern);
-   TR_PCISCGraph *tgt = new (PERSISTENT_NEW) TR_PCISCGraph(c->trMemory(), name, 0, 16);
+   size_t nameSize = 26;
+   char *name = (char *)TR_MemoryBase::jitPersistentAlloc(nameSize);
+   snprintf(name, nameSize, "CopyingTRTOInduction1(%d)",pattern);
+   TR_PCISCGraph *tgt = new (PERSISTENT_NEW) TR_PCISCGraph(c->trMemory(), name, 0, nameSize);
    /*********************************************************************    opc               id        dagId #cfg #child other/pred/children */
    TR_PCISCNode *v0  = new (PERSISTENT_NEW) TR_PCISCNode(c->trMemory(), TR_arraybase, TR::NoType, tgt->incNumNodes(), 13,   0,   0,    0);  tgt->addNode(v0); // src array base
    TR_PCISCNode *v1  = new (PERSISTENT_NEW) TR_PCISCNode(c->trMemory(), TR_variable, TR::NoType,  tgt->incNumNodes(), 12,   0,   0,    0);  tgt->addNode(v1); // src array index
@@ -4826,8 +5044,11 @@ CISCTransform2TRTOArray(TR_CISCTransformer *trans)
    List<TR_CISCNode> *P2T = trans->getP2T();
    TR::Compilation *comp = trans->comp();
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -5607,7 +5828,7 @@ namespace
 //        ImportantNode(1) - array store
 //        ImportantNode(2) - the size of elements (NULL for the byte array)
 //        ImportantNode(3) - exit if node
-//        ImportantNode(4) - optional iistore
+//        ImportantNode(4) - optional istorei
 //*****************************************************************************************
 static bool
 CISCTransform2ArrayCopySub(TR_CISCTransformer *trans, TR::Node *indexRepNode, TR::Node *dstIndexRepNode,
@@ -5623,8 +5844,11 @@ CISCTransform2ArrayCopySub(TR_CISCTransformer *trans, TR::Node *indexRepNode, TR
    bool isDecrement = trans->isMEMCPYDec();
    const bool disptrace = DISPTRACE(trans);
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -5726,13 +5950,13 @@ CISCTransform2ArrayCopySub(TR_CISCTransformer *trans, TR::Node *indexRepNode, TR
       return false;
       }
 
-   TR::Node *optionalIistore = NULL;
+   TR::Node *optionalIstorei = NULL;
    if (P->getImportantNode(4))
       {
-      TR_CISCNode *optionalCISCIistore = trans->getP2TInLoopIfSingle(P->getImportantNode(4));
-      if (!optionalCISCIistore)
+      TR_CISCNode *optionalCISCIstorei = trans->getP2TInLoopIfSingle(P->getImportantNode(4));
+      if (!optionalCISCIstorei)
          return false;
-      optionalIistore = optionalCISCIistore->getHeadOfTrNode()->duplicateTree();
+      optionalIstorei = optionalCISCIstorei->getHeadOfTrNode()->duplicateTree();
       }
 
    TR::Node * exitVarNode = createLoad(exitVarRepNode);
@@ -5891,11 +6115,11 @@ CISCTransform2ArrayCopySub(TR_CISCTransformer *trans, TR::Node *indexRepNode, TR
       block->append(theOtherVarUpdateTreeTop);
       }
 
-   if (optionalIistore)
+   if (optionalIstorei)
       {
       TR_ASSERT(theOtherVarUpdateNode != NULL, "error!");
-      optionalIistore->setAndIncChild(1, theOtherVarUpdateNode->getChild(0));
-      block->append(TR::TreeTop::create(comp, optionalIistore));
+      optionalIstorei->setAndIncChild(1, theOtherVarUpdateNode->getChild(0));
+      block->append(TR::TreeTop::create(comp, optionalIstorei));
       }
 
    trans->insertAfterNodes(block);
@@ -6138,8 +6362,11 @@ CISCTransform2ArrayCopyB2CorC2B(TR_CISCTransformer *trans)
 
    TR_ASSERT(trans->getP()->getVersionLength() == 0, "Versioning code is not implemented yet");
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -6494,8 +6721,11 @@ CISCTransform2ArrayCopyB2CBndchk(TR_CISCTransformer *trans)
    List<TR_CISCNode> *P2T = trans->getP2T();
    TR::Compilation *comp = trans->comp();
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -6710,8 +6940,11 @@ CISCTransform2ArrayCopyC2BMixed(TR_CISCTransformer *trans)
    List<TR_CISCNode> *P2T = trans->getP2T();
    TR::Compilation *comp = trans->comp();
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -7040,8 +7273,11 @@ CISCTransform2ArrayCopyC2BIf2(TR_CISCTransformer *trans)
 
    TR_ASSERT(trans->getP()->getVersionLength() == 0, "Versioning code is not implemented yet");
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -7324,8 +7560,11 @@ CISCTransform2ArrayCopyB2I(TR_CISCTransformer *trans)
 
    TR_ASSERT(trans->getP()->getVersionLength() == 0, "Versioning code is not implemented yet");
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -7801,8 +8040,11 @@ CISCTransform2ArraySet(TR_CISCTransformer *trans)
    TR::Compilation *comp = trans->comp();
    bool ctrl = trans->isGenerateI2L();
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -8469,8 +8711,11 @@ CISCTransform2MixedArraySet(TR_CISCTransformer *trans)
 
    TR_ASSERT(trans->getP()->getVersionLength() == 0, "Versioning code is not implemented yet");
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -8761,7 +9006,7 @@ makeMixedMemSetGraph(TR::Compilation *c, int32_t ctrl)
 //////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////
 //*****************************************************************************************
-// IL code generation for 2 if-statement version of comparing memory (using CLCL)
+// IL code generation for 2 if-statement version of comparing memory (using arraycmplen)
 // Input: ImportantNode(0) - array load for src1
 //        ImportantNode(1) - array load for src2
 //        ImportantNode(2) - exit-if for checking the length
@@ -8769,9 +9014,6 @@ makeMixedMemSetGraph(TR::Compilation *c, int32_t ctrl)
 //        ImportantNode(4) - increment the array index for src1
 //        ImportantNode(5) - increment the array index for src2
 //        ImportantNode(6) - the size of elements (NULL for byte arrays)
-//
-// Note: If we need to know the position where characters are different (flag generateArraycmplen),
-//       we generate the CLCL instruction. Otherwise, we generate the CLC instruction.
 //*****************************************************************************************
 bool
 CISCTransform2ArrayCmp2Ifs(TR_CISCTransformer *trans)
@@ -8932,28 +9174,21 @@ CISCTransform2ArrayCmp2Ifs(TR_CISCTransformer *trans)
    lengthNode = TR::Node::create(TR::isub, 2, lengthNode, TR::Node::create(mulFactorNode, TR::iconst, 0, 1));
 
    int shrCount = 0;
-   TR::Node * elementSizeNode = NULL;
    if (elementSize > 1)
       {
-      //FIXME: enable this code for 64-bit
-      // currently disabled until all uses of lengthNode are
-      // sign-extended correctly
-      //
-      TR::ILOpCodes mulOp = TR::imul;
-#if 0
       if (comp->target().is64Bit())
          {
-         elementSizeNode = TR::Node::create(mulFactorNode, TR::lconst);
-         elementSizeNode->setLongInt(elementSize);
+         TR::Node *elementSizeNode = TR::Node::lconst(mulFactorNode, elementSize);
          lengthNode = TR::Node::create(TR::i2l, 1, lengthNode);
-         mulOp = TR::lmul;
+         lengthNode = TR::Node::create(TR::lmul, 2, lengthNode, elementSizeNode);
          }
       else
-#endif
-         elementSizeNode = TR::Node::create(mulFactorNode, TR::iconst, 0, elementSize);
-      lengthNode = TR::Node::create(mulOp, 2,
-                                   lengthNode,
-                                   elementSizeNode);
+         {
+         TR::Node *elementSizeNode = TR::Node::iconst(mulFactorNode, elementSize);
+         lengthNode = TR::Node::create(TR::imul, 2, lengthNode, elementSizeNode);
+         lengthNode = TR::Node::create(TR::iu2l, 1, lengthNode);
+         }
+
       switch(elementSize)
          {
          case 2: shrCount = 1; break;
@@ -8962,6 +9197,8 @@ CISCTransform2ArrayCmp2Ifs(TR_CISCTransformer *trans)
          default: TR_ASSERT(false, "error");
          }
       }
+   else
+      lengthNode = TR::Node::create(TR::iu2l, 1, lengthNode);
 
    // Currently, it is inserted by reorderTargetNodesInBB()
    bool isCompensateCode = !trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1);
@@ -8988,24 +9225,20 @@ CISCTransform2ArrayCmp2Ifs(TR_CISCTransformer *trans)
    TR::TreeTop * newFirstTreeTop[2];
    TR::TreeTop * newLastTreeTop[2];
 
-   // Using the CLCL instruction
-   lengthNode = createI2LIfNecessary(comp, trans->isGenerateI2L(), lengthNode);
-   TR::Node * arraycmplen = TR::Node::create(TR::arraycmp, 3, input1Node, input2Node, lengthNode);
-   arraycmplen->setArrayCmpLen(true);
-   arraycmplen->setSymbolReference(comp->getSymRefTab()->findOrCreateArrayCmpSymbol());
+   // Using arraycmplen
+   TR::Node * arraycmplen = TR::Node::create(TR::arraycmplen, 3, input1Node, input2Node, lengthNode);
+   arraycmplen->setSymbolReference(comp->getSymRefTab()->findOrCreateArrayCmpLenSymbol());
 
-   TR::SymbolReference * resultSymRef = comp->getSymRefTab()->
-      createTemporary(comp->getMethodSymbol(), TR::Int32);
+   TR::SymbolReference * resultSymRef = comp->getSymRefTab()->createTemporary(comp->getMethodSymbol(), TR::Int64);
    topArraycmp = TR::Node::createStore(resultSymRef, arraycmplen);
-
-   TR::Node * resultLoad = TR::Node::createLoad(topArraycmp, resultSymRef);
-   TR::Node * equalLen = resultLoad;
+   TR::Node *equalLen = TR::Node::createLoad(topArraycmp, resultSymRef);
    if (shrCount != 0)
       {
-      equalLen = TR::Node::create(TR::ishr, 2,
+      equalLen = TR::Node::create(TR::lshr, 2,
                                  equalLen,
-                                 TR::Node::create(equalLen, TR::iconst, 0, shrCount));
+                                 TR::Node::iconst(shrCount));
       }
+   equalLen = TR::Node::create(TR::l2i, 1, equalLen);
 
    TR::Node *tmpNode = createStoreOP2(comp, src1IdxSymRef, TR::iadd, src1IdxSymRef, equalLen, trNode);
    newFirstTreeTop[0] = TR::TreeTop::create(comp, tmpNode);
@@ -9123,7 +9356,7 @@ CISCTransform2ArrayCmp2Ifs(TR_CISCTransformer *trans)
 
 
 //*****************************************************************************************
-// IL code generation for comparing memory (using CLC or CLCL)
+// IL code generation for comparing memory (using arraycmp or arraycmplen)
 // Input: ImportantNode(0) - array load for src1
 //        ImportantNode(1) - array load for src2
 //        ImportantNode(2) - exit-if for checking the length
@@ -9133,8 +9366,8 @@ CISCTransform2ArrayCmp2Ifs(TR_CISCTransformer *trans)
 //        ImportantNode(6) - the size of elements (NULL for byte arrays)
 //        ImportantNode(7) - additional node for analyzing MEMCMPCompareTo. Not used for the others.
 //
-// Note: If we need to know the position where characters are different (flag generateArraycmplen),
-//       we generate the CLCL instruction. Otherwise, we generate the CLC instruction.
+// Note: If we need to know the position where characters are different, we generate arraycmplen.
+//       Otherwise, we generate arraycmp.
 //*****************************************************************************************
 bool
 CISCTransform2ArrayCmp(TR_CISCTransformer *trans)
@@ -9351,6 +9584,14 @@ CISCTransform2ArrayCmp(TR_CISCTransformer *trans)
          generateArraycmplen = true;
          }
       }
+   if (generateArraycmplen)
+      {
+      if (!comp->cg()->getSupportsArrayCmpLen())
+         {
+         dumpOptDetails(comp, "Bailing CISCTransform2ArrayCmp. Arraycmplen is needed to continue this transformation, but codgen does not support arraycmplen.\n");
+         return false;
+         }
+      }
 
    // check the indices used in the array loads and
    // the store nodes
@@ -9477,28 +9718,21 @@ CISCTransform2ArrayCmp(TR_CISCTransformer *trans)
       }
 
    int shrCount = 0;
-   TR::Node * elementSizeNode = NULL;
    if (elementSize > 1)
       {
-      //FIXME: enable this code for 64-bit
-      // currently disabled until all uses of lengthNode are
-      // sign-extended correctly
-      //
-      TR::ILOpCodes mulOp = TR::imul;
-#if 0
       if (comp->target().is64Bit())
          {
-         elementSizeNode = TR::Node::create(mulFactorNode, TR::lconst);
-         elementSizeNode->setLongInt(elementSize);
-         mulOp = TR::lmul;
+         TR::Node *elementSizeNode = TR::Node::lconst(mulFactorNode, elementSize);
          lengthNode = TR::Node::create(TR::i2l, 1, lengthNode);
+         lengthNode = TR::Node::create(TR::lmul, 2, lengthNode, elementSizeNode);
          }
       else
-#endif
-         elementSizeNode = TR::Node::create(mulFactorNode, TR::iconst, 0, elementSize);
-      lengthNode = TR::Node::create(mulOp, 2,
-                                   lengthNode,
-                                   elementSizeNode);
+         {
+         TR::Node *elementSizeNode = TR::Node::iconst(mulFactorNode, elementSize);
+         lengthNode = TR::Node::create(TR::imul, 2, lengthNode, elementSizeNode);
+         lengthNode = TR::Node::create(TR::iu2l, 1, lengthNode);
+         }
+
       switch(elementSize)
          {
          case 2: shrCount = 1; break;
@@ -9507,6 +9741,8 @@ CISCTransform2ArrayCmp(TR_CISCTransformer *trans)
          default: TR_ASSERT(false, "error");
          }
       }
+   else
+      lengthNode = TR::Node::create(TR::iu2l, 1, lengthNode);
 
    TR_ASSERT(!generateArraycmplen || !generateArraycmpsign, "error");
 
@@ -9550,23 +9786,21 @@ CISCTransform2ArrayCmp(TR_CISCTransformer *trans)
 
    if (generateArraycmplen)
       {
-      // Using the CLCL instruction
+      // Using arraycmplen
+      TR::Node * arraycmplen = TR::Node::create(TR::arraycmplen, 3, input1Node, input2Node, lengthNode);
+      arraycmplen->setSymbolReference(comp->getSymRefTab()->findOrCreateArrayCmpLenSymbol());
 
-      TR::Node * arraycmplen = TR::Node::create(TR::arraycmp, 3, input1Node, input2Node, createI2LIfNecessary(comp, trans->isGenerateI2L(), lengthNode));
-      arraycmplen->setArrayCmpLen(true);
-      arraycmplen->setSymbolReference(comp->getSymRefTab()->findOrCreateArrayCmpSymbol());
-
-      TR::SymbolReference * resultSymRef = comp->getSymRefTab()->createTemporary(comp->getMethodSymbol(), TR::Int32);
+      TR::SymbolReference * resultSymRef = comp->getSymRefTab()->createTemporary(comp->getMethodSymbol(), TR::Int64);
       topArraycmp = TR::Node::createStore(resultSymRef, arraycmplen);
-
-      TR::Node * resultLoad = TR::Node::createLoad(topArraycmp, resultSymRef);
-      TR::Node * equalLen = resultLoad;
+      TR::Node *resultLoad = TR::Node::createLoad(topArraycmp, resultSymRef);
+      TR::Node *equalLen = resultLoad;
       if (shrCount != 0)
          {
-         equalLen = TR::Node::create(TR::ishr, 2,
+         equalLen = TR::Node::create(TR::lshr, 2,
                                     equalLen,
                                     TR::Node::create(equalLen, TR::iconst, 0, shrCount));
          }
+      equalLen = TR::Node::create(TR::l2i, 1, equalLen);
 
       TR::Node *tmpNode = createStoreOP2(comp, src1IdxSymRef, TR::iadd, src1IdxSymRef, equalLen, trNode);
       newFirstTreeTop = TR::TreeTop::create(comp, tmpNode);
@@ -9581,18 +9815,16 @@ CISCTransform2ArrayCmp(TR_CISCTransformer *trans)
          newLastTreeTop = tmpTreeTop;
          }
 
-      tmpNode = TR::Node::createif(TR::ificmpeq,
-                                  lengthNode,
-                                  resultLoad,
-                                  okDest);
+      tmpNode = TR::Node::createif(TR::iflcmpeq, lengthNode, resultLoad, okDest);
+
       tmpTreeTop = TR::TreeTop::create(comp, tmpNode);
       newLastTreeTop->join(tmpTreeTop);
       newLastTreeTop = tmpTreeTop;
       }
    else
       {
-      // Using the CLC instruction
-      TR::Node * arraycmp = TR::Node::create(TR::arraycmp, 3, input1Node, input2Node, createI2LIfNecessary(comp, trans->isGenerateI2L(), lengthNode));
+      // Using arraycmp
+      TR::Node * arraycmp = TR::Node::create(TR::arraycmp, 3, input1Node, input2Node, lengthNode);
       arraycmp->setSymbolReference(comp->getSymRefTab()->findOrCreateArrayCmpSymbol());
 
       TR::Node * cmpIfNode;
@@ -10061,8 +10293,11 @@ CISCTransform2BitOpMem(TR_CISCTransformer *trans)
    TR::Compilation *comp = trans->comp();
    bool ctrl = trans->isGenerateI2L();
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -10596,8 +10831,11 @@ CISCTransform2CountDecimalDigit(TR_CISCTransformer *trans)
 
    TR_ASSERT(trans->getP()->getVersionLength() == 0, "Versioning code is not implemented yet");
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find
@@ -10905,8 +11143,11 @@ CISCTransform2LongToStringDigit(TR_CISCTransformer *trans)
 
    TR_ASSERT(trans->getP()->getVersionLength() == 0, "Versioning code is not implemented yet");
 
-   TR_ASSERT(trans->isEmptyAfterInsertionIdiomList(0) && trans->isEmptyAfterInsertionIdiomList(1), "Not implemented yet!");
-   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1)) return false;
+   if (!trans->isEmptyAfterInsertionIdiomList(0) || !trans->isEmptyAfterInsertionIdiomList(1))
+      {
+      trans->countFail("%s/nonemptyAfterInsertionIdiomList", __FUNCTION__);
+      return false;
+      }
 
    trans->findFirstNode(&trTreeTop, &trNode, &block);
    if (!block) return false;    // cannot find

@@ -1,7 +1,7 @@
 /*[INCLUDE-IF SharedClasses]*/
 package com.ibm.oti.shared;
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -20,14 +20,13 @@ package com.ibm.oti.shared;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 import java.net.URL;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.ibm.oti.util.Msg;
-
 
 /**
  * <p>Implementation of SharedClassURLClasspathHelper.</p>
@@ -42,14 +41,31 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 	private int urlCount, confirmedCount;
 	private boolean invalidURLExists;
 	private ReentrantReadWriteLock urlcpReadWriteLock;
-	
+
 	private static native void init();
-	
+
 	static {
 		init();
 	}
 
 	/* Not public - should only be created by factory */
+	/*[IF JAVA_SPEC_VERSION >= 24]*/
+	SharedClassURLClasspathHelperImpl(ClassLoader loader, URL[] classpath, int id) {
+		this.origurls = classpath;
+		this.urls = new URL[classpath.length];
+		this.urlCount = classpath.length;
+		this.validated = new boolean[classpath.length];
+		this.confirmedCount = 0;
+		this.invalidURLExists = false;
+		urlcpReadWriteLock = new ReentrantReadWriteLock();
+		initialize(loader, id);
+		initializeShareableClassloader(loader);
+		initializeURLs();
+		if (!invalidURLExists) {
+			notifyClasspathChange3(id, loader, this.urls, 0, this.urlCount, true);
+		}
+	}
+	/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 	SharedClassURLClasspathHelperImpl(ClassLoader loader, URL[] classpath, int id, boolean canFind, boolean canStore) {
 		this.origurls = classpath;
 		this.urls = new URL[classpath.length];
@@ -65,6 +81,7 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 			notifyClasspathChange3(id, loader, this.urls, 0, this.urlCount, true);
 		}
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
 	private void initializeURLs() {
 		for (int i=0; i<urlCount; i++) {
@@ -75,7 +92,7 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 		}
 	}
 
-	private native int findSharedClassImpl2(int loaderId, String partition, String className, ClassLoader loader, URL[] loaderURLs, 
+	private native int findSharedClassImpl2(int loaderId, String partition, String className, ClassLoader loader, URL[] loaderURLs,
 			boolean doFind, boolean doStore, int loaderURLCount, int confirmedURLCount, byte[] romClassCookie);
 
 	private native boolean storeSharedClassImpl2(int loaderid, String partition, ClassLoader loader, URL[] loaderURLs, int loaderURLCount, int cpLoadIndex, Class<?> clazz, byte[] flags);
@@ -86,7 +103,7 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 	 * essentially flushes the classpath caches and forces them to rebuild.
 	 */
 	private native void notifyClasspathChange2(ClassLoader classloader);
-	
+
 	/* Notify the open state to all the jar/zip files on the URL classpath to force a timestamp check once */
 	private native void notifyClasspathChange3(int loaderId, ClassLoader classloader, URL[] loaderURLs, int urlIndex, int loaderURLCount, boolean isOpen);
 
@@ -94,7 +111,7 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 	public byte[] findSharedClass(String className, IndexHolder indexFoundAtHolder) {
 		return findSharedClass(null, className, indexFoundAtHolder);
 	}
-	
+
 	@Override
 	public byte[] findSharedClass(String partition, String className, IndexHolder indexFoundAtHolder) {
 		ClassLoader loader = getClassLoader();
@@ -103,9 +120,11 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 			printVerboseInfo(Msg.getString("K059f")); //$NON-NLS-1$
 			return null;
 		}
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (!canFind) {
 			return null;
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		if (className==null) {
 			/*[MSG "K05a1", "Cannot call findSharedClass with null class name. Returning null."]*/
 			printVerboseError(Msg.getString("K05a1")); //$NON-NLS-1$
@@ -135,7 +154,7 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 				/* Any URL which has its protocol other than 'jar:' or 'file:' is not supported by
 				 * shared class cache and is considered invalid.
 				 * invalidURLExists = true indicates classpath contains an invalid URL,
-				 * As such there is no point in calling native method findSharedClassImpl2() 
+				 * As such there is no point in calling native method findSharedClassImpl2()
 				 * since it is bound to fail when creating classpath entries.
 				 */
 				/*[MSG "K05a4", "Classpath contains an invalid URL. Returning null."]*/
@@ -161,7 +180,7 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 		}
 		return romClassCookie;
 	}
-	
+
 	@Override
 	public boolean storeSharedClass(Class<?> clazz, int foundAtIndex) {
 		return storeSharedClass(null, clazz, foundAtIndex);
@@ -169,15 +188,17 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 
 	@Override
 	public boolean storeSharedClass(String partition, Class<?> clazz, int foundAtIndex) {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (!canStore) {
 			return false;
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		if (clazz==null) {
 			/*[MSG "K05a3", "Cannot call storeSharedClass with null Class. Returning false."]*/
 			printVerboseError(Msg.getString("K05a3")); //$NON-NLS-1$
 			return false;
 		}
-		
+
 		if (foundAtIndex<0) {
 			/*[MSG "K05a7", "foundAtIndex cannot be <0 for storeSharedClass. Returning false."]*/
 			printVerboseError(Msg.getString("K05a7")); //$NON-NLS-1$
@@ -206,9 +227,9 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 				/* Any URL which has its protocol other than 'jar:' or 'file:' is not supported by
 				 * shared class cache and is considered invalid.
 				 * invalidURLExists = true indicates classpath contains an invalid URL,
-				 * As such there is no point in calling native method storeSharedClassImpl2() 
+				 * As such there is no point in calling native method storeSharedClassImpl2()
 				 * since it is bound to fail when creating classpath entries.
-				 */			
+				 */
 				/*[MSG "K05a9", "Classpath contains an invalid URL. Returning false."]*/
 				printVerboseInfo(Msg.getString("K05a9")); //$NON-NLS-1$
 				return false;
@@ -296,7 +317,7 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 		}
 		return correctLengthArray;
 	}
-	
+
 	private void increaseConfirmedCount(int newCount) {
 		urlcpReadWriteLock.writeLock().lock();
 		try {
@@ -330,7 +351,7 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 			/*[MSG "K059a", "ClassLoader has been garbage collected. Cannot set sharing filter."]*/
 			throw new CannotSetClasspathException(Msg.getString("K059a")); //$NON-NLS-1$
 		}
-		
+
 		urlcpReadWriteLock.writeLock().lock();
 		try {
 			int commonURLsLength = (origurls.length < newClasspath.length) ? origurls.length : newClasspath.length;
@@ -344,17 +365,17 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 					throw new CannotSetClasspathException(Msg.getString("K05ae", i)); //$NON-NLS-1$
 				}
 			}
-			
+
 			/* Grow urls if necessary */
 			if (newClasspath.length > origurls.length) {
 				growURLs(newClasspath.length);
 			}
-			
+
 			/* Having ensured that confirmed URLs are the same, validate the others if required, and copy them if they have been modified */
 			for (int i = confirmedCount; i < commonURLsLength; i++) {
 				boolean urlUpdated = !newClasspath[i].equals(origurls[i]);
-	
-				/* If the original classpath had any invalid URL then unconfirmed URLs in original classpath 
+
+				/* If the original classpath had any invalid URL then unconfirmed URLs in original classpath
 				 * should be validated again in case invalid URL has been corrected now.
 				 */
 				if (invalidURLExists || urlUpdated) {
@@ -383,21 +404,21 @@ final class SharedClassURLClasspathHelperImpl extends SharedClassAbstractHelper 
 			} else {
 				invalidURLExists = false;
 			}
-	
+
 			for (int i = commonURLsLength; i < newClasspath.length; i++) {
 				origurls[i] = newClasspath[i];
 				urls[i] = convertJarURL(newClasspath[i]);
-				
+
 				/* if 'invalidURLExists' is already set to true, no need to validate any more URLs */
 				if (!invalidURLExists && !validateURL(urls[i], false)) {
 					/*[MSG "K05b0", "setClasspath() added new invalid URL {0} at index {1}"]*/
 					printVerboseInfo(Msg.getString("K05b0", newClasspath[i], Integer.valueOf(i))); //$NON-NLS-1$
-					
+
 					invalidURLExists = true;
 				}
 				changeMade = true;
 			}
-			
+
 			/* If new classpath is shorter, remaining entries will be ignored as they are > urlCount */
 			if (urlCount != newClasspath.length) {
 				urlCount = newClasspath.length;

@@ -17,7 +17,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 [Eclipse OpenJ9 Jenkins Builds](https://openj9-jenkins.osuosl.org/)
@@ -28,7 +28,7 @@ This folder contains Jenkins pipeline scripts that are used in the OpenJ9 Jenkin
 
 - You can request a PR build to do compile or compile & test
 - Current supported test levels are sanity & extended
-- Current supported test groups are functional & system
+- Current supported test groups are functional, openjdk & system
 - Current available platforms are
     - Linux on x86-64
         - Spec: x86-64_linux
@@ -84,17 +84,16 @@ This folder contains Jenkins pipeline scripts that are used in the OpenJ9 Jenkin
     - ALL
         - Launches a subset of 'all' platforms
         - ppc64le_linux, s390x_linux, x86-64_linux, aarch64_linux, ppc64_aix, x86-64_windows, x86-32_windows, x86-64_mac, aarch64_mac
-- Many specs support a suffix of `_cm` or `_uma` (omit the leading underscore for shortnames) to override the default build system.
 - OpenJ9 committers can request builds by commenting in a pull request
     - Format: `Jenkins <build type> <level>.<group>[+<test_flag>] <platform>[,<platform>,...,<platform>] jdk<version>[,jdk<version>,...,jdk<version>]`
     - `<build type>` is compile | test
     - `<level>` is sanity | extended (required only for "test" `<build type>`)
-    - `<group>` is functional | system
+    - `<group>` is functional | openjdk | system
     - `<test_flag>` Optional: any TEST_FLAG is supported. See notes below.
     - `<platform>` is one of the (short or full) platform names above
     - `<version>` is the number of the supported release, e.g. 8 | 11 | next
 - Note: You can use keyword `all` for platform but not for test level/type or JDK versions.
-- Note: For backward compatibility `<level>.<test type>` equal to `sanity` or `extended` is acceptable and will map to `sanity.functional` and `extended.functional` respectively.
+- Note: For backward compatibility `<level>.<test type>` equal to `sanity` or `extended` is acceptable; `sanity` will map to `sanity.functional,sanity.openjdk`, and `extended` will map to `extended.functional`.
 - Note: TEST_FLAG is an optional argument to the test target. It is recommended to only launch 1 test target with 1 TEST_FLAG per comment/build. At the time of writing, the two supported test flags are `+jitaas` and `+aot`. Ex. `Jenkins test sanity.functional+jitaas xlinux jdk8`. Also note JITServer specs set the TEST_FLAG via the variable file so it is unnecessary to add it to the test target.
 
 ###### Examples
@@ -104,9 +103,9 @@ This folder contains Jenkins pipeline scripts that are used in the OpenJ9 Jenkin
     - `Jenkins test sanity.functional zlinux jdk8,jdk11`
 - Request an extended functional and system build on pLinux for a single version
     - `Jenkins test extended.functional,extended.system plinux jdk8`
-- Request a sanity build on z,p Linux for multiple versions
+- Request a sanity functional and openjdk build on z,p Linux for multiple versions
     - `Jenkins test sanity zlinux,plinux jdk8,jdk11`
-- Request sanity.system test on all platforms and multiple versions
+- Request a sanity system test on all platforms and multiple versions
     - `Jenkins test sanity.system all jdk8,jdk11`
 
 You can request a Pull Request build from the Eclipse OpenJ9 repository - [openj9](https://github.com/eclipse-openj9/openj9) - or the Extensions OpenJDK\* for Eclipse OpenJ9 repositories:
@@ -116,11 +115,11 @@ You can request a Pull Request build from the Eclipse OpenJ9 repository - [openj
 
 ##### Dependent Changes
 
-- If you have dependent change(s) in either eclipse/omr, eclipse-openj9/openj9-omr, or ibmruntimes/openj9-openjdk-jdk\*, you can build & test with all needed changes
+- If you have dependent change(s) in either eclipse-omr/omr, eclipse-openj9/openj9-omr, or ibmruntimes/openj9-openjdk-jdk\*, you can build & test with all needed changes
 - Request a build by including the PR ref or branch name in your trigger comment
 - Ex. Dependent change in OMR Pull Request `#123`
     - `Jenkins test sanity xlinux jdk8 depends eclipse/omr#123`
-- Ex. Dependent change in eclipse/omr master branch (useful if a dependent OMR PR is already merged)
+- Ex. Dependent change in eclipse-omr/omr master branch (useful if a dependent OMR PR is already merged)
     - `Jenkins test sanity xlinux jdk8 depends eclipse/omr#master`
 - Ex. Dependent change in OpenJ9-OMR Pull Request `#456`
     - `Jenkins test sanity xlinux jdk8 depends eclipse-openj9/openj9-omr#456`
@@ -195,7 +194,7 @@ Pipelines for all platforms and versions are available [**here**](https://openj9
         - Compile Eclipse OpenJ9 on `<platform>` for Extensions OpenJDK`<version>` and run sanity & extended test suites
         - Triggers:
             - Build-JDK`<version>`-`<platform>`
-            - Test-`<sanity|extended>.<functional|system>`-JDK`<version>`-`<platform>`
+            - Test-`<sanity|extended>.<functional|openjdk|system>`-JDK`<version>`-`<platform>`
     - Trigger:
         - build periodically, @midnight
 
@@ -227,7 +226,7 @@ Build pipelines for all platforms and versions are available [**here**](https://
 Test pipelines for all platforms and versions are available [**here**](https://openj9-jenkins.osuosl.org/view/Test/).
 
 - Any platform and version build pipeline:
-    - Name: Test-`<sanity|extended>.<functional|system>`-JDK`<version>`-`<platform>`
+    - Name: Test-`<sanity|extended>.<functional|openjdk|system>`-JDK`<version>`-`<platform>`
     - Description:
         - Runs sanity or extended tests
     - Trigger:
@@ -243,7 +242,7 @@ Infrastructure pipelines are available [**here**](https://openj9-jenkins.osuosl.
 - Mirror-OMR-to-OpenJ9-OMR
     - [![Build Status](https://openj9-jenkins.osuosl.org/buildStatus/icon?job=Mirror-OMR-to-OpenJ9-OMR)](https://openj9-jenkins.osuosl.org/job/Mirror-OMR-to-OpenJ9-OMR)
     - Description:
-        - Mirrors [eclipse/omr/master](https://github.com/eclipse/omr/tree/master) to [eclipse-openj9/openj9-omr/master](https://github.com/eclipse-openj9/openj9-omr/tree/master)
+        - Mirrors [eclipse-omr/omr/master](https://github.com/eclipse-omr/omr/tree/master) to [eclipse-openj9/openj9-omr/master](https://github.com/eclipse-openj9/openj9-omr/tree/master)
         - Triggers `Pipeline-OMR-Acceptance` when there is new content
     - Trigger:
         - Build periodically, 15 minutes

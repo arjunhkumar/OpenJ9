@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef JVMINIT_H
@@ -268,6 +268,7 @@ enum INIT_STAGE {
 #define VMOPT_XFASTRESOLVE "-Xfastresolve"
 #define VMOPT_XSHARECLASSES "-Xshareclasses"
 #define VMOPT_XSHARECLASSES_COLON "-Xshareclasses:"
+#define VMOPT_XSNAPSHOT "-Xsnapshot="
 #define VMOPT_XSERVICE_EQUALS "-Xservice="
 #define VMOPT_XISS "-Xiss"
 #define VMOPT_XSSI "-Xssi"
@@ -331,6 +332,8 @@ enum INIT_STAGE {
 #define VMOPT_X142BOOSTGCTHRPRIO "-X142BoostGCThrPrio"
 #define VMOPT_XREALTIME "-Xrealtime"
 #define VMOPT_XNORTSJ "-Xnortsj"
+#define VMOPT_XXNOSHOWCARRIERFRAMES "-XX:-ShowCarrierFrames"
+#define VMOPT_XXSHOWCARRIERFRAMES "-XX:+ShowCarrierFrames"
 #define VMOPT_XXNOSHOWHIDDENFRAMES "-XX:-ShowHiddenFrames"
 #define VMOPT_XXSHOWHIDDENFRAMES "-XX:+ShowHiddenFrames"
 #define VMOPT_XXNOSTACKTRACEINTHROWABLE "-XX:-StackTraceInThrowable"
@@ -349,8 +352,12 @@ enum INIT_STAGE {
 #define VMOPT_XXHANDLESIGXFSZ "-XX:+HandleSIGXFSZ"
 #define VMOPT_XXNOHANDLESIGABRT "-XX:-HandleSIGABRT"
 #define VMOPT_XXHANDLESIGABRT "-XX:+HandleSIGABRT"
+#define VMOPT_XXNOHANDLESIGUSR2 "-XX:-HandleSIGUSR2"
+#define VMOPT_XXHANDLESIGUSR2 "-XX:+HandleSIGUSR2"
 #define VMOPT_XXHEAPDUMPONOOM "-XX:+HeapDumpOnOutOfMemoryError"
 #define VMOPT_XXNOHEAPDUMPONOOM "-XX:-HeapDumpOnOutOfMemoryError"
+#define VMOPT_XXKEEPJNIIDS "-XX:+KeepJNIIDs"
+#define VMOPT_XXNOKEEPJNIIDS "-XX:-KeepJNIIDs"
 #define VMOPT_XDUMP_EXIT_OUTOFMEMORYERROR "-Xdump:exit:events=systhrow,filter=java/lang/OutOfMemoryError"
 #define VMOPT_XDUMP_EXIT_OUTOFMEMORYERROR_DISABLE "-Xdump:exit:none:events=systhrow,filter=java/lang/OutOfMemoryError"
 
@@ -411,6 +418,10 @@ enum INIT_STAGE {
 #define VMOPT_XXDISABLEENSUREHASHED "-XX:-EnsureHashed:"
 #define VMOPT_XXOPENJ9COMMANDLINEENV "-XX:+OpenJ9CommandLineEnv"
 #define VMOPT_XXNOOPENJ9COMMANDLINEENV "-XX:-OpenJ9CommandLineEnv"
+#define VMOPT_XXCPULOADCOMPATIBILITY "-XX:+CpuLoadCompatibility"
+#define VMOPT_XXNOCPULOADCOMPATIBILITY "-XX:-CpuLoadCompatibility"
+#define VMOPT_XXENABLEEXTENDEDHCR "-XX:+EnableExtendedHCR"
+#define VMOPT_XXDISABLEEXTENDEDHCR "-XX:-EnableExtendedHCR"
 
 #if defined(J9VM_ZOS_3164_INTEROPERABILITY)
 #define VMOPT_XXENABLE3164INTEROPERABILITY "-XX:+Enable3164Interoperability"
@@ -420,10 +431,31 @@ enum INIT_STAGE {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 #define VMOPT_XXENABLECRIU "-XX:+EnableCRIUSupport"
 #define VMOPT_XXDISABLECRIU "-XX:-EnableCRIUSupport"
+#define VMOPT_XXENABLECRIUSECPROVIDER "-XX:+CRIUSecProvider"
+#define VMOPT_XXDISABLECRIUSECPROVIDER "-XX:-CRIUSecProvider"
 #define VMOPT_XXENABLECRIUNONPORTABLEMODE "-XX:+CRIURestoreNonPortableMode"
 #define VMOPT_XXDISABLECRIUNONPORTABLEMODE "-XX:-CRIURestoreNonPortableMode"
+#define VMOPT_XXENABLEJVMRESTOREPORTABLEMODE "-XX:+JVMPortableRestoreMode"
+#define VMOPT_XXDISABLEJVMRESTOREPORTABLEMODE "-XX:-JVMPortableRestoreMode"
 #define VMOPT_XSHARECLASSES_DISABLEONRESTORE "-Xshareclasses:disableOnRestore"
+#define VMOPT_XXENABLETHROWONDELAYECHECKPOINTOPERATION "-XX:+ThrowOnDelayedCheckpointOperation"
+#define VMOPT_XXDISABLETHROWONDELAYECHECKPOINTOPERATION "-XX:-ThrowOnDelayedCheckpointOperation"
+#define VMOPT_XXMAXRETRYFORNOTCHECKPOINTSAFE_EQUALS "-XX:maxRetryForNotCheckpointSafe="
+#define VMOPT_XXSLEEPMILLISECONDSFORNOTCHECKPOINTSAFE_EQUALS "-XX:sleepMillisecondsForNotCheckpointSafe="
+#define VMOPT_XXENABLEDEBUGONRESTORE "-XX:+DebugOnRestore"
+#define VMOPT_XXDISABLEDEBUGONRESTORE "-XX:-DebugOnRestore"
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
+
+#if defined(J9VM_OPT_CRAC_SUPPORT)
+#define VMOPT_XXCRACCHECKPOINTTO "-XX:CRaCCheckpointTo="
+#endif /* defined(J9VM_OPT_CRAC_SUPPORT) */
+
+/* Compatibility options. */
+#define VMOPT_XXCOMPATIBILITY_EQUALS "-XX:Compatibility="
+
+/* Options recognized only in combination with -XX:Compatibility=elasticsearch. */
+#define VMOPT_XXCOMPATIBILITY_ENABLEG1GC "-XX:+UseG1GC"
+#define VMOPT_XXCOMPATIBILITY_DISABLEG1GC "-XX:-UseG1GC"
 
 /*
  * Options to control how much effort is expended
@@ -432,6 +464,18 @@ enum INIT_STAGE {
 #define VMOPT_XXNOSHOWNATIVESTACKSYMBOLS "-XX:-ShowNativeStackSymbols" /* don't show any native stack symbols */
 #define VMOPT_XXSHOWNATIVESTACKSYMBOLS_BASIC "-XX:+ShowNativeStackSymbols=basic" /* show only easily acquired native stack symbols */
 #define VMOPT_XXSHOWNATIVESTACKSYMBOLS_ALL "-XX:+ShowNativeStackSymbols=all" /* show all available native stack symbols */
+
+#if JAVA_SPEC_VERSION >= 21
+/* Option to control if unmounted thread stacktraces are shown in java core dumps. */
+#define VMOPT_XXSHOWUNMOUNTEDTHREADSTACKS "-XX:+ShowUnmountedThreadStacks"
+#define VMOPT_XXNOSHOWUNMOUNTEDTHREADSTACKS "-XX:-ShowUnmountedThreadStacks"
+#endif /* JAVA_SPEC_VERSION >= 21 */
+
+#if JAVA_SPEC_VERSION >= 24
+/* Option to toggle on/off the feature to yield pinned virtual threads. */
+#define VMOPT_XXYIELDPINNEDVIRTUALTHREADS "-XX:+YieldPinnedVirtualThreads"
+#define VMOPT_XXNOYIELDPINNEDVIRTUALTHREADS "-XX:-YieldPinnedVirtualThreads"
+#endif /* JAVA_SPEC_VERSION >= 24 */
 
 /* Option to turn on exception on synchronization on instances of value-based classes */
 #define VMOPT_XXDIAGNOSE_SYNC_ON_VALUEBASED_CLASSES_EQUALS1 "-XX:DiagnoseSyncOnValueBasedClasses=1"
@@ -470,12 +514,18 @@ enum INIT_STAGE {
 #define VMOPT_XXENABLESHAREUNSAFECLASSES "-XX:+ShareUnsafeClasses"
 #define VMOPT_XXDISABLESHAREUNSAFECLASSES "-XX:-ShareUnsafeClasses"
 
+#define VMOPT_XXENABLESHAREORPHANS "-XX:+ShareOrphans"
+#define VMOPT_XXDISABLESHAREORPHANS "-XX:-ShareOrphans"
+
 #define VMOPT_XXFORCECLASSFILEASINTERMEDIATEDATA "-XX:ForceClassfileAsIntermediateData"
 #define VMOPT_XXRECREATECLASSFILEONLOAD "-XX:RecreateClassfileOnload"
 
 #define VMOPT_XXSETHWPREFETCH_NONE "-XXsetHWPrefetch:none"
 #define VMOPT_XXSETHWPREFETCH_OS_DEFAULT "-XXsetHWPrefetch:os-default"
 #define VMOPT_XXSETHWPREFETCH_EQUALS "-XXsetHWPrefetch="
+
+#define VMOPT_XXUSEZLIBNX "-XX:+UseZlibNX"
+#define VMOPT_XXNOUSEZLIBNX "-XX:-UseZlibNX"
 
 #define VMOPT_XXLAZYSYMBOLRESOLUTION "-XX:+LazySymbolResolution"
 #define VMOPT_XXNOLAZYSYMBOLRESOLUTION "-XX:-LazySymbolResolution"
@@ -539,6 +589,17 @@ enum INIT_STAGE {
 
 #define VMOPT_XXDYNAMICHEAPIFICATION "-XX:+DynamicHeapification"
 #define VMOPT_XXNODYNAMICHEAPIFICATION "-XX:-DynamicHeapification"
+
+#define VMOPT_XXFLIGHTRECORDER "-XX:+FlightRecorder"
+#define VMOPT_XXNOFLIGHTRECORDER "-XX:-FlightRecorder"
+
+#define VMOPT_XXSTARTFLIGHTRECORDING "-XX:StartFlightRecording"
+
+#define VMOPT_XXCONTINUATIONCACHE "-XX:ContinuationCache:"
+
+#if JAVA_SPEC_VERSION >= 22
+#define VMOPT_XFFIPROTO "-Xffiproto"
+#endif /* JAVA_SPEC_VERSION >= 22 */
 
 #define MAPOPT_AGENTLIB_JDWP_EQUALS "-agentlib:jdwp="
 #define MAPOPT_XRUNJDWP "-Xrunjdwp:"
@@ -616,6 +677,9 @@ enum INIT_STAGE {
 #define VMOPT_XSYSLOG_OPT "-Xsyslog"
 #define MAPOPT_XSYSLOG_OPT_COLON "-Xsyslog:"
 
+#define VMOPT_XXENABLEDYNAMICAGENTLOADING "-XX:+EnableDynamicAgentLoading"
+#define VMOPT_XXNOENABLEDYNAMICAGENTLOADING "-XX:-EnableDynamicAgentLoading"
+
 /* Modularity command line options */
 #define VMOPT_MODULE_UPGRADE_PATH "--upgrade-module-path"
 #define VMOPT_MODULE_PATH "--module-path"
@@ -627,9 +691,13 @@ enum INIT_STAGE {
 #define VMOPT_PATCH_MODULE "--patch-module"
 #define VMOPT_ILLEGAL_ACCESS "--illegal-access="
 #define VMOPT_ENABLE_NATIVE_ACCESS "--enable-native-access"
+#define VMOPT_ILLEGAL_NATIVE_ACCESS "--illegal-native-access="
 
 /* JEP 421: Deprecate Finalization for Removal */
 #define VMOPT_DISABLE_FINALIZATION "--finalization="
+
+/* JEP 471: Deprecate the Memory-Access Methods in sun.misc.Unsafe for Removal */
+#define VMOPT_DISABLE_SUN_MISC_UNSAFE_MEMORY_ACCESS "--sun-misc-unsafe-memory-access="
 
 #define ENVVAR_IBM_MIXED_MODE_THRESHOLD "IBM_MIXED_MODE_THRESHOLD"
 #define ENVVAR_JAVA_COMPILER "JAVA_COMPILER"
@@ -660,11 +728,16 @@ enum INIT_STAGE {
 #define SYSPROP_JDK_MODULE_PATCH "jdk.module.patch."
 #define SYSPROP_JDK_MODULE_ILLEGALACCESS "jdk.module.illegalAccess"
 #define SYSPROP_JDK_MODULE_ENABLENATIVEACCESS "jdk.module.enable.native.access."
+#if JAVA_SPEC_VERSION >= 23
+#define SYSPROP_SUN_MISC_UNSAFE_MEMORY_ACCESS "sun.misc.unsafe.memory.access"
+#endif /* JAVA_SPEC_VERSION >= 23 */
+#define SYSPROP_JDK_MODULE_ILLEGALNATIVEACCESS "jdk.module.illegal.native.access"
 #define JAVA_BASE_MODULE "java.base"
 
 #define SYSPROP_COM_SUN_MANAGEMENT "-Dcom.sun.management."
 
 #define VMOPT_XTRACE "-Xtrace"
+
 
 #ifdef J9VM_INTERP_VERBOSE
 

@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(OBJECTCHECK_HPP_)
@@ -32,7 +32,7 @@
 
 extern "C" {
 
-UDATA j9gc_ext_check_is_valid_heap_object(J9JavaVM *javaVM, J9Object *ptr, UDATA flags);
+uintptr_t j9gc_ext_check_is_valid_heap_object(J9JavaVM *javaVM, J9Object *ptr, uintptr_t flags);
 
 } /* extern "C" */
 

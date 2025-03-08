@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.commands.infocommands;
 
 import java.io.PrintStream;
@@ -54,15 +54,15 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 	 * Cache of all classes and their respective ClassStatistics, organized by JavaRuntime.
 	 */
 	private static Map<JavaRuntime, Map<JavaClass, ClassStatistics>> classInstanceCounts;
-	
+
 	{
-		addCommand("info class", "[Java class name] [-sort:<name|count|size>]", "Provides information about the specified Java class");	
+		addCommand("info class", "[Java class name] [-sort:<name|count|size>]", "Provides information about the specified Java class");
 	}
-	
+
 	public void run(String command, String[] args, IContext context, PrintStream out) throws CommandException {
 		String className = null;
 		Comparator<JavaClass> sortOrder = new ClassNameComparator();
-		
+
 		if(initCommand(command, args, context, out)) {
 			return;		//processing already handled by super class
 		}
@@ -81,7 +81,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 				className = arg;
 			}
 		}
-		
+
 		if( className == null ) {
 			printAllRuntimeClasses(sortOrder);
 		} else {
@@ -89,7 +89,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 		}
 
 	}
-	
+
 	private void printSingleRuntimeClassInfo(String className)
 	{
 		JavaRuntime jr = ctx.getRuntime();
@@ -104,7 +104,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 		} else {
 			classes = Utils.getClassGivenName(className, jr, out);
 		}
-		
+
 		// if we couldn't find a class of that name, return; the passed in class name could
 		//  still be an array type or it might not exist
 		if (null == classes || classes.length == 0 ) {
@@ -195,7 +195,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 		while (null != jClass){
 			try{
 				stack.add(jClass.getName());
-				jClass = jClass.getSuperclass(); 
+				jClass = jClass.getSuperclass();
 			}catch(CorruptDataException cde){
 				stack.add("N/A (CorruptDataException occurred)");
 				break;
@@ -203,7 +203,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 		}
 		printStack(stack);
 	}
-	
+
 	private void printStack(Stack<String> stack){
 		out.print("Inheritance chain....\n\n");
 		String tab = "\t";
@@ -213,19 +213,18 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 			spaces += "   ";
 		}
 	}
-	
+
 	private void printFields(JavaClass jClass) {
 		out.print("Fields......\n\n");
 		ClassOutput.printStaticFields(jClass, out);
 		ClassOutput.printNonStaticFields(jClass, out);
 	}
-	
+
 	private void printMethods(JavaClass jClass){
 		out.print("Methods......\n\n");
 		ClassOutput.printMethods(jClass.getDeclaredMethods(), out);
 		out.print("\n");
 	}
-
 
 	/**
 	 * Pre-populates the classInstanceCounts map with just classes, and empty ClassStatistics objects.
@@ -233,13 +232,12 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 	 * eliminating the need to iterate over all class loaders (see getRuntimeClasses()).
 	 * @param jr
 	 * @param errOut
-	 * @return
 	 */
 	private void cacheRuntimeClasses() {
 
 		classInstanceCounts = new HashMap<JavaRuntime, Map<JavaClass,ClassStatistics>>();
 		long corruptClassCount = 0;
-		
+
 		Map<JavaClass, ClassStatistics> classesOfThisRuntime = new HashMap<JavaClass, ClassStatistics>();
 		JavaRuntime runtime = ctx.getRuntime();
 		classInstanceCounts.put(runtime, classesOfThisRuntime);
@@ -248,7 +246,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 
 		while (itClassLoader.hasNext()) {
 			JavaClassLoader jcl = (JavaClassLoader)itClassLoader.next();
-			
+
 			Iterator<?> itClass = jcl.getDefinedClasses();
 			while (itClass.hasNext()) {
 				Object obj = itClass.next();
@@ -264,11 +262,11 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 			out.print("Warning, found " + corruptClassCount + " corrupt classes during classloader walk\n");
 		}
 	}
-	
+
 	private void printAllRuntimeClasses(Comparator<JavaClass> sortOrder) {
 		JavaRuntime jr = ctx.getRuntime();
 		Collection<JavaClass> javaClasses = getRuntimeClasses(jr);
-		
+
 		long objCount = 0;
 		long totalSize = 0;
 		Iterator<JavaClass> itClass;
@@ -290,18 +288,18 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 		}
 		while (itClass.hasNext()) {
 			JavaClass jc = itClass.next();
-						
+
 			ClassStatistics d = getClassStatisticsFor(jr, jc);
 			totalSize += d.getSize();
 			objCount += d.getCount();
 			printOneClass(jc, d);
 		}
-		
+
 		out.print("\n");
 		out.print("\t Total number of objects: " + objCount + "\n");
 		out.print("\t Total size of objects: " + totalSize + "\n");
 	}
-	
+
 	private static Collection<JavaClass> getRuntimeClasses(JavaRuntime jr) {
 		return classInstanceCounts.get(jr).keySet();
 	}
@@ -317,7 +315,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 		long corruptObjectCount = 0;
 		long corruptClassCount = 0;
 		long corruptClassNameCount = 0;
-		
+
 		Iterator<?> itHeap = runtime.getHeaps();
 		while (itHeap.hasNext()) {
 			Object heap = itHeap.next();
@@ -327,16 +325,16 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 			}
 			JavaHeap jh = (JavaHeap)heap;
 			Iterator<?> itObject = jh.getObjects();
-			
+
 			// Walk through all objects in this heap, accumulating counts and total memory size by class
 			while (itObject.hasNext()) {
 				Object next = itObject.next();
-				// Check that this is a JavaObject (there may be CorruptData objects in the 
-				// JavaHeap, we don't attempt to count these as instances of known classes). 
+				// Check that this is a JavaObject (there may be CorruptData objects in the
+				// JavaHeap, we don't attempt to count these as instances of known classes).
 				if (next instanceof JavaObject) {
 					JavaObject jo = (JavaObject)next;
 					ClassStatistics stats = null;
-					
+
 					try {
 						// Check whether we found this class in the classloaders walk earlier
 						JavaClass jc = jo.getJavaClass();
@@ -354,7 +352,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 								corruptClassNameCount++;
 							}
 						}
-						
+
 						// Increment the statistic for objects of this class (accumulated count and size)
 						stats.incrementCount();
 						try {
@@ -380,7 +378,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 			out.println("Warning, found " + corruptClassNameCount + " corrupt class names during heap walk");
 		}
 	}
-	
+
 	private void printClassListHeader() {
 		out.print("\n" + Utils.prePadWithSpaces("instances", 16));
 		out.print(Utils.prePadWithSpaces("total size on heap", 20));
@@ -401,28 +399,28 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 		out.print("  " + className);
 		out.print("\n");
 	}
-	
+
 	public static class ClassStatistics {
 		private int count;
 		private long totalSize;
-		
+
 		public ClassStatistics(){
 			this.count = 0;
 			this.totalSize = 0;
 		}
-		
+
 		public int getCount(){
 			return this.count;
 		}
-		
+
 		public long getSize(){
 			return this.totalSize;
 		}
-		
+
 		public void incrementCount(){
 			this.count++;
 		}
-		
+
 		public void addToSize(long sizeToAdd){
 			this.totalSize += sizeToAdd;
 		}
@@ -437,7 +435,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 			return -1;
 		}
 	}
-	
+
 	private class TotalSizeComparator implements Comparator<JavaClass> {
 
 		public int compare(JavaClass o1, JavaClass o2) {
@@ -446,7 +444,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 			return cmp(s1, s2);
 		}
 	}
-	
+
 	private class InstanceCountComparator implements Comparator<JavaClass> {
 
 		public int compare(JavaClass o1, JavaClass o2) {
@@ -455,7 +453,7 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 			return cmp(s1, s2);
 		}
 	}
-	
+
 	private class ClassNameComparator implements Comparator<JavaClass> {
 
 		public int compare(JavaClass o1, JavaClass o2) {
@@ -472,10 +470,10 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 			return s1.compareTo(s2);
 		}
 	}
-	
+
 	@Override
 	public void printDetailedHelp(PrintStream out) {
-		out.println("Prints inheritance chain and other data for a given class\n\n" + 
+		out.println("Prints inheritance chain and other data for a given class\n\n" +
 					"Parameters: none, class name or ID, sort flags\n\n" +
 					"If name or id parameters are omitted then \"info class\", prints the " +
 					"number of instances of each class and the total size of all " +
@@ -497,6 +495,6 @@ public class InfoClassCommand extends BaseJdmpviewCommand {
 					"If multiple classes with the same name (on different class loaders) are found " +
 					"then the class ID and class loader are printed for each class. Use info class " +
 					"with the class ID to print out information on a specific class.");
-		
+
 	}
 }

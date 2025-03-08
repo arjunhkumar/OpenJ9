@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -4156,13 +4156,13 @@ j9file_test_long_file_name(struct J9PortLibrary *portLibrary)
 	basePaths[1] = cwd; /* to test an absolute path */
 
 	for ( i = 0; i < 2; i ++) {
-		j9str_printf(portLibrary, filePathName, FILENAME_LENGTH, "%s", basePaths[i]);
+		j9str_printf(filePathName, FILENAME_LENGTH, "%s", basePaths[i]);
 
 		/* build up a file name that is longer than 256 characters,
 		 * comprised of directories, each of which are less than 256 characters in length*/
 		while (strlen(filePathName) < MIN_LENGTH ) {
 
-			j9str_printf(portLibrary, filePathName + strlen(filePathName), FILENAME_LENGTH - strlen(filePathName), "%s", longDirName);
+			j9str_printf(filePathName + strlen(filePathName), FILENAME_LENGTH - strlen(filePathName), "%s", longDirName);
 
 			mkdirRc = j9file_mkdir(filePathName);
 
@@ -4173,10 +4173,10 @@ j9file_test_long_file_name(struct J9PortLibrary *portLibrary)
 		}
 
 		/* now append filePathName with the actual filename */
-		j9str_printf(portLibrary, filePathName + strlen(filePathName), FILENAME_LENGTH - strlen(filePathName), "\\%s", testName);
-		
+		j9str_printf(filePathName + strlen(filePathName), FILENAME_LENGTH - strlen(filePathName), "\\%s", testName);
+
 		j9tty_printf(portLibrary, "\ttesting filename: %s\n", filePathName);
-		
+
 		/* can we open and write to the file? */
 		fd = FILE_OPEN_FUNCTION(portLibrary, filePathName, EsOpenCreate | EsOpenWrite, 0666);
 		if (-1 == fd) {

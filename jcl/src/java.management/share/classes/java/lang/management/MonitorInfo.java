@@ -1,6 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
 /*
- *******************************************************************************
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -19,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.management;
 
 import javax.management.openmbean.CompositeData;
@@ -74,7 +73,7 @@ public class MonitorInfo extends LockInfo {
 		/* MonitorInfoBase's constructor validates the arguments. */
 		baseInfo = new MonitorInfoBase(className, identityHashCode, stackDepth, stackFrame);
 	}
-	
+
 	MonitorInfo(MonitorInfoBase base) {
 		super(base);
 		baseInfo = base;
@@ -127,10 +126,10 @@ public class MonitorInfo extends LockInfo {
 	 *             to a <code>java.lang.StackTraceElement</code> which has the
 	 *             following attributes:
 	 *             <ul>
-/*[IF Sidecar19-SE]
+/*[IF JAVA_SPEC_VERSION >= 9]
 	 *             <li><code>moduleName</code>(<code>java.lang.String</code>)
 	 *             <li><code>moduleVersion</code>(<code>java.lang.String</code>)
-/*[ENDIF]
+/*[ENDIF] JAVA_SPEC_VERSION >= 9
 	 *             <li><code>className</code> (<code>java.lang.String</code>)
 	 *             <li><code>methodName</code> (<code>java.lang.String</code>)
 	 *             <li><code>fileName</code> (<code>java.lang.String</code>)

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -70,7 +70,7 @@ public:
 private:
 protected:
 public:
-	virtual void doClass(J9Class* clazz);
+	virtual void doClass(J9Class *clazz);
 
 #if defined(J9VM_GC_REALTIME) 
 	void doStringTableSlot(J9Object **slotPtr, GC_StringTableIterator *stringTableIterator);
@@ -78,8 +78,8 @@ public:
 #endif /* J9VM_GC_REALTIME */
 
 	virtual void scanThreads(MM_EnvironmentBase *env);
-	virtual bool scanOneThread(MM_EnvironmentBase *env, J9VMThread* walkThread, void* localData);
-	virtual void scanOneThreadImpl(MM_EnvironmentRealtime *env, J9VMThread* walkThread, void* localData);
+	virtual bool scanOneThread(MM_EnvironmentBase *env, J9VMThread *walkThread, void *localData);
+	virtual void scanOneThreadImpl(MM_EnvironmentRealtime *env, J9VMThread *walkThread, void *localData);
 	void reportThreadCount(MM_EnvironmentBase *env);
 	void scanAtomicRoots(MM_EnvironmentRealtime *env);
 

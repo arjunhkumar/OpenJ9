@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "codegen/PPCPrivateLinkage.hpp"
@@ -880,6 +880,18 @@ static int32_t calculateFrameSize(TR::RealRegister::RegNum &intSavedFirst,
    while (intSavedFirst<=TR::RealRegister::LastGPR && !machine->getRealRegister(intSavedFirst)->getHasBeenAssignedInMethod())
       intSavedFirst=(TR::RealRegister::RegNum)((uint32_t)intSavedFirst+1);
 
+   if (comp->target().is64Bit() && comp->compilePortableCode() &&
+      !comp->target().cpu.isAtLeast(OMR_PROCESSOR_PPC_P10) && cg->getSavesNonVolatileGPRsForGC())
+      {
+      // When compiling code that contains a Direct-to-JNI call, we need to save all the non-volatile registers
+      // so the GC will have access to them. If we are compiling portable code (CRIU or PortableAOT) then we
+      // might be compiling code that will run on PWR10 which allows for R16 to be marked collectible. Therefore
+      // we need to save&restore R16 for portable code containing a Direct-to-JNI call in case a GC cycle occurs
+      // while some non-portable code down the stack is using R16 to hold a collectible object.
+      TR_ASSERT_FATAL( intSavedFirst == TR::RealRegister::gr17, "Portable compile expected first saved GPR to be R17" );
+      intSavedFirst = TR::RealRegister::gr16;
+      }
+
    // the registerSaveDescription is emitted as follows:
    // 0000 0000 0000 000 0 0000 0000 0000 0000
    //                    <----           ---->
@@ -1355,6 +1367,13 @@ void J9::Power::PrivateLinkage::createEpilogue(TR::Instruction *cursor)
    while (savedFirst<=TR::RealRegister::LastGPR && !machine->getRealRegister(savedFirst)->getHasBeenAssignedInMethod())
       savedFirst=(TR::RealRegister::RegNum)((uint32_t)savedFirst+1);
 
+   if (comp()->target().is64Bit() && comp()->compilePortableCode() &&
+      !comp()->target().cpu.isAtLeast(OMR_PROCESSOR_PPC_P10) && cg()->getSavesNonVolatileGPRsForGC())
+      {
+      TR_ASSERT_FATAL( savedFirst == TR::RealRegister::gr17, "Portable compile expected first saved GPR to be R17" );
+      savedFirst = TR::RealRegister::gr16;
+      }
+
    if (savedFirst <= TR::RealRegister::LastGPR)
       {
       if (comp()->target().is64Bit() ||
@@ -1463,6 +1482,8 @@ int32_t J9::Power::PrivateLinkage::buildPrivateLinkageArgs(TR::Node             
       case TR::java_lang_invoke_ComputedCalls_dispatchVirtual:
       case TR::com_ibm_jit_JITHelpers_dispatchVirtual:
          specialArgReg = getProperties().getVTableIndexArgumentRegister();
+         break;
+      default:
          break;
       }
 
@@ -2655,6 +2676,8 @@ void inlineCharacterIsMethod(TR::Node *node, TR::MethodSymbol* methodSymbol, TR:
          generateTrg1Src2Instruction(cg, TR::InstOpCode::cmpeqb, node, cnd2Reg, srcReg, rangeReg);
          generateTrg1Src2ImmInstruction(cg, TR::InstOpCode::cror, node, cnd1Reg, cnd2Reg, cnd1Reg, imm);
          break;
+      default:
+         break;
       }
    generateTrg1Src1Instruction(cg, TR::InstOpCode::setb, node, returnRegister, cnd1Reg);
 
@@ -2888,10 +2911,13 @@ TR::Register *J9::Power::PrivateLinkage::buildDirectDispatch(TR::Node *callNode)
             inlinedCharacterIsMethod = true;
             inlineCharacterIsMethod(callNode, callNode->getSymbol()->castToMethodSymbol(), cg(), doneLabel);
             break;
+         default:
+            break;
          }
       }
 
-   if (!comp()->requiresSpineChecks() &&
+   if (!TR::Compiler->om.canGenerateArraylets() &&
+       !TR::Compiler->om.isOffHeapAllocationEnabled() &&
        comp()->target().cpu.isAtLeast(OMR_PROCESSOR_PPC_P8) &&
        comp()->target().cpu.supportsFeature(OMR_FEATURE_PPC_HAS_VSX) &&
        (callNode->getSymbol()->castToMethodSymbol()->getRecognizedMethod() == TR::java_util_zip_CRC32C_updateBytes ||

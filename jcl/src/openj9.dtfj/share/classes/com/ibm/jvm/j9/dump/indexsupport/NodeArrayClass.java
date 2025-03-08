@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.j9.dump.indexsupport;
 
 import org.xml.sax.Attributes;
@@ -35,7 +35,7 @@ import com.ibm.dtfj.java.j9.JavaRuntime;
 public class NodeArrayClass extends NodeAbstract
 {
 	private JavaArrayClass _theClass;
-	
+
 	public NodeArrayClass(JavaRuntime runtime, Attributes attributes)
 	{
 		//<arrayclass id="0x10a58068" leaf="0x10a57f78" arity="1" modifiers="0x80010411" firstElementOffset="16" sizeOffset="12" sizeBytes="4" sizeInElements="true" hashcodeSlot="4">
@@ -78,7 +78,7 @@ public class NodeArrayClass extends NodeAbstract
 	public IParserNode nodeToPushAfterStarting(String uri, String localName, String qName, Attributes attributes)
 	{
 		IParserNode child = null;
-		
+
 		if (qName.equals("interface")) {
 			child = new NodeInterface(_theClass, attributes);
 		} else {

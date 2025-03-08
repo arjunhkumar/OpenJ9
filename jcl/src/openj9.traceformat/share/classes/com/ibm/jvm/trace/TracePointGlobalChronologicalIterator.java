@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,32 +18,32 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.trace;
 
 import java.util.Iterator;
 
 /**
  * This is a Cursor that thinks it's an Iterator really.
- * 
+ *
  * @author Simon Rowland
- *	
+ *
  */
 public class TracePointGlobalChronologicalIterator<Type extends com.ibm.jvm.trace.TracePoint> implements Iterator {
 	private com.ibm.jvm.format.TraceFormat formatter = null;
-	
+
 	protected TracePointGlobalChronologicalIterator(com.ibm.jvm.format.TraceFormat formatter){
 		this.formatter = formatter;
 		updateNext();
 		/* prime */
 	}
-	
+
 	private com.ibm.jvm.trace.TracePoint next = null;
 	private synchronized void updateNext(){
 		next = formatter.getNextTracePoint();
 	}
-	
+
 	/* (non-Javadoc)
 	 * @see java.util.Iterator#hasNext()
 	 */

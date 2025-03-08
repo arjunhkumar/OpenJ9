@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2013
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.cuda;
 
 import com.ibm.oti.vm.VM;
@@ -28,17 +28,21 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The {@code Cuda} class provides general CUDA utilities.
  */
-/*[IF JAVA_SPEC_VERSION >= 17]*/
+/*[IF JAVA_SPEC_VERSION >= 24]*/
+@SuppressWarnings("restricted")
+/*[ELSEIF JAVA_SPEC_VERSION >= 17]*/
 @SuppressWarnings("removal")
-/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
+/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 public final class Cuda {
 
 	private static final class Cleaner implements Runnable {
@@ -54,11 +58,17 @@ public final class Cuda {
 		static {
 			instance = new Cleaner();
 
+			Thread daemon;
+			/*[IF JAVA_SPEC_VERSION >= 24]*/
+			daemon = VM.getVMLangAccess().createThread(instance,
+				"CUDA pinned buffer cleaner", true, false, true, null); //$NON-NLS-1$
+			/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 			PrivilegedAction<Thread> createThread = () -> VM.getVMLangAccess().createThread(instance,
 				"CUDA pinned buffer cleaner", true, false, true, null); //$NON-NLS-1$
 
 			// we assert privilege to create the Thread
-			Thread daemon = AccessController.doPrivileged(createThread);
+			daemon = AccessController.doPrivileged(createThread);
+			/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
 			daemon.start();
 		}
@@ -100,10 +110,14 @@ public final class Cuda {
 	}
 
 	static {
+		/*[IF JAVA_SPEC_VERSION >= 24]*/
+		System.loadLibrary("cuda4j29"); //$NON-NLS-1$
+		/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 		AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
 			System.loadLibrary("cuda4j29"); //$NON-NLS-1$
 			return null;
 		});
+		/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 
 		Method runMethod;
 

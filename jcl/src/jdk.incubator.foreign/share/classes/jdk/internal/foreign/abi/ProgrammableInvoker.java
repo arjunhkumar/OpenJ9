@@ -1,5 +1,5 @@
-/*[INCLUDE-IF (JAVA_SPEC_VERSION >= 16) & (JAVA_SPEC_VERSION <= 18)]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION == 17]*/
+/*
  * Copyright IBM Corp. and others 2021
  *
  * This program and the accompanying materials are made available under
@@ -18,14 +18,13 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package jdk.internal.foreign.abi;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 
-import jdk.incubator.foreign.Addressable;
 import jdk.incubator.foreign.FunctionDescriptor;
 import openj9.internal.foreign.abi.InternalDowncallHandler;
 
@@ -38,18 +37,11 @@ public class ProgrammableInvoker {
 	 * The method is ultimately invoked by Clinker on the specific platforms to generate the requested
 	 * method handle to the underlying C function.
 	 *
-	 * @param downcallAddr The downcall symbol
-	 * @param functionMethodType The MethodType of the specified native function
-	 * @param funcDesc The function descriptor of the specified native function
+	 * @param functionMethodType the MethodType of the specified native function
+	 * @param funcDesc the function descriptor of the specified native function
 	 * @return a method handle bound to the native method
 	 */
-	/*[IF JAVA_SPEC_VERSION >= 17]*/
 	public static MethodHandle getBoundMethodHandle(MethodType functionMethodType, FunctionDescriptor funcDesc) {
 		return new InternalDowncallHandler(functionMethodType, funcDesc).getBoundMethodHandle();
 	}
-	/*[ELSE] JAVA_SPEC_VERSION >= 17 */
-	public static MethodHandle getBoundMethodHandle(Addressable downcallAddr, MethodType functionMethodType, FunctionDescriptor funcDesc) {
-		return new InternalDowncallHandler(downcallAddr, functionMethodType, funcDesc).getBoundMethodHandle();
-	}
-	/*[ENDIF] JAVA_SPEC_VERSION >= 17 */
 }

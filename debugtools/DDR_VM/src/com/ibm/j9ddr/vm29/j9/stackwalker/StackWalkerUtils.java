@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2009
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.j9.stackwalker;
 
 import static com.ibm.j9ddr.vm29.events.EventManager.raiseCorruptDataEvent;
@@ -42,15 +42,17 @@ import com.ibm.j9ddr.vm29.pointer.PointerPointer;
 import com.ibm.j9ddr.vm29.pointer.UDATAPointer;
 import com.ibm.j9ddr.vm29.pointer.VoidPointer;
 import com.ibm.j9ddr.vm29.pointer.generated.J9BuildFlags;
+import com.ibm.j9ddr.vm29.pointer.generated.J9I2JStatePointer;
 import com.ibm.j9ddr.vm29.pointer.generated.J9MethodPointer;
 import com.ibm.j9ddr.vm29.pointer.generated.J9ROMMethodPointer;
 import com.ibm.j9ddr.vm29.pointer.generated.J9UTF8Pointer;
+import com.ibm.j9ddr.vm29.pointer.generated.J9VMEntryLocalStoragePointer;
 import com.ibm.j9ddr.vm29.pointer.helper.J9UTF8Helper;
 import com.ibm.j9ddr.vm29.types.UDATA;
 
 /**
  * Utility methods shared between stack walkers.
- * 
+ *
  * @author andhall
  */
 public class StackWalkerUtils
@@ -60,46 +62,46 @@ public class StackWalkerUtils
 	 * running inside other tools, for example Memory Analyzer.
 	 */
 	public static final Logger logger = Logger.getLogger("j9ddr.stackwalker");
-	
+
 	private static int messageLevel = 0;
-	
+
 	private static PrintStream messageStream = null;
-	
+
 	/**
 	 * Number of CorruptDataExceptions from iterate-o-slots logic that we report before disabling
 	 * the o-slots walk
 	 */
 	public static final int INITIAL_O_SLOTS_CORRUPTION_THRESHOLD = 5;
-	
+
 	/**
 	 * Counter for how many times we log and continue when walking O-slots is
 	 * causing CorruptDataExceptions.
 	 */
 	private static int oslotsCorruptionThreshold = INITIAL_O_SLOTS_CORRUPTION_THRESHOLD;
-	
+
 	public static final boolean DEBUG_STACKMAP = false;
-	
+
 	public static final boolean DEBUG_LOCALMAP = false;
-	
-	static final int jitArgumentRegisterNumbers[];
-	
+
+	static final int[] jitArgumentRegisterNumbers;
+
 	static {
-		if (J9BuildFlags.arch_x86) {
-			if (J9BuildFlags.env_data64) {
+		if (J9BuildFlags.J9VM_ARCH_X86) {
+			if (J9BuildFlags.J9VM_ENV_DATA64) {
 				jitArgumentRegisterNumbers = new int[] { 0, 5, 3, 2 };
 			} else {
 				// 32 bit X86 doesn't use jitArgumentRegisterNumbers
 				jitArgumentRegisterNumbers = new int[0];
 			}
-		} else if (J9BuildFlags.arch_arm) {
+		} else if (J9BuildFlags.J9VM_ARCH_ARM) {
 			jitArgumentRegisterNumbers = new int[] { 0, 1, 2, 3 };
-		} else if (J9BuildFlags.arch_aarch64) {
+		} else if (J9BuildFlags.J9VM_ARCH_AARCH64) {
 			jitArgumentRegisterNumbers = new int[] { 0, 1, 2, 3, 4, 5, 6, 7 };
-		} else if (J9BuildFlags.arch_power) {
+		} else if (J9BuildFlags.J9VM_ARCH_POWER) {
 			jitArgumentRegisterNumbers = new int[] { 3, 4, 5, 6, 7, 8, 9, 10 };
-		} else if (J9BuildFlags.arch_s390) {
+		} else if (J9BuildFlags.J9VM_ARCH_S390) {
 			jitArgumentRegisterNumbers = new int[] { 1, 2, 3 };
-		} else if (J9BuildFlags.arch_riscv) {
+		} else if (J9BuildFlags.J9VM_ARCH_RISCV) {
 			/* The setting is based on the description of RISC-V Spec as follows:
 			 * Register  ABI Name  Description                      Saver
 			 * x10~11     a0~1     Function arguments/return values Caller
@@ -110,13 +112,13 @@ public class StackWalkerUtils
 			throw new IllegalArgumentException("Unsupported platform");
 		}
 	}
-	
+
 	/**
 	 * This function is a little overloaded. As well as determining if a message should
 	 * be printed out for the message level chosen by the tool running the stack walker
 	 * we also allow for someone turning on logging for debug to get details about the
 	 * stack walker while running (for example) Memory Analyzer.
-	 * 
+	 *
 	 * @param walkState
 	 * @param level
 	 * @param message
@@ -125,11 +127,10 @@ public class StackWalkerUtils
 	public static void swPrintf(WalkState walkState, int level,
 			String message, Object... args)
 	{
-
 		// Print output for !stack debugging commands to the printstream.
-		if( messageLevel >= level && messageStream != null ) {
+		if (messageLevel >= level && messageStream != null) {
 			String output = MessageFormat.format("<"
-					+ Long.toHexString(walkState.walkThread.getAddress())
+					+ Long.toHexString(walkState.threadAddress)
 					+ "> " + message, args);
 			messageStream.println(output);
 		}
@@ -141,7 +142,7 @@ public class StackWalkerUtils
 		/* Initial check to avoid marshalling the arguments if we don't have to */
 		if (logger.isLoggable(utilLoggingLevel)) {
 			logger.logp(utilLoggingLevel, null, null, "<"
-					+ Long.toHexString(walkState.walkThread.getAddress())
+					+ Long.toHexString(walkState.threadAddress)
 					+ "> " + message, args);
 		}
 	}
@@ -165,38 +166,36 @@ public class StackWalkerUtils
 				method.getHexAddress());
 		}
 	}
-	
+
 	public static void WALK_METHOD_CLASS(WalkState walkState)
 	throws CorruptDataException
 	{
 		if ((walkState.flags & J9_STACKWALK_ITERATE_METHOD_CLASS_SLOTS) != 0) {
 			SWALK_PRINT_CLASS_OF_RUNNING_METHOD(walkState);
 			walkState.slotType = (int)J9_STACKWALK_SLOT_TYPE_INTERNAL;
-			walkState.slotIndex = -1;			
+			walkState.slotIndex = -1;
 			WALK_O_SLOT(walkState, walkState.constantPool.ramClass().classObjectEA());
 		}
 	}
-	
+
 	public static void WALK_NAMED_INDIRECT_O_SLOT(WalkState walkState,
 			PointerPointer objectSlot, VoidPointer indirectSlot, String tag)
 			throws CorruptDataException
 	{
-		UDATA value;
-
-		value = UDATAPointer.cast(objectSlot).at(0);
+		UDATA value = UDATAPointer.cast(objectSlot).at(0);
 
 		if (indirectSlot.notNull()) {
 			swPrintf(walkState, 4, "\t\t{0}[{1} -> {2}] = {3}", (tag != null ? tag : "O-Slot"),
-					indirectSlot.getHexAddress(), 
+					indirectSlot.getHexAddress(),
 					objectSlot.getHexAddress(),
 					value.getHexValue());
 		} else {
 			swPrintf(walkState, 4, "\t\t{0}[{1}] = {2}",
 					(tag != null ? tag : "O-Slot"),
-					objectSlot.getHexAddress(), 
+					objectSlot.getHexAddress(),
 					value.getHexValue());
 		}
-		walkState.callBacks.objectSlotWalkFunction(walkState.walkThread, walkState, objectSlot, VoidPointer.cast(objectSlot));
+		walkState.callBacks.objectSlotWalkFunction(walkState, objectSlot, VoidPointer.cast(objectSlot));
 	}
 
 	public static void WALK_NAMED_INDIRECT_I_SLOT(WalkState walkState,
@@ -204,19 +203,18 @@ public class StackWalkerUtils
 			throws CorruptDataException
 	{
 		if (indirectSlot.notNull()) {
-			swPrintf(walkState, 4, "\t\t{0}[{1} -> {2}] = {3}", (tag != null? tag : "I-Slot"),
-					indirectSlot.getHexAddress(), 
+			swPrintf(walkState, 4, "\t\t{0}[{1} -> {2}] = {3}", (tag != null ? tag : "I-Slot"),
+					indirectSlot.getHexAddress(),
 					intSlot.getHexAddress(),
 					UDATAPointer.cast(intSlot).at(0).getHexValue());
 		} else {
 			swPrintf(walkState, 4, "\t\t{0}[{1}] = {2}",
 					(tag != null ? tag : "I-Slot"),
-					intSlot.getHexAddress(), 
+					intSlot.getHexAddress(),
 					UDATAPointer.cast(intSlot).at(0).getHexValue());
 		}
 	}
 
-	
 	public static void WALK_INDIRECT_O_SLOT(WalkState walkState,
 			PointerPointer slot, VoidPointer ind) throws CorruptDataException
 	{
@@ -252,36 +250,35 @@ public class StackWalkerUtils
 	{
 		WALK_INDIRECT_I_SLOT(walkState, slot, VoidPointer.cast(0));
 	}
-	
+
 	private static void SWALK_PRINT_CLASS_OF_RUNNING_METHOD(WalkState walkState)
 	{
 		swPrintf(walkState, 4, "\tClass of running method");
 	}
-	
+
 	public static UDATA JIT_RESOLVE_PARM(WalkState walkState, int parmNumber) throws CorruptDataException
 	{
-		if (J9BuildFlags.arch_x86 && !J9BuildFlags.env_data64) {
+		if (J9BuildFlags.J9VM_ARCH_X86 && !J9BuildFlags.J9VM_ENV_DATA64) {
 			return walkState.bp.at(parmNumber);
 		} else {
-			return walkState.walkedEntryLocalStorage.jitGlobalStorageBase().at(jitArgumentRegisterNumbers[parmNumber - 1]);
+			return walkState.jitGlobalStorageBase.at(jitArgumentRegisterNumbers[parmNumber - 1]);
 		}
 	}
 
-	
 	public static void resetOSlotsCorruptionThreshold()
 	{
 		oslotsCorruptionThreshold = INITIAL_O_SLOTS_CORRUPTION_THRESHOLD;
 	}
-	
+
 	public static boolean oSlotsCorruptionThresholdReached()
 	{
 		return oslotsCorruptionThreshold < 0;
 	}
-	
+
 	/**
 	 * Since walking OSlots touches a lot more code than just doing a frame walk, we have a layer of corruption handling
 	 * just above the o-slots logic. We have oslotsCorruptionThreshold attempts, then give up.
-	 * 
+	 *
 	 * This method is called in the catch block just below the top-level if (J9_STACKWALK_ITERATE_O_SLOTS) {} conditional.
 	 */
 	public static void handleOSlotsCorruption(WalkState walkState, String className, String methodName,
@@ -289,16 +286,16 @@ public class StackWalkerUtils
 	{
 		if (oslotsCorruptionThreshold > 0) {
 			oslotsCorruptionThreshold--;
-			raiseCorruptDataEvent("CorruptData encountered iterating o-slots. walkThread = " + walkState.walkThread.getHexAddress(), ex, false);
+			raiseCorruptDataEvent("CorruptData encountered iterating o-slots. walkThread = " + walkState.getThreadHexAddress(), ex, false);
 		}
-		
+
 		if (oslotsCorruptionThreshold == 0) {
-			raiseCorruptDataEvent("Corruption threshold hit. Will stop walking object slots on this thread. walkThread = " + walkState.walkThread.getHexAddress(), ex, false);
+			raiseCorruptDataEvent("Corruption threshold hit. Will stop walking object slots on this thread. walkThread = " + walkState.getThreadHexAddress(), ex, false);
 			walkState.flags &= ~(J9_STACKWALK_ITERATE_O_SLOTS | J9_STACKWALK_MAINTAIN_REGISTER_MAP);
 			oslotsCorruptionThreshold = -1;
 		}
 	}
-	
+
 	/**
 	 * Enables stackwalk verbose logging through j.u.logging - similar in appearance to -verbose:stackwalk output from native.
 	 */
@@ -306,13 +303,13 @@ public class StackWalkerUtils
 	{
 		enableVerboseLogging(level, System.err);
 	}
-	
+
 	public static void enableVerboseLogging(int level, PrintStream os)
 	{
 		messageLevel = level;
 		messageStream = os;
 	}
-	
+
 	public static void disableVerboseLogging()
 	{
 		messageLevel = 0;

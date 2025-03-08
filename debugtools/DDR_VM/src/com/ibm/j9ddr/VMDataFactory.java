@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1991
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr;
 
 import static java.util.logging.Level.FINE;
@@ -98,13 +98,7 @@ public abstract class VMDataFactory {
 	 * @throws IOException
 	 */
 	public static IVMData getVMData(IProcess process) throws IOException {
-		List<IVMData> cachedVMData = vmDataCache.get(process);
-
-		if ((cachedVMData != null) && (cachedVMData.size() > 0)) {
-			return cachedVMData.get(0); // return the first VM found
-		}
-
-		cachedVMData = getAllVMData(process);
+		List<IVMData> cachedVMData = getAllVMData(process);
 
 		if (cachedVMData.size() > 0) {
 			return cachedVMData.get(0); // return the first VM found
@@ -227,7 +221,7 @@ public abstract class VMDataFactory {
 			// Load an instantiate a VM specific J9RASPointer via a call to J9RASPointer.cast(long);
 			String basePackageName = structureReader.getPackageName(PackageNameType.POINTER_PACKAGE_DOT_NAME);
 			Class<?> rasClazz = ddrClassLoader.loadClass(basePackageName + ".J9RASPointer");
-			Method getStructureMethod = rasClazz.getDeclaredMethod("cast", new Class[] { Long.TYPE });
+			Method getStructureMethod = rasClazz.getDeclaredMethod("cast", Long.TYPE);
 			Object pointer = getStructureMethod.invoke(null, new Object[] { j9RASAddress });
 
 			// Set the J9RASPointer on DataType.

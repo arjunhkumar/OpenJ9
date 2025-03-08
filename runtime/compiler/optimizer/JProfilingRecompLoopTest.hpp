@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include <stdint.h>
 #include "optimizer/Optimization.hpp"
@@ -53,7 +53,7 @@ class TR_JProfilingRecompLoopTest : public TR::Optimization
       }
    virtual int32_t perform();
    virtual const char *optDetailString() const throw();
-   void addRecompilationTests(TR::Compilation *comp, RecompilationTestLocationsInfo &testLocations);
+   void addRecompilationTests(TR::Compilation *comp, RecompilationTestLocationsInfo &testLocations, TR_BlockFrequencyInfo *bfi);
    bool isByteCodeInfoInCurrentTestLocationList(TR_ByteCodeInfo &bci, TR::list<TR_ByteCodeInfo, TR::Region&> &addedLocationBCIList);
    static int32_t maxLoopRecompilationThreshold;
    };

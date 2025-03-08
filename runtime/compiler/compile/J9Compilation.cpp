@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if defined(J9ZOS390)
@@ -34,6 +34,7 @@
 #include "compile/Compilation.hpp"
 #include "compile/Compilation_inlines.hpp"
 #include "compile/CompilationTypes.hpp"
+#include "env/DependencyTable.hpp"
 #include "compile/ResolvedMethod.hpp"
 #include "control/OptimizationPlan.hpp"
 #include "control/Options.hpp"
@@ -46,6 +47,7 @@
 #include "env/VMAccessCriticalSection.hpp"
 #include "env/KnownObjectTable.hpp"
 #include "env/VerboseLog.hpp"
+#include "exceptions/PersistenceFailure.hpp"
 #include "il/Node.hpp"
 #include "il/Node_inlines.hpp"
 #include "ilgen/IlGenRequest.hpp"
@@ -171,7 +173,7 @@ J9::Compilation::Compilation(int32_t id,
    _totalNeededDataCacheSpace(0),
    _aotMethodDataStart(NULL),
    _curMethodMetadata(NULL),
-   _getImplInlineable(false),
+   _getImplAndRefersToInlineable(false),
    _vpInfoManager(NULL),
    _bpInfoManager(NULL),
    _methodBranchInfoList(getTypedAllocator<TR_MethodBranchProfileInfo*>(self()->allocator())),
@@ -197,21 +199,27 @@ J9::Compilation::Compilation(int32_t id,
    _perClientMemory(_trMemory),
    _methodsRequiringTrampolines(getTypedAllocator<TR_OpaqueMethodBlock *>(self()->allocator())),
    _deserializedAOTMethod(false),
+   _deserializedAOTMethodStore(false),
    _deserializedAOTMethodUsingSVM(false),
    _aotCacheStore(false),
+   _ignoringLocalSCC(false),
    _serializationRecords(decltype(_serializationRecords)::allocator_type(heapMemoryRegion)),
    _thunkRecords(decltype(_thunkRecords)::allocator_type(heapMemoryRegion)),
 #endif /* defined(J9VM_OPT_JITSERVER) */
-   _osrProhibitedOverRangeOfTrees(false)
+#if !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED)
+   _aotMethodDependencies(decltype(_aotMethodDependencies)::allocator_type(heapMemoryRegion)),
+#endif /* !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED) */
+   _osrProhibitedOverRangeOfTrees(false),
+   _wasFearPointAnalysisDone(false)
    {
-   _symbolValidationManager = new (self()->region()) TR::SymbolValidationManager(self()->region(), compilee);
+   _symbolValidationManager = new (self()->region()) TR::SymbolValidationManager(self()->region(), compilee, self());
 
    _aotClassClassPointer = NULL;
    _aotClassClassPointerInitialized = false;
 
-   _aotGuardPatchSites = new (m->trHeapMemory()) TR::list<TR_AOTGuardSite*>(getTypedAllocator<TR_AOTGuardSite*>(self()->allocator()));
+   _aotGuardPatchSites = new (m->trHeapMemory()) TR::list<TR_AOTGuardSite *>(getTypedAllocator<TR_AOTGuardSite *>(self()->allocator()));
 
-   _aotClassInfo = new (m->trHeapMemory()) TR::list<TR::AOTClassInfo*>(getTypedAllocator<TR::AOTClassInfo*>(self()->allocator()));
+   _aotClassInfo = new (m->trHeapMemory()) TR::list<TR::AOTClassInfo *>(getTypedAllocator<TR::AOTClassInfo *>(self()->allocator()));
 
    if (_updateCompYieldStats)
       _hiresTimeForPreviousCallingContext = TR::Compiler->vm.getHighResClock(self());
@@ -321,7 +329,7 @@ J9::Compilation::allocateCompYieldStatsMatrix()
       for (int32_t j=0; j < (int32_t)LAST_CONTEXT; j++)
          {
          char buffer[128];
-         sprintf(buffer, "%d-%d", i,j);
+         snprintf(buffer, sizeof(buffer), "%d-%d", i,j);
          _compYieldStatsMatrix[i][j].setName(buffer);
          }
       }
@@ -341,12 +349,12 @@ J9::Compilation::printCompYieldStats()
 const char *
 J9::Compilation::getContextName(TR_CallingContext context)
    {
-   if (context == OMR::endOpts || context == TR_CallingContext::NO_CONTEXT)
+   if (context == (TR_CallingContext)OMR::endOpts || context == TR_CallingContext::NO_CONTEXT)
       return "NO CONTEXT";
-   else if (context < OMR::numOpts)
+   else if (context < (TR_CallingContext)OMR::numOpts)
       return TR::Optimizer::getOptimizationName((OMR::Optimizations)context);
    else
-      return callingContextNames[context-OMR::numOpts];
+      return callingContextNames[context - (TR_CallingContext)OMR::numOpts];
    }
 
 void
@@ -435,16 +443,17 @@ J9::Compilation::isConverterMethod(TR::RecognizedMethod rm)
       case TR::java_lang_String_decodeUTF8_UTF16:
       case TR::sun_nio_cs_ISO_8859_1_Decoder_decodeISO8859_1:
       case TR::sun_nio_cs_US_ASCII_Encoder_encodeASCII:
+      case TR::java_lang_StringCoding_implEncodeAsciiArray:
       case TR::sun_nio_cs_US_ASCII_Decoder_decodeASCII:
       case TR::sun_nio_cs_ext_SBCS_Encoder_encodeSBCS:
       case TR::sun_nio_cs_ext_SBCS_Decoder_decodeSBCS:
       case TR::sun_nio_cs_UTF_8_Encoder_encodeUTF_8:
       case TR::sun_nio_cs_UTF_8_Decoder_decodeUTF_8:
-      case TR::sun_nio_cs_UTF_16_Encoder_encodeUTF16Big:
-      case TR::sun_nio_cs_UTF_16_Encoder_encodeUTF16Little:
+      case TR::sun_nio_cs_UTF16_Encoder_encodeUTF16Big:
+      case TR::sun_nio_cs_UTF16_Encoder_encodeUTF16Little:
          return true;
       default:
-      	return false;
+         return false;
       }
 
    return false;
@@ -474,6 +483,7 @@ J9::Compilation::canTransformConverterMethod(TR::RecognizedMethod rm)
          return genTRxx || self()->cg()->getSupportsArrayTranslateTROTNoBreak() || genSIMD;
 
       case TR::sun_nio_cs_US_ASCII_Encoder_encodeASCII:
+      case TR::java_lang_StringCoding_implEncodeAsciiArray:
       case TR::sun_nio_cs_UTF_8_Encoder_encodeUTF_8:
          return genTRxx || self()->cg()->getSupportsArrayTranslateTRTO() || genSIMD;
 
@@ -489,10 +499,10 @@ J9::Compilation::canTransformConverterMethod(TR::RecognizedMethod rm)
 
       // devinmp: I'm not sure whether these could be transformed in AOT, but
       // they haven't been so far.
-      case TR::sun_nio_cs_UTF_16_Encoder_encodeUTF16Little:
+      case TR::sun_nio_cs_UTF16_Encoder_encodeUTF16Little:
          return !aot && self()->cg()->getSupportsEncodeUtf16LittleWithSurrogateTest();
 
-      case TR::sun_nio_cs_UTF_16_Encoder_encodeUTF16Big:
+      case TR::sun_nio_cs_UTF16_Encoder_encodeUTF16Big:
          return !aot && self()->cg()->getSupportsEncodeUtf16BigWithSurrogateTest();
 
       default:
@@ -595,7 +605,7 @@ J9::Compilation::canAllocateInlineOnStack(TR::Node* node, TR_OpaqueClassBlock* &
    if (self()->compileRelocatableCode())
       return -1;
 
-   if (node->getOpCodeValue() == TR::New)
+   if (node->getOpCodeValue() == TR::New || node->getOpCodeValue() == TR::newvalue)
       {
       J9Class* clazz = self()->fej9vm()->getClassForAllocationInlining(self(), node->getFirstChild()->getSymbolReference());
 
@@ -651,7 +661,7 @@ J9::Compilation::canAllocateInline(TR::Node* node, TR_OpaqueClassBlock* &classIn
 
    const bool areValueTypesEnabled = TR::Compiler->om.areValueTypesEnabled();
 
-   if (node->getOpCodeValue() == TR::New)
+   if (node->getOpCodeValue() == TR::New || node->getOpCodeValue() == TR::newvalue)
       {
 
       classRef    = node->getFirstChild();
@@ -697,7 +707,7 @@ J9::Compilation::canAllocateInline(TR::Node* node, TR_OpaqueClassBlock* &classIn
       }
    else if (node->getOpCodeValue() == TR::anewarray)
       {
-      classRef      = node->getSecondChild();
+      classRef = node->getSecondChild();
 
       // In the case of dynamic array allocation, return 0 indicating variable dynamic array allocation,
       // unless value types are enabled, in which case return -1 to prevent inline allocation
@@ -721,20 +731,15 @@ J9::Compilation::canAllocateInline(TR::Node* node, TR_OpaqueClassBlock* &classIn
             }
          }
 
-      classSymRef   = classRef->getSymbolReference();
+      classSymRef = classRef->getSymbolReference();
       // Can't skip the allocation if the class is unresolved
       //
       clazz = self()->fej9vm()->getClassForAllocationInlining(self(), classSymRef);
       if (clazz == NULL)
          return -1;
 
-      // Arrays of primitive value type classes must have all their elements initialized with the
-      // default value of the component type.  For now, prevent inline allocation of them.
-      //
-      if (areValueTypesEnabled && TR::Compiler->cls.isPrimitiveValueTypeClass(reinterpret_cast<TR_OpaqueClassBlock*>(clazz)))
-         {
-         return -1;
-         }
+      // TODO-VALUETYPE: If null-restricted arrays are ever allocated using TR::anewarray,
+      // the JIT will need to handle the inline initialization or prevent inline allocation.
 
       auto classOffset = self()->fej9()->getArrayClassFromComponentClass(TR::Compiler->cls.convertClassPtrToClassOffset(clazz));
       clazz = TR::Compiler->cls.convertClassOffsetToClassPtr(classOffset);
@@ -857,8 +862,9 @@ bool
 J9::Compilation::compilePortableCode()
    {
    return (self()->fej9()->inSnapshotMode() ||
-             (self()->compileRelocatableCode() &&
-                self()->fej9()->isPortableSCCEnabled()));
+             self()->fej9()->isPortableRestoreModeEnabled() ||
+                (self()->compileRelocatableCode() &&
+                   self()->fej9()->isPortableSCCEnabled()));
    }
 
 
@@ -1525,33 +1531,33 @@ J9::Compilation::notYetRunMeansCold()
                              self()->getOptions()->getInitialBCount() :
                              self()->getOptions()->getInitialCount();
 
-    switch (currentMethod->getRecognizedMethod())
-       {
-       case TR::com_ibm_jit_DecimalFormatHelper_formatAsDouble:
-       case TR::com_ibm_jit_DecimalFormatHelper_formatAsFloat:
-          initialCount = 0;
-          break;
-       default:
-          break;
-       }
+   switch (currentMethod->getRecognizedMethod())
+      {
+      case TR::com_ibm_jit_DecimalFormatHelper_formatAsDouble:
+      case TR::com_ibm_jit_DecimalFormatHelper_formatAsFloat:
+         initialCount = 0;
+         break;
+      default:
+         break;
+      }
 
-    if (currentMethod->containingClass() == self()->getStringClassPointer())
-       {
-       if (currentMethod->isConstructor())
-          {
-          char *sig = currentMethod->signatureChars();
-          if (!strncmp(sig, "([CIIII)", 8) ||
-              !strncmp(sig, "([CIICII)", 9) ||
-              !strncmp(sig, "(II[C)", 6))
-             initialCount = 0;
-          }
-       else
-          {
-          char *sig = "isRepeatedCharCacheHit";
-          if (strncmp(currentMethod->nameChars(), sig, strlen(sig)) == 0)
-             initialCount = 0;
-          }
-       }
+   if (currentMethod->containingClass() == self()->getStringClassPointer())
+      {
+      if (currentMethod->isConstructor())
+         {
+         const char *sig = currentMethod->signatureChars();
+         if (!strncmp(sig, "([CIIII)", 8) ||
+             !strncmp(sig, "([CIICII)", 9) ||
+             !strncmp(sig, "(II[C)", 6))
+            initialCount = 0;
+         }
+      else
+         {
+         const char *sig = "isRepeatedCharCacheHit";
+         if (strncmp(currentMethod->nameChars(), sig, strlen(sig)) == 0)
+            initialCount = 0;
+         }
+      }
 
    if (
       self()->isDLT()
@@ -1572,15 +1578,121 @@ J9::Compilation::incompleteOptimizerSupportForReadWriteBarriers()
    return self()->getOption(TR_EnableFieldWatch);
    }
 
+bool
+J9::Compilation::canAddOSRAssumptions()
+   {
+   return self()->supportsInduceOSR()
+      && self()->isOSRTransitionTarget(TR::postExecutionOSR)
+      && self()->getOSRMode() == TR::voluntaryOSR
+      && !self()->wasFearPointAnalysisDone();
+   }
+
+#if !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED)
+void
+J9::Compilation::addAOTMethodDependency(TR_OpaqueClassBlock *clazz)
+   {
+   if (getOption(TR_DisableDependencyTracking))
+      return;
+
+   auto chainOffset = self()->fej9()->sharedCache()->rememberClass(clazz);
+
+   if (TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET == chainOffset)
+      self()->failCompilation<J9::ClassChainPersistenceFailure>("classChainOffset == INVALID_CLASS_CHAIN_OFFSET");
+
+   addAOTMethodDependency(chainOffset, self()->fej9()->isClassInitialized(clazz));
+   }
+
+void
+J9::Compilation::addAOTMethodDependency(TR_OpaqueClassBlock *clazz, uintptr_t chainOffset)
+   {
+   if (getOption(TR_DisableDependencyTracking))
+      return;
+
+   addAOTMethodDependency(chainOffset, self()->fej9()->isClassInitialized(clazz));
+   }
+
+void
+J9::Compilation::addAOTMethodDependency(uintptr_t chainOffset, bool ensureClassIsInitialized)
+   {
+   TR_ASSERT(TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET != chainOffset, "Attempted to remember invalid chain offset");
+   TR_ASSERT(self()->compileRelocatableCode(), "Must be generating AOT code");
+
+   bool newDependency = false;
+
+   auto it = _aotMethodDependencies.find(chainOffset);
+   if (it != _aotMethodDependencies.end())
+      {
+      newDependency = ensureClassIsInitialized && !it->second;
+      it->second = it->second || ensureClassIsInitialized;
+      }
+   else
+      {
+      newDependency = true;
+      _aotMethodDependencies.insert(it, {chainOffset, ensureClassIsInitialized});
+      }
+
+   if (self()->getOptions()->getVerboseOption(TR_VerboseDependencyTrackingDetails))
+      {
+      auto method = self()->getMethodBeingCompiled()->getPersistentIdentifier();
+      auto sharedCache = self()->fej9()->sharedCache();
+      auto romClassOffset = sharedCache->startingROMClassOffsetOfClassChain(sharedCache->pointerFromOffsetInSharedCache(chainOffset));
+      TR_VerboseLog::writeLineLocked(TR_Vlog_INFO, "Method %p dependency: chainOffset=%lu romClassOffset=%lu needsInit=%d",
+                                     method, chainOffset, romClassOffset, ensureClassIsInitialized);
+      }
+   }
+
+// Populate the given dependencyBuffer with dependencies of this method, in the
+// format needed by TR_J9SharedCache::storeAOTMethodDependencies(). Returns the
+// total number of dependencies.
+uintptr_t
+J9::Compilation::populateAOTMethodDependencies(TR_OpaqueClassBlock *definingClass, Vector<uintptr_t> &dependencyBuffer)
+   {
+   // TODO: Methods may be able to run before their defining class is
+   // initialized. Adding this back in will save a fair amount of space in the
+   // SCC once that's figured out.
+   //
+   // uintptr_t definingClassChainOffset = self()->fej9()->sharedCache()->rememberClass(definingClass);
+   // TR_ASSERT_FATAL(TR_SharedCache::INVALID_CLASS_CHAIN_OFFSET != definingClassChainOffset, "Defining class %p of an AOT-compiled method must be remembered");
+   // _aotMethodDependencies.erase(definingClassChainOffset);
+
+   uintptr_t totalDependencies = _aotMethodDependencies.size();
+   if (totalDependencies == 0)
+      return totalDependencies;
+
+   dependencyBuffer.reserve(totalDependencies + 1);
+   dependencyBuffer.push_back(totalDependencies);
+   for (auto &entry : _aotMethodDependencies)
+      {
+      uintptr_t encodedOffset = TR_AOTDependencyTable::encodeDependencyOffset(entry.first, entry.second);
+      dependencyBuffer.push_back(encodedOffset);
+      }
+
+   return totalDependencies;
+   }
+#endif /* !defined(PERSISTENT_COLLECTIONS_UNSUPPORTED) */
+
 #if defined(J9VM_OPT_JITSERVER)
 void
 J9::Compilation::addSerializationRecord(const AOTCacheRecord *record, uintptr_t reloDataOffset)
    {
    TR_ASSERT_FATAL(_aotCacheStore, "Trying to add serialization record for compilation that is not an AOT cache store");
    if (record)
+      {
       _serializationRecords.push_back({ record, reloDataOffset });
+      }
    else
-      _aotCacheStore = false;// Serialization failed; method won't be stored in AOT cache
+      {
+      ClientSessionData *clientData = getClientData();
+      bool useServerOffsets = clientData->useServerOffsets(getStream());
+      // If we're ignoring the client's SCC then this compilation must succeed as an AOT store, because
+      // this method must go through the client's deserializer before relocation.
+      // Otherwise, we can simply stop maintaining AOT cache records for this compilation and continue
+      // with the compilation without subsequently storing it in the AOT cache.
+      if (useServerOffsets)
+         failCompilation<J9::AOTCachePersistenceFailure>("Serialization record at offset %zu must not be NULL", reloDataOffset);
+      else
+         _aotCacheStore = false;
+      }
    }
 
 void
@@ -1599,7 +1711,16 @@ J9::Compilation::addThunkRecord(const AOTCacheThunkRecord *record)
       }
    else
       {
-      _aotCacheStore = false;// Serialization failed; method won't be stored in AOT cache
+      ClientSessionData *clientData = getClientData();
+      bool useServerOffsets = clientData->useServerOffsets(getStream());
+      // If we're ignoring the client's SCC then this compilation must succeed as an AOT store, because
+      // this method must go through the client's deserializer before relocation.
+      // Otherwise, we can simply stop maintaining AOT cache records for this compilation and continue
+      // with the compilation without subsequently storing it in the AOT cache.
+      if (useServerOffsets)
+         failCompilation<J9::AOTCachePersistenceFailure>("Thunk record must not be NULL");
+      else
+         _aotCacheStore = false;
       }
    }
 #endif /* defined(J9VM_OPT_JITSERVER) */

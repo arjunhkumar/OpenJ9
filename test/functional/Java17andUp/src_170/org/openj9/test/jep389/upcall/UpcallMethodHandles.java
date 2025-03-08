@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2021
  *
  * This program and the accompanying materials are made available under
@@ -17,9 +17,11 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package org.openj9.test.jep389.upcall;
+
+import org.testng.Assert;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -30,7 +32,14 @@ import java.lang.invoke.VarHandle;
 
 import jdk.incubator.foreign.Addressable;
 import jdk.incubator.foreign.CLinker;
-import jdk.incubator.foreign.CLinker.VaList;
+import static jdk.incubator.foreign.CLinker.C_CHAR;
+import static jdk.incubator.foreign.CLinker.C_DOUBLE;
+import static jdk.incubator.foreign.CLinker.C_FLOAT;
+import static jdk.incubator.foreign.CLinker.C_INT;
+import static jdk.incubator.foreign.CLinker.C_LONG;
+import static jdk.incubator.foreign.CLinker.C_LONG_LONG;
+import static jdk.incubator.foreign.CLinker.C_POINTER;
+import static jdk.incubator.foreign.CLinker.C_SHORT;
 import jdk.incubator.foreign.FunctionDescriptor;
 import jdk.incubator.foreign.GroupLayout;
 import jdk.incubator.foreign.MemoryAccess;
@@ -43,8 +52,6 @@ import jdk.incubator.foreign.SegmentAllocator;
 import jdk.incubator.foreign.SequenceLayout;
 import jdk.incubator.foreign.SymbolLookup;
 import jdk.incubator.foreign.ValueLayout;
-
-import static jdk.incubator.foreign.CLinker.*;
 
 /**
  * The helper class that contains all upcall method handles with primitive types or struct as arguments.
@@ -191,7 +198,12 @@ public class UpcallMethodHandles {
 	public static final MethodHandle MH_add2IntStructs_returnStruct;
 	public static final MethodHandle MH_add2IntStructs_returnStruct_throwException;
 	public static final MethodHandle MH_add2IntStructs_returnStruct_nestedUpcall;
+	public static final MethodHandle MH_add2IntStructs_returnStruct_nullValue;
+	public static final MethodHandle MH_add2IntStructs_returnStruct_heapSegmt;
 	public static final MethodHandle MH_add2IntStructs_returnStructPointer;
+	public static final MethodHandle MH_add2IntStructs_returnStructPointer_nullValue;
+	public static final MethodHandle MH_add2IntStructs_returnStructPointer_nullAddr;
+	public static final MethodHandle MH_add2IntStructs_returnStructPointer_heapSegmt;
 	public static final MethodHandle MH_add3IntStructs_returnStruct;
 
 	public static final MethodHandle MH_addLongAndLongsFromStruct;
@@ -268,6 +280,9 @@ public class UpcallMethodHandles {
 	public static final MethodHandle MH_addDoubleAndIntDoubleLongFromStruct;
 	public static final MethodHandle MH_return254BytesFromStruct;
 	public static final MethodHandle MH_return4KBytesFromStruct;
+
+	public static final MethodHandle MH_addNegBytesFromStruct;
+	public static final MethodHandle MH_addNegShortsFromStruct;
 
 	private static CLinker clinker = CLinker.getInstance();
 
@@ -395,7 +410,12 @@ public class UpcallMethodHandles {
 			MH_add2IntStructs_returnStruct = lookup.findStatic(UpcallMethodHandles.class, "add2IntStructs_returnStruct", MT_MemSegmt_MemSegmt_MemSegmt); //$NON-NLS-1$
 			MH_add2IntStructs_returnStruct_throwException = lookup.findStatic(UpcallMethodHandles.class, "add2IntStructs_returnStruct_throwException", MT_MemSegmt_MemSegmt_MemSegmt); //$NON-NLS-1$
 			MH_add2IntStructs_returnStruct_nestedUpcall = lookup.findStatic(UpcallMethodHandles.class, "add2IntStructs_returnStruct_nestedUpcall", MT_MemSegmt_MemSegmt_MemSegmt); //$NON-NLS-1$
+			MH_add2IntStructs_returnStruct_nullValue = lookup.findStatic(UpcallMethodHandles.class, "add2IntStructs_returnStruct_nullValue", MT_MemSegmt_MemSegmt_MemSegmt); //$NON-NLS-1$
+			MH_add2IntStructs_returnStruct_heapSegmt = lookup.findStatic(UpcallMethodHandles.class, "add2IntStructs_returnStruct_heapSegmt", MT_MemSegmt_MemSegmt_MemSegmt); //$NON-NLS-1$
 			MH_add2IntStructs_returnStructPointer = lookup.findStatic(UpcallMethodHandles.class, "add2IntStructs_returnStructPointer", MT_MemAddr_MemAddr_MemSegmt); //$NON-NLS-1$
+			MH_add2IntStructs_returnStructPointer_nullValue = lookup.findStatic(UpcallMethodHandles.class, "add2IntStructs_returnStructPointer_nullValue", MT_MemAddr_MemAddr_MemSegmt); //$NON-NLS-1$
+			MH_add2IntStructs_returnStructPointer_nullAddr = lookup.findStatic(UpcallMethodHandles.class, "add2IntStructs_returnStructPointer_nullAddr", MT_MemAddr_MemAddr_MemSegmt); //$NON-NLS-1$
+			MH_add2IntStructs_returnStructPointer_heapSegmt = lookup.findStatic(UpcallMethodHandles.class, "add2IntStructs_returnStructPointer_heapSegmt", MT_MemAddr_MemAddr_MemSegmt); //$NON-NLS-1$
 			MH_add3IntStructs_returnStruct = lookup.findStatic(UpcallMethodHandles.class, "add3IntStructs_returnStruct", MT_MemSegmt_MemSegmt_MemSegmt); //$NON-NLS-1$
 
 			MH_addLongAndLongsFromStruct = lookup.findStatic(UpcallMethodHandles.class, "addLongAndLongsFromStruct", MT_Long_Long_MemSegmt); //$NON-NLS-1$
@@ -472,6 +492,9 @@ public class UpcallMethodHandles {
 			MH_addDoubleAndIntDoubleLongFromStruct = lookup.findStatic(UpcallMethodHandles.class, "addDoubleAndIntDoubleLongFromStruct", MT_Double_Double_MemSegmt); //$NON-NLS-1$
 			MH_return254BytesFromStruct = lookup.findStatic(UpcallMethodHandles.class, "return254BytesFromStruct", MT_MemSegmt); //$NON-NLS-1$
 			MH_return4KBytesFromStruct = lookup.findStatic(UpcallMethodHandles.class, "return4KBytesFromStruct", MT_MemSegmt); //$NON-NLS-1$
+
+			MH_addNegBytesFromStruct = lookup.findStatic(UpcallMethodHandles.class, "addNegBytesFromStruct", MT_Byte_Byte_MemSegmt.appendParameterTypes(byte.class, byte.class)); //$NON-NLS-1$
+			MH_addNegShortsFromStruct = lookup.findStatic(UpcallMethodHandles.class, "addNegShortsFromStruct", MT_Short_Short_MemSegmt.appendParameterTypes(short.class, short.class)); //$NON-NLS-1$
 
 		} catch (IllegalAccessException | NoSuchMethodException e) {
 			throw new InternalError(e);
@@ -1620,6 +1643,20 @@ public class UpcallMethodHandles {
 		return resultSegmt;
 	}
 
+	public static MemorySegment add2IntStructs_returnStruct_nullValue(MemorySegment arg1, MemorySegment arg2) {
+		return null;
+	}
+
+	public static MemorySegment add2IntStructs_returnStruct_heapSegmt(MemorySegment arg1, MemorySegment arg2) {
+		GroupLayout structLayout = MemoryLayout.structLayout(C_INT.withName("elem1"), C_INT.withName("elem2"));
+		VarHandle intHandle1 = structLayout.varHandle(int.class, PathElement.groupElement("elem1"));
+		VarHandle intHandle2 = structLayout.varHandle(int.class, PathElement.groupElement("elem2"));
+
+		int intStruct_Elem1 = (int)intHandle1.get(arg1) + (int)intHandle1.get(arg2);
+		int intStruct_Elem2 = (int)intHandle2.get(arg1) + (int)intHandle2.get(arg2);
+		return MemorySegment.ofArray(new int[]{intStruct_Elem1, intStruct_Elem2});
+	}
+
 	public static MemoryAddress add2IntStructs_returnStructPointer(MemoryAddress arg1Addr, MemorySegment arg2) {
 		GroupLayout structLayout = MemoryLayout.structLayout(C_INT.withName("elem1"), C_INT.withName("elem2"));
 		VarHandle intHandle1 = structLayout.varHandle(int.class, PathElement.groupElement("elem1"));
@@ -1631,6 +1668,26 @@ public class UpcallMethodHandles {
 		intHandle1.set(arg1, intSum_Elem1);
 		intHandle2.set(arg1, intSum_Elem2);
 		return arg1Addr;
+	}
+
+	public static MemoryAddress add2IntStructs_returnStructPointer_nullValue(MemoryAddress arg1Addr, MemorySegment arg2) {
+		return null;
+	}
+
+	public static MemoryAddress add2IntStructs_returnStructPointer_nullAddr(MemoryAddress arg1Addr, MemorySegment arg2) {
+		return MemoryAddress.NULL;
+	}
+
+	public static MemoryAddress add2IntStructs_returnStructPointer_heapSegmt(MemoryAddress arg1Addr, MemorySegment arg2) {
+		GroupLayout structLayout = MemoryLayout.structLayout(C_INT.withName("elem1"), C_INT.withName("elem2"));
+		VarHandle intHandle1 = structLayout.varHandle(int.class, PathElement.groupElement("elem1"));
+		VarHandle intHandle2 = structLayout.varHandle(int.class, PathElement.groupElement("elem2"));
+
+		MemorySegment arg1 = arg1Addr.asSegment(structLayout.byteSize(), arg1Addr.scope());
+		int intSum_Elem1 = (int)intHandle1.get(arg1) + (int)intHandle1.get(arg2);
+		int intSum_Elem2 = (int)intHandle2.get(arg1) + (int)intHandle2.get(arg2);
+		MemorySegment resultSegmt = MemorySegment.ofArray(new int[]{intSum_Elem1, intSum_Elem2});
+		return resultSegmt.address();
 	}
 
 	public static MemorySegment add3IntStructs_returnStruct(MemorySegment arg1, MemorySegment arg2) {
@@ -2476,5 +2533,39 @@ public class UpcallMethodHandles {
 			MemoryAccess.setByteAtOffset(byteArrStruSegment, i, (byte)i);
 		}
 		return byteArrStruSegment;
+	}
+
+	public static byte addNegBytesFromStruct(byte arg1, MemorySegment arg2, byte arg3, byte arg4) {
+		GroupLayout structLayout = MemoryLayout.structLayout(C_CHAR.withName("elem1"), C_CHAR.withName("elem2"));
+		VarHandle byteHandle1 = structLayout.varHandle(byte.class, PathElement.groupElement("elem1"));
+		VarHandle byteHandle2 = structLayout.varHandle(byte.class, PathElement.groupElement("elem2"));
+		byte arg2_elem1 = (byte)byteHandle1.get(arg2);
+		byte arg2_elem2 = (byte)byteHandle2.get(arg2);
+
+		Assert.assertEquals((byte)-6, ((Byte)arg1).byteValue());
+		Assert.assertEquals((byte)-8, ((Byte)arg2_elem1).byteValue());
+		Assert.assertEquals((byte)-9, ((Byte)arg2_elem2).byteValue());
+		Assert.assertEquals((byte)-8, ((Byte)arg3).byteValue());
+		Assert.assertEquals((byte)-9, ((Byte)arg4).byteValue());
+
+		byte byteSum = (byte)(arg1 + arg2_elem1 + arg2_elem2 + arg3 + arg4);
+		return byteSum;
+	}
+
+	public static short addNegShortsFromStruct(short arg1,  MemorySegment arg2, short arg3, short arg4) {
+		GroupLayout structLayout = MemoryLayout.structLayout(C_SHORT.withName("elem1"), C_SHORT.withName("elem2"));
+		VarHandle shortHandle1 = structLayout.varHandle(short.class, PathElement.groupElement("elem1"));
+		VarHandle shortHandle2 = structLayout.varHandle(short.class, PathElement.groupElement("elem2"));
+		short arg2_elem1 = (short)shortHandle1.get(arg2);
+		short arg2_elem2 = (short)shortHandle2.get(arg2);
+
+		Assert.assertEquals((short)-777, ((Short)arg1).shortValue());
+		Assert.assertEquals((short)-888, ((Short)arg2_elem1).shortValue());
+		Assert.assertEquals((short)-999, ((Short)arg2_elem2).shortValue());
+		Assert.assertEquals((short)-888, ((Short)arg3).shortValue());
+		Assert.assertEquals((short)-999, ((Short)arg4).shortValue());
+
+		short shortSum = (short)(arg1 + arg2_elem1 + arg2_elem2 + arg3 + arg4);
+		return shortSum;
 	}
 }

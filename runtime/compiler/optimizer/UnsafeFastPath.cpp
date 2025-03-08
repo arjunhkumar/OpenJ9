@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "optimizer/UnsafeFastPath.hpp"
@@ -51,6 +51,37 @@
 #include "optimizer/TransformUtil.hpp"
 #include "infra/Checklist.hpp"
 
+// Wrap TR_J9MethodBase::isVarHandleOperationMethod() to exclude byte buffer
+// view VarHandle operations from being special-cased by unsafe fast path. (It
+// stays in TR_J9MethodBase::isVarHandleOperationMethod() so that it can still
+// be recognized as always worth inlining.)
+//
+// There are a few obstacles to handling byte buffer view operations properly
+// in unsafe fast path.
+//
+// First, some VarHandleByteArrayAs*$ByteBufferHandle utility methods (index(),
+// indexRO(), address()) do unsafe accesses to fields of a non-array ByteBuffer
+// object and are called from the operation methods. One of these (indexRO())
+// accesses a boolean, and boolean array entries don't have the same shape as
+// boolean fields. Trying to load a field as though it's an array element on a
+// big-endian system results in false even when the field's value is true.
+//
+// Additionally, even for larger types that have only a single representation
+// for both fields and array elements, the null / non-array object case differs
+// from the array case if arraylets or off-heap arrays are in use. This will be
+// a problem for the previously mentioned utility methods, and further:
+//
+// - The operation methods themselves directly do unsafe accesses to fields of
+//   a non-array ByteBuffer object (mostly ByteBuffer.hb).
+//
+// - In the actual access that an operation method is meant to carry out, the
+//   base object can be either an array object or null.
+//
+static bool isVarHandleOperationMethod(TR::RecognizedMethod rm)
+   {
+   return TR_J9MethodBase::isVarHandleOperationMethod(rm)
+      && rm != TR::java_lang_invoke_VarHandleByteArrayAsX_ByteBufferHandle_method;
+   }
 
 static TR::RecognizedMethod getVarHandleAccessMethodFromInlinedCallStack(TR::Compilation* comp, TR::Node* node)
    {
@@ -59,7 +90,7 @@ static TR::RecognizedMethod getVarHandleAccessMethodFromInlinedCallStack(TR::Com
       {
       TR_ResolvedMethod* caller = comp->getInlinedResolvedMethod(callerIndex);
       TR::RecognizedMethod callerRm = caller->getRecognizedMethod();
-      if (TR_J9MethodBase::isVarHandleOperationMethod(callerRm))
+      if (isVarHandleOperationMethod(callerRm))
          {
          return callerRm;
          }
@@ -69,7 +100,7 @@ static TR::RecognizedMethod getVarHandleAccessMethodFromInlinedCallStack(TR::Com
       }
 
    TR::RecognizedMethod rm = comp->getJittedMethodSymbol()->getRecognizedMethod();
-   if (TR_J9MethodBase::isVarHandleOperationMethod(rm))
+   if (isVarHandleOperationMethod(rm))
       return rm;
 
    return TR::unknownMethod;
@@ -103,6 +134,9 @@ static bool isTransformableUnsafeAtomic(TR::Compilation *comp, TR::RecognizedMet
 
 static bool isKnownUnsafeCaller(TR::RecognizedMethod rm)
    {
+#if defined (J9VM_OPT_OPENJDK_METHODHANDLE)
+   return isVarHandleOperationMethod(rm);
+#else
    switch (rm)
       {
       case TR::java_lang_invoke_ArrayVarHandle_ArrayVarHandleOperations_OpMethod:
@@ -118,15 +152,43 @@ static bool isKnownUnsafeCaller(TR::RecognizedMethod rm)
          return false;
       }
    return false;
+#endif
    }
 
 static bool isUnsafeCallerAccessingStaticField(TR::RecognizedMethod rm)
    {
    switch (rm)
       {
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+      case TR::java_lang_invoke_VarHandleX_FieldStaticReadOnlyOrReadWrite_method:
+#else
       case TR::java_lang_invoke_StaticFieldVarHandle_StaticFieldVarHandleOperations_OpMethod:
       case TR::java_lang_invoke_StaticFieldGetterHandle_invokeExact:
       case TR::java_lang_invoke_StaticFieldSetterHandle_invokeExact:
+#endif
+         return true;
+      default:
+         return false;
+      }
+   return false;
+   }
+
+
+static bool isVarHandleOperationMethodOnArray(TR::RecognizedMethod rm)
+   {
+   switch (rm)
+      {
+#if defined (J9VM_OPT_OPENJDK_METHODHANDLE)
+      case TR::java_lang_invoke_VarHandleByteArrayAsX_ByteBufferHandle_method:
+         TR_ASSERT_FATAL(false, "attempt to process ByteBufferHandle method");
+         return false;
+
+      case TR::java_lang_invoke_VarHandleX_Array_method:
+      case TR::java_lang_invoke_VarHandleByteArrayAsX_ArrayHandle_method:
+#else
+      case TR::java_lang_invoke_ArrayVarHandle_ArrayVarHandleOperations_OpMethod:
+      case TR::java_lang_invoke_ByteArrayViewVarHandle_ByteArrayViewVarHandleOperations_OpMethod:
+#endif
          return true;
       default:
          return false;
@@ -136,6 +198,9 @@ static bool isUnsafeCallerAccessingStaticField(TR::RecognizedMethod rm)
 
 static bool isUnsafeCallerAccessingArrayElement(TR::RecognizedMethod rm)
    {
+#if defined (J9VM_OPT_OPENJDK_METHODHANDLE)
+   return isVarHandleOperationMethodOnArray(rm);
+#else
    switch (rm)
       {
       case TR::java_lang_invoke_ArrayVarHandle_ArrayVarHandleOperations_OpMethod:
@@ -144,19 +209,7 @@ static bool isUnsafeCallerAccessingArrayElement(TR::RecognizedMethod rm)
       default:
          return false;
       }
-   return false;
-   }
-
-static bool isVarHandleOperationMethodOnArray(TR::RecognizedMethod rm)
-   {
-   switch (rm)
-      {
-      case TR::java_lang_invoke_ArrayVarHandle_ArrayVarHandleOperations_OpMethod:
-      case TR::java_lang_invoke_ByteArrayViewVarHandle_ByteArrayViewVarHandleOperations_OpMethod:
-         return true;
-      default:
-         return false;
-      }
+#endif
    return false;
    }
 
@@ -164,9 +217,19 @@ static bool isVarHandleOperationMethodOnNonStaticField(TR::RecognizedMethod rm)
    {
    switch (rm)
       {
+#if defined (J9VM_OPT_OPENJDK_METHODHANDLE)
+      case TR::java_lang_invoke_VarHandleByteArrayAsX_ByteBufferHandle_method:
+         TR_ASSERT_FATAL(false, "attempt to process ByteBufferHandle method");
+         return false;
+
+      case TR::java_lang_invoke_VarHandleX_FieldInstanceReadOnlyOrReadWrite_method:
+      case TR::java_lang_invoke_VarHandleX_Array_method:
+      case TR::java_lang_invoke_VarHandleByteArrayAsX_ArrayHandle_method:
+#else
       case TR::java_lang_invoke_InstanceFieldVarHandle_InstanceFieldVarHandleOperations_OpMethod:
       case TR::java_lang_invoke_ArrayVarHandle_ArrayVarHandleOperations_OpMethod:
       case TR::java_lang_invoke_ByteArrayViewVarHandle_ByteArrayViewVarHandleOperations_OpMethod:
+#endif
          return true;
       default:
          return false;
@@ -193,6 +256,7 @@ static bool isVarHandleOperationMethodOnNonStaticField(TR::RecognizedMethod rm)
 bool TR_UnsafeFastPath::tryTransformUnsafeAtomicCallInVarHandleAccessMethod(TR::TreeTop* callTree, TR::RecognizedMethod callerMethod, TR::RecognizedMethod calleeMethod)
    {
    TR::Node* node = callTree->getNode()->getFirstChild();
+   TR::Node* unsafeAddress = NULL;
 
    // Give up on arraylet
    //
@@ -209,13 +273,27 @@ bool TR_UnsafeFastPath::tryTransformUnsafeAtomicCallInVarHandleAccessMethod(TR::
     TR::MethodSymbol *symbol = node->getSymbol()->castToMethodSymbol();
    // Codegen will inline the call with the flag
    //
-   if (symbol->getMethod()->isUnsafeCAS(comp()))
+   if (symbol->getMethod()->isUnsafeCAS())
       {
       // codegen doesn't optimize CAS on a static field
       //
       if (isVarHandleOperationMethodOnNonStaticField(callerMethod) &&
          performTransformation(comp(), "%s transforming Unsafe.CAS [" POINTER_PRINTF_FORMAT "] into codegen inlineable\n", optDetailString(), node))
          {
+      #if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+         if (isUnsafeCallerAccessingArrayElement(callerMethod) && TR::Compiler->om.isOffHeapAllocationEnabled() && comp()->target().is64Bit())
+            {
+            TR::Node *object = node->getChild(1);
+
+            TR::Node *baseAddr = TR::TransformUtil::generateDataAddrLoadTrees(comp(), object);
+            node->setChild(1, baseAddr);
+
+            //correct refcounts
+            object->decReferenceCount();
+            baseAddr->incReferenceCount();
+            }
+      #endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
+
          node->setIsSafeForCGToFastPathUnsafeCall(true);
          if (!isVarHandleOperationMethodOnArray(callerMethod))
             {
@@ -247,8 +325,7 @@ bool TR_UnsafeFastPath::tryTransformUnsafeAtomicCallInVarHandleAccessMethod(TR::
    if (!performTransformation(comp(), "%s turning the call [" POINTER_PRINTF_FORMAT "] into atomic intrinsic\n", optDetailString(), node))
       return false;
 
-   TR::Node* unsafeAddress = NULL;
-   if (callerMethod == TR::java_lang_invoke_StaticFieldVarHandle_StaticFieldVarHandleOperations_OpMethod)
+   if (isUnsafeCallerAccessingStaticField(callerMethod))
       {
       TR::Node *jlClass = node->getChild(1);
       TR::Node *j9Class = TR::Node::createWithSymRef(node, TR::aloadi, 1, jlClass, comp()->getSymRefTab()->findOrCreateClassFromJavaLangClassSymbolRef());
@@ -263,10 +340,19 @@ bool TR_UnsafeFastPath::tryTransformUnsafeAtomicCallInVarHandleAccessMethod(TR::
       }
    else
       {
-      TR::Node* object = node->getChild(1);
-      TR::Node* offset = node->getChild(2);
-      unsafeAddress = comp()->target().is32Bit() ? TR::Node::create(node, TR::aiadd, 2, object, TR::Node::create(node, TR::l2i, 1, offset)) :
-                                                       TR::Node::create(node, TR::aladd, 2, object, offset);
+      TR::Node *object = node->getChild(1);
+      TR::Node *offset = node->getChild(2);
+
+      TR::Node *baseAddr = object;
+
+      //load dataAddr only if offheap is enabled and object is array
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+      if (isUnsafeCallerAccessingArrayElement(callerMethod) && TR::Compiler->om.isOffHeapAllocationEnabled() && comp()->target().is64Bit())
+         baseAddr = TR::TransformUtil::generateDataAddrLoadTrees(comp(), object);
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
+
+      unsafeAddress = comp()->target().is32Bit() ? TR::Node::create(node, TR::aiadd, 2, baseAddr, TR::Node::create(node, TR::l2i, 1, offset)) :
+                                                   TR::Node::create(node, TR::aladd, 2, baseAddr, offset);
       unsafeAddress->setIsInternalPointer(true);
       }
 
@@ -336,6 +422,7 @@ int32_t TR_UnsafeFastPath::perform()
       {
       TR::Node *ttNode = tt->getNode();
       TR::Node *node = ttNode->getNumChildren() > 0 ? ttNode->getFirstChild() : NULL; // Get the first child of the tree
+      TR::RecognizedMethod recognizedVarHandleOpMethod = TR::unknownMethod;
       if (node && node->getOpCode().isCall() && !node->getSymbol()->castToMethodSymbol()->isHelper())
          {
          TR::SymbolReference *symRef = node->getSymbolReference();
@@ -345,9 +432,13 @@ int32_t TR_UnsafeFastPath::perform()
             {
             TR::RecognizedMethod caller = getVarHandleAccessMethodFromInlinedCallStack(comp(), node);
             TR::RecognizedMethod callee = symbol->getRecognizedMethod();
-            if (TR_J9MethodBase::isVarHandleOperationMethod(caller) &&
+
+            if (isVarHandleOperationMethod(caller))
+               recognizedVarHandleOpMethod = caller;
+
+            if (isVarHandleOperationMethod(caller) &&
                 (isTransformableUnsafeAtomic(comp(), callee) ||
-                 symbol->getMethod()->isUnsafeCAS(comp())))
+                 symbol->getMethod()->isUnsafeCAS()))
                {
                if (tryTransformUnsafeAtomicCallInVarHandleAccessMethod(tt, caller, callee))
                   {
@@ -371,20 +462,8 @@ int32_t TR_UnsafeFastPath::perform()
             charArray->setIsNonNull(true);
 
             prepareToReplaceNode(node); // This will remove the usedef info, valueNumber info and all children of the node
-            TR::Node *addrCalc;
-            if (comp()->target().is64Bit())
-               {
-               addrCalc = TR::Node::create(TR::aladd, 2, charArray,
-                     TR::Node::create(TR::ladd, 2, TR::Node::create(TR::lmul, 2, TR::Node::create(TR::i2l, 1, index), TR::Node::lconst(index, 4)),
-                                       TR::Node::lconst(index, TR::Compiler->om.contiguousArrayHeaderSizeInBytes())));
-               }
-            else
-               {
-               addrCalc = TR::Node::create(TR::aiadd, 2, charArray,
-                     TR::Node::create(TR::iadd, 2, TR::Node::create(TR::imul, 2, index, TR::Node::iconst(index, 4)),
-                                       TR::Node::iconst(index, TR::Compiler->om.contiguousArrayHeaderSizeInBytes())));
-               }
-
+            TR::Node *offsetNode = TR::TransformUtil::generateConvertArrayElementIndexToOffsetTrees(comp(), index, NULL, 4, false);
+            TR::Node *addrCalc = TR::TransformUtil::generateArrayElementAddressTrees(comp(), charArray, offsetNode);
             TR::SymbolReference * unsafeSymRef = comp()->getSymRefTab()->findOrCreateUnsafeSymbolRef(TR::Int32, true, false);
             node = TR::Node::recreateWithoutProperties(node, TR::istorei, 2, addrCalc, value, unsafeSymRef);
 
@@ -507,11 +586,12 @@ int32_t TR_UnsafeFastPath::perform()
             case TR::sun_misc_Unsafe_getObject_jlObjectJ_jlObject:
                switch (methodSymbol->getRecognizedMethod())
                   {
-               case TR::java_util_concurrent_ConcurrentHashMap_tabAt:
-               case TR::java_util_concurrent_ConcurrentHashMap_setTabAt:
-                  isArrayOperation = true;
-               default:
-                  break;
+                  case TR::java_util_concurrent_ConcurrentHashMap_tabAt:
+                  case TR::java_util_concurrent_ConcurrentHashMap_setTabAt:
+                     isArrayOperation = true;
+                     break;
+                  default:
+                     break;
                   }
                break;
             case TR::com_ibm_jit_JITHelpers_getByteFromArrayVolatile:
@@ -554,14 +634,14 @@ int32_t TR_UnsafeFastPath::perform()
             case TR::sun_misc_Unsafe_putObject_jlObjectJjlObject_V:
                switch (comp()->getMethodSymbol()->getRecognizedMethod())
                   {
-               case TR::java_util_concurrent_ConcurrentHashMap_setTabAt:
-                  type = TR::Address;
-                  value = node->getChild(3);
-                  break;
-               default:
-                  break;
-                  // by not setting type the call will not be recognized here and will
-                  // be left to the inliner since we need to generate control flow
+                  case TR::java_util_concurrent_ConcurrentHashMap_setTabAt:
+                     type = TR::Address;
+                     value = node->getChild(3);
+                     break;
+                  default:
+                     break;
+                     // by not setting type the call will not be recognized here and will
+                     // be left to the inliner since we need to generate control flow
                   }
                break;
             case TR::com_ibm_jit_JITHelpers_getByteFromArrayByIndex:
@@ -588,13 +668,13 @@ int32_t TR_UnsafeFastPath::perform()
             case TR::sun_misc_Unsafe_getObject_jlObjectJ_jlObject:
                switch (methodSymbol->getRecognizedMethod())
                   {
-               case TR::java_util_concurrent_ConcurrentHashMap_tabAt:
-                  type = TR::Address;
-                  break;
-               default:
-                  break;
-                  // by not setting type the call will not be recognized here and will
-                  // be left to the inliner since we need to generate control flow
+                  case TR::java_util_concurrent_ConcurrentHashMap_tabAt:
+                     type = TR::Address;
+                     break;
+                  default:
+                     break;
+                     // by not setting type the call will not be recognized here and will
+                     // be left to the inliner since we need to generate control flow
                   }
                break;
             case TR::sun_misc_Unsafe_putInt_jlObjectJI_V:
@@ -695,6 +775,8 @@ int32_t TR_UnsafeFastPath::perform()
          // Handle VarHandle operation methods
          bool isStatic = false;
          TR::RecognizedMethod callerMethod = methodSymbol->getRecognizedMethod();
+         if (recognizedVarHandleOpMethod != TR::unknownMethod)
+            callerMethod = recognizedVarHandleOpMethod;
          TR::RecognizedMethod calleeMethod = symbol->getRecognizedMethod();
          if (isKnownUnsafeCaller(callerMethod) &&
              TR_J9MethodBase::isUnsafeGetPutWithObjectArg(calleeMethod))
@@ -771,7 +853,7 @@ int32_t TR_UnsafeFastPath::perform()
                // The offset for a static field is low taged, mask out the last bit to get the real offset
                TR::Node *newOffset =
                   TR::Node::create(offset, TR::land, 2, offset,
-                                  TR::Node::lconst(offset, ~1));
+                                  TR::Node::lconst(offset, ~J9_SUN_FIELD_OFFSET_MASK));
                node->setAndIncChild(offsetChild, newOffset);
                offset->recursivelyDecReferenceCount();
                base = ramStatics;
@@ -912,10 +994,21 @@ int32_t TR_UnsafeFastPath::perform()
                TR::Node *addrCalc = NULL;
 
                // Calculate element address
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+               if (isArrayOperation && TR::Compiler->om.isOffHeapAllocationEnabled())
+                  {
+                  TR::Node *baseNodeForAdd = TR::TransformUtil::generateDataAddrLoadTrees(comp(), base);
+                  addrCalc = TR::Node::create(TR::aladd, 2, baseNodeForAdd, offset);
+                  }
+               else if (comp()->target().is64Bit())
+#else
                if (comp()->target().is64Bit())
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
                   addrCalc = TR::Node::create(TR::aladd, 2, base, offset);
                else
                   addrCalc = TR::Node::create(TR::aiadd, 2, base, TR::Node::create(TR::l2i, 1, offset));
+
+               addrCalc->setIsInternalPointer(true);
 
                if (value)
                   {

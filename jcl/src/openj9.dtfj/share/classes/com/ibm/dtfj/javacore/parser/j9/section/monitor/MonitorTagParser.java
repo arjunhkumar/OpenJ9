@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.monitor;
 
 import com.ibm.dtfj.javacore.parser.framework.tag.ILineRule;
@@ -45,7 +45,7 @@ public class MonitorTagParser extends TagParser implements IMonitorTypes {
 		addWaitNotify();
 		addTag(T_1LKREGMONDUMP, null);
 		addRegMon();
-		
+
 		// Deadlock support skipped for now.
 //		addTag(T_1LKDEADLOCK, null);
 //		addDeadLockThr();
@@ -89,9 +89,9 @@ public class MonitorTagParser extends TagParser implements IMonitorTypes {
 		};
 		addTag(IMonitorTypesSov.LK_FLAT_DETAILS, lineRule4);
 	}
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addPoolTotal() {
@@ -103,9 +103,9 @@ public class MonitorTagParser extends TagParser implements IMonitorTypes {
 		};
 		addTag(T_2LKPOOLTOTAL, lineRule);
 	}
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addMonInUse() {
@@ -116,9 +116,9 @@ public class MonitorTagParser extends TagParser implements IMonitorTypes {
 		};
 		addTag(T_2LKMONINUSE, lineRule);
 	}
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addMonObject() {
@@ -129,9 +129,9 @@ public class MonitorTagParser extends TagParser implements IMonitorTypes {
 		};
 		addTag(T_3LKMONOBJECT, lineRule);
 	}
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addWaiter() {
@@ -142,22 +142,22 @@ public class MonitorTagParser extends TagParser implements IMonitorTypes {
 		};
 		addTag(T_3LKWAITER, lineRule);
 	}
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addWaitNotify() {
 		ILineRule lineRule = new MonitorObjectLineRule()	 {
 			public void processLine(String source, int startingOffset) {
 				addVMThreadInformation();
-			}	
+			}
 		};
 		addTag(T_3LKWAITNOTIFY, lineRule);
 	}
-	
+
 	/**
-	 * 
+	 *
 	 *
 	 */
 	private void addRegMon() {
@@ -168,12 +168,12 @@ public class MonitorTagParser extends TagParser implements IMonitorTypes {
 		};
 		addTag(T_2LKREGMON, lineRule);
 	}
-	
+
 	/*
 	 * No DTFJ support for deadlocks. Partially implemented below, but not tested.
 	 */
 //	/**
-//	 * 
+//	 *
 //	 *
 //	 */
 //	private void addDeadLockThr() {
@@ -184,22 +184,22 @@ public class MonitorTagParser extends TagParser implements IMonitorTypes {
 //		};
 //		addTag(T_2LKDEADLOCKTHR, lineRule);
 //	}
-//	
+//
 //	/**
-//	 * 
+//	 *
 //	 *
 //	 */
 //	private void addDeadLockMon() {
 //		ILineRule lineRule = new MonitorObjectLineRule()	 {
 //			public void processLine(String source, int startingOffset) {
 //				addSystemAndInflatedThdInfo();
-//			}	
+//			}
 //		};
-//		addTag(T_4LKDEADLOCKMON, lineRule);	
+//		addTag(T_4LKDEADLOCKMON, lineRule);
 //	}
-//	
+//
 //	/**
-//	 * 
+//	 *
 //	 *
 //	 */
 //	private void addDeadLockObj() {
@@ -210,9 +210,9 @@ public class MonitorTagParser extends TagParser implements IMonitorTypes {
 //		};
 //		addTag(T_4LKDEADLOCKOBJ, lineRule);
 //	}
-//	
+//
 //	/**
-//	 * 
+//	 *
 //	 *
 //	 */
 //	private void addDeadLockReg() {

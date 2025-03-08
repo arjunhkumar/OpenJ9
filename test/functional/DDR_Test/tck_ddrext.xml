@@ -18,7 +18,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <project name="DDR Extension Test" default="clean">
 	<taskdef resource="net/sf/antcontrib/antlib.xml" />
@@ -31,22 +31,14 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	<property name="REPORTDIR" value="${REPORTDIR}" />
 	<property name="JDK_VERSION" value="${JDK_VERSION}" />
 	<property name="EXTRADUMPOPT" value="" />
-	<property name="ADDITIONALEXPORTS" value="" />
+	<condition property="ADDITIONALEXPORTS" value="" else="--add-exports=java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED">
+		<equals arg1="${JDK_VERSION}" arg2="8" />
+	</condition>
 	<property name="JVM_OPTIONS" value="" />
 	<property name="TESTNUM" value="" />
 	<property name="COREGEN" value="j9vm.test.corehelper.CoreGen" />
 	<property name="TEST_LIB_PATH" value="" />
 
-	<!-- MacOSX needs to set TEST_LIB_PATH_VAL for testDDRExtJunit_MonitorsAndDeadlock* to load native library -->
-	<if>
-		<contains string="${os.name}" substring="Mac OS X" />
-		<then>
-			<property name="TEST_LIB_PATH_VAL" value="${TEST_LIB_PATH}" />
-		</then>
-		<else>
-			<property name="TEST_LIB_PATH_VAL" value="" />
-		</else>
-	</if>
 	<property name="dump.name" value="DDREXT.J9CORE.DMP" />
 	<property name="system.dump" value="${REPORTDIR}/${dump.name}" />
 	<if>
@@ -104,11 +96,6 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 		</java>
 	</target>
 
-	<!-- MacOSX needs -XstartOnFirstThread -->
-	<condition property="StartOnFirstThread" value="-XstartOnFirstThread" else="">
-		<os family="mac" />
-	</condition>
-
 	<if>
 		<equals arg1="${JDK_VERSION}" arg2="8" />
 		<then>
@@ -147,6 +134,11 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	</if>
 
 	<target name="TCK.run.tests.ddrext" depends="TCK.destroy.cache">
+		<!-- MacOSX needs -XstartOnFirstThread -->
+		<condition property="StartOnFirstThread" value="-XstartOnFirstThread" else="">
+			<os family="mac" />
+		</condition>
+
 		<echo>Running the DDR Extension Test</echo>
 		<java-wrapper fork="true" jvm="${JAVA_COMMAND}" classname="j9vm.test.ddrext.AutoRun"
 			timeout="1200000" failonerror="true">
@@ -158,23 +150,7 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 				<classpath refid="tck.class.path" />
 			</common-elements>
 			<modular-elements>
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.corereaders=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.corereaders.memory=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.corereaders.osthread=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.events=ALL-UNNAMED" />
 				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.tools.ddrinteractive=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.tools.ddrinteractive.annotations=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.util=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.view.dtfj.image=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.vm29.j9=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.vm29.j9.gc=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.vm29.j9.walkers=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.vm29.pointer=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.vm29.pointer.generated=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.vm29.pointer.helper=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.vm29.tools.ddrinteractive=ALL-UNNAMED" />
-				<jvmarg value="--add-exports=openj9.dtfj/com.ibm.j9ddr.vm29.types=ALL-UNNAMED" />
 			</modular-elements>
 		</java-wrapper>
 	</target>
@@ -198,6 +174,11 @@ SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-excepti
 	</target>
 
 	<target name="TCK.generate.dump" depends="TCK.initialize.cache">
+		<!-- MacOSX needs to set TEST_LIB_PATH_VAL for testDDRExtJunit_MonitorsAndDeadlock* to load native libraries. -->
+		<condition property="TEST_LIB_PATH_VAL" value="${TEST_LIB_PATH}" else="">
+			<os family="mac" />
+		</condition>
+
 		<echo>Generate dump file</echo>
 		<echo>JAVA_COMMAND: ${JAVA_COMMAND}</echo>
 		<echo>DUMP_OPTION: ${DUMP_OPTION}</echo>

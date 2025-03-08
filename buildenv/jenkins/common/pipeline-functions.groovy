@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 def get_shas(OPENJDK_REPO, OPENJDK_BRANCH, OPENJ9_REPO, OPENJ9_BRANCH, OMR_REPO, OMR_BRANCH, VENDOR_TEST_REPOS_MAP=null, VENDOR_TEST_BRANCHES_MAP=null, VENDOR_TEST_SHAS_MAP=null) {
@@ -237,7 +237,7 @@ def test(JOB_NAME, UPSTREAM_JOB_NAME, UPSTREAM_JOB_NUMBER, NODE, OPENJ9_REPO, OP
             string(name: 'VENDOR_TEST_DIRS', value: VENDOR_TEST_DIRS),
             string(name: 'USER_CREDENTIALS_ID', value: USER_CREDENTIALS_ID),
             string(name: 'TEST_FLAG', value: TEST_FLAG),
-            string(name: 'KEEP_REPORTDIR', value: keepReportDir),
+            booleanParam(name: 'KEEP_REPORTDIR', value: keepReportDir.toBoolean()),
             string(name: 'BUILD_IDENTIFIER', value: BUILD_IDENTIFIER),
             string(name: 'PARALLEL', value: PARALLEL),
             string(name: 'NUM_MACHINES', value: NUM_MACHINES),
@@ -424,9 +424,6 @@ def workflow(SDK_VERSION, SPEC, SHAS, OPENJDK_REPO, OPENJDK_BRANCH, OPENJ9_REPO,
             def keepReportDir = target['keepReportDir']
             def buildList = target['buildList']
 
-            if (SPEC.contains("_criu")) {
-                extraTestLabels = extraTestLabels ? extraTestLabels + "&&ci.role.test.criu" : "ci.role.test.criu"
-            }
             echo "Test:'${id}' testFlag:'${testFlag}' extraTestLabels:'${extraTestLabels}', keepReportDir:'${keepReportDir}'"
 
             def testJobName = get_test_job_name(id, SPEC, SDK_VERSION, BUILD_IDENTIFIER)
@@ -440,7 +437,7 @@ def workflow(SDK_VERSION, SPEC, SHAS, OPENJDK_REPO, OPENJDK_BRANCH, OPENJ9_REPO,
                 if (!SPEC.contains("valhalla")) {
                     DYNAMIC_COMPILE = true
                 }
-            } else if (testJobName.contains("sanity.system") || testJobName.contains("extended.system")) {
+            } else if (testJobName.contains("sanity.system") || testJobName.contains("extended.system") || testJobName.contains("sanity.openjdk")) {
                 PARALLEL = "Dynamic"
                 NUM_MACHINES = "3"
             } else if (testJobName.contains("special.system")) {
@@ -615,12 +612,6 @@ def generate_test_jobs(TESTS, SPEC, ARTIFACTORY_SERVER, ARTIFACTORY_REPO) {
         auto_detect = false
     }
 
-    // LIGHT_WEIGHT_CHECKOUT=false is needed for the releases in order for test jobs to consume ADOPTOPENJDK_REPO and ADOPTOPENJDK_BRANCH
-    def light_weight_checkout = true
-    if (BUILD_IDENTIFIER.toLowerCase() == "release") {
-        light_weight_checkout = false
-    }
-
     if (levels && groups) {
         def parameters = [
             string(name: 'LEVELS', value: levels.join(',')),
@@ -633,7 +624,7 @@ def generate_test_jobs(TESTS, SPEC, ARTIFACTORY_SERVER, ARTIFACTORY_REPO) {
             string(name: 'ARTIFACTORY_REPO', value: ARTIFACTORY_REPO),
             string(name: 'BUILDS_TO_KEEP', value: DISCARDER_NUM_BUILDS),
             booleanParam(name: 'AUTO_DETECT', value: auto_detect),
-            booleanParam(name: 'LIGHT_WEIGHT_CHECKOUT', value: light_weight_checkout)
+            booleanParam(name: 'LIGHT_WEIGHT_CHECKOUT', value: true)
         ]
         build job: 'Test_Job_Auto_Gen', parameters: parameters, propagate: false
     }
@@ -735,12 +726,12 @@ def setup_pull_request_single_comment(parsedComment) {
         case ~/.*openj9-openjdk-jdk.*/:
             // <org>/openj9-openjdk-jdk<version>(-zos)?
             def tmp_version = ghprbGhRepository.substring(ghprbGhRepository.indexOf('-jdk')+4)
-            if ("${tmp_version}" == "") {
-                tmp_version = 'next'
-            }
             if (tmp_version.contains('-')) {
                 // Strip off '-zos'
                 tmp_version = tmp_version.substring(0, tmp_version.indexOf('-'))
+            }
+            if ("${tmp_version}" == "") {
+                tmp_version = 'next'
             }
             RELEASES.add(tmp_version)
             minCommentSize = 3
@@ -809,7 +800,7 @@ def move_spec_suffix_to_id(spec, id) {
     def spec_id = [:]
     spec_id['spec'] = spec
     spec_id['id'] = id
-    for (suffix in ['aot', 'cm', 'criu', 'jit', 'ojdk292', 'uma', 'valhalla', 'vt_standard']) {
+    for (suffix in ['aot', 'jit', 'ojdk292', 'valhalla', 'vt_standard']) {
         if (spec.contains("_${suffix}")) {
             spec_id['spec'] = spec - "_${suffix}"
             spec_id['id'] = "${suffix}_" + id

@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -35,31 +35,33 @@
 #include "jvminit.h"
 #include "SCQueryFunctions.h"
 
-typedef UDATA (*callback_func_t) (J9VMThread * vmThread, void * userData, UDATA bytecodeOffset, J9ROMClass * romClass, J9ROMMethod * romMethod, J9UTF8 * fileName, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass);
+typedef UDATA (*callback_func_t) (J9VMThread * vmThread, void * userData, UDATA bytecodeOffset, J9ROMClass * romClass, J9ROMMethod * romMethod, J9UTF8 * fileName, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass, UDATA frameType);
 
 static void printExceptionInThread (J9VMThread* vmThread);
 static UDATA isSubclassOfThreadDeath (J9VMThread *vmThread, j9object_t exception);
 static void printExceptionMessage (J9VMThread* vmThread, j9object_t exception);
+static J9Class* findJ9ClassForROMClass(J9VMThread *vmThread, J9ROMClass *romClass, J9ClassLoader **resultClassLoader);
 
 
 /* assumes VM access */
-static void 
-printExceptionInThread(J9VMThread* vmThread) 
+static void
+printExceptionInThread(J9VMThread* vmThread)
 {
 	char* name;
 	const char* format;
 
 	PORT_ACCESS_FROM_VMC(vmThread);
-	
+
 	format = j9nls_lookup_message(
-		J9NLS_INFO | J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE, 
-		J9NLS_VM_STACK_TRACE_EXCEPTION_IN, 
-		"Exception in thread \"%.*s\" ");
+		J9NLS_INFO | J9NLS_DO_NOT_PRINT_MESSAGE_TAG | J9NLS_DO_NOT_APPEND_NEWLINE,
+		J9NLS_VM_STACK_TRACE_EXCEPTION_IN,
+		"Exception in thread \"%s\"");
 
 	name = getOMRVMThreadName(vmThread->omrVMThread);
 
-	j9tty_err_printf(PORTLIB, (char*)format, strlen(name), name);
-	
+	j9tty_err_printf(format, name);
+	j9tty_err_printf(" ");
+
 	releaseOMRVMThreadName(vmThread->omrVMThread);
 }
 
@@ -85,11 +87,11 @@ printExceptionMessage(J9VMThread* vmThread, j9object_t exception) {
 		}
 	}
 
-	j9tty_err_printf(PORTLIB, "%.*s%s%.*s\n",
+	j9tty_err_printf("%.*s%s%.*s\n",
 		(UDATA)J9UTF8_LENGTH(exceptionClassName),
 		J9UTF8_DATA(exceptionClassName),
 		separator,
-		length, 
+		length,
 		buf);
 
 	if (buf != stackBuffer) {
@@ -100,7 +102,7 @@ printExceptionMessage(J9VMThread* vmThread, j9object_t exception) {
 
 /* assumes VM access */
 static UDATA
-printStackTraceEntry(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeOffset, J9ROMClass *romClass, J9ROMMethod * romMethod, J9UTF8 * sourceFile, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass) {
+printStackTraceEntry(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeOffset, J9ROMClass *romClass, J9ROMMethod * romMethod, J9UTF8 * sourceFile, UDATA lineNumber, J9ClassLoader* classLoader, J9Class* ramClass, UDATA frameType) {
 	const char* format = NULL;
 	J9JavaVM *vm = vmThread->javaVM;
 	J9InternalVMFunctions * vmFuncs = vm->internalVMFunctions;
@@ -111,7 +113,7 @@ printStackTraceEntry(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeO
 			J9NLS_INFO | J9NLS_DO_NOT_PRINT_MESSAGE_TAG,
 			J9NLS_VM_STACK_TRACE_UNKNOWN,
 			NULL);
-		j9tty_err_printf(PORTLIB, (char*)format);
+		j9tty_err_printf(format);
 	} else {
 		J9UTF8* className = J9ROMCLASS_CLASSNAME(romClass);
 		J9UTF8* methodName = J9ROMMETHOD_NAME(romMethod);
@@ -119,9 +121,7 @@ printStackTraceEntry(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeO
 		UDATA sourceFileNameLen = 0;
 		char *moduleNameUTF = NULL;
 		char *moduleVersionUTF = NULL;
-		char nameBuf[J9VM_PACKAGE_NAME_BUFFER_LENGTH];
 		char versionBuf[J9VM_PACKAGE_NAME_BUFFER_LENGTH];
-		BOOLEAN freeModuleName = FALSE;
 		BOOLEAN freeModuleVersion = FALSE;
 
 		if (JAVA_SPEC_VERSION >= 11) {
@@ -136,10 +136,9 @@ printStackTraceEntry(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeO
 
 				if (NULL != module) {
 					if (module != vm->javaBaseModule) {
-						moduleNameUTF = copyStringToUTF8WithMemAlloc(
-							vmThread, module->moduleName, J9_STR_NULL_TERMINATE_RESULT, "", 0, nameBuf, J9VM_PACKAGE_NAME_BUFFER_LENGTH, NULL);
-						if (nameBuf != moduleNameUTF) {
-							freeModuleName = TRUE;
+						J9UTF8 *moduleName = module->moduleName;
+						if (NULL != moduleName) {
+							moduleNameUTF = (char *)J9UTF8_DATA(moduleName);
 						}
 					} else {
 						moduleNameUTF = JAVA_BASE_MODULE;
@@ -183,7 +182,7 @@ printStackTraceEntry(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeO
 					J9NLS_VM_STACK_TRACE_WITH_MODULE_VERSION,
 					"\tat %.*s.%.*s (%s@%s/%.*s)\n");
 			}
-			j9tty_err_printf(PORTLIB, (char*)format,
+			j9tty_err_printf(format,
 				(UDATA)J9UTF8_LENGTH(className), J9UTF8_DATA(className),
 				(UDATA)J9UTF8_LENGTH(methodName), J9UTF8_DATA(methodName),
 				moduleNameUTF, moduleVersionUTF,
@@ -201,7 +200,7 @@ printStackTraceEntry(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeO
 					J9NLS_VM_STACK_TRACE,
 					"\tat %.*s.%.*s (%.*s)\n");
 			}
-			j9tty_err_printf(PORTLIB, (char*)format,
+			j9tty_err_printf(format,
 				(UDATA)J9UTF8_LENGTH(className), J9UTF8_DATA(className),
 				(UDATA)J9UTF8_LENGTH(methodName), J9UTF8_DATA(methodName),
 				sourceFileNameLen, sourceFileName,
@@ -210,16 +209,136 @@ printStackTraceEntry(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeO
 		if (freeModuleVersion) {
 			j9mem_free_memory(moduleVersionUTF);
 		}
-		if (freeModuleName) {
-			j9mem_free_memory(moduleNameUTF);
-		}
 	}
 
 	return TRUE;
 }
 
+/**
+* Find the J9Class given a ROMClass.
+* @param[in] vmThread The current VM thread.
+* @param[in] ROMClass The J9ROMClass from which the J9Class is created.
+* @param[in, out] resultClassLoader This is the classLoader that owns the memory segment that the ROMClass was found in.
+*	The romclass memory segment in the shared cache always belongs to vm->systemClassLoader. Set it to the actual class loader which loaded the class in this case.
+*
+* @return The J9class, or NULL on failure.
+*/
+static J9Class*
+findJ9ClassForROMClass(J9VMThread *vmThread, J9ROMClass *romClass, J9ClassLoader **resultClassLoader)
+{
+	J9UTF8 const *utfClassName = J9ROMCLASS_CLASSNAME(romClass);
+	J9JavaVM *vm = vmThread->javaVM;
+	J9SharedClassConfig *config = vm->sharedClassConfig;
+	J9Class* ret = NULL;
 
-/* 
+	if (_J9ROMCLASS_J9MODIFIER_IS_SET(romClass, J9AccClassAnonClass)) {
+		/* Anonymous classes are not allowed in any class loader hash table. */
+		return NULL;
+	}
+
+	if (j9shr_Query_IsAddressInCache(vm, romClass, romClass->romSize)
+		&& (NULL != config->romToRamHashTable)
+	) {
+		J9ClassLoaderWalkState walkState;
+		J9ClassLoader* classLoader = NULL;
+		BOOLEAN fastMode = J9_ARE_ALL_BITS_SET(vm->extendedRuntimeFlags, J9_EXTENDED_RUNTIME_FAST_CLASS_HASH_TABLE);
+		J9Class* ramClass = NULL;
+		RomToRamEntry *resultEntry;
+		RomToRamQueryEntry searchEntry;
+		searchEntry.romClass = (J9ROMClass *)((UDATA)romClass | ROM_TO_RAM_QUERY_TAG);
+
+		omrthread_rwmutex_enter_read(config->romToRamHashTableMutex);
+		resultEntry = hashTableFind(config->romToRamHashTable, &searchEntry);
+		omrthread_rwmutex_exit_read(config->romToRamHashTableMutex);
+		if (NULL != resultEntry) {
+			ret = resultEntry->ramClass;
+			*resultClassLoader = ret->classLoader;
+			goto done;
+		}
+
+		if (!fastMode) {
+			omrthread_monitor_enter(vm->classTableMutex);
+		}
+		/**
+		 * Use hashClassTableAt() instead of peekClassHashTable() because classLoaderBlocksMutex must be acquired after classTableMutex.
+		 * (allClassLoadersStartDo enters classLoaderBlocksMutex and peekClassHashTable() enters classTableMutex)
+		 */
+		/**
+		 * All ROMClasses from the SCC are owned by the bootstrap class loader. To minimize the chances to iterate all class loaders, probe
+		 * the booststrap loader, extensionClassLoader and application loader first to determine if they have the J9Class for the current class.
+		 */
+		ramClass = hashClassTableAt(*resultClassLoader, J9UTF8_DATA(utfClassName), J9UTF8_LENGTH(utfClassName));
+		if ((NULL != ramClass)
+			&& (romClass == ramClass->romClass)
+		) {
+			ret = ramClass;
+			if (!fastMode) {
+				omrthread_monitor_exit(vm->classTableMutex);
+			}
+			goto cacheresult;
+		}
+
+		ramClass = hashClassTableAt(vm->extensionClassLoader, J9UTF8_DATA(utfClassName), J9UTF8_LENGTH(utfClassName));
+		if ((NULL != ramClass)
+			&& (romClass == ramClass->romClass)
+		) {
+			ret = ramClass;
+			*resultClassLoader = vm->extensionClassLoader;
+			if (!fastMode) {
+				omrthread_monitor_exit(vm->classTableMutex);
+			}
+			goto cacheresult;
+		}
+
+		ramClass = hashClassTableAt(vm->applicationClassLoader, J9UTF8_DATA(utfClassName), J9UTF8_LENGTH(utfClassName));
+		if ((NULL != ramClass)
+			&& (romClass == ramClass->romClass)
+		) {
+			ret = ramClass;
+			*resultClassLoader = vm->applicationClassLoader;
+			if (!fastMode) {
+				omrthread_monitor_exit(vm->classTableMutex);
+			}
+			goto cacheresult;
+		}
+
+		classLoader = vm->internalVMFunctions->allClassLoadersStartDo(&walkState, vm, 0);
+		while (NULL != classLoader) {
+			if ((classLoader != *resultClassLoader)
+				&& (classLoader != vm->extensionClassLoader)
+				&& (classLoader != vm->applicationClassLoader)
+			) {
+				ramClass = hashClassTableAt(classLoader, J9UTF8_DATA(utfClassName), J9UTF8_LENGTH(utfClassName));
+				if ((NULL != ramClass)
+					&& (romClass == ramClass->romClass)
+				) {
+					ret = ramClass;
+					*resultClassLoader = classLoader;
+					break;
+				}
+			}
+			classLoader = vm->internalVMFunctions->allClassLoadersNextDo(&walkState);
+		}
+		vm->internalVMFunctions->allClassLoadersEndDo(&walkState);
+		if (!fastMode) {
+			omrthread_monitor_exit(vm->classTableMutex);
+		}
+cacheresult:
+		if (NULL != ret) {
+			RomToRamEntry newEntry;
+			newEntry.ramClass = ret;
+			omrthread_rwmutex_enter_write(config->romToRamHashTableMutex);
+			hashTableAdd(config->romToRamHashTable, &newEntry);
+			omrthread_rwmutex_exit_write(config->romToRamHashTableMutex);
+		}
+	} else {
+		ret = peekClassHashTable(vmThread, *resultClassLoader, J9UTF8_DATA(utfClassName), J9UTF8_LENGTH(utfClassName));
+	}
+done:
+	return ret;
+}
+
+/*
  * Walks the backtrace of an exception instance, invoking a user-supplied callback function for
  * each frame on the call stack.
  *
@@ -228,52 +347,73 @@ printStackTraceEntry(J9VMThread * vmThread, void * voidUserData, UDATA bytecodeO
  * @param callback The callback function to be invoked for each stack frame.
  * @param userData Opaque data pointer passed to the callback function.
  * @param pruneConstructors Non-zero if constructors should be pruned from the stack trace.
+ * @param sizeOfWalkstateCache Non-zero if exception is walkstate cache instead of exception object.
+ * 								Indicatest the size of cache.
  * @return The number of times the callback function was invoked.
  *
  * @note Assumes VM access
  **/
 UDATA
-iterateStackTrace(J9VMThread * vmThread, j9object_t* exception, callback_func_t callback, void * userData, UDATA pruneConstructors, UDATA skipHiddenFrames)
+iterateStackTraceImpl(J9VMThread * vmThread, j9object_t* exception, callback_func_t callback, void * userData, UDATA pruneConstructors, UDATA skipHiddenFrames, UDATA sizeOfWalkstateCache, BOOLEAN exceptionIsJavaObject)
 {
 	J9JavaVM * vm = vmThread->javaVM;
 	UDATA totalEntries = 0;
-	j9object_t walkback = J9VMJAVALANGTHROWABLE_WALKBACK(vmThread, (*exception));
+	void *walkback = NULL;
+
+	if (exceptionIsJavaObject) {
+		walkback = J9VMJAVALANGTHROWABLE_WALKBACK(vmThread, (*exception));
+	} else {
+		walkback = exception;
+	}
 
 	/* Note that exceptionAddr might be a pointer into the current thread's stack, so no java code is allowed to run
 	   (nothing which could cause the stack to grow).
 	*/
 
 	if (walkback) {
-		U_32 arraySize = J9INDEXABLEOBJECT_SIZE(vmThread, walkback);
+		U_32 arraySize = 0;
+
 		U_32 currentElement = 0;
 		UDATA callbackResult = TRUE;
 #ifndef J9VM_INTERP_NATIVE_SUPPORT
 		pruneConstructors = FALSE;
 #endif
+		if (exceptionIsJavaObject) {
+			arraySize = J9INDEXABLEOBJECT_SIZE(vmThread, walkback);
 
-		/* A zero terminates the stack trace - search backwards through the array to determine the correct size */
+			/* A zero terminates the stack trace - search backwards through the array to determine the correct size */
 
-		while ((arraySize != 0) && (J9JAVAARRAYOFUDATA_LOAD(vmThread, walkback, arraySize-1)) == 0) {
-			--arraySize;
+			while ((arraySize != 0) && (J9JAVAARRAYOFUDATA_LOAD(vmThread, walkback, arraySize-1)) == 0) {
+				--arraySize;
+			}
+		} else {
+			arraySize = (U_32)sizeOfWalkstateCache;
 		}
 
 		/* Loop over the stack trace */
 
 		while (currentElement != arraySize) {
-			/* write as for or move currentElement++ to very end */ 
-			UDATA methodPC = J9JAVAARRAYOFUDATA_LOAD(vmThread, J9VMJAVALANGTHROWABLE_WALKBACK(vmThread, (*exception)), currentElement);
+			/* write as for or move currentElement++ to very end */
+			UDATA methodPC = 0;
 			J9ROMMethod * romMethod = NULL;
 			J9ROMClass *romClass = NULL;
 			UDATA lineNumber = 0;
 			J9UTF8 * fileName = NULL;
 			J9ClassLoader *classLoader = NULL;
 			J9Class *ramClass = NULL;
+			UDATA frameType = J9VM_STACK_FRAME_INTERPRETER;
 #ifdef J9VM_INTERP_NATIVE_SUPPORT
 			J9JITExceptionTable * metaData = NULL;
 			UDATA inlineDepth = 0;
 			void * inlinedCallSite = NULL;
 			void * inlineMap = NULL;
 			J9JITConfig * jitConfig = vm->jitConfig;
+
+			if (exceptionIsJavaObject) {
+				methodPC = J9JAVAARRAYOFUDATA_LOAD(vmThread, J9VMJAVALANGTHROWABLE_WALKBACK(vmThread, (*exception)), currentElement);
+			} else {
+				methodPC = ((UDATA *)exception)[currentElement];
+			}
 
 			if (jitConfig) {
 				metaData = jitConfig->jitGetExceptionTableFromPC(vmThread, methodPC);
@@ -311,9 +451,11 @@ inlinedEntry:
 							methodPC = jitConfig->getCurrentByteCodeIndexAndIsSameReceiver(metaData, inlineMap, NULL, &isSameReceiver);
 						}
 						ramMethod = metaData->ramMethod;
+						frameType = J9VM_STACK_FRAME_JIT;
 					} else {
 						methodPC = jitConfig->getCurrentByteCodeIndexAndIsSameReceiver(metaData, inlineMap , inlinedCallSite, &isSameReceiver);
 						ramMethod = jitConfig->getInlinedMethod(inlinedCallSite);
+						frameType = J9VM_STACK_FRAME_JIT_INLINE;
 					}
 					if (pruneConstructors) {
 						if (isSameReceiver) {
@@ -331,29 +473,7 @@ inlinedEntry:
 #endif
 					romClass = findROMClassFromPC(vmThread, methodPC, &classLoader);
 					if (NULL != romClass) {
-						J9UTF8 const *utfClassName = J9ROMCLASS_CLASSNAME(romClass);
-
-						ramClass = peekClassHashTable(vmThread, classLoader, J9UTF8_DATA(utfClassName), J9UTF8_LENGTH(utfClassName));
-						if (j9shr_Query_IsAddressInCache(vm, romClass, romClass->romSize)) {	
-							if (ramClass == NULL) {
-								/* Probe the application loader to determine if it has the J9Class for the current class.
-								 * This secondary probe is required as all ROMClasses from the SCC appear to be owned
-								 * by the bootstrap classloader.
-								 */
-								ramClass = peekClassHashTable(vmThread, vm->applicationClassLoader, J9UTF8_DATA(utfClassName), J9UTF8_LENGTH(utfClassName));
-							}
-							if (NULL != ramClass) {
-								if (romClass != ramClass->romClass) {
-									/**
-									 * It is possible this romClass is not loaded by bootstrap/app class loader.
-									 * There is another class loader that loads a different class with the same name,
-									 * Do not return the ramClass from bootstrap/app loader in this case.
-									 */
-									ramClass = NULL;
-								}
-							}
-						}
-
+						ramClass = findJ9ClassForROMClass(vmThread, romClass, &classLoader);
 						while (NULL != ramClass) {
 							U_32 i = 0;
 							J9Method *methods = ramClass->ramMethods;
@@ -399,6 +519,9 @@ foundROMMethod: ;
 				}
 #ifdef J9VM_OPT_DEBUG_INFO_SERVER
 				if (romMethod != NULL) {
+					if (J9_ARE_ALL_BITS_SET(romMethod->modifiers, J9AccNative)) {
+						frameType = J9VM_STACK_FRAME_NATIVE;
+					}
 					lineNumber = getLineNumberForROMClassFromROMMethod(vm, romMethod, romClass, classLoader, methodPC);
 					fileName = getSourceFileNameForROMClass(vm, classLoader, romClass);
 				}
@@ -408,7 +531,7 @@ foundROMMethod: ;
 
 				if (callback != NULL) {
 					/* The methodPC is the bytecode offset within the romMethod. */
-					callbackResult = callback(vmThread, userData, methodPC, romClass, romMethod, fileName, lineNumber, classLoader, ramClass);
+					callbackResult = callback(vmThread, userData, methodPC, romClass, romMethod, fileName, lineNumber, classLoader, ramClass, frameType);
 				}
 
 #ifdef J9VM_OPT_DEBUG_INFO_SERVER
@@ -443,16 +566,35 @@ done:
 	return totalEntries;
 }
 
+/*
+ * Walks the backtrace of an exception instance, invoking a user-supplied callback function for
+ * each frame on the call stack.
+ *
+ * @param vmThread
+ * @param exception The exception object that contains the backtrace.
+ * @param callback The callback function to be invoked for each stack frame.
+ * @param userData Opaque data pointer passed to the callback function.
+ * @param pruneConstructors Non-zero if constructors should be pruned from the stack trace.
+ * @return The number of times the callback function was invoked.
+ *
+ * @note Assumes VM access
+ **/
+UDATA
+iterateStackTrace(J9VMThread * vmThread, j9object_t* exception, callback_func_t callback, void * userData, UDATA pruneConstructors, UDATA skipHiddenFrames)
+{
+	return iterateStackTraceImpl(vmThread, exception, callback, userData, pruneConstructors, skipHiddenFrames, 0, TRUE);
+}
+
 /**
  * This is an helper function to call exceptionDescribe indirectly from gpProtectAndRun function.
- * 
+ *
  * @param entryArg	Current VM Thread (JNIEnv * env)
  */
 static UDATA
 gpProtectedExceptionDescribe(void *entryArg)
 {
 	JNIEnv * env = (JNIEnv *)entryArg;
-	
+
 	exceptionDescribe(env);
 
 	return 0;					/* return value required to conform to port library definition */
@@ -460,13 +602,13 @@ gpProtectedExceptionDescribe(void *entryArg)
 
 /**
  * Assumes VM access
- * 
- * Builds the exception	
+ *
+ * Builds the exception
  *
  * @param env    J9VMThread *
  *
  */
-void   
+void
 internalExceptionDescribe(J9VMThread * vmThread)
 {
 	/* If the exception is NULL, do nothing.  Do not fetch the exception value into a local here as we do not have VM access yet. */
@@ -535,17 +677,17 @@ internalExceptionDescribe(J9VMThread * vmThread)
 				break;
 			}
 		} while (exception != NULL);
-	
+
 done: ;
 	}
 }
 
 /**
  * This function makes sure that call to "internalExceptionDescribe" is gpProtected
- * 
+ *
  * @param env	Current VM thread (J9VMThread *)
  */
-void JNICALL   
+void JNICALL
 exceptionDescribe(JNIEnv * env)
 {
 	J9VMThread * vmThread = (J9VMThread *) env;

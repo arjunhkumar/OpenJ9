@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.title;
 
 import java.text.ParseException;
@@ -32,7 +32,7 @@ import com.ibm.dtfj.javacore.parser.j9.IAttributeValueMap;
 import com.ibm.dtfj.javacore.parser.j9.SectionParser;
 
 public class TitleSectionParser extends SectionParser implements ITitleTypes {
-	
+
 	public TitleSectionParser() {
 		super(TITLE_SECTION);
 	}
@@ -42,12 +42,12 @@ public class TitleSectionParser extends SectionParser implements ITitleTypes {
 	 * @throws ParserException
 	 */
 	protected void topLevelRule() throws ParserException {
-		
+
 		IAttributeValueMap results = null;
 		Date dumpDate = null;
-		
+
 		processTagLineRequired(T_1TISIGINFO);
-		
+
 		results = processTagLineRequired(T_1TIDATETIME);
 		if (results != null) {
 			String tm = results.getTokenValue(TI_DATE);
@@ -68,7 +68,7 @@ public class TitleSectionParser extends SectionParser implements ITitleTypes {
 				}
 			}
 		}
-		
+
 		results = processTagLineOptional(T_1TINANOTIME);
 		if (results != null) {
 			String nanoTimeString = results.getTokenValue(TI_NANO);
@@ -76,7 +76,7 @@ public class TitleSectionParser extends SectionParser implements ITitleTypes {
 				fImageBuilder.setCreationTimeNanos(Long.parseLong(nanoTimeString));
 			}
 		}
-		
+
 		results = processTagLineRequired(T_1TIFILENAME);
 		if (results != null) {
 			String fn = results.getTokenValue(TI_FILENAME);
@@ -150,10 +150,10 @@ public class TitleSectionParser extends SectionParser implements ITitleTypes {
 				}
 			} catch (NumberFormatException e) {
 			}
-		}	
+		}
 		return null;
 	}
-	
+
 	/**
 	 * Empty hook for now.
 	 */

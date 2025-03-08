@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 set(J9VM_ARCH_RISCV ON CACHE BOOL "")
@@ -26,6 +26,7 @@ set(J9VM_ENV_LITTLE_ENDIAN ON CACHE BOOL "")
 set(J9VM_ENV_DATA64 ON CACHE BOOL "")
 
 set(J9VM_GC_ENABLE_DOUBLE_MAP OFF CACHE BOOL "")
+set(J9VM_GC_SPARSE_HEAP_ALLOCATION ON CACHE BOOL "")
 set(J9VM_INTERP_SIG_QUIT_THREAD_USES_SEMAPHORES OFF CACHE BOOL "")
 
 set(J9VM_MODULE_CODERT_VM OFF CACHE BOOL "")

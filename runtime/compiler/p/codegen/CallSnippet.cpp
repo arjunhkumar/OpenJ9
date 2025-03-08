@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "p/codegen/CallSnippet.hpp"
@@ -361,8 +361,15 @@ uint8_t *TR::PPCCallSnippet::emitSnippetBody()
    // we use "b" for induceOSR because we want the helper to think that it's been called from the mainline code and not from the snippet.
    int32_t branchInstruction = (glueRef->isOSRInductionHelper()) ? 0x48000000 : 0x48000001;
    *(int32_t *)cursor = branchInstruction | ((helperAddress - (intptr_t)cursor) & 0x03fffffc);
-   cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor,(uint8_t *)glueRef,TR_HelperAddress, cg()),
-      __FILE__, __LINE__, callNode);
+   cg()->addExternalRelocation(
+      TR::ExternalRelocation::create(
+         cursor,
+         (uint8_t *)glueRef,
+         TR_HelperAddress,
+         cg()),
+      __FILE__,
+      __LINE__,
+      callNode);
 
    cursor += PPC_INSTRUCTION_LENGTH;
 
@@ -386,8 +393,15 @@ uint8_t *TR::PPCCallSnippet::emitSnippetBody()
       {
       // Store the code cache RA
       *(intptr_t *)cursor = (intptr_t)getCallRA();
-      cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor,NULL,TR_AbsoluteMethodAddress, cg()),
-            __FILE__, __LINE__, callNode);
+      cg()->addExternalRelocation(
+         TR::ExternalRelocation::create(
+            cursor,
+            NULL,
+            TR_AbsoluteMethodAddress,
+            cg()),
+         __FILE__,
+         __LINE__,
+         callNode);
 
       cursor += TR::Compiler->om.sizeofReferenceAddress();
       }
@@ -404,9 +418,16 @@ uint8_t *TR::PPCCallSnippet::emitSnippetBody()
          if (comp->getOption(TR_EnableHCR))
             {
             cg()->jitAddPicToPatchOnClassRedefinition((void*)-1, (void *)cursor, true);
-            cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation((uint8_t *)cursor, NULL,(uint8_t *)needsFullSizeRuntimeAssumption,
-                                                                                         TR_HCR, cg()),__FILE__, __LINE__,
-                                   getNode());
+            cg()->addExternalRelocation(
+               TR::ExternalRelocation::create(
+                  (uint8_t *)cursor,
+                  NULL,
+                  (uint8_t *)needsFullSizeRuntimeAssumption,
+                  TR_HCR,
+                  cg()),
+               __FILE__,
+               __LINE__,
+               getNode());
             }
          }
       else
@@ -417,15 +438,25 @@ uint8_t *TR::PPCCallSnippet::emitSnippetBody()
 
          if (comp->compileRelocatableCode())
             {
-            cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor,
-                                                                  (uint8_t *)methodSymbol->getMethodAddress(),
-                                                                  (uint8_t *)TR::SymbolType::typeMethod,
-                                                                  TR_SymbolFromManager,
-                                                                  cg()),  __FILE__, __LINE__, getNode());
-            cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor,
-                                                                  (uint8_t *)methodSymbol->getMethodAddress(),
-                                                                  TR_ResolvedTrampolines,
-                                                                  cg()), __FILE__, __LINE__, getNode());
+            cg()->addExternalRelocation(
+               TR::ExternalRelocation::create(
+                  cursor,
+                  (uint8_t *)methodSymbol->getMethodAddress(),
+                  (uint8_t *)TR::SymbolType::typeMethod,
+                  TR_SymbolFromManager,
+                  cg()),
+               __FILE__,
+               __LINE__,
+               getNode());
+            cg()->addExternalRelocation(
+               TR::ExternalRelocation::create(
+                  cursor,
+                  (uint8_t *)methodSymbol->getMethodAddress(),
+                  TR_ResolvedTrampolines,
+                  cg()),
+               __FILE__,
+               __LINE__,
+               getNode());
             }
          }
       }
@@ -493,11 +524,16 @@ uint8_t *TR::PPCUnresolvedCallSnippet::emitSnippetBody()
       traceMsg(comp, "</relocatableDataTrampolinesCG>\n");
       }
 
-   cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor,
+   cg()->addExternalRelocation(
+      TR::ExternalRelocation::create(
+         cursor,
          *(uint8_t **)cursor,
-         getNode() ? (uint8_t *)getNode()->getInlinedSiteIndex() : (uint8_t *)-1,
-         TR_Trampolines, cg()),
-         __FILE__, __LINE__, getNode());
+         getNode() ? (uint8_t *)(uintptr_t)getNode()->getInlinedSiteIndex() : (uint8_t *)-1,
+         TR_Trampolines,
+         cg()),
+      __FILE__,
+      __LINE__,
+      getNode());
 
    cursor += TR::Compiler->om.sizeofReferenceAddress();
 
@@ -549,8 +585,15 @@ uint8_t *TR::PPCVirtualUnresolvedSnippet::emitSnippetBody()
 
    // bl glueRef
    *(int32_t *)cursor = 0x48000001 | ((helperAddress - (intptr_t)cursor) & 0x03fffffc);
-   cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor,(uint8_t *)glueRef,TR_HelperAddress, cg()),
-      __FILE__, __LINE__, callNode);
+   cg()->addExternalRelocation(
+      TR::ExternalRelocation::create(
+         cursor,
+         (uint8_t *)glueRef,
+         TR_HelperAddress,
+         cg()),
+      __FILE__,
+      __LINE__,
+      callNode);
    cursor += 4;
 
    /*
@@ -567,8 +610,15 @@ uint8_t *TR::PPCVirtualUnresolvedSnippet::emitSnippetBody()
 
    // Store the code cache RA
    *(intptr_t *)cursor = (intptr_t)getReturnLabel()->getCodeLocation();
-   cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor,NULL,TR_AbsoluteMethodAddress, cg()),
-         __FILE__, __LINE__, callNode);
+   cg()->addExternalRelocation(
+      TR::ExternalRelocation::create(
+         cursor,
+         NULL,
+         TR_AbsoluteMethodAddress,
+         cg()),
+      __FILE__,
+      __LINE__,
+      callNode);
 
    cursor += TR::Compiler->om.sizeofReferenceAddress();
 
@@ -609,8 +659,16 @@ uint8_t *TR::PPCVirtualUnresolvedSnippet::emitSnippetBody()
    // data3 = distance in bytes from Constant Pool Pointer to J2I Thunk
    info->data3 = (intptr_t)cursor - (intptr_t)j2iThunkRelocationPoint;
 
-   cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(j2iThunkRelocationPoint, (uint8_t *)info, NULL, TR_J2IVirtualThunkPointer, cg()),
-                               __FILE__, __LINE__, callNode);
+   cg()->addExternalRelocation(
+      TR::ExternalRelocation::create(
+         j2iThunkRelocationPoint,
+         (uint8_t *)info,
+         NULL,
+         TR_J2IVirtualThunkPointer,
+         cg()),
+      __FILE__,
+      __LINE__,
+      callNode);
 
    cursor += sizeof(intptr_t);
 
@@ -669,8 +727,15 @@ uint8_t *TR::PPCInterfaceCallSnippet::emitSnippetBody()
 
    // bl glueRef
    *(int32_t *)cursor = 0x48000001 | ((helperAddress - (intptr_t)cursor) & 0x03fffffc);
-   cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor, (uint8_t *)glueRef, TR_HelperAddress, cg()),
-                             __FILE__, __LINE__, callNode);
+   cg()->addExternalRelocation(
+      TR::ExternalRelocation::create(
+         cursor,
+         (uint8_t *)glueRef,
+         TR_HelperAddress,
+         cg()),
+      __FILE__,
+      __LINE__,
+      callNode);
    blAddress = cursor;
    cursor += PPC_INSTRUCTION_LENGTH;
 
@@ -783,12 +848,26 @@ uint8_t *TR::PPCInterfaceCallSnippet::emitSnippetBody()
    *(intptr_t *)(cursor+3*TR::Compiler->om.sizeofReferenceAddress()) = (intptr_t)blAddress;
 
    // Register for relation of the 1st target address
-   cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor+TR::Compiler->om.sizeofReferenceAddress(), NULL, TR_AbsoluteMethodAddress, cg()),
-         __FILE__, __LINE__, callNode);
+   cg()->addExternalRelocation(
+      TR::ExternalRelocation::create(
+         cursor+TR::Compiler->om.sizeofReferenceAddress(),
+         NULL,
+         TR_AbsoluteMethodAddress,
+         cg()),
+      __FILE__,
+      __LINE__,
+      callNode);
 
    // Register for relocation of the 2nd target address
-   cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(cursor+3*TR::Compiler->om.sizeofReferenceAddress(), NULL, TR_AbsoluteMethodAddress, cg()),
-         __FILE__, __LINE__, callNode);
+   cg()->addExternalRelocation(
+      TR::ExternalRelocation::create(
+         cursor+3*TR::Compiler->om.sizeofReferenceAddress(),
+         NULL,
+         TR_AbsoluteMethodAddress,
+         cg()),
+      __FILE__,
+      __LINE__,
+      callNode);
 
    cursor += 4 * TR::Compiler->om.sizeofReferenceAddress();
 
@@ -814,8 +893,16 @@ uint8_t *TR::PPCInterfaceCallSnippet::emitSnippetBody()
       // data3 = distance in bytes from Constant Pool Pointer to J2I Thunk
       info->data3 = (intptr_t)cursor - (intptr_t)j2iThunkRelocationPoint;
 
-      cg()->addExternalRelocation(new (cg()->trHeapMemory()) TR::ExternalRelocation(j2iThunkRelocationPoint, (uint8_t *)info, NULL, TR_J2IVirtualThunkPointer, cg()),
-                               __FILE__, __LINE__, callNode);
+      cg()->addExternalRelocation(
+         TR::ExternalRelocation::create(
+            j2iThunkRelocationPoint,
+            (uint8_t *)info,
+            NULL,
+            TR_J2IVirtualThunkPointer,
+            cg()),
+         __FILE__,
+         __LINE__,
+         callNode);
       }
    cursor += sizeof(intptr_t);
 
@@ -883,7 +970,7 @@ uint8_t *TR::PPCCallSnippet::generateVIThunk(TR::Node *callNode, int32_t argSize
    if (comp->target().is32Bit() && (((dispatcher&0x80008000) == 0x80008000) || comp->compileRelocatableCode()) )
       codeSize += 4;
 
-   if (comp->compileRelocatableCode())
+   if (fej9->storeOffsetToArgumentsInVirtualIndirectThunks())
       thunk = (uint8_t *)comp->trMemory()->allocateMemory(codeSize, heapAlloc);
    else
       thunk = (uint8_t *)cg->allocateCodeMemory(codeSize, true, false);
@@ -1094,7 +1181,7 @@ TR_MHJ2IThunk *TR::PPCCallSnippet::generateInvokeExactJ2IThunk(TR::Node *callNod
 uint8_t *
 TR_Debug::printPPCArgumentsFlush(TR::FILE *pOutFile, TR::Node *node, uint8_t *cursor, int32_t argSize)
    {
-   char *storeGPROpName;
+   const char *storeGPROpName;
    int32_t offset = 0,
            intArgNum = 0,
            floatArgNum = 0;
@@ -1340,8 +1427,8 @@ TR_Debug::print(TR::FILE *pOutFile, TR::PPCCallSnippet * snippet)
 
    cursor = printPPCArgumentsFlush(pOutFile, callNode, cursor, snippet->getSizeOfArguments());
 
-   char    *info = "";
-   int32_t  distance;
+   const char *info = "";
+   int32_t     distance;
    if (isBranchToTrampoline(glueRef, cursor, distance))
       info = " Through trampoline";
 
@@ -1439,8 +1526,8 @@ TR_Debug::print(TR::FILE *pOutFile, TR::PPCVirtualUnresolvedSnippet * snippet)
 
    printSnippetLabel(pOutFile, snippet->getSnippetLabel(), cursor, "Virtual Unresolved Call Snippet");
 
-   char    *info = "";
-   int32_t  distance;
+   const char *info = "";
+   int32_t     distance;
    if (isBranchToTrampoline(_cg->getSymRef(TR_PPCvirtualUnresolvedHelper), cursor, distance))
       info = " Through trampoline";
 
@@ -1488,8 +1575,8 @@ TR_Debug::print(TR::FILE *pOutFile, TR::PPCInterfaceCallSnippet * snippet)
 
    printSnippetLabel(pOutFile, snippet->getSnippetLabel(), cursor, "Interface Call Snippet");
 
-   char    *info = "";
-   int32_t  distance;
+   const char *info = "";
+   int32_t     distance;
    if (isBranchToTrampoline(_cg->getSymRef(TR_PPCinterfaceCallHelper), cursor, distance))
       info = " Through trampoline";
 

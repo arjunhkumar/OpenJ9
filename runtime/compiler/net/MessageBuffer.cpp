@@ -17,22 +17,57 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "net/MessageBuffer.hpp"
+#include "infra/CriticalSection.hpp"
+#include "env/VerboseLog.hpp"
+#include "control/Options.hpp"
 #include <cstring>
 
 namespace JITServer
 {
+
+TR::Monitor *MessageBuffer::_totalBuffersMonitor = NULL;
+int MessageBuffer::_totalBuffers = 0;
+TR::PersistentAllocator *MessageBuffer::_allocator = NULL;
+
 MessageBuffer::MessageBuffer() :
-   _capacity(INITIAL_BUFFER_SIZE),
-   _allocator(TR::Compiler->persistentGlobalAllocator())
+   _capacity(INITIAL_BUFFER_SIZE)
    {
+   OMR::CriticalSection cs(getTotalBuffersMonitor());
+
+   if (!_allocator)
+      {
+      if (J9::PersistentInfo::_remoteCompilationMode == JITServer::CLIENT)
+         {
+         uint32_t memoryType = MEMORY_TYPE_VIRTUAL; // Force the usage of mmap for allocation
+         TR::PersistentAllocatorKit kit(1 << 20/*1 MB*/, *TR::Compiler->javaVM, memoryType);
+         _allocator = new (TR::Compiler->rawAllocator) TR::PersistentAllocator(kit);
+         }
+      else
+         {
+         _allocator = &TR::Compiler->persistentGlobalAllocator();
+         }
+      }
+
    _storage = allocateMemory(_capacity);
    if (!_storage)
       throw std::bad_alloc();
    _curPtr = _storage;
+   _totalBuffers++;
+   }
+
+MessageBuffer::~MessageBuffer()
+   {
+   OMR::CriticalSection cs(getTotalBuffersMonitor());
+
+   freeMemory(_storage);
+   _totalBuffers--;
+
+   if ((0 == _totalBuffers) && (J9::PersistentInfo::_remoteCompilationMode == JITServer::CLIENT))
+      _allocator->adviseDontNeedSegments();
    }
 
 void
@@ -79,7 +114,7 @@ MessageBuffer::writeData(const void *dataStart, uint32_t dataSize, uint8_t paddi
    _curPtr += dataSize + paddingSize;
    return offset(data);
    }
- 
+
 uint8_t
 MessageBuffer::alignCurrentPositionOn64Bit()
    {
@@ -108,5 +143,22 @@ MessageBuffer::computeRequiredCapacity(uint32_t requiredSize)
       extendedCapacity *= 2;
    return extendedCapacity;
    }
-};
 
+void
+MessageBuffer::tryFreePersistentAllocator()
+   {
+   if (J9::PersistentInfo::_remoteCompilationMode != JITServer::CLIENT)
+      return;
+
+   OMR::CriticalSection cs(getTotalBuffersMonitor());
+
+   if ((_totalBuffers != 0) || (_allocator == NULL))
+      return;
+
+   _allocator->~PersistentAllocator();
+   TR::Compiler->rawAllocator.deallocate(_allocator);
+   _allocator = NULL;
+   if (TR::Options::getVerboseOption(TR_VerbosePerformance))
+      TR_VerboseLog::writeLineLocked(TR_Vlog_PERF, "Freed message buffer storage allocator");
+   }
+};

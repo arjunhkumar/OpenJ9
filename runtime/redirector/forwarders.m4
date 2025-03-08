@@ -16,7 +16,7 @@ dnl
 dnl [1] https://www.gnu.org/software/classpath/license.html
 dnl [2] https://openjdk.org/legal/assembly-exception.html
 dnl
-dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 dnl
 dnl        (name,cc, decorate, ret, args..)
 _X(jio_vfprintf,,false,int,FILE *stream, const char *format, va_list args)
@@ -49,7 +49,6 @@ _X(JVM_ConstantPoolGetUTF8At,JNICALL,true,jstring,JNIEnv *env, jobject anObject,
 _X(JVM_CurrentClassLoader,JNICALL,true,jobject,JNIEnv *env)
 _X(JVM_CurrentLoadedClass,JNICALL,true,jclass,JNIEnv *env)
 _X(JVM_CurrentTimeMillis,JNICALL,true,jlong,JNIEnv *env, jint unused1)
-_X(JVM_CX8Field,JNICALL,true,jboolean,JNIEnv *env, jobject obj, jfieldID field, jlong oldval, jlong newval)
 _X(JVM_DefineClassWithSource,JNICALL,true,jclass,JNIEnv *env, const char *className, jobject classLoader, const jbyte *classArray, jsize length, jobject domain, const char *source)
 _X(JVM_DumpThreads,JNICALL,true,jobjectArray,JNIEnv *env, jclass thread, jobjectArray threadArray)
 _X(JVM_ExpandFdTable,JNICALL,true,jint,jint fd)
@@ -65,7 +64,8 @@ _IF([JAVA_SPEC_VERSION < 11],
 _X(JVM_GetClassAccessFlags,JNICALL,true,jint,JNIEnv *env, jclass clazzRef)
 _X(JVM_GetClassAnnotations,JNICALL,true,jbyteArray,JNIEnv *env, jclass target)
 _X(JVM_GetClassConstantPool,JNICALL,true,jobject,JNIEnv *env, jclass target)
-_X(JVM_GetClassContext,JNICALL,true,jobject,JNIEnv *env)
+_IF([JAVA_SPEC_VERSION < 24],
+	[_X(JVM_GetClassContext,JNICALL,true,jobject,JNIEnv *env)])
 _X(JVM_GetClassLoader,JNICALL,true,jobject,JNIEnv *env, jobject obj)
 _IF([JAVA_SPEC_VERSION < 11],
 	[_X(JVM_GetClassName,JNICALL,true,jstring, JNIEnv *env, jclass theClass)],
@@ -83,6 +83,8 @@ _X(JVM_GetThreadInterruptEvent,JNICALL,true,void *,void)
 _X(JVM_Halt,JNICALL,true,void,jint exitCode)
 _X(JVM_InitializeSocketLibrary,JNICALL,true,jint,void)
 _X(JVM_InvokeMethod,JNICALL,true,jobject,JNIEnv *env, jobject method, jobject obj, jobjectArray args)
+_IF([defined(J9VM_ZOS_3164_INTEROPERABILITY) && (JAVA_SPEC_VERSION >= 17)],
+	_X(JVM_Invoke31BitJNI_OnXLoad,JNICALL,true,jint,JavaVM *vm,void *handle,jboolean isOnLoad,void *reserved))
 _X(JVM_IsNaN,JNICALL,true,jboolean,jdouble dbl)
 _X(JVM_LatestUserDefinedLoader,JNICALL,true,jobject,JNIEnv *env)
 _X(JVM_Listen,JNICALL,true,jint,jint descriptor, jint count)
@@ -108,22 +110,24 @@ _X(JVM_Read,JNICALL,true,jint,jint descriptor, char *buffer, jint bytesToRead)
 _X(JVM_Recv,JNICALL,true,jint,jint descriptor, char *buffer, jint length, jint flags)
 _X(JVM_RecvFrom,JNICALL,true,jint,jint descriptor, char *buffer, jint length, jint flags, struct sockaddr *fromAddr, int *fromLength)
 _X(JVM_RegisterSignal,JNICALL,true,void *,jint sigNum, void *handler)
-_X(JVM_RegisterUnsafeMethods,JNICALL,true,void,JNIEnv *env, jclass unsafeClz)
 _X(JVM_Send,JNICALL,true,jint,jint descriptor, const char *buffer, jint numBytes, jint flags)
 _X(JVM_SendTo,JNICALL,true,jint,jint descriptor, const char *buffer, jint length, jint flags, const struct sockaddr *toAddr, int toLength)
 _X(JVM_SetLength,JNICALL,true,jint,jint fd, jlong length)
-_X(JVM_Sleep,JNICALL,true,jint,JNIEnv *env, jclass thread, jlong timeout)
+_X(JVM_Sleep,JNICALL,true,void,JNIEnv *env, jclass thread, jlong timeout)
 _X(JVM_Socket,JNICALL,true,jint,jint domain, jint type, jint protocol)
 _X(JVM_SocketAvailable,JNICALL,true,jint,jint descriptor, jint *result)
 _X(JVM_SocketClose,JNICALL,true,jint,jint descriptor)
 _X(JVM_Startup,JNICALL,true,jint,JavaVM *vm, JNIEnv *env)
-_X(JVM_SupportsCX8,JNICALL,true,jboolean,void)
+_IF([JAVA_SPEC_VERSION < 22],
+	[_X(JVM_SupportsCX8,JNICALL,true,jboolean,void)])
 _X(JVM_Sync,JNICALL,true,jint,jint descriptor)
 _X(JVM_Timeout,JNICALL,true,jint,jint descriptor, jint timeout)
 _X(JVM_TotalMemory,JNICALL,true,jlong,void)
 _X(JVM_TraceInstructions,JNICALL,true,void,jboolean on)
 _X(JVM_TraceMethodCalls,JNICALL,true,void,jboolean on)
 _X(JVM_UcsOpen,JNICALL,true,jint,const jchar *filename, jint flags, jint mode)
+_IF([defined(J9VM_OPT_JAVA_OFFLOAD_SUPPORT) && (JAVA_SPEC_VERSION >= 17)],
+	[_X(JVM_ValidateJNILibrary,JNICALL,true,void *,const char *libName, void *handle, jboolean isStatic)])
 _X(JVM_Write,JNICALL,true,jint,jint descriptor, const char *buffer, jint length)
 _IF([defined(J9ZOS390)],
 	[_X(NewStringPlatform,,false,jint,JNIEnv *env, const char *instr, jstring *outstr, const char *encoding)])
@@ -147,7 +151,8 @@ _X(JVM_CountStackFrames,JNICALL,true,jobject,jint arg0, jint arg1)
 _X(JVM_CurrentThread,JNICALL,true,jobject,JNIEnv *env, jclass java_lang_Thread)
 _X(JVM_DesiredAssertionStatus,JNICALL,true,jboolean,JNIEnv *env, jobject arg1, jobject arg2)
 _X(JVM_DisableCompiler,JNICALL,true,jobject,jint arg0, jint arg1)
-_X(JVM_DoPrivileged,JNICALL,true,jobject,JNIEnv *env, jobject java_security_AccessController, jobject action, jboolean unknown, jboolean isExceptionAction)
+_IF([(JAVA_SPEC_VERSION == 8) && defined(WIN32)],
+	[_X(JVM_DoPrivileged,JNICALL,true,jobject,JNIEnv *env, jobject java_security_AccessController, jobject action, jboolean unknown, jboolean isExceptionAction)])
 _X(JVM_EnableCompiler,JNICALL,true,jobject,jint arg0, jint arg1)
 _X(JVM_FillInStackTrace,JNICALL,true,void,JNIEnv *env, jobject throwable)
 _X(JVM_FindClassFromClassLoader,JNICALL,true,jobject,JNIEnv *env, char *className, jboolean init, jobject classLoader, jboolean throwError)
@@ -160,15 +165,19 @@ _X(JVM_GetClassDeclaredConstructors,JNICALL,true,jobject,JNIEnv *env, jclass cla
 _X(JVM_GetClassDeclaredFields,JNICALL,true,jobject,JNIEnv *env, jobject clazz, jint arg2)
 _X(JVM_GetClassDeclaredMethods,JNICALL,true,jobject,JNIEnv *env, jobject clazz, jboolean unknown)
 _X(JVM_GetClassInterfaces,JNICALL,true,jobject,jint arg0, jint arg1)
-_X(JVM_GetClassModifiers,JNICALL,true,jint,JNIEnv *env, jclass clazz)
+_IF([JAVA_SPEC_VERSION < 25],
+	[_X(JVM_GetClassModifiers,JNICALL,true,jint,JNIEnv *env, jclass clazz)])
 _X(JVM_GetClassSigners,JNICALL,true,jobject,jint arg0, jint arg1)
 _X(JVM_GetComponentType,JNICALL,true,jobject,JNIEnv *env, jclass cls)
 _X(JVM_GetDeclaredClasses,JNICALL,true,jobject,jint arg0, jint arg1)
 _X(JVM_GetDeclaringClass,JNICALL,true,jobject,jint arg0, jint arg1)
-_X(JVM_GetInheritedAccessControlContext,JNICALL,true,jobject,jint arg0, jint arg1)
+_IF([JAVA_SPEC_VERSION < 24],
+	[_X(JVM_GetInheritedAccessControlContext,JNICALL,true,jobject,jint arg0, jint arg1)])
 _X(JVM_GetPrimitiveArrayElement,JNICALL,true,jvalue,JNIEnv *env, jobject arr, jint index, jint wCode)
-_X(JVM_GetProtectionDomain,JNICALL,true,jobject,jint arg0, jint arg1)
-_X(JVM_GetStackAccessControlContext,JNICALL,true,jobject,JNIEnv *env, jclass java_security_AccessController)
+_IF([JAVA_SPEC_VERSION < 25],
+	[_X(JVM_GetProtectionDomain,JNICALL,true,jobject,jint arg0, jint arg1)])
+_IF([JAVA_SPEC_VERSION < 24],
+	[_X(JVM_GetStackAccessControlContext,JNICALL,true,jobject,JNIEnv *env, jclass java_security_AccessController)])
 _X(JVM_GetStackTraceDepth,JNICALL,true,jint,JNIEnv *env, jobject throwable)
 _X(JVM_GetStackTraceElement,JNICALL,true,jobject,JNIEnv *env, jobject throwable, jint index)
 _X(JVM_HoldsLock,JNICALL,true,jobject,jint arg0, jint arg1, jint arg2)
@@ -176,12 +185,15 @@ _X(JVM_IHashCode,JNICALL,true,jint,JNIEnv *env, jobject obj)
 _X(JVM_InitProperties,JNICALL,true,jobject,JNIEnv *env, jobject properties)
 _X(JVM_InternString,JNICALL,true,jstring,JNIEnv *env, jstring str)
 _X(JVM_Interrupt,JNICALL,true,jobject,jint arg0, jint arg1)
-_X(JVM_IsArrayClass,JNICALL,true,jboolean,JNIEnv *env, jclass clazz)
+_IF([JAVA_SPEC_VERSION < 25],
+	[_X(JVM_IsArrayClass,JNICALL,true,jboolean,JNIEnv *env, jclass clazz)])
 _X(JVM_IsInterface,JNICALL,true,jboolean,JNIEnv *env, jclass clazz)
 _X(JVM_IsInterrupted,JNICALL,true,jboolean,JNIEnv *env, jobject thread, jboolean unknown)
-_X(JVM_IsPrimitiveClass,JNICALL,true,jboolean,JNIEnv *env, jclass clazz)
+_IF([JAVA_SPEC_VERSION < 25],
+	[_X(JVM_IsPrimitiveClass,JNICALL,true,jboolean,JNIEnv *env, jclass clazz)])
 _X(JVM_IsSupportedJNIVersion,JNICALL,true,jboolean,jint jniVersion)
-_X(JVM_IsThreadAlive,JNICALL,true,jboolean,JNIEnv *env, jobject targetThread)
+_IF([JAVA_SPEC_VERSION < 17],
+	[_X(JVM_IsThreadAlive,JNICALL,true,jboolean,JNIEnv *env, jobject targetThread)])
 _X(JVM_NewArray,JNICALL,true,jobject,JNIEnv *env, jclass componentType, jint dimension)
 _X(JVM_NewMultiArray,JNICALL,true,jobject,JNIEnv *env, jclass eltClass, jintArray dim)
 _X(JVM_ResolveClass,JNICALL,true,jobject,jint arg0, jint arg1)
@@ -251,7 +263,7 @@ _IF([JAVA_SPEC_VERSION < 17],
 _IF([JAVA_SPEC_VERSION < 17],
 	[_X(JVM_DTraceIsProbeEnabled,JNICALL,true,jobject,jint arg0, jint arg1)])
 _IF([JAVA_SPEC_VERSION < 17],
-	[_X(JVM_DTraceIsSupported,JNICALL,true,jobject,jint arg0)])
+	[_X(JVM_DTraceIsSupported,JNICALL,true,jboolean,JNIEnv *env)])
 _X(JVM_DefineClass,JNICALL,true,jobject,jint arg0, jint arg1, jint arg2, jint arg3, jint arg4, jint arg5)
 _X(JVM_DefineClassWithSourceCond,JNICALL,true,jobject,jint arg0, jint arg1, jint arg2, jint arg3, jint arg4, jint arg5, jint arg6, jint arg7)
 _X(JVM_EnqueueOperation,JNICALL,true,jobject,jint arg0, jint arg1, jint arg2, jint arg3, jint arg4)
@@ -311,8 +323,10 @@ _IF([JAVA_SPEC_VERSION >= 11],
 	[_X(JVM_SetMethodInfo,JNICALL,false,void,JNIEnv *env, jobject arg1)])
 _IF([JAVA_SPEC_VERSION >= 11],
 	[_X(JVM_ConstantPoolGetNameAndTypeRefIndexAt,JNICALL,false,jint,JNIEnv *env, jobject arg1, jobject arg2, jint arg3)])
-_IF([JAVA_SPEC_VERSION >= 11],
+_IF([(11 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION < 22)],
 	[_X(JVM_MoreStackWalk,JNICALL,false,jint,JNIEnv *env, jobject arg1, jlong arg2, jlong arg3, jint arg4, jint arg5, jobjectArray arg6, jobjectArray arg7)])
+_IF([JAVA_SPEC_VERSION >= 22],
+	[_X(JVM_MoreStackWalk,JNICALL,false,jint,JNIEnv *env, jobject arg1, jint arg2, jlong arg3, jint arg4, jint arg5, jint arg6, jobjectArray arg7, jobjectArray arg8)])
 _IF([JAVA_SPEC_VERSION >= 11],
 	[_X(JVM_ConstantPoolGetClassRefIndexAt,JNICALL,false,jint,JNIEnv *env, jobject arg1, jlong arg2, jint arg3)])
 _IF([JAVA_SPEC_VERSION >= 11],
@@ -325,8 +339,10 @@ _IF([JAVA_SPEC_VERSION >= 11],
 	[_X(JVM_ConstantPoolGetNameAndTypeRefInfoAt,JNICALL,false,jobjectArray,JNIEnv *env, jobject arg1, jobject arg2, jint arg3)])
 _IF([JAVA_SPEC_VERSION >= 11],
 	[_X(JVM_ConstantPoolGetTagAt,JNICALL,false,jbyte,JNIEnv *env, jobject arg1, jobject arg2, jint arg3)])
-_IF([JAVA_SPEC_VERSION >= 11],
+_IF([(11 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION < 22)],
 	[_X(JVM_CallStackWalk,JNICALL,false,jobject,JNIEnv *env, jobject arg1, jlong arg2, jint arg3, jint arg4, jint arg5, jobjectArray arg6, jobjectArray arg7)])
+_IF([JAVA_SPEC_VERSION >= 22],
+	[_X(JVM_CallStackWalk,JNICALL,false,jobject,JNIEnv *env, jobject arg1, jint arg2, jint arg3, jint arg4, jint arg5, jobjectArray arg6, jobjectArray arg7)])
 _IF([JAVA_SPEC_VERSION >= 11],
 	[_X(JVM_SetBootLoaderUnnamedModule,JNICALL,false,void,JNIEnv *env, jobject arg1)])
 _IF([JAVA_SPEC_VERSION >= 11],
@@ -360,53 +376,83 @@ _IF([JAVA_SPEC_VERSION >= 16],
 	[_X(JVM_GetRandomSeedForDumping, JNICALL, false, jlong)])
 _IF([JAVA_SPEC_VERSION >= 15],
 	[_X(JVM_RegisterLambdaProxyClassForArchiving, JNICALL, false, void, JNIEnv *env, jclass arg1, jstring arg2, jobject arg3, jobject arg4, jobject arg5, jobject arg6, jclass arg7)])
-_IF([JAVA_SPEC_VERSION == 15],
-	[_X(JVM_LookupLambdaProxyClassFromArchive, JNICALL, false, jclass, JNIEnv *env, jclass arg1, jstring arg2, jobject arg3, jobject arg4, jobject arg5, jobject arg6, jboolean arg7)])
 _IF([JAVA_SPEC_VERSION >= 16],
 	[_X(JVM_LookupLambdaProxyClassFromArchive, JNICALL, false, jclass, JNIEnv *env, jclass arg1, jstring arg2, jobject arg3, jobject arg4, jobject arg5, jobject arg6)])
-_IF([JAVA_SPEC_VERSION >= 15],
+_IF([(15 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION < 23)],
 	[_X(JVM_IsCDSDumpingEnabled, JNICALL, false, jboolean, JNIEnv *env)])
-_IF([JAVA_SPEC_VERSION >= 16],
+_IF([(16 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION < 23)],
+	[_X(JVM_IsDumpingClassList, JNICALL, false, jboolean, JNIEnv *env)])
+_IF([(16 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION < 23)],
 	[_X(JVM_IsSharingEnabled, JNICALL, false, jboolean, JNIEnv *env)])
 _IF([JAVA_SPEC_VERSION >= 16],
 	[_X(JVM_DefineArchivedModules, JNICALL, false, void, JNIEnv *env, jobject obj1, jobject obj2)])
 _IF([JAVA_SPEC_VERSION >= 16],
 	[_X(JVM_LogLambdaFormInvoker, JNICALL, false, void, JNIEnv *env, jstring str)])
-_IF([JAVA_SPEC_VERSION >= 16],
-	[_X(JVM_IsDumpingClassList, JNICALL, false, jboolean, JNIEnv *env)])
-_X(JVM_IsUseContainerSupport, JNICALL, false, jboolean, JNIEnv *env)
+_X(JVM_IsUseContainerSupport, JNICALL, false, jboolean, void)
 _X(AsyncGetCallTrace, JNICALL, false, void, void *trace, jint depth, void *ucontext)
 _IF([JAVA_SPEC_VERSION >= 17],
 	[_X(JVM_DumpClassListToFile, JNICALL, false, void, JNIEnv *env, jstring str)])
 _IF([JAVA_SPEC_VERSION >= 17],
 	[_X(JVM_DumpDynamicArchive, JNICALL, false, void, JNIEnv *env, jstring str)])
+_IF([JAVA_SPEC_VERSION >= 17],
+	[_X(JVM_GetProperties, JNICALL, false, jobjectArray, JNIEnv *env)])
 _IF([JAVA_SPEC_VERSION >= 18],
 	[_X(JVM_IsFinalizationEnabled, JNICALL, false, jboolean, JNIEnv *env)])
 _IF([JAVA_SPEC_VERSION >= 18],
 	[_X(JVM_ReportFinalizationComplete, JNICALL, false, void, JNIEnv *env, jobject obj)])
 _IF([JAVA_SPEC_VERSION >= 19],
-	[_X(JVM_LoadZipLibrary, JNICALL, false, void, void)])
+	[_X(JVM_LoadZipLibrary, JNICALL, false, void *, void)])
 _IF([JAVA_SPEC_VERSION >= 19],
 	[_X(JVM_RegisterContinuationMethods, JNICALL, false, void, JNIEnv *env, jclass clz)])
 _IF([JAVA_SPEC_VERSION >= 19],
 	[_X(JVM_IsContinuationsSupported, JNICALL, false, void, void)])
 _IF([JAVA_SPEC_VERSION >= 19],
 	[_X(JVM_IsPreviewEnabled, JNICALL, false, void, void)])
-_IF([JAVA_SPEC_VERSION >= 19],
-	[_X(JVM_VirtualThreadMountBegin, JNICALL, false, void, JNIEnv *env, jobject thread, jboolean firstMount)])
-_IF([JAVA_SPEC_VERSION >= 19],
-	[_X(JVM_VirtualThreadMountEnd, JNICALL, false, void, JNIEnv *env, jobject thread, jboolean firstMount)])
-_IF([JAVA_SPEC_VERSION >= 19],
-	[_X(JVM_VirtualThreadUnmountBegin, JNICALL, false, void, JNIEnv *env, jobject thread, jboolean lastUnmount)])
-_IF([JAVA_SPEC_VERSION >= 19],
-	[_X(JVM_VirtualThreadUnmountEnd, JNICALL, false, void, JNIEnv *env, jobject thread, jboolean lastUnmount)])
 _IF([JAVA_SPEC_VERSION >= 20],
 	[_X(JVM_GetClassFileVersion, JNICALL, false, jint, JNIEnv *env, jclass cls)])
-_IF([JAVA_SPEC_VERSION >= 20],
+_IF([(20 <= JAVA_SPEC_VERSION) && (JAVA_SPEC_VERSION < 23)],
 	[_X(JVM_VirtualThreadHideFrames, JNICALL, false, void, JNIEnv *env, jobject vthread, jboolean hide)])
+_IF([(JAVA_SPEC_VERSION == 23) || defined(J9VM_OPT_VALHALLA_VALUE_TYPES)],
+	[_X(JVM_VirtualThreadHideFrames, JNICALL, false, void, JNIEnv *env, jclass clz, jboolean hide)])
 _IF([JAVA_SPEC_VERSION >= 21],
-	[_X(JVM_VirtualThreadMount, JNICALL, false, void, JNIEnv *env, jobject vthread, jboolean hide, jboolean firstMount)])
+	[_X(JVM_IsForeignLinkerSupported, JNICALL, false, jboolean, void)])
 _IF([JAVA_SPEC_VERSION >= 21],
-	[_X(JVM_VirtualThreadUnmount, JNICALL, false, void, JNIEnv *env, jobject vthread, jboolean hide, jboolean lastUnmount)])
+	[_X(JVM_PrintWarningAtDynamicAgentLoad, JNICALL, false, jboolean, void)])
+_IF([JAVA_SPEC_VERSION >= 21],
+	[_X(JVM_VirtualThreadEnd, JNICALL, false, void, JNIEnv *env, jobject vthread)])
+_IF([JAVA_SPEC_VERSION >= 21],
+	[_X(JVM_VirtualThreadMount, JNICALL, false, void, JNIEnv *env, jobject vthread, jboolean hide)])
+_IF([JAVA_SPEC_VERSION >= 21],
+	[_X(JVM_VirtualThreadStart, JNICALL, false, void, JNIEnv *env, jobject vthread)])
+_IF([JAVA_SPEC_VERSION >= 21],
+	[_X(JVM_VirtualThreadUnmount, JNICALL, false, void, JNIEnv *env, jobject vthread, jboolean hide)])
+_IF([defined(J9VM_OPT_VALHALLA_VALUE_TYPES)],
+	[_X(JVM_IsFlatArray, JNICALL, false, jboolean, JNIEnv *env, jclass cls)])
+_IF([defined(J9VM_OPT_VALHALLA_VALUE_TYPES)],
+	[_X(JVM_IsImplicitlyConstructibleClass, JNICALL, false, jboolean, JNIEnv *env, jclass cls)])
+_IF([defined(J9VM_OPT_VALHALLA_VALUE_TYPES)],
+	[_X(JVM_IsNullRestrictedArray, JNICALL, false, jboolean, JNIEnv *env, jobject obj)])
 _IF([defined(J9VM_OPT_VALHALLA_VALUE_TYPES)],
 	[_X(JVM_IsValhallaEnabled, JNICALL, false, jboolean, void)])
+_IF([defined(J9VM_OPT_VALHALLA_VALUE_TYPES)],
+	[_X(JVM_NewNullableAtomicArray, JNICALL, false, jarray, JNIEnv *env, jclass cls, jint length)])
+_IF([defined(J9VM_OPT_VALHALLA_VALUE_TYPES)],
+	[_X(JVM_NewNullRestrictedArray, JNICALL, false, jarray, JNIEnv *env, jclass cls, jint length)])
+_IF([defined(J9VM_OPT_VALHALLA_VALUE_TYPES)],
+	[_X(JVM_NewNullRestrictedAtomicArray, JNICALL, false, jarray, JNIEnv *env, jclass cls, jint length)])
+_IF([JAVA_SPEC_VERSION >= 22],
+	[_X(JVM_ExpandStackFrameInfo, JNICALL, false, void, JNIEnv *env, jobject object)])
+_IF([JAVA_SPEC_VERSION == 22],
+	[_X(JVM_VirtualThreadDisableSuspend, JNICALL, false, void, JNIEnv *env, jobject vthread, jboolean enter)])
+_IF([JAVA_SPEC_VERSION >= 23],
+	[_X(JVM_VirtualThreadDisableSuspend, JNICALL, false, void, JNIEnv *env, jclass clz, jboolean enter)])
+_IF([JAVA_SPEC_VERSION >= 23],
+	[_X(JVM_GetCDSConfigStatus, JNICALL, false, jint, void)])
+_IF([JAVA_SPEC_VERSION >= 24],
+	[_X(JVM_IsContainerized, JNICALL, false, jboolean, void)])
+_IF([JAVA_SPEC_VERSION >= 24],
+	[_X(JVM_IsStaticallyLinked, JNICALL, false, jboolean, void)])
+_IF([JAVA_SPEC_VERSION >= 24],
+	[_X(JVM_VirtualThreadPinnedEvent, JNICALL, false, void, JNIEnv* env, jclass clazz, jstring op)])
+_IF([JAVA_SPEC_VERSION >= 24],
+	[_X(JVM_TakeVirtualThreadListToUnblock, JNICALL, false, jobject, JNIEnv* env, jclass ignored)])

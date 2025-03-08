@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifdef TR_TARGET_64BIT
@@ -324,9 +324,8 @@ uint8_t *J9::X86::AMD64::PrivateLinkage::flushArguments(
 
    int32_t numGPArgs = 0;
    int32_t numFPArgs = 0;
-   int32_t argSize   = argAreaSize(callNode);
-   int32_t offset    = argSize;
-   bool    needFlush = false;
+   int32_t offset = argAreaSize(callNode);
+   bool needFlush = false;
 
    // account for the return address in thunks and snippets.
    if (isReturnAddressOnStack)
@@ -341,7 +340,11 @@ uint8_t *J9::X86::AMD64::PrivateLinkage::flushArguments(
 
    const uint8_t slotSize = DOUBLE_SIZED_ARGS? 8 : 4;
 
-   for (int i = callNode->getFirstArgumentIndex(); i < callNode->getNumChildren(); i++)
+   int firstArgIndex = callNode->getFirstArgumentIndex();
+   if (callNode->isJitDispatchJ9MethodCall(cg()->comp()))
+      firstArgIndex++; // skip the J9Method
+
+   for (int i = firstArgIndex; i < callNode->getNumChildren(); i++)
       {
       TR::DataType type = callNode->getChild(i)->getType();
       dt = type.getDataType();
@@ -551,7 +554,9 @@ uint8_t *J9::X86::AMD64::PrivateLinkage::generateVirtualIndirectThunk(TR::Node *
       }
    else
       {
-      thunk = (uint8_t *)cg()->allocateCodeMemory(codeSize, true);
+      // if disclaim enabled, put into warm
+      bool disclaim = TR::Options::getCmdLineOptions()->getOption(TR_EnableCodeCacheDisclaiming);
+      thunk = (uint8_t *)cg()->allocateCodeMemory(codeSize, !disclaim);
       cursor = thunkEntry = thunk;
       }
 
@@ -793,6 +798,10 @@ int32_t J9::X86::AMD64::PrivateLinkage::argAreaSize(TR::Node *callNode)
    int32_t  i;
    int32_t  result  = 0;
    int32_t  firstArgument   = callNode->getFirstArgumentIndex();
+
+   if (callNode->isJitDispatchJ9MethodCall(comp()))
+      firstArgument++; // skip the J9Method
+
    int32_t  lastArgument    = callNode->getNumChildren() - 1;
    for (i=firstArgument; i <= lastArgument; i++)
       {
@@ -809,7 +818,10 @@ int32_t J9::X86::AMD64::PrivateLinkage::buildArgs(TR::Node                      
    TR::SymbolReference *methodSymRef = callNode->getSymbolReference();
    bool passArgsOnStack;
    bool rightToLeft = methodSymbol && methodSymbol->isHelper()
-      && !methodSymRef->isOSRInductionHelper(); //we want the arguments for induceOSR to be passed from left to right as in any other non-helper call
+      && !methodSymRef->isOSRInductionHelper()  //we want the arguments for induceOSR to be passed from left to right as in any other non-helper call
+      // <jitDispatchJ9Method> receives arguments in the same order as the actual callee
+      && !callNode->isJitDispatchJ9MethodCall(comp());
+
    if (callNode->getOpCode().isIndirect())
       {
       if (methodSymbol->isVirtual() &&
@@ -884,6 +896,8 @@ int32_t J9::X86::AMD64::PrivateLinkage::buildPrivateLinkageArgs(TR::Node        
    int                        numDupedArgRegs = 0;
    TR::Register               *dupedArgRegs[NUM_INTEGER_LINKAGE_REGS + NUM_FLOAT_LINKAGE_REGS];
 
+   bool isJitDispatchJ9Method = callNode->isJitDispatchJ9MethodCall(comp());
+
    // Even though the parameters will be passed on the stack, create dummy linkage registers
    // to ensure that if the call were to be made using the linkage registers (e.g., in a guarded
    // devirtual snippet if it was overridden) then the registers would be available at this
@@ -943,6 +957,7 @@ int32_t J9::X86::AMD64::PrivateLinkage::buildPrivateLinkageArgs(TR::Node        
       TR::DataType             type      = child->getType();
       TR::RealRegister::RegNum  rregIndex = noReg;
       TR::DataType            dt        = type.getDataType();
+      bool reserveStackSlotForArg = true;
 
       switch (dt)
          {
@@ -977,6 +992,14 @@ int32_t J9::X86::AMD64::PrivateLinkage::buildPrivateLinkageArgs(TR::Node        
                   	break;
                   }
                }
+
+            if (rregIndex == noReg && isJitDispatchJ9Method && i == firstArgument)
+               {
+               rregIndex = getProperties().getJ9MethodArgumentRegister();
+               numSpecialArgs++;
+               reserveStackSlotForArg = false;
+               }
+
             if (rregIndex == noReg)
                {
                rregIndex =
@@ -1035,28 +1058,31 @@ int32_t J9::X86::AMD64::PrivateLinkage::buildPrivateLinkageArgs(TR::Node        
          dependencies->addPreCondition(preCondReg, rregIndex, cg());
          }
 
-      offset += child->getRoundedSize() * ((DOUBLE_SIZED_ARGS && dt != TR::Address) ? 2 : 1);
-
-      if ((rregIndex == noReg) || (rregIndex != noReg && createDummyLinkageRegisters))
+      if (reserveStackSlotForArg)
          {
-         if (vreg)
-            generateMemRegInstruction(
-               TR::Linkage::movOpcodes(MemReg, fullRegisterMovType(vreg)),
-               child,
-               generateX86MemoryReference(stackPointer, parmAreaSize-offset, cg()),
-               vreg,
-               cg()
-               );
-         else
+         offset += child->getRoundedSize() * ((DOUBLE_SIZED_ARGS && dt != TR::Address) ? 2 : 1);
+
+         if ((rregIndex == noReg) || (rregIndex != noReg && createDummyLinkageRegisters))
             {
-            int32_t konst = child->getInt();
-            generateMemImmInstruction(
-               TR::InstOpCode::S8MemImm4,
-               child,
-               generateX86MemoryReference(stackPointer, parmAreaSize-offset, cg()),
-               konst,
-               cg()
-               );
+            if (vreg)
+               generateMemRegInstruction(
+                  TR::Linkage::movOpcodes(MemReg, fullRegisterMovType(vreg)),
+                  child,
+                  generateX86MemoryReference(stackPointer, parmAreaSize-offset, cg()),
+                  vreg,
+                  cg()
+                  );
+            else
+               {
+               int32_t konst = child->getInt();
+               generateMemImmInstruction(
+                  TR::InstOpCode::S8MemImm4,
+                  child,
+                  generateX86MemoryReference(stackPointer, parmAreaSize-offset, cg()),
+                  konst,
+                  cg()
+                  );
+               }
             }
          }
 

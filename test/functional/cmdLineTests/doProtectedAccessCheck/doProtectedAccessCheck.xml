@@ -19,25 +19,25 @@
   [1] https://www.gnu.org/software/classpath/license.html
   [2] https://openjdk.org/legal/assembly-exception.html
 
-  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 <!DOCTYPE suite SYSTEM "cmdlinetester.dtd">
 
 <suite id="J9 -Xverify:doProtectedAccessCheck" timeout="300">
     <variable name="JAR" value="-Xint -javaagent:$Q$$AGENTPATH$$Q$ -cp $Q$$JARPATH$$Q$ b/B" />
-    
+
     <test id="With -Xverify:doProtectedAccessCheck">
-        <command>$EXE$ -Xverify:doProtectedAccessCheck $JAR$</command>
+        <command>$EXE$ -XX:+EnableExtendedHCR -Xverify:doProtectedAccessCheck $JAR$</command>
         <output type="success" regex="no">java.lang.VerifyError</output>
         <output type="failure" regex="no">retransformed A</output>
         <output type="failure" caseSensitive="no" regex="no">Unhandled Exception</output>
         <output type="failure" caseSensitive="yes" regex="no">Exception:</output>
         <output type="failure" caseSensitive="yes" regex="no">Processing dump event</output>
     </test>
-    
+
     <test id="Without -Xverify:doProtectedAccessCheck">
-        <command>$EXE$ $JAR$</command>
+        <command>$EXE$ -XX:+EnableExtendedHCR $JAR$</command>
         <output type="success" regex="no">retransformed A</output>
         <output type="failure" regex="no">original A</output>
         <output type="failure" caseSensitive="no" regex="no">Unhandled Exception</output>

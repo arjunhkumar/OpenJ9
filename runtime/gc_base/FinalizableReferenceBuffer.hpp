@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -39,7 +39,7 @@ class GC_FinalizableReferenceBuffer
 private:
 	j9object_t _head; /**< the head of the linked list of reference objects */
 	j9object_t _tail; /**< the tail of the linked list of reference objects */
-	UDATA _count; /**< the number of buffered objects */
+	uintptr_t _count; /**< the number of buffered objects */
 	MM_GCExtensions * const _extensions; /**< a cached pointer to the extensions structure */
 protected:
 public:
@@ -52,7 +52,7 @@ public:
 	 * @param env[in] the current thread
 	 * @param object[in] the object to add
 	 */
-	void add(MM_EnvironmentBase* env, j9object_t object)
+	void add(MM_EnvironmentBase *env, j9object_t object)
 	{
 		if (NULL == _head) {
 			Assert_MM_true(NULL == _tail);
@@ -70,7 +70,7 @@ public:
 		}
 	}
 
-	void flush(MM_EnvironmentBase* env)
+	void flush(MM_EnvironmentBase *env)
 	{
 		if (NULL != _head) {
 			Assert_MM_true(NULL != _tail);
@@ -87,11 +87,11 @@ public:
 	 * Construct a new buffer.
 	 * @param extensions[in] the GC extensions
 	 */
-	GC_FinalizableReferenceBuffer(MM_GCExtensions *extensions) :
-		_head(NULL)
-		,_tail(NULL)
-		,_count(0)
-		,_extensions(extensions)
+	GC_FinalizableReferenceBuffer(MM_GCExtensions *extensions)
+		: _head(NULL)
+		, _tail(NULL)
+		, _count(0)
+		, _extensions(extensions)
 	{}
 };
 #endif /* FINALIZABLEREFERENCEBUFFER_HPP_ */

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.parser.j9.section.common;
 
 import java.util.regex.Matcher;
@@ -28,7 +28,6 @@ import java.util.regex.PatternSyntaxException;
 
 public class CommonPatternMatchers {
 
-	
 	public static final Matcher whitespace = generateMatcher("\\s+");
 	public static final Matcher allButLineFeed = generateMatcher("[^\\n\\r]*");
 	public static final Matcher allButControlChars = generateMatcher("\\P{Cntrl}+");
@@ -51,7 +50,6 @@ public class CommonPatternMatchers {
 	public static final Matcher open_paren = generateMatcher("\\(");
 	public static final Matcher close_paren = generateMatcher("\\)");
 
-	
 	private static final String pattern_java_name;
 	static {
 		String pattern;
@@ -71,19 +69,18 @@ public class CommonPatternMatchers {
 
 	/* Allow for <init> and <clinit> */
 	private static final String pattern_java_method_name = "\\<?" + pattern_java_name + "\\>?";
-	
+
 	private static final String pattern_sov_java_absolute_method_name = pattern_sov_java_absolute_name + "\\." + pattern_java_method_name;
 	private static final String pattern_java_absolute_method_name = pattern_java_absolute_name + "\\." + pattern_java_method_name;
-	
+
 	public static final Matcher java_name = generateMatcher(pattern_java_name);
 	public static final Matcher java_absolute_name = generateMatcher(pattern_java_absolute_name);
-	
+
 	public static final Matcher java_absolute_method_name = generateMatcher(pattern_java_absolute_method_name);
 	public static final Matcher java_absolute_name_array = generateMatcher("[\\[]*" + pattern_java_absolute_name +";?");
 
 	public static final Matcher java_sov_absolute_method_name = generateMatcher(pattern_sov_java_absolute_method_name);
 	public static final Matcher java_file_name = generateMatcher(pattern_java_absolute_name + "\\.java");
-
 
 	/*
 	 * Some versions of SOV 1.4.2 do not prefix hexadecimals with 0x, therefore
@@ -91,11 +88,9 @@ public class CommonPatternMatchers {
 	 * the 00F component of 0x00F, instead of the whole thing.
 	 */
 	public static final Matcher[] hexadecimal = {CommonPatternMatchers.hex_0x, CommonPatternMatchers.hex};
-	
+
 	public static final Matcher at_string = CommonPatternMatchers.generateMatcher("at", Pattern.CASE_INSENSITIVE);
-	
-	
-	
+
 	/*
 	 * Some patterns for Java environment attributes.
 	 */
@@ -105,17 +100,15 @@ public class CommonPatternMatchers {
 	public static final Matcher bits64 = CommonPatternMatchers.generateMatcher("64");
 	public static final Matcher s390 = CommonPatternMatchers.generateMatcher("s390", Pattern.CASE_INSENSITIVE);
 
-	
 	/**
-	 * 
+	 *
 	 * @param pattern
-	 * 
+	 *
 	 */
 	public static Matcher generateMatcher(String pattern) {
 		return Pattern.compile(pattern).matcher("");
 	}
-	
-	
+
 	public static Matcher generateMatcher(String pattern, int flag) {
 		return Pattern.compile(pattern, flag).matcher("");
 	}

@@ -1,7 +1,7 @@
-/*[INCLUDE-IF Sidecar16]*/
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
 package com.ibm.oti.reflect;
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2010
  *
  * This program and the accompanying materials are made available under
@@ -20,19 +20,19 @@ package com.ibm.oti.reflect;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 import java.lang.annotation.Annotation;
 import java.nio.ByteBuffer;
 import java.lang.reflect.Method;
 import java.lang.reflect.Field;
 import java.lang.reflect.Constructor;
-/*[IF Sidecar19-SE]
+/*[IF JAVA_SPEC_VERSION >= 9]
 import jdk.internal.reflect.ConstantPool;
-/*[ELSE]*/
+/*[ELSE] JAVA_SPEC_VERSION >= 9 */
 import sun.reflect.ConstantPool;
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 import com.ibm.oti.vm.VM;
 
 public class AnnotationParser {
@@ -56,26 +56,26 @@ public class AnnotationParser {
 	public static Annotation[][] parseParameterAnnotations(Method method) {
 		return parseParameterAnnotations(getParameterAnnotationsData(method), method.getDeclaringClass(), method.getParameterTypes().length);
 	}
-	
+
 	/**
 	 * @param clazz class for which annotations are to be retrieved
 	 * @return annotation attribute bytes, or null if clazz is null.
 	 */
 	public static  byte[] getAnnotationsData(java.lang.Class clazz) {
-		byte[] result = null; 
+		byte[] result = null;
 		if (null != clazz) {
 			result = getAnnotationsDataImpl(clazz);
 		}
 		return result;
 	};
-	
+
 	public static Object parseDefaultValue(Method method) {
 		byte[] elementValueData = getDefaultValueData(method);
 		if (elementValueData == null) return null;
 		ByteBuffer buf = ByteBuffer.wrap(elementValueData);
 		Class clazz = method.getDeclaringClass();
 		Object internalConstantPool = VM.getVMLangAccess().getInternalConstantPoolFromClass(clazz);
-		
+
 		/* The AnnotationParser boxes primitive return types */
 		Class returnType = method.getReturnType();
 		if (returnType.isPrimitive()) {

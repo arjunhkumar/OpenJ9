@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include <algorithm>
 #include "j9cfg.h"
@@ -87,7 +87,6 @@ namespace TR { class SimpleRegex; }
 #define OWNING_METHOD_MAY_NOT_BE_THE_CALLER (1)
 
 #define MIN_NUM_CALLERS 20
-#define MIN_FAN_IN_SIZE 50
 #define SIZE_MULTIPLIER 4
 #define FANIN_OTHER_BUCKET_THRESHOLD 0.5
 #define DEFAULT_CONST_CLASS_WEIGHT 10
@@ -133,12 +132,12 @@ static int32_t getJ9InitialBytecodeSize(TR_ResolvedMethod * feMethod, TR::Resolv
       size >>= 1;
       }
 
-    else if (feMethod->isDAAWrapperMethod())
+    else if (((TR_ResolvedJ9Method*)feMethod)->isDAAWrapperMethod())
       {
       size = 1;
       }
 
-    else if (feMethod->isDAAIntrinsicMethod())
+    else if (((TR_ResolvedJ9Method*)feMethod)->isDAAIntrinsicMethod())
       {
       size >>= 3;
       }
@@ -173,7 +172,7 @@ static int32_t getJ9InitialBytecodeSize(TR_ResolvedMethod * feMethod, TR::Resolv
 
 static bool insideIntPipelineForEach(TR_ResolvedMethod *method, TR::Compilation *comp)
    {
-   char *sig = "accept";
+   const char *sig = "accept";
    bool returnValue = true; //default is true since if first method is IntPipeline.forEach true is returned
 
    //Searches up the owning method chain until IntPipeline.forEach is found
@@ -268,9 +267,18 @@ TR_J9InlinerPolicy::determineInliningHeuristic(TR::ResolvedMethodSymbol *callerS
    return;
    }
 
-void TR_MultipleCallTargetInliner::generateNodeEstimate::operator ()(TR_CallTarget *ct, TR::Compilation *comp)
+void
+TR_MultipleCallTargetInliner::NodeEstimate::operator ()(TR_CallTarget *ct, TR::Compilation *comp)
    {
-   int32_t size = getJ9InitialBytecodeSize(ct->_calleeMethod, 0, comp);
+   static const char *qq1 = feGetEnv("TR_NodeEstimateNumerator");
+   static const uint32_t userNumer = ( qq1 ) ? atoi(qq1) : 1;
+   uint32_t numer = userNumer;
+   if (!qq1)
+      numer = comp->getOptLevel() >= hot ? 1 : 4;
+   static const char *qq2 = feGetEnv("TR_NodeEstimateDenominator");
+   static const uint32_t denom = ( qq2 ) ? atoi(qq2) : 1;
+
+   int32_t size = (numer * getJ9InitialBytecodeSize(ct->_calleeMethod, 0, comp))/denom;
 
    // only scale the inlining size when the method is non-empty - conversion of
    // NaN/Inf to int is undefined and an empty method partially inlined instead
@@ -340,7 +348,7 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
    if (isInlineableJNI(calleeMethod, callNode))
       return true;
 
-   if (calleeMethod->isDAAWrapperMethod())
+   if (((TR_ResolvedJ9Method*)calleeMethod)->isDAAWrapperMethod())
       return true;
 
    if (isJSR292AlwaysWorthInlining(calleeMethod))
@@ -357,6 +365,9 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
       case TR::java_lang_String_regionMatches:
       case TR::java_lang_Class_newInstance:
       case TR::jdk_internal_util_Preconditions_checkIndex:
+
+      // AbstractMemorySegmentImpl.reinterpret methods call Reflection.getCallerClass
+      case TR::jdk_internal_foreign_AbstractMemorySegmentImpl_reinterpret:
 
       // we rely on inlining compareAndSwap so we see the inner native call and can special case it
       case TR::com_ibm_jit_JITHelpers_compareAndSwapIntInObject:
@@ -387,6 +398,7 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
       case TR::java_lang_StringUTF16_newBytesFor:
       case TR::java_util_HashMap_get:
       case TR::java_util_HashMap_getNode:
+      case TR::java_util_HashMap_getNode_Object:
       case TR::java_lang_String_getChars_charArray:
       case TR::java_lang_String_getChars_byteArray:
       case TR::java_lang_Integer_toUnsignedLong:
@@ -394,18 +406,32 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
       case TR::java_nio_ByteOrder_nativeOrder:
          return true;
 
-      // In Java9 the following enum values match both sun.misc.Unsafe and
-      // jdk.internal.misc.Unsafe The sun.misc.Unsafe methods are simple
-      // wrappers to call jdk.internal impls, and we want to inline them. Since
-      // the same code can run with Java8 classes where sun.misc.Unsafe has the
-      // JNI impl, we need to differentiate by testing with isNative(). If it is
-      // native, then we don't need to inline it as it will be handled
-      // elsewhere.
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeInt:
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeLong:
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeReference:
+         return false;
+
+      /* In Java9 the compareAndSwap[Int|Long|Object] and copyMemory enums match
+       * both sun.misc.Unsafe and jdk.internal.misc.Unsafe. The sun.misc.Unsafe
+       * methods are simple wrappers to call jdk.internal impls, and we want to
+       * inline them. Since the same code can run with Java8 classes where
+       * sun.misc.Unsafe has the JNI impl, we need to differentiate by testing
+       * with isNative(). If it is native, then we don't need to inline it as it
+       * will be handled elsewhere.
+       *
+       * Starting from Java12, compareAndExchangeObject was changed from being a
+       * native to being a simple wrapper to call compareAndExchangeReference.
+       * The enum matches both cases and we only want to force inlining on the
+       * non-native case. If the native case reaches here, it means it already
+       * failed the isInlineableJNI check and should not be force inlined.
+       */
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeObject:
       case TR::sun_misc_Unsafe_compareAndSwapInt_jlObjectJII_Z:
       case TR::sun_misc_Unsafe_compareAndSwapLong_jlObjectJJJ_Z:
       case TR::sun_misc_Unsafe_compareAndSwapObject_jlObjectJjlObjectjlObject_Z:
       case TR::sun_misc_Unsafe_copyMemory:
          return !calleeMethod->isNative();
+
       default:
          break;
       }
@@ -428,6 +454,15 @@ TR_J9InlinerPolicy::alwaysWorthInlining(TR_ResolvedMethod * calleeMethod, TR::No
       {
       if (comp()->trace(OMR::inlining))
          traceMsg(comp(), "@ForceInline was specified for %s, in alwaysWorthInlining\n", calleeMethod->signature(comp()->trMemory()));
+      return true;
+      }
+
+   if (calleeMethod->getRecognizedMethod() == TR::unknownMethod &&
+       comp()->fej9()->isIntrinsicCandidate(calleeMethod) &&
+       !comp()->getOption(TR_DisableInliningUnrecognizedIntrinsics))
+      {
+      if (comp()->trace(OMR::inlining))
+         traceMsg(comp(), "@IntrinsicCandidate was specified for %s, in alwaysWorthInlining\n", calleeMethod->signature(comp()->trMemory()));
       return true;
       }
 
@@ -470,6 +505,7 @@ static bool checkForRemainingInlineableJSR292(TR::Compilation *comp, TR::Resolve
 void
 TR_J9InlinerUtil::requestAdditionalOptimizations(TR_CallTarget *calltarget)
    {
+#if !defined(J9VM_OPT_OPENJDK_METHODHANDLE)
    if (calltarget->_myCallSite->getDepth() == -1 // only do this for top level callee to prevent exponential walk of inlined trees
       && checkForRemainingInlineableJSR292(comp(), calltarget->_calleeSymbol))
       {
@@ -477,6 +513,7 @@ TR_J9InlinerUtil::requestAdditionalOptimizations(TR_CallTarget *calltarget)
       if (comp()->trace(OMR::inlining))
          heuristicTrace(tracer(),"Requesting one more pass of targeted inlining due to method handle invoke in %s\n", tracer()->traceSignature(calltarget->_calleeSymbol));
       }
+#endif
    }
 
 void
@@ -664,12 +701,12 @@ TR_J9InlinerPolicy::createTempsForUnsafePutGet(TR::Node*& unsafeAddress,
    oldUnsafeAddress->recursivelyDecReferenceCount();
    oldOffset->recursivelyDecReferenceCount();
    }
-// Extra boolean is for AOT case when we can not simplify the Class Test so we need Array Case in that scenario, But we can put indirect in cold instead of fallthrough for the tests
+
 TR::TreeTop*
-TR_J9InlinerPolicy::genClassCheckForUnsafeGetPut(TR::Node* offset, bool isNotLowTagged)
+TR_J9InlinerPolicy::genClassCheckForUnsafeGetPut(TR::Node* offset, bool branchIfLowTagged)
    {
-   // The low bit is tagged if the object being dereferenced is a
-   // java/lang/Class object. This is because this is a special case when
+   // The low bit of the offset is set - "tagged" - if the object being dereferenced
+   // is a java/lang/Class object.  This is because this is a special case when
    // an extra level of indirection is necessary
    bool isILoad = (offset->getOpCodeValue() == TR::iload);
    TR::Node *lowTag = NULL;
@@ -679,32 +716,10 @@ TR_J9InlinerPolicy::genClassCheckForUnsafeGetPut(TR::Node* offset, bool isNotLow
    else
       lowTag = TR::Node::create(TR::land, 2, offset, TR::Node::lconst(1));
 
-   TR::ILOpCodes op = isNotLowTagged ? (isILoad ? TR::ificmpne : TR::iflcmpne) : (isILoad ?  TR::ificmpeq : TR::iflcmpeq);
+   TR::ILOpCodes op = branchIfLowTagged ? (isILoad ? TR::ificmpeq : TR::iflcmpeq)
+                                        : (isILoad ? TR::ificmpne : TR::iflcmpne);
    // Create the if to check if an extra level of indirection is needed
    TR::Node *cmp = TR::Node::createif(op, lowTag, lowTag->getSecondChild(), NULL);
-   TR::TreeTop* lowTagCmpTree = TR::TreeTop::create(comp(), cmp);
-   return lowTagCmpTree;
-   }
-
-
-TR::TreeTop*
-TR_J9InlinerPolicy::genClassCheckForUnsafeGetPut(TR::Node* offset)
-   {
-   // The low bit is tagged if the object being dereferenced is a
-   // java/lang/Class object. This is because this is a special case when
-   // an extra level of indirection is necessary
-   bool isILoad = (offset->getOpCodeValue() == TR::iload);
-   TR::Node *lowTag =
-      TR::Node::create(isILoad ? TR::iand : TR::land, 2, offset,
-                      TR::Node::create(offset, isILoad ? TR::iconst : TR::lconst, 0, 0));
-   if (isILoad)
-      lowTag->getSecondChild()->setInt(1);
-   else
-      lowTag->getSecondChild()->setLongInt(1);
-
-   // Create the if to check if an extra level of indirection is needed
-   TR::Node *cmp = TR::Node::createif(isILoad ? TR::ificmpne : TR::iflcmpne,
-                                    lowTag, lowTag->getSecondChild(), NULL);
    TR::TreeTop* lowTagCmpTree = TR::TreeTop::create(comp(), cmp);
    return lowTagCmpTree;
    }
@@ -807,32 +822,19 @@ TR_J9InlinerPolicy::genIndirectAccessCodeForUnsafeGetPut(TR::Node* directAccessO
    }
 
 TR::Block *
-TR_J9InlinerPolicy::addNullCheckForUnsafeGetPut(TR::Node* unsafeAddress,
-                                            TR::SymbolReference* newSymbolReferenceForAddress,
-                                            TR::TreeTop* callNodeTreeTop,
-                                            TR::TreeTop* directAccessTreeTop,
-                                            TR::TreeTop* arrayDirectAccessTreeTop,
-                                            TR::TreeTop* indirectAccessTreeTop)
+TR_J9InlinerPolicy::createUnsafeGetPutCallDiamond(TR::TreeTop* callNodeTreeTop,
+                                            TR::TreeTop* comparisonTree,
+                                            TR::TreeTop* branchTargetTree,
+                                            TR::TreeTop* fallThroughTree)
    {
-   //Generate the treetop for the null comparison
-   TR::Node *addrLoad =
-      TR::Node::createWithSymRef(unsafeAddress,
-                      comp()->il.opCodeForDirectLoad(unsafeAddress->getDataType()),
-                      0, newSymbolReferenceForAddress);
-   TR::Node *nullCmp =
-      TR::Node::createif(TR::ifacmpeq, addrLoad,
-                        TR::Node::create(addrLoad, TR::aconst, 0, 0), NULL);
-   TR::TreeTop *nullComparisonTree = TR::TreeTop::create(comp(), nullCmp, NULL, NULL);
-   TR::TreeTop* ifTree = arrayDirectAccessTreeTop ? arrayDirectAccessTreeTop : indirectAccessTreeTop;
-   TR::TreeTop* elseTree = arrayDirectAccessTreeTop ? indirectAccessTreeTop : directAccessTreeTop;
    // Connect the trees/add blocks etc. properly and split the original block
    TR::Block * joinBlock =
-      callNodeTreeTop->getEnclosingBlock()->
-      createConditionalBlocksBeforeTree(callNodeTreeTop,
-                                        nullComparisonTree,
-                                        ifTree,
-                                        elseTree,
-                                        comp()->getFlowGraph(), false, false);
+      callNodeTreeTop->getEnclosingBlock()
+            ->createConditionalBlocksBeforeTree(callNodeTreeTop,
+                                                comparisonTree,
+                                                branchTargetTree,
+                                                fallThroughTree,
+                                                comp()->getFlowGraph(), false, false);
    return joinBlock;
    }
 
@@ -848,118 +850,339 @@ TR_J9InlinerPolicy::createAnchorNodesForUnsafeGetPut(TR::TreeTop* treeTop,
       TR::TreeTop *compRefTT =
          TR::TreeTop::create(comp(), genCompressedRefs(isUnsafeGet?node->getFirstChild():node,
                                                       false));
-      if (compRefTT)
-         {
-         TR::TreeTop *prevTT = treeTop->getPrevTreeTop();
-         prevTT->join(compRefTT);
-         compRefTT->join(isUnsafeGet?treeTop:treeTop->getNextTreeTop());
-         }
+
+      TR::TreeTop *prevTT = treeTop->getPrevTreeTop();
+      if (prevTT != NULL) prevTT->join(compRefTT);
+      compRefTT->join(isUnsafeGet ? treeTop : treeTop->getNextTreeTop());
+
       }
    }
 
 void
 TR_J9InlinerPolicy::genCodeForUnsafeGetPut(TR::Node* unsafeAddress,
+                                       TR::Node* unsafeOffset,
+                                       TR::DataType type,
                                        TR::TreeTop* callNodeTreeTop,
                                        TR::TreeTop* prevTreeTop,
                                        TR::SymbolReference* newSymbolReferenceForAddress,
                                        TR::TreeTop* directAccessTreeTop,
-                                       TR::TreeTop* lowTagCmpTree,
+                                       TR::TreeTop* arrayDirectAccessTreeTop,
+                                       TR::TreeTop* indirectAccessTreeTop,
+                                       TR::TreeTop* directAccessWithConversionTreeTop,
                                        bool needNullCheck, bool isUnsafeGet,
                                        bool conversionNeeded,
-                                       TR::Block * joinBlock,
-                                       TR_OpaqueClassBlock *javaLangClass,
+                                       bool arrayBlockNeeded, bool typeTestsNeeded,
                                        TR::Node* orderedCallNode = NULL)
    {
    TR::CFG *cfg = comp()->getFlowGraph();
-   TR::Block *nullComparisonBlock = prevTreeTop->getEnclosingBlock();
-   TR::TreeTop* nullComparisonTree = nullComparisonBlock->getLastRealTreeTop();
-   TR::TreeTop *nullComparisonEntryTree = nullComparisonBlock->getEntry();
-   TR::TreeTop *nullComparisonExitTree = nullComparisonBlock->getExit();
-   //if conversionNeeded is true, we haven't generated and we don't need arrayDirectAccessBlock
-   TR::Block *arrayDirectAccessBlock = conversionNeeded ? nullComparisonTree->getNode()->getBranchDestination()->getNode()->getBlock() : NULL;
-   TR::Block *indirectAccessBlock;
-   TR::Block * directAccessBlock;
-   if (conversionNeeded)
+   TR_OpaqueClassBlock *javaLangClass = comp()->getClassClassPointer(/* isVettedForAOT = */ true);
+
+   // There are 6 possible cases determining which checks and blocks should be added to the generated IL trees:
+   // 1.) typeTestsNeeded && arrayBlockNeeded
+   //     (i.e.: object type is unknown at compile time AND (offheap OR data element size < 4 (byte, short)))
+   //     - tests: NULL test, Array test, Lowtag test
+   //     - blocks: arrayDirectAccess, directAccess, indirectAccess, directAccessWithConversion (if data element size < 4)
+   // 2.) typeTestsNeeded && !arrayBlockNeeded && javaLangClass != NULL
+   //     (i.e.: object type is unknown at compile time AND gencon AND data element size >= 4 (int, long) AND able to get java/lang/Class)
+   //     - tests: Lowtag test, NULL test, Class test
+   //     - blocks: directAccess, indirectAccess
+   // 3.) typeTestsNeeded && !arrayBlockNeeded && javaLangClass == NULL
+   //     (i.e.: object type is unknown at compile time AND gencon AND data element size >= 4 (int, long) AND unable to get java/lang/Class)
+   //     - tests: NULL test, Array test, Lowtag test
+   //     - blocks: directAccess, indirectAccess
+   // 4.) !typeTestsNeeded && arrayBlockNeeded
+   //     (i.e.: object is known to be array at compile time AND (offheap OR data element size < 4 (byte, short)))
+   //     - tests: NULL test
+   //     - blocks: arrayDirectAccess, directAccess, directAccessWithConversion (if data element size < 4)
+   //    *NOTE: Special Case*
+   //     When conversionNeeded is true and offheap is not enabled, both the NULL and non-NULL cases need to be handled by
+   //     direct access with conversion (which in the non-offheap case, is the same as array access). Thus, in this case:
+   //     - test: none
+   //     - blocks: arrayDirectAccess
+   // 5.) !typeTestsNeeded && !arrayBlockNeeded && conversionNeeded
+   //     (i.e.: object is known to be non-array at compile time AND data element size < 4 (byte, short))
+   //     - tests: NULL test
+   //     - blocks: directAccess, directAccessWithConversion
+   // 6.) !typeTestsNeeded && !arrayBlockNeeded && !conversionNeeded
+   //     (i.e.: object is known to be non-array at compile time AND data element size >= 4 (int, long))
+   //     - test: none
+   //     - block: directAccess
+
+   TR::Node *nullComparisonNode = NULL;
+   TR::TreeTop *nullComparisonTree = NULL;
+   TR::Block *nullComparisonBlock = NULL;
+
+   if (typeTestsNeeded || // CASES (1), (2), (3)
+       (arrayBlockNeeded && (conversionNeeded == (bool)directAccessWithConversionTreeTop)) || // CASE (4) excluding special case
+       (!arrayBlockNeeded && conversionNeeded)) // CASE (5)
       {
-      //Generating block for direct access
-      indirectAccessBlock = nullComparisonBlock->getNextBlock();
-      directAccessBlock = TR::Block::createEmptyBlock(lowTagCmpTree->getNode(), comp(),
-      indirectAccessBlock->getFrequency());
-      directAccessBlock->append(directAccessTreeTop);
-      directAccessBlock->append(TR::TreeTop::create(comp(),
-                                TR::Node::create(directAccessTreeTop->getNode(),
-                                TR::Goto, 0, joinBlock->getEntry())));
-      arrayDirectAccessBlock->getExit()->insertTreeTopsAfterMe(directAccessBlock->getEntry(),
-      directAccessBlock->getExit());
-      cfg->addNode(directAccessBlock);
-      cfg->addEdge(TR::CFGEdge::createEdge(directAccessBlock,  joinBlock, trMemory()));
+      // Generate the tree for the null test
+      TR::Node *addrLoad =
+         TR::Node::createWithSymRef(unsafeAddress,
+                        comp()->il.opCodeForDirectLoad(unsafeAddress->getDataType()),
+                        0, newSymbolReferenceForAddress);
+      nullComparisonNode = TR::Node::createif(TR::ifacmpeq, addrLoad, TR::Node::create(addrLoad, TR::aconst, 0, 0), NULL);
+      nullComparisonTree = TR::TreeTop::create(comp(), nullComparisonNode);
+      nullComparisonBlock = prevTreeTop->getEnclosingBlock();
       }
-   else
+
+   // If low-order bit of offset is set, perform indirect access. In all cases where
+   // a runtime lowtag test is needed (CASES 1, 2, and 3), the direct access code is placed
+   // on the fallthrough path, so it will ALWAYS need to take the branch to the indirect
+   // access block if the bit is set.
+
+   TR::TreeTop *lowTagCmpTree = typeTestsNeeded ? // CASES (1), (2), (3)
+      genClassCheckForUnsafeGetPut(unsafeOffset, true) : NULL;
+
+   TR::TreeTop *firstComparisonTree;
+   TR::TreeTop *branchTargetTree;
+   TR::TreeTop *fallThroughTree;
+
+   // Determine overall layout of IL - which test to place first (null test of object or
+   // setting of low-order bit of offset) - and whether direct or indirect access IL will
+   // be placed on the fall-through path of the first branch.
+   //
+   if (typeTestsNeeded && arrayBlockNeeded) // CASE (1)
       {
-      directAccessBlock = nullComparisonBlock->getNextBlock();
-      indirectAccessBlock = nullComparisonTree->getNode()->getBranchDestination()->getNode()->getBlock();
+      firstComparisonTree = nullComparisonTree;
+      branchTargetTree = directAccessWithConversionTreeTop ? directAccessWithConversionTreeTop : arrayDirectAccessTreeTop;
+      fallThroughTree = directAccessTreeTop;
+      }
+   else if (typeTestsNeeded && !arrayBlockNeeded && javaLangClass != NULL) // CASE (2)
+      {
+      firstComparisonTree = lowTagCmpTree;
+      branchTargetTree = indirectAccessTreeTop;
+      fallThroughTree = directAccessTreeTop;
+      }
+   else if (typeTestsNeeded && !arrayBlockNeeded) // CASE (3)
+      {
+      firstComparisonTree = nullComparisonTree;
+      branchTargetTree = indirectAccessTreeTop;
+      fallThroughTree = directAccessTreeTop;
+      }
+   else if (!typeTestsNeeded && arrayBlockNeeded) // CASE (4)
+      {
+      //SPECIAL CASE
+      if (!directAccessWithConversionTreeTop && conversionNeeded)
+         {
+         firstComparisonTree = NULL;
+         branchTargetTree = NULL;
+         fallThroughTree = arrayDirectAccessTreeTop;
+         }
+      else
+         {
+         firstComparisonTree = nullComparisonTree;
+         branchTargetTree = directAccessWithConversionTreeTop ? directAccessWithConversionTreeTop
+                                                              : directAccessTreeTop;
+         fallThroughTree = arrayDirectAccessTreeTop;
+         }
+      }
+   else if (conversionNeeded) // CASE (5)
+      {
+      firstComparisonTree = nullComparisonTree;
+      branchTargetTree = directAccessWithConversionTreeTop;
+      fallThroughTree = directAccessTreeTop;
+      }
+   else  // CASE (6)
+      {
+      firstComparisonTree = NULL;
+      branchTargetTree = NULL;
+      fallThroughTree = directAccessTreeTop;
+      }
+
+
+   TR::Block *joinBlock = NULL;
+
+   if (firstComparisonTree) // All except CASE (6) and CASE (4) special case
+      {
+      joinBlock = createUnsafeGetPutCallDiamond(callNodeTreeTop, firstComparisonTree, branchTargetTree, fallThroughTree);
+      debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, joinBlock is %d\n", joinBlock->getNumber());
+      }
+   else // CASE (6) and CASE (4) special case
+      {
+      joinBlock = callNodeTreeTop->getEnclosingBlock()->split(callNodeTreeTop, cfg, true);
+
+      //remove original tree from joinBlock
+      callNodeTreeTop->getNode()->removeAllChildren();
+      callNodeTreeTop->getPrevTreeTop()->join(callNodeTreeTop->getNextTreeTop());
+      }
+
+   TR::Block *beforeCallBlock = prevTreeTop->getEnclosingBlock();
+
+   TR::Block *arrayDirectAccessBlock = NULL;
+   TR::Block *indirectAccessBlock = NULL;
+   TR::Block *directAccessBlock = NULL;
+   TR::Block *directAccessWithConversionBlock = NULL;
+
+   if (typeTestsNeeded && arrayBlockNeeded) // CASE (1)
+      {
+      directAccessBlock = beforeCallBlock->getNextBlock();
+
+      if (directAccessWithConversionTreeTop)
+         {
+         //get directAccessWithConversionBlock
+         directAccessWithConversionBlock = firstComparisonTree->getNode()->getBranchDestination()->getNode()->getBlock();
+
+         //generate arrayDirectAccessBlock
+         arrayDirectAccessBlock = TR::Block::createEmptyBlock(lowTagCmpTree->getNode(), comp(),
+                                                              directAccessBlock->getFrequency());
+         arrayDirectAccessBlock->append(arrayDirectAccessTreeTop);
+         arrayDirectAccessBlock->append(
+            TR::TreeTop::create(comp(),
+                                TR::Node::create(arrayDirectAccessTreeTop->getNode(),
+                                                 TR::Goto, 0, joinBlock->getEntry())));
+
+         directAccessWithConversionBlock->getExit()->insertTreeTopsAfterMe(arrayDirectAccessBlock->getEntry(),
+                                                                           arrayDirectAccessBlock->getExit());
+
+         cfg->addNode(arrayDirectAccessBlock);
+         cfg->addEdge(TR::CFGEdge::createEdge(arrayDirectAccessBlock, joinBlock, trMemory()));
+         }
+      else
+         {
+         //get arrayDirectAccessBlock
+         arrayDirectAccessBlock = firstComparisonTree->getNode()->getBranchDestination()->getNode()->getBlock();
+
+         //fix NULL test so that directAccessBlock is executed if object is NULL
+         nullComparisonTree->getNode()->setBranchDestination(conversionNeeded ? arrayDirectAccessBlock->getEntry()
+                                                                              : directAccessBlock->getEntry());
+         }
+
+      //Generating block for indirect access
+      indirectAccessBlock = TR::Block::createEmptyBlock(lowTagCmpTree->getNode(), comp(),
+                                                        directAccessBlock->getFrequency());
+      indirectAccessBlock->append(indirectAccessTreeTop);
+      indirectAccessBlock->append(
+            TR::TreeTop::create(comp(),
+                                TR::Node::create(indirectAccessTreeTop->getNode(),
+                                                 TR::Goto, 0, joinBlock->getEntry())));
+
+      arrayDirectAccessBlock->getExit()->insertTreeTopsAfterMe(indirectAccessBlock->getEntry(),
+                                                               indirectAccessBlock->getExit());
+
+      cfg->addNode(indirectAccessBlock);
+      cfg->addEdge(TR::CFGEdge::createEdge(indirectAccessBlock, joinBlock, trMemory()));
+      }
+   else if (typeTestsNeeded && !arrayBlockNeeded) // CASE (2), (3)
+      {
+      directAccessBlock = beforeCallBlock->getNextBlock();
+
+      indirectAccessBlock = firstComparisonTree->getNode()->getBranchDestination()->getNode()->getBlock();
       indirectAccessBlock->setFrequency(VERSIONED_COLD_BLOCK_COUNT);
       indirectAccessBlock->setIsCold();
-      nullComparisonTree->getNode()->setBranchDestination(directAccessBlock->getEntry());
+
+      if (javaLangClass == NULL) // CASE (3) only
+         {
+         //fix NULL test so that directAccessBlock is executed if object is NULL
+         nullComparisonTree->getNode()->setBranchDestination(directAccessBlock->getEntry());
+         }
+      }
+   else if (!typeTestsNeeded && arrayBlockNeeded) // CASE (4)
+      {
+      //SPECIAL CASE
+      if (!directAccessWithConversionTreeTop && conversionNeeded)
+         {
+         //Since no runtime tests are being performed, we can simply append the arrayDirectAccessTreeTop to beforeCallBlock
+         beforeCallBlock->append(arrayDirectAccessTreeTop);
+         }
+      else
+         {
+         if (directAccessWithConversionTreeTop)
+            directAccessWithConversionBlock = firstComparisonTree->getNode()->getBranchDestination()->getNode()->getBlock();
+         else
+            directAccessBlock = firstComparisonTree->getNode()->getBranchDestination()->getNode()->getBlock();
+         arrayDirectAccessBlock = beforeCallBlock->getNextBlock();
+         }
+      }
+   else if (conversionNeeded) // CASE (5)
+      {
+      directAccessWithConversionBlock = firstComparisonTree->getNode()->getBranchDestination()->getNode()->getBlock();
+      directAccessBlock = beforeCallBlock->getNextBlock();
+      }
+   else // CASE (6)
+      {
+      //Since no runtime tests are being performed, we can simply append the directAccessTreeTop to beforeCallBlock
+      beforeCallBlock->append(directAccessTreeTop);
       }
 
-   debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, Block %d created for direct Access\n", directAccessBlock->getNumber());
+   if (directAccessBlock)
+      debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, directAccessBlock is %d\n", directAccessBlock->getNumber());
 
-   //Generating block for lowTagCmpTree
-   TR::Block *lowTagCmpBlock =
-   TR::Block::createEmptyBlock(unsafeAddress, comp(), conversionNeeded ? indirectAccessBlock->getFrequency() : directAccessBlock->getFrequency());
-   lowTagCmpBlock->append(lowTagCmpTree);
-   cfg->addNode(lowTagCmpBlock);
-   debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, Block %d created for low tag comparison\n", lowTagCmpBlock->getNumber());
+   if (indirectAccessBlock)
+      debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, indirectAccessBlock is %d\n", indirectAccessBlock->getNumber());
 
-   TR::Node *vftLoad = TR::Node::createWithSymRef(TR::aloadi, 1, 1, TR::Node::createWithSymRef(unsafeAddress, comp()->il.opCodeForDirectLoad(unsafeAddress->getDataType()), 0, newSymbolReferenceForAddress), comp()->getSymRefTab()->findOrCreateVftSymbolRef());
+   if (directAccessWithConversionBlock)
+      debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, directAccessWithConversion is %d\n", directAccessWithConversionBlock->getNumber());
+
+   createAnchorNodesForUnsafeGetPut(directAccessTreeTop, type, isUnsafeGet);
+
+   if (arrayDirectAccessTreeTop)
+      createAnchorNodesForUnsafeGetPut(arrayDirectAccessTreeTop, type, isUnsafeGet);
+
+   if (directAccessWithConversionTreeTop)
+      createAnchorNodesForUnsafeGetPut(directAccessWithConversionTreeTop, type, isUnsafeGet);
+
+   TR::Node *objLoad = TR::Node::createWithSymRef(unsafeAddress,
+                             comp()->il.opCodeForDirectLoad(unsafeAddress->getDataType()), 0,
+                             newSymbolReferenceForAddress);
+   TR::Node *vftLoad = TR::Node::createWithSymRef(TR::aloadi, 1, 1, objLoad,
+                                       comp()->getSymRefTab()->findOrCreateVftSymbolRef());
    TR::TreeTop *isArrayTreeTop;
    TR::Block *isArrayBlock;
    TR::TreeTop *isClassTreeTop;
    TR::Block *isClassBlock;
-   // If we need conversion or java/lang/Class is not loaded yet, we generate old sequence of tests
-   if (conversionNeeded || javaLangClass == NULL)
+
+   //Generate sequence of runtime tests if object type is not known at compile time
+   if (typeTestsNeeded && (arrayBlockNeeded || javaLangClass == NULL)) // CASES (1) and (3)
       {
-      TR::Node *isArrayField = NULL;
-      if (comp()->target().is32Bit())
-         {
-         isArrayField = TR::Node::createWithSymRef(TR::iloadi, 1, 1, vftLoad, comp()->getSymRefTab()->findOrCreateClassAndDepthFlagsSymbolRef());
-         }
-      else
-         {
-         isArrayField = TR::Node::createWithSymRef(TR::lloadi, 1, 1, vftLoad, comp()->getSymRefTab()->findOrCreateClassAndDepthFlagsSymbolRef());
-         isArrayField = TR::Node::create(TR::l2i, 1, isArrayField);
-         }
-      TR::Node *andConstNode = TR::Node::create(isArrayField, TR::iconst, 0, TR::Compiler->cls.flagValueForArrayCheck(comp()));
-      TR::Node * andNode   = TR::Node::create(TR::iand, 2, isArrayField, andConstNode);
-      TR::Node *isArrayNode = TR::Node::createif(TR::ificmpeq, andNode, andConstNode, NULL);
+      //Generating block for lowTagCmpTree
+      TR::Block *lowTagCmpBlock =
+                    TR::Block::createEmptyBlock(unsafeAddress, comp(),
+                                                arrayBlockNeeded ? indirectAccessBlock->getFrequency()
+                                                                 : directAccessBlock->getFrequency());
+      lowTagCmpBlock->append(lowTagCmpTree);
+      cfg->addNode(lowTagCmpBlock);
+
+      directAccessBlock->getEntry()->insertTreeTopsBeforeMe(lowTagCmpBlock->getEntry(), lowTagCmpBlock->getExit());
+      lowTagCmpTree->getNode()->setBranchDestination(indirectAccessBlock->getEntry());
+
+      cfg->addEdge(TR::CFGEdge::createEdge(lowTagCmpBlock, directAccessBlock, trMemory()));
+      cfg->addEdge(TR::CFGEdge::createEdge(lowTagCmpBlock, indirectAccessBlock, trMemory()));
+
+      debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, Block %d created for low tag comparison\n", lowTagCmpBlock->getNumber());
+
+      TR::Node *testIsArrayFlag = comp()->fej9()->testIsClassArrayType(vftLoad);
+      TR::Node *isArrayNode = TR::Node::createif(TR::ificmpne, testIsArrayFlag, TR::Node::create(TR::iconst, 0), NULL);
       isArrayTreeTop = TR::TreeTop::create(comp(), isArrayNode, NULL, NULL);
       isArrayBlock = TR::Block::createEmptyBlock(vftLoad, comp(), indirectAccessBlock->getFrequency());
       isArrayBlock->append(isArrayTreeTop);
       cfg->addNode(isArrayBlock);
-      isArrayNode->setBranchDestination(conversionNeeded ? arrayDirectAccessBlock->getEntry() : directAccessBlock->getEntry());
-      if (conversionNeeded)
-         {
-         indirectAccessBlock->getEntry()->insertTreeTopsBeforeMe(lowTagCmpBlock->getEntry(), lowTagCmpBlock->getExit());
-         lowTagCmpTree->getNode()->setBranchDestination(directAccessBlock->getEntry());
-         }
-      else
-         {
-         traceMsg(comp(),"\t\t Generating an isArray test as j9class of java/lang/Class is NULL");
-         directAccessBlock->getEntry()->insertTreeTopsBeforeMe(lowTagCmpBlock->getEntry(), lowTagCmpBlock->getExit());
-         lowTagCmpTree->getNode()->setBranchDestination(indirectAccessBlock->getEntry());
-         }
+      isArrayNode->setBranchDestination(arrayBlockNeeded ? arrayDirectAccessBlock->getEntry() : directAccessBlock->getEntry());
+
       lowTagCmpBlock->getEntry()->insertTreeTopsBeforeMe(isArrayBlock->getEntry(),
                                                          isArrayBlock->getExit());
-      cfg->addEdge(TR::CFGEdge::createEdge(isArrayBlock,  lowTagCmpBlock, trMemory()));
-      cfg->addEdge(TR::CFGEdge::createEdge(lowTagCmpBlock, indirectAccessBlock, trMemory()));
-      cfg->addEdge(TR::CFGEdge::createEdge(isArrayBlock, conversionNeeded ? arrayDirectAccessBlock : directAccessBlock, trMemory()));
-      cfg->addEdge(TR::CFGEdge::createEdge(nullComparisonBlock,  isArrayBlock, trMemory()));
+      cfg->addEdge(TR::CFGEdge::createEdge(isArrayBlock, lowTagCmpBlock, trMemory()));
+      cfg->addEdge(TR::CFGEdge::createEdge(isArrayBlock, arrayBlockNeeded ? arrayDirectAccessBlock
+                                                                        : directAccessBlock, trMemory()));
+      cfg->addEdge(TR::CFGEdge::createEdge(beforeCallBlock, isArrayBlock, trMemory()));
 
       debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, Block %d created for array check\n", isArrayBlock->getNumber());
+
       }
-   else
+   else if (typeTestsNeeded) // CASE (2)
       {
+      TR::Block *nullComparisonBlock = TR::Block::createEmptyBlock(objLoad, comp(), indirectAccessBlock->getFrequency());
+      nullComparisonNode->setBranchDestination(directAccessBlock->getEntry());
+      nullComparisonBlock->append(nullComparisonTree);
+      cfg->addNode(nullComparisonBlock);
+      nullComparisonBlock->setIsCold();
+
+      debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, Block %d created for null object comparison\n", nullComparisonBlock->getNumber());
+
+      indirectAccessBlock->getEntry()->insertTreeTopsBeforeMe(nullComparisonBlock->getEntry(), nullComparisonBlock->getExit());
+
+      lowTagCmpTree->getNode()->setBranchDestination(nullComparisonBlock->getEntry());
+
       // Following sequence of code generate isClassTest.
       // ifacmpeq goto indirectAccess
       //    aload vft-symbol
@@ -976,28 +1199,34 @@ TR_J9InlinerPolicy::genCodeForUnsafeGetPut(TR::Node* unsafeAddress,
       loadJavaLangClass->getByteCodeInfo().setZeroByteCodeIndex();
       loadJavaLangClass->setIsClassPointerConstant(true);
 
-      TR::Node *isClassNode = TR::Node::createif(TR::ifacmpeq, vftLoad, loadJavaLangClass, NULL);
+      TR::Node *isClassNode = TR::Node::createif(TR::ifacmpne, vftLoad, loadJavaLangClass, NULL);
       isClassTreeTop = TR::TreeTop::create(comp(), isClassNode, NULL, NULL);
-      isClassBlock = TR::Block::createEmptyBlock(vftLoad, comp(), directAccessBlock->getFrequency());
+      isClassBlock = TR::Block::createEmptyBlock(vftLoad, comp(), indirectAccessBlock->getFrequency());
       isClassBlock->append(isClassTreeTop);
+      isClassNode->setBranchDestination(directAccessBlock->getEntry());
       cfg->addNode(isClassBlock);
-      directAccessBlock->getEntry()->insertTreeTopsBeforeMe(isClassBlock->getEntry(), isClassBlock->getExit());
-      lowTagCmpTree->getNode()->setBranchDestination(directAccessBlock->getEntry());
-      isClassNode->setBranchDestination(indirectAccessBlock->getEntry());
-      isClassBlock->getEntry()->insertTreeTopsBeforeMe(lowTagCmpBlock->getEntry(), lowTagCmpBlock->getExit());
-      cfg->addEdge(TR::CFGEdge::createEdge(isClassBlock,directAccessBlock, trMemory()));
-      cfg->addEdge(TR::CFGEdge::createEdge(isClassBlock,indirectAccessBlock, trMemory()));
-      cfg->addEdge(TR::CFGEdge::createEdge(nullComparisonBlock, lowTagCmpBlock, trMemory()));
-      cfg->addEdge(TR::CFGEdge::createEdge(lowTagCmpBlock, isClassBlock, trMemory()));
+      isClassBlock->setIsCold();
+
+      indirectAccessBlock->getEntry()->insertTreeTopsBeforeMe(isClassBlock->getEntry(), isClassBlock->getExit());
+
+      cfg->addEdge(TR::CFGEdge::createEdge(beforeCallBlock, nullComparisonBlock, trMemory()));
+      cfg->addEdge(TR::CFGEdge::createEdge(nullComparisonBlock, directAccessBlock, trMemory()));
+      cfg->addEdge(TR::CFGEdge::createEdge(nullComparisonBlock, isClassBlock, trMemory()));
+      cfg->addEdge(TR::CFGEdge::createEdge(isClassBlock, directAccessBlock, trMemory()));
+      cfg->addEdge(TR::CFGEdge::createEdge(isClassBlock, indirectAccessBlock, trMemory()));
 
       debugTrace(tracer(), "\t In genCodeForUnsafeGetPut, Block %d created for isClass Test\n", isClassBlock->getNumber());
       }
-   cfg->addEdge(TR::CFGEdge::createEdge(lowTagCmpBlock,  directAccessBlock, trMemory()));
-   //Generating treetop and block for array check
-   cfg->removeEdge(nullComparisonBlock, indirectAccessBlock);
+
+   if (indirectAccessBlock)
+      cfg->removeEdge(beforeCallBlock, indirectAccessBlock);
+
+   if (typeTestsNeeded && arrayBlockNeeded)
+      cfg->removeEdge(nullComparisonBlock, conversionNeeded ? directAccessBlock : arrayDirectAccessBlock);
+
    if (needNullCheck)
       {
-      TR::TreeTop *treeBeforeCmp = nullComparisonTree->getPrevTreeTop();
+      TR::TreeTop *treeBeforeCmp = firstComparisonTree ? firstComparisonTree->getPrevTreeTop() : beforeCallBlock->getExit()->getPrevTreeTop();
       TR::TreeTop *nullchkTree =
          TR::TreeTop::create(comp(), treeBeforeCmp,
                 TR::Node::createWithSymRef(TR::NULLCHK, 1, 1,
@@ -1016,85 +1245,163 @@ TR_J9InlinerPolicy::genCodeForUnsafeGetPut(TR::Node* unsafeAddress,
       TR::TreeTop *orderedCallTree = TR::TreeTop::create(comp(), orderedCallNode);
       joinBlock->prepend(orderedCallTree);
       }
+
    }
 
 /*
-Converting Unsafe.get/put* routines into inlined code involves two cases:
-1) if the size of the element to put/get is 4 bytes or more
-2) if the size of the element to put/get is less than 4 bytes (boolean, byte, char, short)
+When converting Unsafe.get/put* routines into inlined code there are three factors that
+determine what the resulting IL trees will look like:
+1) The size of the element to put/get
+2) The GC policy being used
+3) The type of the object that the data is being read from/written to
 
-In (1), there are two alternatives on how to read from/write to the object: direct and
-indirect write/read. The selection of alternatives is done by looking at three conditions:
+This means that when the type of the object is UNKNOWN at compile time, there are four
+cases that need to be handled:
+1) if offheap/balanced GC policy is enabled AND element size is 4 bytes or more (int, long)
+2) if offheap/balanced GC policy is enabled AND element size is less than 4 bytes (boolean, byte, char, short)
+3) if offheap/balanced GC policy is NOT enabled AND element size is 4 bytes or more (int, long)
+4) if offheap/balanced GC policy is NOT enabled AND element size is less than 4 bytes (boolean, byte, char, short)
+
+As well, in general, there are four alternatives on how to read from/write to the object: direct read/write,
+indirect read/write, array read/write, and direct read/write with conversion. The selection of alternatives
+is done by looking at three conditions:
 a) whether the object is NULL
 b) whether the object is array
-c) whether the object is of type java.lang.Class
-The pseudocode of the generated inline code for case (1) under normal compilation is :
-if (object == NULL)
-  use direct access
-else if (offset is not low tagged)
-  use direct access
-else if (object is type of java/lang/Class)
-  use indirect access
-else
-  use direct access
+c) whether the object is of type java.lang.Class (which might involve testing the
+   low-order bit of the offset or comparing the <vft-symbol> of the object)
 
-If we can not get the J9Class of java/lang/Class, we generate following sequence of tests
-if (object == NULL)
-   use direct access
-else if (object it Array type)
-   use direct access
-else if (offset is low tagged)
-   use indirect access
-else
-   use direct access
+Thus, the pseudocode for each of the cases outlined above is as follows:
+
+1) offheap AND element size >= 4 bytes
+
+   if (object == NULL)
+     use direct access
+   else if (object is array type)
+     use array access
+   else if (offset is low tagged)
+     use indirect access
+   else
+     use direct access
+
+2) offheap AND element size < 4 bytes
+
+   if (object == NULL)
+     use direct access with conversion
+   else if (object is array type)
+     use array access
+   else if (offset is low-tagged)
+     use indirect access
+   else
+     use direct access
+
+3) non-offheap AND element size >= 4 bytes
+
+   if (offset is low-tagged)
+     use indirect access
+   else if (object == NULL)
+     use direct access
+   else if (offset is Class type)
+     use indirect access
+   else
+     use direct access
+
+4) non-offheap AND element size < 4 bytes
+
+   if (object == NULL)
+     use direct access with conversion
+   else if (object is array type)
+     use direct access with conversion
+   else if (offset is low-tagged)
+     use indirect access
+   else
+     use direct access
+
+When the type of the object IS known at compile time, however, the only condition that needs to be
+tested for is whether the object is NULL. In this scenario, there are two situations that need to
+be handled:
+a) The object is an array type
+b) The object is some non-array, non-Class type
+
+The resulting IL trees for each case in this situation are outlined below:
+
+1) offheap AND element size >= 4 bytes
+   a) object is array                        b) object is non-array
+
+      if (object == NULL)                       use direct access (no runtime tests needed, since both NULL
+        use direct access                                          and non-NULL cases use direct access)
+      else
+        use array access
+
+2) offheap AND element size < 4 bytes
+   a) object is array                        b) object is non-array
+
+      if (object == NULL)                       if (object == NULL)
+        use direct access with conversion         use direct access with conversion
+      else                                      else
+        use array access                          use direct access
+
+3) non-offheap AND element size >= 4 bytes
+
+   use direct access for both (a) and (b) (no runtime tests needed, since all possible cases use direct access)
+
+4) non-offheap AND element size < 4 bytes
+   a) object is array                        b) object is non-array
+
+      use direct access with conversion         if (object == NULL)
+      (no runtime tests needed, since both        use direct access with conversion
+       NULL and non-NULL cases use direct       else
+       access with conversion)                    use direct access
 
 
-In (2), there are three alternatives on how to read from/write the object. direct,
-direct with conversion, indirect. The same three conditions are used to decide which one
-to use based on the following pseudocode:
-if (object is NULL)
-  use direct access with conversion
-else if (object is array)
-  use direct access with conversion
-else if (object is of type Class)
-  use indirect access
-else
-  use direct access
+The functions used to construct the trees for all the cases outlined above are as follows:
 
-- genClassCheckForUnsafeGetPut builds the treetop for condition (c) above.
-- genDirectAccessCodeForUnsafeGetPut completes the building of treetop for both "direct access" and
-"direct access with conversion"
+- genClassCheckForUnsafeGetPut builds the treetop for low-tagged offset test
+- genDirectAccessCodeForUnsafeGetPut completes the building of treetop for
+  both "direct access" and "direct access with conversion"
 - genIndirectAccessCodeForUnsafeGetPut builds the treetop for indirect access
-- addNullCheckForUnsafeGetPut builds node for NULLness check (condition (a) above) and
-builds a diamond CFG based on that. The CFG will be completed in later stages.
+- createUnsafeGetPutCallDiamond builds node for first condition that is to tested
+  (either NULL object or low-tagged offset test) and builds a diamond CFG based on
+  that. The CFG will be completed in later stages.
 - createAnchorNodesForUnsafeGetPut creates compressed references in case they are needed
 - genCodeForUnsafeGetPut completes the CFG/code by adding the array check, Class check,
-and the direct access code.
+  the direct access and the indirect access code.
 
 Note that in case (2), i.e., when the conversion is needed, we generate code like the
 following for the "direct access with conversion" for Unsafe.getByte
     b2i
-      ibload
+      bloadi
         aiadd
 while the direct access code looks like
-    iiload
+    iloadi
       aiadd
-We will replace b2i and ibload by c2iu and icload for Unsafe.getChar, by
-s2i and isload for Unsafe.getShort, and by bu2i and ibload for Unsafe.getBoolean
+We will replace b2i and bloadi by c2iu and icload for Unsafe.getChar, by
+s2i and sloadi for Unsafe.getShort, and by bu2i and bloadi for Unsafe.getBoolean
 
 For Unsafe.putByte and Unsafe.putBoolean, we generate
-   ibstore
+   bstorei
      i2b
        <some load node>
-We replace i2b and ibstore by i2c and icstore for Unsafe.getChar, and by i2s and isstore for
+We replace i2b and bstorei by i2c and icstore for Unsafe.getChar, and by i2s and sstorei for
 Unsafe.getShort.
 */
 
 bool
-TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSymbol, TR::ResolvedMethodSymbol *callerSymbol, TR::TreeTop * callNodeTreeTop, TR::Node * unsafeCall, TR::DataType type, bool isVolatile, bool needNullCheck, bool isOrdered)
+TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSymbol,
+                                              TR::ResolvedMethodSymbol *callerSymbol,
+                                              TR::TreeTop * callNodeTreeTop,
+                                              TR::Node * unsafeCall,
+                                              TR::DataType type,
+                                              bool isVolatile,
+                                              bool needNullCheck,
+                                              bool isOrdered,
+                                              bool isUnaligned)
    {
    if (isVolatile && type == TR::Int64 && comp()->target().is32Bit() && !comp()->cg()->getSupportsInlinedAtomicLongVolatiles())
       return false;
+
+   if (isUnaligned && comp()->cg()->getSupportsAlignedAccessOnly())
+      return false;
+
    if (debug("traceUnsafe"))
       printf("createUnsafePutWithOffset %d in %s\n", type.getDataType(), comp()->signature());
 
@@ -1108,6 +1415,50 @@ TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSy
 
    // Preserve null check on the unsafe object
    TR::TransformUtil::separateNullCheck(comp(), callNodeTreeTop, tracer()->debugLevel());
+
+
+   bool conversionNeeded = comp()->fe()->dataTypeForLoadOrStore(type) != type;
+
+   // If we are not able to get javaLangClass it is still inefficient to put direct Access far
+   // So in that case we will generate lowTagCmpTest to branch to indirect access if true
+   TR_OpaqueClassBlock *javaLangClass = comp()->getClassClassPointer(/* isVettedForAOT = */ true);
+
+   int length;
+   const char *objTypeSig = unsafeCall->getChild(1)->getOpCode().hasSymbolReference() ?
+         unsafeCall->getChild(1)->getSymbolReference()->getTypeSignature(length) : NULL;
+
+   // There are four cases where we cannot be sure of the Object type at compile time:
+   // 1.) The object's type signature is unavailable/unknown
+   // 2.) The signature names java/lang/Object
+   // 3.) The signature names some interface type, which is a problem because interface types are
+   //     not checked by the verifier
+   // 4.) The signature belongs to a parameter of the calling method, which is a problem because
+   //     parameters can share slots with variables of other, potentially incompatible types
+   bool objTypeUnknown;
+   TR_OpaqueClassBlock *objClass = NULL;
+
+   if (objTypeSig == NULL)
+      {
+      objTypeUnknown = true;
+      }
+   else
+      {
+      objClass = comp()->fe()->getClassFromSignature(objTypeSig, length, unsafeCall->getChild(1)->getSymbolReference()->getOwningMethod(comp()));
+      bool isParameter = unsafeCall->getChild(1)->getSymbolReference()->getSymbol()->isParm();
+
+      objTypeUnknown = objClass == NULL || objClass == comp()->getObjectClassPointer() || TR::Compiler->cls.isInterfaceClass(comp(), objClass) || isParameter;
+      }
+
+   // There are two cases where IL for type tests (array, class, lowtag) needs to be generated:
+   // 1.) Object type is unknown at compile time
+   // 2.) Object is known at compile time to be a java/lang/Class object (to match JNI implementation)
+   bool typeTestsNeeded = objTypeUnknown || objClass == javaLangClass;
+
+   // We need to generate arrayDirectAccessBlock if BOTH of following conditions hold:
+   // - conversionNeeded == true OR javaLangClass == NULL OR offheap is enabled
+   // - object is known be an array at compile time OR object type is unknown at compile time
+   bool arrayBlockNeeded = (conversionNeeded || TR::Compiler->om.isOffHeapAllocationEnabled() && comp()->target().is64Bit()) &&
+                           (objTypeUnknown || objTypeSig[0] == '[');
 
    // Since the block has to be split, we need to create temps for the arguments to the call
    for (int i = 0; i < unsafeCall->getNumChildren(); i++)
@@ -1155,7 +1506,6 @@ TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSy
    debugTrace(tracer(), "\tvalueWithouTConversion = %p\n", valueWithoutConversion);
 
 
-   bool conversionNeeded = comp()->fe()->dataTypeForLoadOrStore(type) != type;
    if (conversionNeeded)
       {
       TR::ILOpCodes conversionOpCode =
@@ -1189,7 +1539,6 @@ TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSy
       comp()->getDebug()->print(comp()->getOutFile(), oldCallNodeTreeTop);
       }
 
-
    TR::TreeTop* directAccessTreeTop = genDirectAccessCodeForUnsafeGetPut(unsafeNode, false, false);
 
    if (tracer()->debugLevel())
@@ -1198,15 +1547,42 @@ TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSy
       comp()->getDebug()->print(comp()->getOutFile(), directAccessTreeTop);
       }
 
-   TR::TreeTop* arrayDirectAccessTreeTop = conversionNeeded
-      ? genDirectAccessCodeForUnsafeGetPut(unsafeNodeWithConversion, conversionNeeded, false)
-      : NULL;
+   // We need to generate an arrayDirectAccessBlock AND a directAccessBlock in the following cases:
+   // 1.) typeTestsNeeded && arrayBlockNeeded: arrayDirectAccessBlock used for array access,
+   //                                          directAccessBlock used for non-array/non-class object access
+   // 2.) !typeTestsNeeded && arrayBlockNeeded: arrayDirectAccessBlock used for array access,
+   //                                           directAccessBlock used if object is NULL
+   // Otherwise, only the directAccessBlock is needed.
+   TR::TreeTop* arrayDirectAccessTreeTop;
+
+   if (conversionNeeded && arrayBlockNeeded)
+      arrayDirectAccessTreeTop = genDirectAccessCodeForUnsafeGetPut(unsafeNodeWithConversion, conversionNeeded, false);
+   else if (arrayBlockNeeded)
+      arrayDirectAccessTreeTop = genDirectAccessCodeForUnsafeGetPut(unsafeNode, false, false);
+   else
+      arrayDirectAccessTreeTop = NULL;
 
    if (tracer()->debugLevel() && conversionNeeded)
       {
       debugTrace(tracer(), "\t After genDirectAccessCodeForUnsafeGetPut, arrayDirectAccessTreeTop dump:\n");
       comp()->getDebug()->print(comp()->getOutFile(), arrayDirectAccessTreeTop);
       }
+
+   // When conversionNeeded is true, NULL references must be accessed via direct access with conversion.
+   // We need to generate a separate directAccessWithConversionBlock in the following cases:
+   // 1.) arrayBlockNeeded && offheap enabled
+   // 2.) !typeTestsNeeded && !arrayBlockNeeded
+   // We can simply use the already existing arrayDirectAccessBlock as the directAccessWithConversionBlock in the following cases:
+   // 3.) arrayBlockNeeded && gencon
+   // Otherwise, the directAccessWithConversionBlock is not needed
+   TR::TreeTop* directAccessWithConversionTreeTop = NULL;
+
+   if (conversionNeeded)
+   {
+      if ((arrayBlockNeeded && TR::Compiler->om.isOffHeapAllocationEnabled() && comp()->target().is64Bit()) ||
+          (!typeTestsNeeded && !arrayBlockNeeded))
+         directAccessWithConversionTreeTop = genDirectAccessCodeForUnsafeGetPut(unsafeNodeWithConversion, conversionNeeded, false);
+   }
 
    TR::TreeTop* indirectAccessTreeTop = genIndirectAccessCodeForUnsafeGetPut(callNodeTreeTop->getNode(), unsafeAddress);
 
@@ -1222,38 +1598,52 @@ TR_J9InlinerPolicy::createUnsafePutWithOffset(TR::ResolvedMethodSymbol *calleeSy
       indirectAccessTreeTop->getNode()->setIsUnsafeStaticWrtBar(true);
       }
 
-   TR_OpaqueClassBlock *javaLangClass = comp()->getClassClassPointer(/* isVettedForAOT = */ true);
-   // If we are not able to get javaLangClass it is still inefficient to put direct Access far
-   // So in that case we will generate lowTagCmpTest to branch to indirect access if true
-   bool needNotLowTagged = javaLangClass != NULL  || conversionNeeded ;
-   TR::TreeTop *lowTagCmpTree = genClassCheckForUnsafeGetPut(offset, needNotLowTagged);
 
-   if (tracer()->debugLevel())
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+   //adjust arguments if object is array and offheap is being used by changing
+   //object base address (second child) to dataAddr
+
+   // CASE 1: conversionNeeded == true (e.g.: Unsafe.putShort())
+   //   sstorei        -> arrayDirectAccessTreeTop->getNode()
+   //     aladd        -> address to access (base address + offset)
+   //       aload      -> object base address
+   //       lload      -> offset
+   //     i2s          -> conversion
+   //       iload      -> value to put
+
+   // CASE 2: conversionNeeded == false (e.g.: Unsafe.putLong())
+   //   sstorei        -> arrayDirectAccessTreeTop->getNode()
+   //     aladd        -> address to access (base address + offset)
+   //       aload      -> object base address
+   //       lload      -> offset
+   //     iload        -> value to put
+
+   if (TR::Compiler->om.isOffHeapAllocationEnabled() && arrayBlockNeeded)
       {
-      debugTrace(tracer(), "\t After genClassCheckForUnsafeGetPut, lowTagCmpTree dump:\n");
-      comp()->getDebug()->print(comp()->getOutFile(), lowTagCmpTree);
+      TR::Node *addrToAccessNode = arrayDirectAccessTreeTop->getNode()->getChild(0);
+
+      //change object base address to dataAddr
+      TR::Node *objBaseAddrNode = addrToAccessNode->getChild(0);
+      TR::Node *dataAddrNode = TR::TransformUtil::generateDataAddrLoadTrees(comp(), objBaseAddrNode);
+      addrToAccessNode->setChild(0, dataAddrNode);
+
+      //correct refcounts
+      objBaseAddrNode->decReferenceCount();
+      dataAddrNode->incReferenceCount();
       }
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
 
-   TR::Block * joinBlock =
-      addNullCheckForUnsafeGetPut(unsafeAddress, newSymbolReferenceForAddress,
-                                  callNodeTreeTop, directAccessTreeTop,
-                                  arrayDirectAccessTreeTop,
-                                  indirectAccessTreeTop);
-
-   debugTrace(tracer(), "\t After addNullCHeckForUnsafeGetPut, joinBlock is %d\n", joinBlock->getNumber());
-
-   createAnchorNodesForUnsafeGetPut(directAccessTreeTop, type, false);
-   if (arrayDirectAccessTreeTop)
-      createAnchorNodesForUnsafeGetPut(arrayDirectAccessTreeTop, type, false);
-   genCodeForUnsafeGetPut(unsafeAddress, callNodeTreeTop,
+   genCodeForUnsafeGetPut(unsafeAddress, offset, type, callNodeTreeTop,
                           prevTreeTop, newSymbolReferenceForAddress,
-                          directAccessTreeTop,
-                          lowTagCmpTree, needNullCheck, false, conversionNeeded,
-                          joinBlock, javaLangClass, orderedCallNode);
+                          directAccessTreeTop, arrayDirectAccessTreeTop,
+                          indirectAccessTreeTop, directAccessWithConversionTreeTop,
+                          needNullCheck, false, conversionNeeded,
+                          arrayBlockNeeded, typeTestsNeeded,
+                          orderedCallNode);
 
 
    // Test for static final field
-   if (reportFinalFieldModification)
+   if (reportFinalFieldModification && typeTestsNeeded)
       {
       TR::Block* storeToStaticFieldBlock = indirectAccessTreeTop->getEnclosingBlock();
       auto isFinalStaticNode = TR::Node::createif(TR::iflcmpeq,
@@ -1344,36 +1734,154 @@ TR_J9InlinerPolicy::createUnsafeMonitorOp(TR::ResolvedMethodSymbol *calleeSymbol
    }
 
 bool
-TR_J9InlinerPolicy::createUnsafeCASCallDiamond( TR::TreeTop *callNodeTreeTop, TR::Node *callNode)
+TR_J9InlinerPolicy::createUnsafeCASCallDiamond(TR::TreeTop *callNodeTreeTop, TR::Node *callNode)
    {
    // This method is used to create an if diamond around a call to any of the unsafe compare and swap methods
    // Codegens have a fast path for the compare and swaps, but cannot deal with the case where the offset value passed in to a the CAS is low tagged
    // (A low tagged offset value means the object being passed in is a java/lang/Class object, and we want a static field)
 
+   // Regarding which type checks/diamonds get generated, there are three possible cases:
+   // 1.) Only the low tagged check is generated. This will occur either when gencon GC policy is being used, or under
+   //     balanced GC policy with offheap allocation enabled if the object being operated on is known NOT to be an array
+   //     at compile time.
+   // 2.) No type checks are generated. This will occur under balanced GC policy with offheap allocation enabled if the object
+   //     being operated on is known to be an array at compile time (since if the object is an array, it can't also be a
+   //     java/lang/Class object).
+   // 3.) Both the array and low tagged checks are generated. This will occur under balanced GC policy with offheap allocation
+   //     enabled if the type of the object being operated on is unknown at compile time.
+   //
+   // In addition to type checks, a NULL check on the object address is needed to ensure that we do not try to load dataAddr
+   // from a NULL reference. This is only a concern when offheap is enabled AND there is a possibility that the object is an array.
+   // so the NULL check will only be generated in cases (2) and (3).
+
    // This method assumes the offset node is of type long, and is the second child of the unsafe call.
    TR_InlinerDelimiter delimiter(tracer(),"createUnsafeCASCallDiamond");
    debugTrace(tracer(),"Transforming unsafe callNode = %p",callNode);
+
+   int length;
+   const char *objTypeSig = callNode->getChild(1)->getOpCode().hasSymbolReference() ? callNode->getChild(1)->getSymbolReference()->getTypeSignature(length) : NULL;
+
+   // There are four cases where we cannot be sure of the Object type at compile time:
+   // 1.) The object's type signature is unavailable/unknown
+   // 2.) The signature names java/lang/Object
+   // 3.) The signature names some interface type, which is a problem because interface types are
+   //     not checked by the verifier
+   // 4.) The signature belongs to a parameter of the calling method, which is a problem because
+   //     parameters can share slots with variables of other, potentially incompatible types
+   bool objTypeUnknown;
+
+   if (objTypeSig == NULL)
+      {
+      objTypeUnknown = true;
+      }
+   else
+      {
+      TR_OpaqueClassBlock *objClass = comp()->fe()->getClassFromSignature(objTypeSig, length, callNode->getChild(1)->getSymbolReference()->getOwningMethod(comp()));
+      bool isParameter = callNode->getChild(1)->getSymbolReference()->getSymbol()->isParm();
+
+      objTypeUnknown = objClass == NULL || objClass == comp()->getObjectClassPointer() || TR::Compiler->cls.isInterfaceClass(comp(), objClass) || isParameter;
+      }
+
+   //only generate array test in case (3)
+   bool arrayTestNeeded = TR::Compiler->om.isOffHeapAllocationEnabled() && comp()->target().is64Bit() && objTypeUnknown;
+
+   //only generate separate array access block in cases (2) or (3)
+   bool arrayBlockNeeded = TR::Compiler->om.isOffHeapAllocationEnabled() && comp()->target().is64Bit() &&
+                           (arrayTestNeeded || objTypeSig[0] == '[');
 
    createTempsForUnsafeCall(callNodeTreeTop, callNode);
 
    TR::Node *offsetNode = callNode->getChild(2);
 
-   TR::TreeTop *compareTree = genClassCheckForUnsafeGetPut(offsetNode);
+   TR::TreeTop *compareTree = NULL;
+   TR::TreeTop *lowTagAccessTreeTop = NULL;
 
-   // genClassCheck generates a ifcmpne offset&mask 1, meaning if it IS lowtagged (ie offset&mask == 1), the branch will be taken
-   TR::TreeTop *ifTree = TR::TreeTop::create(comp(),callNodeTreeTop->getNode()->duplicateTree());
-   ifTree->getNode()->getFirstChild()->setIsSafeForCGToFastPathUnsafeCall(true);
+   //generate low tagged test/access block in cases (1) and (3)
+   if (arrayTestNeeded || !arrayBlockNeeded)
+      {
+      //create lowtag test treetop
+      compareTree = genClassCheckForUnsafeGetPut(offsetNode->duplicateTree(), /* branchIfLowTagged */ false );
+
+      //create lowtag access treetop
+      lowTagAccessTreeTop = TR::TreeTop::create(comp(),callNodeTreeTop->getNode()->duplicateTree());
+      lowTagAccessTreeTop->getNode()->getFirstChild()->setVisitCount(_inliner->getVisitCount());
+
+      debugTrace(tracer(),"lowTagAccessTreeTop = %p",lowTagAccessTreeTop->getNode());
+      }
 
 
-   TR::TreeTop *elseTree = TR::TreeTop::create(comp(),callNodeTreeTop->getNode()->duplicateTree());
+   TR::TreeTop *isNullTreeTop = NULL;
+   TR::TreeTop *nonNullAccessTreeTop = NULL;
+   TR::TreeTop *isArrayTreeTop = NULL;
+   TR::TreeTop *arrayAccessTreeTop = NULL;
+   TR::TreeTop *nonArrayAccessTreeTop = NULL;
 
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+   if (arrayTestNeeded)
+      {
+      //create array test treetop
 
-   ifTree->getNode()->getFirstChild()->setVisitCount(_inliner->getVisitCount());
-   elseTree->getNode()->getFirstChild()->setVisitCount(_inliner->getVisitCount());
+      // ificmpeq                               -> isArrayNode
+      //   iand                                 -> andNode
+      //     l2i                                -> isArrayField
+      //       lloadi  <isClassDepthAndFlags>
+      //         aloadi  <vft-symbol>           -> vftLoad Node
+      //           aload
+      //     iconst                             -> andConstNode
+      //   ==>iconst                            -> andConstNode
 
+      TR::Node * unsafeAddress = createUnsafeAddressWithOffset(callNode);
+      TR::SymbolReference *newSymbolReferenceForAddress = callNode->getChild(1)->getSymbolReference();
 
-   debugTrace(tracer(),"ifTree = %p elseTree = %p",ifTree->getNode(),elseTree->getNode());
+      TR::Node *vftLoad = TR::Node::createWithSymRef(TR::aloadi, 1, 1, TR::Node::createWithSymRef(unsafeAddress, comp()->il.opCodeForDirectLoad(unsafeAddress->getDataType()), 0, newSymbolReferenceForAddress), comp()->getSymRefTab()->findOrCreateVftSymbolRef());
 
+      TR::Node *andNode = comp()->fej9()->testIsClassArrayType(vftLoad);
+      TR::Node *isArrayNode = TR::Node::createif(TR::ificmpne, andNode, TR::Node::create(TR::iconst, 0), NULL);
+
+      isArrayTreeTop = TR::TreeTop::create(comp(), isArrayNode, NULL, NULL);
+      }
+
+   if (arrayBlockNeeded)
+      {
+      //create array access treetop
+      //adjust arguments if object is array and offheap is being used by changing
+      //object base address (second child) to dataAddr
+
+      // NULLCHK on object base address               -> arrayDirectAddressTreeTop->getNode()
+      //   icall  sun/misc/Unsafe.compareAndSwap      -> Unsafe.compareAndSwap call
+      //     aload                                    -> Unsafe instance
+      //     aload                                    -> object base address
+      //     lload                                    -> offset
+      //     lload                                    -> value to compare against
+      //     lload                                    -> value to swap in
+
+      arrayAccessTreeTop = TR::TreeTop::create(comp(),callNodeTreeTop->getNode()->duplicateTree());
+      TR::Node *CASicallNode = arrayAccessTreeTop->getNode()->getChild(0);
+
+      //change object base address to dataAddr
+      TR::Node *objBaseAddrNode = CASicallNode->getChild(1);
+      TR::Node *dataAddrNode = TR::TransformUtil::generateDataAddrLoadTrees(comp(), objBaseAddrNode);
+      CASicallNode->setChild(1, dataAddrNode);
+
+      //correct refcounts
+      objBaseAddrNode->decReferenceCount();
+      dataAddrNode->incReferenceCount();
+
+      CASicallNode->setIsSafeForCGToFastPathUnsafeCall(true);
+
+      //create NULL test treetop
+      TR::Node *objAddr = callNodeTreeTop->getNode()->getChild(0)->getChild(1)->duplicateTree();
+      TR::Node *isNullNode = TR::Node::createif(TR::ifacmpeq, objAddr, TR::Node::create(objAddr, TR::aconst, 0, 0), NULL);
+      isNullTreeTop = TR::TreeTop::create(comp(), isNullNode);
+      }
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
+
+   //default access tree (non-array, non-lowtagged)
+   TR::TreeTop *defaultAccessTreeTop = TR::TreeTop::create(comp(),callNodeTreeTop->getNode()->duplicateTree());
+   defaultAccessTreeTop->getNode()->getFirstChild()->setIsSafeForCGToFastPathUnsafeCall(true);
+   defaultAccessTreeTop->getNode()->getFirstChild()->setVisitCount(_inliner->getVisitCount());
+
+   debugTrace(tracer(),"defaultAccessTreeTop = %p", defaultAccessTreeTop->getNode());
 
 
    // the call itself may be commoned, so we need to create a temp for the callnode itself
@@ -1390,30 +1898,75 @@ TR_J9InlinerPolicy::createUnsafeCASCallDiamond( TR::TreeTop *callNodeTreeTop, TR
       }
 
 
-
-
    TR::Block *callBlock = callNodeTreeTop->getEnclosingBlock();
 
-   callBlock->createConditionalBlocksBeforeTree(callNodeTreeTop,compareTree, ifTree, elseTree, comp()->getFlowGraph(),false,false);
+   if (arrayTestNeeded) //in case (3), we generate the null test diamond, then the array test diamond, and then the low tagged test diamond
+      {
+      TR::TreeTop *nonNullAccessTreeTop = TR::TreeTop::create(comp(),callNodeTreeTop->getNode()->duplicateTree());
+
+      //add null test and array test
+      callBlock->createConditionalBlocksBeforeTree(callNodeTreeTop, isNullTreeTop, defaultAccessTreeTop, nonNullAccessTreeTop, comp()->getFlowGraph(), false, false);
+      TR::Block *joinBlock = nonNullAccessTreeTop->getEnclosingBlock()->createConditionalBlocksBeforeTree(nonNullAccessTreeTop, isArrayTreeTop, arrayAccessTreeTop, compareTree, comp()->getFlowGraph(), false, false);
+
+      TR::CFG *cfg = comp()->getFlowGraph();
+
+      //add lowtag test
+      TR::Block *isLowTaggedBlock = compareTree->getEnclosingBlock();
+      cfg->removeEdge(isLowTaggedBlock, joinBlock);
+
+      //add branch path (default access)
+      //note that genClassCheck generates a ifcmpne offset&mask 1, meaning if it is NOT
+      //lowtagged (ie offset&mask == 0), the branch will be taken
+      TR::Block *defaultAccessBlock = defaultAccessTreeTop->getEnclosingBlock();
+      compareTree->getNode()->setBranchDestination(defaultAccessBlock->getEntry());
+      cfg->addEdge(TR::CFGEdge::createEdge(isLowTaggedBlock, defaultAccessBlock, trMemory()));
+
+      //add fallthrough path (lowtag access)
+      TR::Block *lowTagAccessBlock = TR::Block::createEmptyBlock(compareTree->getNode(), comp(), isLowTaggedBlock->getFrequency(), isLowTaggedBlock);
+      lowTagAccessBlock->append(lowTagAccessTreeTop);
+      isLowTaggedBlock->getExit()->insertTreeTopsAfterMe(lowTagAccessBlock->getEntry(), lowTagAccessBlock->getExit());
+      cfg->addNode(lowTagAccessBlock);
+      cfg->addEdge(TR::CFGEdge::createEdge(isLowTaggedBlock, lowTagAccessBlock, trMemory()));
+      cfg->addEdge(TR::CFGEdge::createEdge(lowTagAccessBlock, joinBlock, trMemory()));
+      }
+   else if (arrayBlockNeeded) //in case (2), we generate only the null test diamond
+      {
+      callBlock->createConditionalBlocksBeforeTree(callNodeTreeTop, isNullTreeTop, defaultAccessTreeTop, arrayAccessTreeTop, comp()->getFlowGraph(), false, false);
+      }
+   else if (compareTree != NULL) //in case (1), we only generate the low tagged test diamond
+      {
+      callBlock->createConditionalBlocksBeforeTree(callNodeTreeTop, compareTree, defaultAccessTreeTop, lowTagAccessTreeTop, comp()->getFlowGraph(), false, false);
+      }
 
    // the original call will be deleted by createConditionalBlocksBeforeTree, but if the refcount was > 1, we need to insert stores.
-
    if (newSymbolReference)
       {
-      TR::Node *ifStoreNode = TR::Node::createWithSymRef(comp()->il.opCodeForDirectStore(dataType), 1, 1, ifTree->getNode()->getFirstChild(), newSymbolReference);
-      TR::TreeTop *ifStoreTree = TR::TreeTop::create(comp(), ifStoreNode);
+      TR::Node *defaultAccessStoreNode = TR::Node::createWithSymRef(comp()->il.opCodeForDirectStore(dataType), 1, 1, defaultAccessTreeTop->getNode()->getFirstChild(), newSymbolReference);
+      TR::TreeTop *defaultAccessStoreTree = TR::TreeTop::create(comp(), defaultAccessStoreNode);
 
-      ifTree->insertAfter(ifStoreTree);
+      defaultAccessTreeTop->insertAfter(defaultAccessStoreTree);
 
-      debugTrace(tracer(),"Inserted store tree %p for if side of the diamond",ifStoreNode);
+      debugTrace(tracer(),"Inserted store tree %p for branch target (taken) side of the diamond", defaultAccessStoreNode);
 
-      TR::Node *elseStoreNode = TR::Node::createWithSymRef(comp()->il.opCodeForDirectStore(dataType), 1, 1, elseTree->getNode()->getFirstChild(), newSymbolReference);
-      TR::TreeTop *elseStoreTree = TR::TreeTop::create(comp(), elseStoreNode);
+      if (compareTree != NULL) //cases (1) and (3) only
+         {
+         TR::Node *lowTagAccessStoreNode = TR::Node::createWithSymRef(comp()->il.opCodeForDirectStore(dataType), 1, 1, lowTagAccessTreeTop->getNode()->getFirstChild(), newSymbolReference);
+         TR::TreeTop *lowTagAccessStoreTree = TR::TreeTop::create(comp(), lowTagAccessStoreNode);
 
-      elseTree->insertAfter(elseStoreTree);
+         lowTagAccessTreeTop->insertAfter(lowTagAccessStoreTree);
 
-      debugTrace(tracer(),"Inserted store tree %p for else side of the diamond",elseStoreNode);
+         debugTrace(tracer(),"Inserted store tree %p for fall-through side of the diamond", lowTagAccessStoreNode);
+         }
 
+      if (arrayAccessTreeTop != NULL) //cases (2) and (3) only
+         {
+         TR::Node *arrayAccessStoreNode = TR::Node::createWithSymRef(comp()->il.opCodeForDirectStore(dataType), 1, 1, arrayAccessTreeTop->getNode()->getFirstChild(), newSymbolReference);
+         TR::TreeTop *arrayAccessStoreTree = TR::TreeTop::create(comp(), arrayAccessStoreNode);
+
+         arrayAccessTreeTop->insertAfter(arrayAccessStoreTree);
+
+         debugTrace(tracer(),"Inserted store tree %p for array access block", arrayAccessStoreNode);
+         }
       }
 
 
@@ -1424,9 +1977,19 @@ TR_J9InlinerPolicy::createUnsafeCASCallDiamond( TR::TreeTop *callNodeTreeTop, TR
 
 
 bool
-TR_J9InlinerPolicy::createUnsafeGetWithOffset(TR::ResolvedMethodSymbol *calleeSymbol, TR::ResolvedMethodSymbol *callerSymbol, TR::TreeTop * callNodeTreeTop, TR::Node * unsafeCall, TR::DataType type, bool isVolatile, bool needNullCheck)
+TR_J9InlinerPolicy::createUnsafeGetWithOffset(TR::ResolvedMethodSymbol *calleeSymbol,
+                                              TR::ResolvedMethodSymbol *callerSymbol,
+                                              TR::TreeTop * callNodeTreeTop,
+                                              TR::Node * unsafeCall,
+                                              TR::DataType type,
+                                              bool isVolatile,
+                                              bool needNullCheck,
+                                              bool isUnaligned)
    {
    if (isVolatile && type == TR::Int64 && comp()->target().is32Bit() && !comp()->cg()->getSupportsInlinedAtomicLongVolatiles())
+      return false;
+
+   if (isUnaligned && comp()->cg()->getSupportsAlignedAccessOnly())
       return false;
 
    if (debug("traceUnsafe"))
@@ -1444,6 +2007,49 @@ TR_J9InlinerPolicy::createUnsafeGetWithOffset(TR::ResolvedMethodSymbol *calleeSy
    TR::Node *unsafeAddress = unsafeCall->getChild(1);
    TR::Node *offset = unsafeCall->getChild(2);
 
+
+   bool conversionNeeded = comp()->fe()->dataTypeForLoadOrStore(type) != type;
+
+   // If we are not able to get javaLangClass it is still inefficient to put direct Access far
+   // So in that case we will generate lowTagCmpTest to branch to indirect access if true
+   TR_OpaqueClassBlock *javaLangClass = comp()->getClassClassPointer(/* isVettedForAOT = */ true);
+
+   int length;
+   const char *objTypeSig = unsafeAddress->getOpCode().hasSymbolReference() ? unsafeAddress->getSymbolReference()->getTypeSignature(length) : NULL;
+
+   // There are four cases where we cannot be sure of the Object type at compile time:
+   // 1.) The object's type signature is unavailable/unknown
+   // 2.) The signature names java/lang/Object
+   // 3.) The signature names some interface type, which is a problem because interface types are
+   //     not checked by the verifier
+   // 4.) The signature belongs to a parameter of the calling method, which is a problem because
+   //     parameters can share slots with variables of other, potentially incompatible types
+   bool objTypeUnknown;
+   TR_OpaqueClassBlock *objClass = NULL;
+
+   if (objTypeSig == NULL)
+      {
+      objTypeUnknown = true;
+      }
+   else
+      {
+      objClass = comp()->fe()->getClassFromSignature(objTypeSig, length, unsafeAddress->getSymbolReference()->getOwningMethod(comp()));
+      bool isParameter = unsafeAddress->getSymbolReference()->getSymbol()->isParm();
+
+      objTypeUnknown = objClass == NULL || objClass == comp()->getObjectClassPointer() || TR::Compiler->cls.isInterfaceClass(comp(), objClass) || isParameter;
+      }
+
+   // There are two cases where IL for type tests (array, class, lowtag) needs to be generated:
+   // 1.) Object type is unknown at compile time
+   // 2.) Object is known at compile time to be a java/lang/Class object (to match JNI implementation)
+   bool typeTestsNeeded = objTypeUnknown || objClass == javaLangClass;
+
+   // We need to generate arrayDirectAccessBlock if BOTH of following conditions hold:
+   // - conversionNeeded == true OR offheap is enabled
+   // - object is known be an array at compile time OR object type is unknown at compile time
+   bool arrayBlockNeeded = (conversionNeeded || TR::Compiler->om.isOffHeapAllocationEnabled() && comp()->target().is64Bit()) &&
+                           (objTypeUnknown || objTypeSig[0] == '[');
+
    TR::TreeTop *prevTreeTop = callNodeTreeTop->getPrevTreeTop();
    TR::SymbolReference *newSymbolReferenceForAddress = NULL;
 
@@ -1460,7 +2066,6 @@ TR_J9InlinerPolicy::createUnsafeGetWithOffset(TR::ResolvedMethodSymbol *calleeSy
    unsafeCall->setNumChildren(1);
 
    TR::SymbolReference* symRef = comp()->getSymRefTab()->findOrCreateUnsafeSymbolRef(type, true, false, isVolatile);
-   bool conversionNeeded = comp()->fe()->dataTypeForLoadOrStore(type) != type;
    TR_ASSERT(unsafeCall == callNodeTreeTop->getNode()->getFirstChild(), "assumption not valid\n");
    TR::Node* unsafeCallWithConversion = NULL;
    TR::Node* callNodeWithConversion = NULL;
@@ -1480,6 +2085,7 @@ TR_J9InlinerPolicy::createUnsafeGetWithOffset(TR::ResolvedMethodSymbol *calleeSy
       case TR::sun_misc_Unsafe_getChar_jlObjectJ_C:
       case TR::sun_misc_Unsafe_getCharVolatile_jlObjectJ_C:
       case TR::sun_misc_Unsafe_getChar_J_C:
+      case TR::jdk_internal_misc_Unsafe_getCharUnaligned:
          unsignedType = true;
          break;
       //byte and short are signed so we need a signed conversion
@@ -1490,6 +2096,7 @@ TR_J9InlinerPolicy::createUnsafeGetWithOffset(TR::ResolvedMethodSymbol *calleeSy
       case TR::sun_misc_Unsafe_getShort_jlObjectJ_S:
       case TR::sun_misc_Unsafe_getShortVolatile_jlObjectJ_S:
       case TR::sun_misc_Unsafe_getShort_J_S:
+      case TR::jdk_internal_misc_Unsafe_getShortUnaligned:
          unsignedType = false;
          break;
       default:
@@ -1509,11 +2116,11 @@ TR_J9InlinerPolicy::createUnsafeGetWithOffset(TR::ResolvedMethodSymbol *calleeSy
    unsafeCall->setSymbolReference(symRef);
 
    TR::Node::recreate(callNodeTreeTop->getNode(), TR::treetop);
-      TR::DataType dataType = unsafeCall->getDataType();
-      TR::SymbolReference *newTemp = comp()->getSymRefTab()->createTemporary(comp()->getMethodSymbol(), dataType);
+   TR::DataType dataType = unsafeCall->getDataType();
+   TR::SymbolReference *newTemp = comp()->getSymRefTab()->createTemporary(comp()->getMethodSymbol(), dataType);
    TR::ILOpCodes storeOpCode = comp()->il.opCodeForDirectStore(unsafeCall->getDataType());
    TR::Node::recreate(callNodeTreeTop->getNode(), storeOpCode);
-      callNodeTreeTop->getNode()->setSymbolReference(newTemp);
+   callNodeTreeTop->getNode()->setSymbolReference(newTemp);
 
    if (conversionNeeded)
       {
@@ -1523,35 +2130,90 @@ TR_J9InlinerPolicy::createUnsafeGetWithOffset(TR::ResolvedMethodSymbol *calleeSy
 
    TR::TreeTop* directAccessTreeTop =
       genDirectAccessCodeForUnsafeGetPut(callNodeTreeTop->getNode(), false, true);
-   TR::TreeTop* arrayDirectAccessTreeTop = conversionNeeded
-      ? genDirectAccessCodeForUnsafeGetPut(callNodeWithConversion, conversionNeeded, true)
-      : NULL;
+
+   // We need to generate an arrayDirectAccessBlock AND a directAccessBlock in the following cases:
+   // 1.) typeTestsNeeded && arrayBlockNeeded: arrayDirectAccessBlock used for array access,
+   //                                          directAccessBlock used for non-array/non-class object access
+   // 2.) !typeTestsNeeded && arrayBlockNeeded: arrayDirectAccessBlock used for array access,
+   //                                           directAccessBlock used if object is NULL
+   // Otherwise, only the directAccessBlock is needed.
+   TR::TreeTop* arrayDirectAccessTreeTop;
+
+   if (conversionNeeded && arrayBlockNeeded)
+      arrayDirectAccessTreeTop = genDirectAccessCodeForUnsafeGetPut(callNodeWithConversion, conversionNeeded, true);
+   else if (arrayBlockNeeded)
+      arrayDirectAccessTreeTop = genDirectAccessCodeForUnsafeGetPut(callNodeTreeTop->getNode(), false, true);
+   else
+      arrayDirectAccessTreeTop = NULL;
+
+   // When conversionNeeded is true, NULL references must be accessed via direct access with conversion.
+   // We need to generate a separate directAccessWithConversionBlock in the following cases:
+   // 1.) arrayBlockNeeded && offheap enabled
+   // 2.) !typeTestsNeeded && !arrayBlockNeeded
+   // We can simply use the already existing arrayDirectAccessBlock as the directAccessWithConversionBlock in the following cases:
+   // 3.) arrayBlockNeeded && gencon
+   // Otherwise, the directAccessWithConversionBlock is not needed
+   TR::TreeTop* directAccessWithConversionTreeTop = NULL;
+
+   if (conversionNeeded)
+   {
+      if ((arrayBlockNeeded && TR::Compiler->om.isOffHeapAllocationEnabled() && comp()->target().is64Bit()) ||
+          (!typeTestsNeeded && !arrayBlockNeeded))
+         directAccessWithConversionTreeTop = genDirectAccessCodeForUnsafeGetPut(callNodeWithConversion, conversionNeeded, true);
+   }
+
    TR::TreeTop* indirectAccessTreeTop =
       genIndirectAccessCodeForUnsafeGetPut(callNodeTreeTop->getNode(), unsafeAddress);
-   // If we are not able to get javaLangClass it is still inefficient to put direct Access far
-   // So in that case we will generate lowTagCmpTest to branch to indirect access if true
-   TR_OpaqueClassBlock *javaLangClass = comp()->fe()->getClassFromSignature("Ljava/lang/Class;",17, comp()->getCurrentMethod(),true);
-   bool needNotLowTagged = javaLangClass != NULL || conversionNeeded ;
-   // If we can get a J9Class or we need conversion we generate test to branch to direct access if low bit is not tagged
-   // Else in case we get NULL instead of j9Class we generate test to branch to indirect access if low bit is tagged
-   TR::TreeTop *lowTagCmpTree = genClassCheckForUnsafeGetPut(offset, needNotLowTagged);
 
-   TR::Block * joinBlock =
-      addNullCheckForUnsafeGetPut(unsafeAddress, newSymbolReferenceForAddress,
-                                  callNodeTreeTop, directAccessTreeTop,
-                                  arrayDirectAccessTreeTop,
-                                  indirectAccessTreeTop);
 
-   createAnchorNodesForUnsafeGetPut(directAccessTreeTop, type, true);
-   if (arrayDirectAccessTreeTop)
-      createAnchorNodesForUnsafeGetPut(arrayDirectAccessTreeTop, type, true);
-   genCodeForUnsafeGetPut(unsafeAddress, callNodeTreeTop, prevTreeTop,
-                          newSymbolReferenceForAddress, directAccessTreeTop,
-                          lowTagCmpTree, needNullCheck, true, conversionNeeded,
-                          joinBlock, javaLangClass);
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+   //adjust arguments if object is array and offheap is being used by changing
+   //object base address (second child) to dataAddr
+
+   // CASE 1: conversionNeeded == true (e.g.: Unsafe.getShort())
+   //   istore         -> arrayDirectAccessTreeTop->getNode()
+   //     s2i          -> conversion
+   //       sloadi
+   //         aladd    -> address to access (base address + offset)
+   //           aload  -> object base address
+   //           lload  -> offset
+
+   // CASE 2: conversionNeeded == false (e.g.: Unsafe.getLong())
+   //   lstore         -> arrayDirectAccessTreeTop->getNode()
+   //     lloadi
+   //       aladd      -> address to access (base address + offset)
+   //         aload    -> object base address
+   //         lload    -> offset
+
+   if (TR::Compiler->om.isOffHeapAllocationEnabled() && arrayBlockNeeded)
+      {
+      TR::Node *addrToAccessNode;
+
+      if (conversionNeeded) //CASE 1
+         addrToAccessNode = arrayDirectAccessTreeTop->getNode()->getChild(0)->getChild(0)->getChild(0);
+      else //CASE 2
+         addrToAccessNode = arrayDirectAccessTreeTop->getNode()->getChild(0)->getChild(0);
+
+      //change object base address to dataAddr
+      TR::Node *objBaseAddrNode = addrToAccessNode->getChild(0);
+      TR::Node *dataAddrNode = TR::TransformUtil::generateDataAddrLoadTrees(comp(), objBaseAddrNode);
+      addrToAccessNode->setChild(0, dataAddrNode);
+
+      //correct refcounts
+      objBaseAddrNode->decReferenceCount();
+      dataAddrNode->incReferenceCount();
+      }
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
+
+   genCodeForUnsafeGetPut(unsafeAddress, offset, type, callNodeTreeTop,
+                          prevTreeTop, newSymbolReferenceForAddress,
+                          directAccessTreeTop, arrayDirectAccessTreeTop,
+                          indirectAccessTreeTop, directAccessWithConversionTreeTop,
+                          needNullCheck, false, conversionNeeded,
+                          arrayBlockNeeded, typeTestsNeeded);
 
    for (int32_t j=0; j<unsafeCall->getNumChildren(); j++)
-         unsafeCall->getChild(j)->recursivelyDecReferenceCount();
+      unsafeCall->getChild(j)->recursivelyDecReferenceCount();
    unsafeCall->setNumChildren(0);
    TR::Node::recreate(unsafeCall, comp()->il.opCodeForDirectLoad(unsafeCall->getDataType()));
    unsafeCall->setSymbolReference(newTemp);
@@ -1808,19 +2470,19 @@ TR_J9InlinerPolicy::inlineGetClassAccessFlags(TR::ResolvedMethodSymbol *calleeSy
                           0);
    TR::TreeTop *compareTree = TR::TreeTop::create(comp(), compareNode);
 
-   // generating if-then part "   modifiers = J9AccAbstract | J9AccFinal | J9AccPublic;"
-   TR::Node *modifiersIfStrNode = TR::Node::createStore(modifiersSymRef,
+   // generating if-then (branch target) part "   modifiers = J9AccAbstract | J9AccFinal | J9AccPublic;"
+   TR::Node *modifiersBranchTargStrNode = TR::Node::createStore(modifiersSymRef,
                                  TR::Node::iconst(callNode, (int32_t)(comp()->fej9()->constClassFlagsAbstract() | comp()->fej9()->constClassFlagsFinal() | comp()->fej9()->constClassFlagsPublic()))
                                                      );
-   TR::TreeTop *ifTree = TR::TreeTop::create(comp(), modifiersIfStrNode);
+   TR::TreeTop *branchTargetTree = TR::TreeTop::create(comp(), modifiersBranchTargStrNode);
 
 
-   // generating else part "   modifiers &= 0xFFF;"
+   // generating else (fall-through) part "   modifiers &= 0xFFF;"
    TR::Node *modifiersIAndNode = TR::Node::create(TR::iand, 2,
                                 TR::Node::createLoad(callNode, modifiersSymRef),
                                 TR::Node::iconst(callNode, 0xFFF));
-   TR::Node *modifiersElseStrNode = TR::Node::createStore(modifiersSymRef, modifiersIAndNode);
-   TR::TreeTop *elseTree = TR::TreeTop::create(comp(), modifiersElseStrNode);
+   TR::Node *modifiersFallThroughStrNode = TR::Node::createStore(modifiersSymRef, modifiersIAndNode);
+   TR::TreeTop *fallThroughTree = TR::TreeTop::create(comp(), modifiersFallThroughStrNode);
 
    // generating "   return modifiers;"
    // - simply convert the original call node to an iload of the modifiers
@@ -1829,7 +2491,7 @@ TR_J9InlinerPolicy::inlineGetClassAccessFlags(TR::ResolvedMethodSymbol *calleeSy
    callNode->removeAllChildren();
    callNode->setSymbolReference(modifiersSymRef);
 
-   block->createConditionalBlocksBeforeTree(callNodeTreeTop, compareTree, ifTree, elseTree, callerSymbol->getFlowGraph(), false);
+   block->createConditionalBlocksBeforeTree(callNodeTreeTop, compareTree, branchTargetTree, fallThroughTree, callerSymbol->getFlowGraph(), false);
 
    return resultNode;
 
@@ -1855,6 +2517,8 @@ TR_J9InlinerPolicy::inlineUnsafeCall(TR::ResolvedMethodSymbol *calleeSymbol, TR:
        !comp()->fej9()->traceableMethodsCanBeInlined()))
       return false;
 
+   bool disableCASInlining = !comp()->cg()->getSupportsInlineUnsafeCompareAndSet();
+   bool disableCAEInlining = !comp()->cg()->getSupportsInlineUnsafeCompareAndExchange();
    // I am not sure if having the same type between C/S and B/Z matters here.. ie. if the type is being used as the only distinguishing factor
    switch (callNode->getSymbol()->castToResolvedMethodSymbol()->getRecognizedMethod())
       {
@@ -1939,6 +2603,24 @@ TR_J9InlinerPolicy::inlineUnsafeCall(TR::ResolvedMethodSymbol *calleeSymbol, TR:
       case TR::sun_misc_Unsafe_putObjectOrdered_jlObjectJjlObject_V:
          return createUnsafePutWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Address, false, true, true);
 
+      // FIXME: Update createUnsafePutWithOffset signature to have isVolatile, isOrdered, isUnaligned as enum
+      case TR::jdk_internal_misc_Unsafe_getCharUnaligned:
+         return createUnsafeGetWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Int16, /*isVolatile*/false, /*needsNullCheck*/false, /*isUnaligned*/true);
+      case TR::jdk_internal_misc_Unsafe_getShortUnaligned:
+         return createUnsafeGetWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Int16, /*isVolatile*/false, /*needsNullCheck*/false, /*isUnaligned*/true);
+      case TR::jdk_internal_misc_Unsafe_getIntUnaligned:
+         return createUnsafeGetWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Int32, /*isVolatile*/false, /*needsNullCheck*/false, /*isUnaligned*/true);
+      case TR::jdk_internal_misc_Unsafe_getLongUnaligned:
+         return createUnsafeGetWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Int64, /*isVolatile*/false, /*needsNullCheck*/false, /*isUnaligned*/true);
+      case TR::jdk_internal_misc_Unsafe_putCharUnaligned:
+         return createUnsafePutWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Int16, /*isVolatile*/false, /*needsNullCheck*/false, /*isOrdered*/false, /*isUnaligned*/true);
+      case TR::jdk_internal_misc_Unsafe_putShortUnaligned:
+         return createUnsafePutWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Int16, /*isVolatile*/false, /*needsNullCheck*/false, /*isOrdered*/false, /*isUnaligned*/true);
+      case TR::jdk_internal_misc_Unsafe_putIntUnaligned:
+         return createUnsafePutWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Int32, /*isVolatile*/false, /*needsNullCheck*/false, /*isOrdered*/false, /*isUnaligned*/true);
+      case TR::jdk_internal_misc_Unsafe_putLongUnaligned:
+         return createUnsafePutWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Int64, /*isVolatile*/false, /*needsNullCheck*/false, /*isOrdered*/false, /*isUnaligned*/true);
+
       case TR::sun_misc_Unsafe_getBooleanVolatile_jlObjectJ_Z:
          return createUnsafeGetWithOffset(calleeSymbol, callerSymbol, callNodeTreeTop, callNode, TR::Int8, true);
       case TR::sun_misc_Unsafe_getByteVolatile_jlObjectJ_B:
@@ -2020,11 +2702,27 @@ TR_J9InlinerPolicy::inlineUnsafeCall(TR::ResolvedMethodSymbol *calleeSymbol, TR:
       case TR::sun_misc_Unsafe_objectFieldOffset:
          return false; // todo
 
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeInt:
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeLong:
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeObject:
+      case TR::jdk_internal_misc_Unsafe_compareAndExchangeReference:
+         if (disableCAEInlining || callNode->isSafeForCGToFastPathUnsafeCall())
+            {
+            return false;
+            }
+         return createUnsafeCASCallDiamond(callNodeTreeTop, callNode);
+
       case TR::sun_misc_Unsafe_compareAndSwapInt_jlObjectJII_Z:
       case TR::sun_misc_Unsafe_compareAndSwapLong_jlObjectJJJ_Z:
       case TR::sun_misc_Unsafe_compareAndSwapObject_jlObjectJjlObjectjlObject_Z:
-         if (callNode->isSafeForCGToFastPathUnsafeCall())
+         if (disableCASInlining || callNode->isSafeForCGToFastPathUnsafeCall())
+            {
             return false;
+            }
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+         if (TR::Compiler->om.isOffHeapAllocationEnabled())
+            return createUnsafeCASCallDiamond(callNodeTreeTop, callNode);
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
          switch (callerSymbol->castToMethodSymbol()->getRecognizedMethod())
             {
             case TR::java_util_concurrent_ConcurrentHashMap_addCount:
@@ -2086,13 +2784,17 @@ TR_J9InlinerPolicy::isInlineableJNI(TR_ResolvedMethod *method,TR::Node *callNode
         !comp->fej9()->traceableMethodsCanBeInlined()))
       return false;
 
-   if (method->convertToMethod()->isUnsafeWithObjectArg(comp) || method->convertToMethod()->isUnsafeCAS(comp))
+   if (method->convertToMethod()->isUnsafeWithObjectArg() || method->convertToMethod()->isUnsafeCAS())
       {
       // In Java9 sun/misc/Unsafe methods are simple Java wrappers to JNI
       // methods in jdk.internal, and the enum values above match both. Only
       // return true for the methods that are native.
+      // In the case of Unsafe_getXUnaligned methods, which are also wrappers to
+      // native methods that contain some runtime checks, we benefit from directly
+      // inlining them in inlineUnsafeCall as if they were their underlying native
+      // methods, if we can determine that it is safe to do so.
       if (!TR::Compiler->om.canGenerateArraylets() || (callNode && callNode->isUnsafeGetPutCASCallOnNonArray()))
-         return method->isNative();
+         return method->isNative() || isSimpleWrapperForInlineableUnsafeNativeMethod(method);
       else
          return false;
       }
@@ -2177,6 +2879,15 @@ TR_J9InlinerPolicy::tryToInline(TR_CallTarget * calltarget, TR_CallStack * callS
             traceMsg(comp(), "@ForceInline was specified for %s, in tryToInline\n", method->signature(comp()->trMemory()));
          return true;
          }
+
+      if (method->getRecognizedMethod() == TR::unknownMethod &&
+          comp()->fej9()->isIntrinsicCandidate(method) &&
+          !comp()->getOption(TR_DisableInliningUnrecognizedIntrinsics))
+         {
+         if (comp()->trace(OMR::inlining))
+            traceMsg(comp(), "@IntrisicCandidate was specified for %s, in tryToInline\n", method->signature(comp()->trMemory()));
+         return true;
+         }
       }
    else
       {
@@ -2221,11 +2932,8 @@ TR_J9InlinerPolicy::adjustFanInSizeInWeighCallSite(int32_t& weight,
       if (comp()->getMethodHotness() > warm)
          return;
 
-      static const char *qq = feGetEnv("TR_Min_FanIn_Size");
-      static const uint32_t min_size = ( qq ) ? atoi(qq) : MIN_FAN_IN_SIZE;
-
       uint32_t thresholdSize = (!comp()->getOption(TR_InlinerFanInUseCalculatedSize)) ? getJ9InitialBytecodeSize(callee, 0, comp()) : size;
-      if (thresholdSize <= min_size)  // if we are less than min_fan_in size, we don't want to apply fan-in heuristic
+      if (thresholdSize <= TR::Options::_iprofilerFaninMethodMinSize)  // if we are less than min_fan_in size, we don't want to apply fan-in heuristic
          {
          return;
          }
@@ -2336,15 +3044,12 @@ TR_J9InlinerPolicy::adjustFanInSizeInExceedsSizeThreshold(int bytecodeSize,
    static const char *q = feGetEnv("TR_SizeMultiplier");
    static const uint32_t multiplier = ( q ) ? atoi (q) : SIZE_MULTIPLIER;
 
-   static const char *qq = feGetEnv("TR_Min_FanIn_Size");
-   static const uint32_t min_size = ( qq ) ? atoi(qq) : MIN_FAN_IN_SIZE;
-
    static const char *qqq = feGetEnv("TR_OtherBucketThreshold");
    static const float otherBucketThreshold = (qqq) ? (float) (atoi (qqq) /100.0) : FANIN_OTHER_BUCKET_THRESHOLD;
 
 
    uint32_t thresholdSize = (!comp()->getOption(TR_InlinerFanInUseCalculatedSize)) ? getJ9InitialBytecodeSize(callee, 0, comp()) : calculatedSize;
-   if (thresholdSize <= min_size)  // if we are less than min_fan_in size, we don't want to apply fan-in heuristic
+   if (thresholdSize <= TR::Options::_iprofilerFaninMethodMinSize)  // if we are less than min_fan_in size, we don't want to apply fan-in heuristic
       {
       return false;
       }
@@ -2402,17 +3107,10 @@ TR_J9InlinerPolicy::adjustFanInSizeInExceedsSizeThreshold(int bytecodeSize,
    return false;
    }
 
+
 bool
-TR_J9InlinerPolicy::callMustBeInlined(TR_CallTarget *calltarget)
+TR_J9InlinerPolicy::callMustBeInlinedInCold(TR_ResolvedMethod *method)
    {
-   TR_ResolvedMethod *method = calltarget->_calleeMethod;
-
-   if (method->convertToMethod()->isArchetypeSpecimen())
-      return true;
-
-   if (comp()->fej9()->isLambdaFormGeneratedMethod(method))
-      return true;
-
    if (insideIntPipelineForEach(method, comp()))
       {
       if (comp()->trace(OMR::inlining))
@@ -2421,13 +3119,12 @@ TR_J9InlinerPolicy::callMustBeInlined(TR_CallTarget *calltarget)
       return true;
       }
 
-
    if (comp()->getOption(TR_EnableSIMDLibrary) &&
-       strncmp(calltarget->_calleeMethod->classNameChars(), "com/ibm/dataaccess/SIMD", 23) == 0)
+       strncmp(method->classNameChars(), "com/ibm/dataaccess/SIMD", 23) == 0)
       return true;
 
 #ifdef ENABLE_GPU
-   if (strncmp(calltarget->_calleeMethod->classNameChars(), "com/ibm/gpu/Kernel", 18) == 0)
+   if (strncmp(method->classNameChars(), "com/ibm/gpu/Kernel", 18) == 0)
       return true;
 #endif
 
@@ -2452,7 +3149,37 @@ TR_J9InlinerPolicy::callMustBeInlined(TR_CallTarget *calltarget)
          }
       }
 
+   if (method->getRecognizedMethod() == TR::unknownMethod &&
+       comp()->fej9()->isIntrinsicCandidate(method) &&
+       !comp()->getOption(TR_DisableInliningUnrecognizedIntrinsics))
+      {
+      if (comp()->trace(OMR::inlining))
+         traceMsg(comp(), "@IntrinsicCandidate was specified for %s, in callMustBeInlined\n", method->signature(comp()->trMemory()));
+      return true;
+      }
+
+
    return false;
+   }
+
+
+bool
+TR_J9InlinerPolicy::callMustBeInlined(TR_CallTarget *calltarget)
+   {
+   TR_ResolvedMethod *method = calltarget->_calleeMethod;
+
+#if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   if (comp()->fej9()->isLambdaFormGeneratedMethod(method))
+      return true;
+
+   if (TR_J9MethodBase::isVarHandleOperationMethod(method->getRecognizedMethod()))
+      return true;
+#else
+   if (method->convertToMethod()->isArchetypeSpecimen())
+      return true;
+#endif
+
+   return callMustBeInlinedInCold(method);
    }
 
 void
@@ -2487,6 +3214,14 @@ TR_J9InlinerPolicy::willBeInlinedInCodeGen(TR::RecognizedMethod method)
 bool
 TR_J9InlinerPolicy::skipHCRGuardForCallee(TR_ResolvedMethod *callee)
    {
+   // Skip HCR guards for callees annotated with @IntrinsicCandidate, and ignore any
+   // later redefinition as these methods are meant to have special handling for
+   // performance reasons. @IntrinsicCandidate annotation is only used in the JCL.
+   // We would only be inlining @IntrinsicCandidate methods because we do not
+   // have any special handling for them yet.
+   if (comp()->fej9()->isIntrinsicCandidate(callee))
+      return true;
+
    // TODO: This is a very hacky way of avoiding HCR guards on sensitive String Compression methods which allows idiom
    // recognition to work. It also avoids unnecessary block splitting in performance sensitive methods for String
    // operations that are quite common. Can we do something better?
@@ -2587,24 +3322,25 @@ TR_Inliner::optDetailString() const throw()
    return "O^O INLINER: ";
    }
 
-template <typename FunctObj>
-void TR_MultipleCallTargetInliner::recursivelyWalkCallTargetAndPerformAction(TR_CallTarget *ct, FunctObj &action)
+void
+TR_MultipleCallTargetInliner::recursivelyWalkCallTargetAndGenerateNodeEstimate(TR_CallTarget *ct, NodeEstimate &estimate)
    {
 
-   debugTrace(tracer(),"recursivelyWalkingCallTargetAndPerformAction: Considering Target %p. node estimate before = %d maxbcindex = %d",ct,action.getNodeEstimate(),getPolicy()->getInitialBytecodeSize(ct->_calleeMethod, 0, comp()));
+   debugTrace(tracer(),"recursivelyWalkCallTargetAndGenerateNodeEstimate: Considering Target %p. node estimate before = %d maxbcindex = %d",ct,estimate.getNodeEstimate(),getPolicy()->getInitialBytecodeSize(ct->_calleeMethod, 0, comp()));
 
-   action(ct,comp());
+   if (canSkipCountingNodes(ct))
+      return;
+
+   estimate(ct,comp());
 
    TR_CallSite *callsite = 0;
    for(callsite = ct->_myCallees.getFirst() ; callsite ; callsite = callsite->getNext()   )
       {
       for (int32_t i = 0 ; i < callsite->numTargets() ; i++)
          {
-         recursivelyWalkCallTargetAndPerformAction(callsite->getTarget(i),action);
+         recursivelyWalkCallTargetAndGenerateNodeEstimate(callsite->getTarget(i),estimate);
          }
       }
-
-
    }
 
 int32_t
@@ -2766,9 +3502,9 @@ TR_MultipleCallTargetInliner::eliminateTailRecursion(
          //       iload #101[0
          //       iconst 1
          //   iconst 2
-         TR::TreeTop * ifTreeTop = conditionBlock->getLastRealTreeTop();
+         TR::TreeTop * branchTargetTreeTop = conditionBlock->getLastRealTreeTop();
 
-         TR::TreeTop::create(comp(), ifTreeTop->getPrevTreeTop(),
+         TR::TreeTop::create(comp(), branchTargetTreeTop->getPrevTreeTop(),
                             TR::Node::create(TR::ireturn, 1,
                                             TR::Node::create(TR::idiv, 2,
                                                   TR::Node::create(TR::imul, 2,
@@ -2779,7 +3515,7 @@ TR_MultipleCallTargetInliner::eliminateTailRecursion(
                                                   TR::Node::create(returnNode, TR::iconst, 0, 2))));
 
 
-         callerSymbol->removeTree(ifTreeTop);
+         callerSymbol->removeTree(branchTargetTreeTop);
          TR::CFG * cfg = callerSymbol->getFlowGraph();
          cfg->removeEdge(conditionBlock->getSuccessors().front());
          cfg->removeEdge(*(++conditionBlock->getSuccessors().begin()));
@@ -3025,7 +3761,16 @@ bool TR_MultipleCallTargetInliner::inlineCallTargets(TR::ResolvedMethodSymbol *c
             TR_CallStack::SetCurrentCallNode sccn(callStack, node);
 
             TR::Symbol *sym  = node->getSymbol();
-            if (!isCold && !node->isTheVirtualCallNodeForAGuardedInlinedCall())
+            bool forceInlineInCold = false;
+
+            if (sym->isResolvedMethod())
+               {
+               TR_J9InlinerPolicy *j9inlinerPolicy = (TR_J9InlinerPolicy *) getPolicy();
+               forceInlineInCold = j9inlinerPolicy->callMustBeInlinedInCold(sym->getResolvedMethodSymbol()->getResolvedMethod());
+               }
+
+            if ((!isCold || forceInlineInCold) &&
+                !node->isTheVirtualCallNodeForAGuardedInlinedCall())
                {
                TR::SymbolReference * symRef = node->getSymbolReference();
                TR::MethodSymbol * calleeSymbol = symRef->getSymbol()->castToMethodSymbol();
@@ -3193,18 +3938,21 @@ bool TR_MultipleCallTargetInliner::inlineCallTargets(TR::ResolvedMethodSymbol *c
       debugTrace(tracer(), "Initially, estimatedNumberOfNodes = %d\n", estimatedNumberOfNodes);
       for (calltarget = _callTargets.getFirst(); calltarget != callTargetToChop; prev = calltarget, calltarget = calltarget->getNext())
          {
-         generateNodeEstimate myEstimate;
-         recursivelyWalkCallTargetAndPerformAction(calltarget, myEstimate);
+         NodeEstimate myEstimate;
+         recursivelyWalkCallTargetAndGenerateNodeEstimate(calltarget, myEstimate);
          estimatedNumberOfNodes += myEstimate.getNodeEstimate();
 
-         debugTrace(tracer(),"Estimated Number of Nodes is %d after calltarget %p",estimatedNumberOfNodes,calltarget);
+         if (comp()->trace(OMR::inlining))
+            traceMsg(comp(), "Estimated Number of Nodes is %d after calltarget %p\n", estimatedNumberOfNodes,calltarget);
+
+         debugTrace(tracer(),"Estimated Number of Nodes is %d after calltarget %p\n", estimatedNumberOfNodes,calltarget);
 
          float factor = 1.1F;          // this factor was chosen based on a study of a large WAS app that showed that getMaxBytecodeindex was 92% accurate compared to nodes generated
 
-         if ((uint32_t)(estimatedNumberOfNodes*factor) > _nodeCountThreshold)
+         if ((uint32_t)estimatedNumberOfNodes > ((uint32_t) _nodeCountThreshold * factor))
             {
             callTargetToChop = calltarget;
-            debugTrace(tracer(),"estimate nodes exceeds _nodeCountThreshold, chopped off targets staring from %p, lastTargetToInline %p\n", callTargetToChop, prev);
+            debugTrace(tracer(),"estimate nodes exceeds _nodeCountThreshold, chopped off targets starting from %p, lastTargetToInline %p\n", callTargetToChop, prev);
             break;
             }
          }
@@ -3300,6 +4048,33 @@ bool TR_MultipleCallTargetInliner::inlineCallTargets(TR::ResolvedMethodSymbol *c
    return anySuccess;
    }
 
+bool
+TR_MultipleCallTargetInliner::canSkipCountingNodes(TR_CallTarget* callTarget)
+   {
+   TR::RecognizedMethod rm = callTarget->_calleeMethod->getRecognizedMethod();
+   switch (rm)
+      {
+      case TR::java_lang_Object_hashCode:
+         {
+         if (callTarget->_myCallSite &&
+               callTarget->_myCallSite->_ecsPrexArgInfo)
+            {
+            TR_PrexArgument* arg  = callTarget->_myCallSite->_ecsPrexArgInfo->get(0);
+            if (arg && arg->getClass() && arg->classIsFixed() && arg->hasKnownObjectIndex())
+               {
+               if (comp()->trace(OMR::inlining))
+                  traceMsg(comp(), "Skipping node counting for sub call graph of java/lang/Object.hashCode()I\n");
+               return true;
+               }
+            }
+         }
+         break;
+      default:
+         break;
+      }
+   return false;
+   }
+
 void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_CallSite *callsite, bool currentBlockHasExceptionSuccessors, bool dontAddCalls)
    {
    TR_J9InlinerPolicy *j9inlinerPolicy = (TR_J9InlinerPolicy *) getPolicy();
@@ -3307,7 +4082,7 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
 
    for (int32_t k = 0; k < callsite->numTargets(); k++)
       {
-      uint32_t size = 0;
+      int32_t size = 0;
 
       TR_EstimateCodeSize::raiiWrapper ecsWrapper(this, tracer(), _maxRecursiveCallByteCodeSizeEstimate);
       TR_EstimateCodeSize *ecs = ecsWrapper.getCodeEstimator();
@@ -3373,7 +4148,7 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
 
          size = ecs->getSize();
 
-         if (!inlineit && !callMustBeInlinedRegardlessOfSize(callsite))
+         if (!inlineit)
             {
             if (isWarm(comp()))
                {
@@ -3405,7 +4180,7 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
          heuristicTrace(tracer(),"WeighCallSite: For Target %p node %p signature %s, estimation returned a size of %d",
                                   calltarget,calltarget->_myCallSite->_callNode,tracer()->traceSignature(calltarget),size);
 
-         if (currentBlockHasExceptionSuccessors && ecs->aggressivelyInlineThrows())
+         if (currentBlockHasExceptionSuccessors && ecs->aggressivelyInlineThrows() && size > 0)
             {
             _maxRecursiveCallByteCodeSizeEstimate >>= 3;
             size >>= 3;
@@ -3413,13 +4188,6 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
 
             heuristicTrace(tracer(),"Setting size to %d because current block has exception successors and want to aggressively inline throws 2",size);
             }
-         if (callMustBeInlinedRegardlessOfSize(calltarget->_myCallSite))
-            {
-            heuristicTrace(tracer(), "calltarget->_fullSize: %d size: %d", calltarget->_fullSize, size);
-            size = 0;
-            heuristicTrace(tracer(), "Setting size to %d because call is dominate hot based on PDF", size);
-            }
-
 
          wouldBenefitFromInlining = false;
          possiblyVeryHotLargeCallee = false;
@@ -3429,7 +4197,7 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
                (size > _maxRecursiveCallByteCodeSizeEstimate/2))
             possiblyVeryHotLargeCallee = true;
 
-         if (calltarget->_calleeSymbol->isSynchronised())
+         if (calltarget->_calleeSymbol->isSynchronised() && size > 0)
             {
             size >>= 1; // could help gvp
             heuristicTrace(tracer(),"Setting size to %d because call is Synchronized",size);
@@ -3441,16 +4209,16 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
             wouldBenefitFromInlining = true;
             }
 
-         if (strstr(calltarget->_calleeSymbol->signature(trMemory()),"BigDecimal.add("))
+         if (strstr(calltarget->_calleeSymbol->signature(trMemory()),"BigDecimal.add(") && size > 0)
             {
             size >>=2;
             heuristicTrace(tracer(),"Setting size to %d because call is BigDecimal.add",size);
             }
 
-         if (isHot(comp()))
+         if (isHot(comp()) && size > 0)
             {
             TR_ResolvedMethod *m = calltarget->_calleeSymbol->getResolvedMethod();
-            char *sig = "toString";
+            const char *sig = "toString";
             if (strncmp(m->nameChars(), sig, strlen(sig)) == 0)
                {
                size >>= 1;
@@ -3547,53 +4315,72 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
                if (comp()->trace(OMR::inlining))
                   heuristicTrace(tracer(),"WeighCallSite: Considering shrinking call %p with frequency %d\n", callsite->_callNode, frequency2);
 
-               bool largeCompiledCallee = !comp()->getOption(TR_InlineVeryLargeCompiledMethods) &&
-                                          isLargeCompiledMethod(calltarget->_calleeMethod, size, frequency2);
-               if (largeCompiledCallee)
+               if (size > 0)
                   {
-                  size = size*TR::Options::_inlinerVeryLargeCompiledMethodAdjustFactor;
-                  }
-               else if (frequency2 > borderFrequency)
-                  {
-                  float factor = (float)(maxFrequency-frequency2)/(float)maxFrequency;
-                  factor = std::max(factor, 0.4f);
+                  int32_t exemptionFreqCutoff = comp()->getOptions()->getLargeCompiledMethodExemptionFreqCutoff();
+                  int32_t veryLargeCompiledMethodThreshold = comp()->getOptions()->getInlinerVeryLargeCompiledMethodThreshold();
+                  int32_t veryLargeCompiledMethodFaninThreshold = comp()->getOptions()->getInlinerVeryLargeCompiledMethodFaninThreshold();
 
-                  float avgMethodSize = (float)size/(float)ecs->getNumOfEstimatedCalls();
-                  float numCallsFactor = (float)(avgMethodSize)/110.0f;
-
-                  numCallsFactor = std::max(factor, 0.1f);
-
-                  if (size > 100)
+                  static const char *cmt = feGetEnv("TR_CompiledMethodCallGraphThreshold");
+                  if (cmt)
                      {
-                     size = (int)((float)size * factor * numCallsFactor);
-                     if (size < 100) size = 100;
+                     static const int32_t callGraphSizeBasedThreshold = atoi(cmt);
+                     veryLargeCompiledMethodThreshold = callGraphSizeBasedThreshold;
+                     }
+
+                  bool largeCompiledCallee = !comp()->getOption(TR_InlineVeryLargeCompiledMethods) &&
+                                             isLargeCompiledMethod(calltarget->_calleeMethod, size, frequency2, exemptionFreqCutoff, veryLargeCompiledMethodThreshold, veryLargeCompiledMethodFaninThreshold);
+                  if (largeCompiledCallee)
+                     {
+                     size = size*TR::Options::_inlinerVeryLargeCompiledMethodAdjustFactor;
+                     }
+                  else if (frequency2 > borderFrequency)
+                     {
+                     float factor = (float)(maxFrequency-frequency2)/(float)maxFrequency;
+                     factor = std::max(factor, 0.4f);
+
+                     float avgMethodSize = (float)size/(float)ecs->getNumOfEstimatedCalls();
+                     float numCallsFactor = (float)(avgMethodSize)/110.0f;
+
+                     numCallsFactor = std::max(factor, 0.1f);
+
+                     if (size > 100)
+                        {
+                        size = (int)((float)size * factor * numCallsFactor);
+                        if (size < 100) size = 100;
+                        }
+                     else
+                        {
+                        size = (int)((float)size * factor * numCallsFactor);
+                        }
+                     if (comp()->trace(OMR::inlining))
+                        heuristicTrace(tracer(), "WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
+                     }
+                  else if ((frequency2 > 0) && (frequency2 < veryColdBorderFrequency)) // luke-warm block
+                     {
+                     float factor = (float)frequency2 / (float)maxFrequency;
+                     //factor = std::max(factor, 0.1f);
+                     size = (int)((float)size / (factor*factor)); // make the size look bigger to inline less
+                     if (comp()->trace(OMR::inlining))
+                        heuristicTrace(tracer(), "WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
+                     }
+                  else if ((frequency2 >= 0) && (frequency2 < coldBorderFrequency)) // very cold block
+                     {
+                     //to avoid division by zero crash. Semantically  freqs of 0 and 1 should be pretty close given maxFrequency of 10K
+                     int adjFrequency2 = frequency2 ? frequency2 : 1;
+                     float factor = (float)adjFrequency2 / (float)maxFrequency;
+                     //factor = std::max(factor, 0.1f);
+                     size = (int)((float)size / factor);
+
+
+                     if (comp()->trace(OMR::inlining))
+                        heuristicTrace(tracer(),"WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
                      }
                   else
                      {
-                     size = (int)((float)size * factor * numCallsFactor);
+                     if (comp()->trace(OMR::inlining))
+                        heuristicTrace(tracer(),"WeighCallSite: Not adjusted call-graph size for call node %p, size %d\n", callsite->_callNode, origSize);
                      }
-                  if (comp()->trace(OMR::inlining))
-                     heuristicTrace(tracer(), "WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
-                  }
-               else if ((frequency2 > 0) && (frequency2 < veryColdBorderFrequency)) // luke-warm block
-                  {
-                  float factor = (float)frequency2 / (float)maxFrequency;
-                  //factor = std::max(factor, 0.1f);
-                  size = (int)((float)size / (factor*factor)); // make the size look bigger to inline less
-                  if (comp()->trace(OMR::inlining))
-                     heuristicTrace(tracer(), "WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
-                  }
-               else if ((frequency2 >= 0) && (frequency2 < coldBorderFrequency)) // very cold block
-                  {
-                  //to avoid division by zero crash. Semantically  freqs of 0 and 1 should be pretty close given maxFrequency of 10K
-                  int adjFrequency2 = frequency2 ? frequency2 : 1;
-                  float factor = (float)adjFrequency2 / (float)maxFrequency;
-                  //factor = std::max(factor, 0.1f);
-                  size = (int)((float)size / factor);
-
-
-                  if (comp()->trace(OMR::inlining))
-                     heuristicTrace(tracer(),"WeighCallSite: Adjusted call-graph size for call node %p, from %d to %d\n", callsite->_callNode, origSize, size);
                   }
                else
                   {
@@ -3702,7 +4489,7 @@ void TR_MultipleCallTargetInliner::weighCallSite( TR_CallStack * callStack , TR_
 
       weight = applyArgumentHeuristics(map,weight, calltarget);
 
-      if (calltarget->_calleeMethod->isDAAWrapperMethod())
+      if (((TR_ResolvedJ9Method*)calltarget->_calleeMethod)->isDAAWrapperMethod())
          {
          weight = 1;
          heuristicTrace(tracer(),"Setting DAA wrapper methods weights to minimum(%d).", weight);
@@ -3871,8 +4658,8 @@ void TR_MultipleCallTargetInliner::processChoppedOffCallTargets(TR_CallTarget *l
          {
          if (inlineSubCallGraph(calltarget))
             {
-            generateNodeEstimate myEstimate;
-            recursivelyWalkCallTargetAndPerformAction(calltarget, myEstimate);
+            NodeEstimate myEstimate;
+            recursivelyWalkCallTargetAndGenerateNodeEstimate(calltarget, myEstimate);
             estimatedNumberOfNodes += myEstimate.getNodeEstimate();
             /*
              * ForceInline targets and JSR292 methods should always be inlined regarless of budget. However, with
@@ -3903,8 +4690,19 @@ int32_t TR_MultipleCallTargetInliner::scaleSizeBasedOnBlockFrequency(int32_t byt
    {
    int32_t maxFrequency = MAX_BLOCK_COUNT + MAX_COLD_BLOCK_COUNT;
 
+   int32_t exemptionFreqCutoff = comp()->getOptions()->getLargeCompiledMethodExemptionFreqCutoff();
+   int32_t veryLargeCompiledMethodThreshold = comp()->getOptions()->getInlinerVeryLargeCompiledMethodThreshold();
+   int32_t veryLargeCompiledMethodFaninThreshold = comp()->getOptions()->getInlinerVeryLargeCompiledMethodFaninThreshold();
+
+   static const char *bcmt = feGetEnv("TR_CompiledMethodByteCodeThreshold");
+   if (bcmt)
+      {
+      static const int32_t byteCodeSizeBasedThreshold = atoi(bcmt);
+      veryLargeCompiledMethodThreshold = byteCodeSizeBasedThreshold;
+      }
+
    bool largeCompiledCallee = !comp()->getOption(TR_InlineVeryLargeCompiledMethods) &&
-                              isLargeCompiledMethod(calleeResolvedMethod, bytecodeSize, frequency);
+                              isLargeCompiledMethod(calleeResolvedMethod, bytecodeSize, frequency, exemptionFreqCutoff, veryLargeCompiledMethodThreshold, veryLargeCompiledMethodFaninThreshold);
    if (largeCompiledCallee)
       {
       bytecodeSize = bytecodeSize * TR::Options::_inlinerVeryLargeCompiledMethodAdjustFactor;
@@ -3935,7 +4733,7 @@ int32_t TR_MultipleCallTargetInliner::scaleSizeBasedOnBlockFrequency(int32_t byt
 
       float factor = (float)adjFrequency / (float)maxFrequency;
       float weight = (float)bytecodeSize / (factor*factor);
-      bytecodeSize = (weight > 0x7fffffff) ? 0x7fffffff : ((int32_t)weight);
+      bytecodeSize = (weight >= (float)0x7fffffff) ? 0x7fffffff : ((int32_t)weight);
 
       heuristicTrace(tracer(),"exceedsSizeThreshold: Scaled up size for call from %d to %d", oldSize, bytecodeSize);
       }
@@ -3943,7 +4741,7 @@ int32_t TR_MultipleCallTargetInliner::scaleSizeBasedOnBlockFrequency(int32_t byt
    }
 
 
-bool TR_MultipleCallTargetInliner::isLargeCompiledMethod(TR_ResolvedMethod *calleeResolvedMethod, int32_t bytecodeSize, int32_t callerBlockFrequency)
+bool TR_MultipleCallTargetInliner::isLargeCompiledMethod(TR_ResolvedMethod *calleeResolvedMethod, int32_t bytecodeSize, int32_t callerBlockFrequency, int32_t exemptionFreqCutoff, int32_t veryLargeCompiledMethodThreshold, int32_t veryLargeCompiledMethodFaninThreshold)
    {
    TR_OpaqueMethodBlock* methodCallee = calleeResolvedMethod->getPersistentIdentifier();
    if (!calleeResolvedMethod->isInterpreted())
@@ -3961,27 +4759,34 @@ bool TR_MultipleCallTargetInliner::isLargeCompiledMethod(TR_ResolvedMethod *call
                }
 
             // Allow inlining of big methods into high frequency blocks
-            if (callerBlockFrequency > comp()->getOptions()->getLargeCompiledMethodExemptionFreqCutoff())
+            if (callerBlockFrequency > exemptionFreqCutoff)
                return false;
 
-            int32_t veryLargeCompiledMethodThreshold = comp()->getOptions()->getInlinerVeryLargeCompiledMethodThreshold();
-            int32_t veryLargeCompiledMethodFaninThreshold = comp()->getOptions()->getInlinerVeryLargeCompiledMethodFaninThreshold();
             // Subdue inliner in low frequency blocks
             if (callerBlockFrequency > 0)
                {
-               if ((2 * callerBlockFrequency) < comp()->getOptions()->getLargeCompiledMethodExemptionFreqCutoff())
+               if ((2 * callerBlockFrequency) < exemptionFreqCutoff)
                   {
                   veryLargeCompiledMethodThreshold = 100;
                   veryLargeCompiledMethodFaninThreshold = 0;
                   }
                }
-
-            uint32_t numCallers = 0, totalWeight = 0;
-            ((TR_ResolvedJ9Method *) calleeResolvedMethod)->getFaninInfo(&numCallers, &totalWeight);
-            if ((numCallers > veryLargeCompiledMethodFaninThreshold) &&
-                (bytecodeSize > veryLargeCompiledMethodThreshold))
+            // Prevent inlining of "large" methods with "many" callers
+            if (bytecodeSize > veryLargeCompiledMethodThreshold)
                {
-               return true;
+               uint32_t numCallers = 0, totalWeight = 0;
+               if (!comp()->getOption(TR_DisableInlinerFanIn))
+                  ((TR_ResolvedJ9Method *) calleeResolvedMethod)->getFaninInfo(&numCallers, &totalWeight);
+               if (numCallers == 0) // no fanin info
+                  {
+                  // If there is no fanin info, prevent inlining just based on method size
+                  return true;
+                  }
+               else
+                  {
+                  if (numCallers > veryLargeCompiledMethodFaninThreshold)
+                     return true;
+                  }
                }
             }
          }
@@ -4008,11 +4813,11 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
       return false;
 
    TR_J9InlinerPolicy *j9InlinerPolicy = (TR_J9InlinerPolicy *)getPolicy();
-   static char *polymorphicCalleeSizeThresholdStr = feGetEnv("TR_InlinerPolymorphicConservatismCalleeSize");
+   static const char *polymorphicCalleeSizeThresholdStr = feGetEnv("TR_InlinerPolymorphicConservatismCalleeSize");
    int polymorphicCalleeSizeThreshold = polymorphicCalleeSizeThresholdStr ? atoi(polymorphicCalleeSizeThresholdStr) : 10;
-   static char *polymorphicRootSizeThresholdStr = feGetEnv("TR_InlinerPolymorphicConservatismRootSize");
+   static const char *polymorphicRootSizeThresholdStr = feGetEnv("TR_InlinerPolymorphicConservatismRootSize");
    int polymorphicRootSizeThreshold = polymorphicRootSizeThresholdStr ? atoi(polymorphicRootSizeThresholdStr) : 30;
-   static char *trustedInterfacePattern = feGetEnv("TR_TrustedPolymorphicInterfaces");
+   static const char *trustedInterfacePattern = feGetEnv("TR_TrustedPolymorphicInterfaces");
    static TR::SimpleRegex *trustedInterfaceRegex = trustedInterfacePattern ? TR::SimpleRegex::create(trustedInterfacePattern) : NULL;
    // we need to be conservative about inlining potentially highly polymorphic interface calls for
    // functional frameworks like scala - we limit this to hot and above
@@ -4228,11 +5033,9 @@ TR_MultipleCallTargetInliner::exceedsSizeThreshold(TR_CallSite *callSite, int by
  */
        }
 
-   static const char *qq;
-   static uint32_t min_size = ( qq = feGetEnv("TR_Min_FanIn_Size")) ? atoi(qq) : MIN_FAN_IN_SIZE;
    static const char *q;
    static uint32_t multiplier = ( q = feGetEnv("TR_SizeMultiplier")) ? atoi (q) : SIZE_MULTIPLIER;
-   uint32_t calculatedSize = bytecodeSize; //(bytecodeSize - MIN_FAN_IN_SIZE);
+   uint32_t calculatedSize = bytecodeSize;
 
    if (!comp()->getOption(TR_DisableInlinerFanIn))  // TODO: make the default for everybody
       {
@@ -4657,6 +5460,9 @@ TR_J9InlinerPolicy::supressInliningRecognizedInitialCallee(TR_CallSite* callsite
       // DAA Packed Decimal check method
       case TR::com_ibm_dataaccess_PackedDecimal_checkPackedDecimal_:
 
+      // DAA External Decimal check method
+      case TR::com_ibm_dataaccess_ExternalDecimal_checkExternalDecimal_:
+
       // DAA Packed Decimal <-> Integer
       case TR::com_ibm_dataaccess_DecimalData_convertPackedDecimalToInteger_:
       case TR::com_ibm_dataaccess_DecimalData_convertPackedDecimalToInteger_ByteBuffer_:
@@ -4757,7 +5563,9 @@ TR_J9InlinerPolicy::supressInliningRecognizedInitialCallee(TR_CallSite* callsite
             }
          break;
       case TR::java_lang_StringLatin1_indexOf:
+      case TR::java_lang_StringLatin1_indexOfChar:
       case TR::java_lang_StringUTF16_indexOf:
+      case TR::java_lang_StringUTF16_indexOfCharUnsafe:
       case TR::com_ibm_jit_JITHelpers_intrinsicIndexOfStringLatin1:
       case TR::com_ibm_jit_JITHelpers_intrinsicIndexOfStringUTF16:
       case TR::com_ibm_jit_JITHelpers_intrinsicIndexOfLatin1:
@@ -4774,12 +5582,44 @@ TR_J9InlinerPolicy::supressInliningRecognizedInitialCallee(TR_CallSite* callsite
             return true;
             }
          break;
+      case TR::java_lang_Thread_onSpinWait:
+         {
+         static char *disableOSW = feGetEnv("TR_noPauseOnSpinWait");
+         if (!disableOSW)
+            {
+            static char *printIt = feGetEnv("TR_showPauseOnSpinWait");
+            if (printIt && comp->trace(OMR::inlining))
+               {
+               traceMsg(comp, "suppress inlining onSpinWait : node=%p, %s\n", callNode, comp->signature());
+               }
+
+            return true;
+            }
+         break;
+         }
       case TR::sun_misc_Unsafe_allocateInstance:
          // VP transforms this into a plain new if it can get a non-null
          // known object java/lang/Class representing an initialized class
          return true;
       case TR::java_lang_Class_cast:
          return true; // Call will be transformed into checkcast
+      case TR::java_lang_J9VMInternals_identityHashCode:
+      case TR::java_lang_J9VMInternals_fastIdentityHashCode:
+         {
+         TR_PrexArgInfo *callerArgInfo = comp->getCurrentInlinedCallArgInfo();
+         if (callsite->_callerResolvedMethod->getRecognizedMethod() == TR::java_lang_Object_hashCode &&
+            callerArgInfo &&
+            callerArgInfo->get(0))
+            {
+            if (callerArgInfo->get(0)->hasKnownObjectIndex())
+               {
+               if (comp->trace(OMR::inlining))
+                  traceMsg(comp, "Suppressing inlining identityHashCode helper call as it can be evaluated in VP.\n");
+               return true;
+               }
+            }
+         return false;
+         }
       case TR::java_lang_String_hashCodeImplDecompressed:
          /*
           * X86 and z want to avoid inlining both java_lang_String_hashCodeImplDecompressed and java_lang_String_hashCodeImplCompressed
@@ -4789,7 +5629,7 @@ TR_J9InlinerPolicy::supressInliningRecognizedInitialCallee(TR_CallSite* callsite
           * When Power gets a fast implementation of TR::java_lang_String_hashCodeImplCompressed, this case can be merged into the case
           * for java_lang_String_hashCodeImplCompressed instead of using a fallthrough.
           */
-         if (!TR::Compiler->om.canGenerateArraylets() &&
+         if (!TR::Compiler->om.canGenerateArraylets() && !TR::Compiler->om.isOffHeapAllocationEnabled() &&
              comp->target().cpu.isPower() && comp->target().cpu.isAtLeast(OMR_PROCESSOR_PPC_P8) && comp->target().cpu.supportsFeature(OMR_FEATURE_PPC_HAS_VSX) && !comp->compileRelocatableCode())
                {
                return true;
@@ -4801,8 +5641,33 @@ TR_J9InlinerPolicy::supressInliningRecognizedInitialCallee(TR_CallSite* callsite
             return true;
             }
          break;
-      case TR::java_lang_StringLatin1_inflate:
+      case TR::jdk_internal_util_ArraysSupport_vectorizedHashCode:
+         {
+         if (comp->cg()->getSupportsInlineVectorizedHashCode())
+            {
+            return true;
+            }
+         break;
+         }
+      case TR::java_lang_StringLatin1_inflate_BICII:
          if (comp->cg()->getSupportsInlineStringLatin1Inflate())
+            {
+            return true;
+            }
+      case TR::java_lang_StringLatin1_inflate_BIBII:
+         if (comp->cg()->getSupportsArrayTranslateTROTNoBreak() && !comp->target().cpu.isPower())
+            {
+            return true;
+            }
+         break;
+      case TR::java_lang_StringCoding_hasNegatives:
+         if (comp->cg()->getSupportsInlineStringCodingHasNegatives())
+            {
+            return true;
+            }
+         break;
+      case TR::java_lang_StringCoding_countPositives:
+         if (comp->cg()->getSupportsInlineStringCodingCountPositives())
             {
             return true;
             }
@@ -5011,6 +5876,21 @@ TR_InlinerFailureReason
          }
       }
 
+#if JAVA_SPEC_VERSION >= 21
+   // A method that is annotated with @ChangesCurrentThread is not inlinable
+   // unless the caller is also annotated with @ChangesCurrentThread
+   if (comp->fej9()->isChangesCurrentThread(resolvedMethod)
+    && !comp->fej9()->isChangesCurrentThread(callsite->_callerResolvedMethod))
+      {
+      if (comp->trace(OMR::inlining))
+         traceMsg(
+            comp,
+            "Preventing inlining of %s as it is a JCL method annotated with @ChangesCurrentThread without its caller sharing the same annotation.\n",
+            resolvedMethod->signature(comp->trMemory()));
+      return DontInline_Callee;
+      }
+#endif /* JAVA_SPEC_VERSION >= 21 */
+
    TR::RecognizedMethod rm = resolvedMethod->getRecognizedMethod();
 
    // Don't inline methods that are going to be reduced in ilgen or UnsafeFastPath
@@ -5067,6 +5947,23 @@ TR_InlinerFailureReason
          break;
    }
 
+#if JAVA_SPEC_VERSION >= 20
+   /**
+    * Prevent inlining of *.runWith methods because Thread.findScopedValueBindings implementation
+    * relies on iterating the O-slots of these methods to find the most recent ScopedValue binding.
+    * The scoped value binding is the first argument in runWith, and if runWith is compiled, the
+    * O-slot walker would rely on iterating through the O-slots until an object that is an instance
+    * of java/lang/ScopedValue$Snapshot is found. If we were to allow inlining of
+    * runWith, this slot walking mechanism would be unreliable, such as when there are more than one
+    * runWith calls in the same caller, and iterating through the O-slots and relying on instanceof
+    * checks could then yield the wrong bindings.
+    */
+   if (rm == TR::java_lang_Thread_runWith
+      || rm == TR::java_lang_VirtualThread_runWith
+      || rm == TR::java_lang_ScopedValue_runWith)
+      return DontInline_Callee;
+#endif
+
    if (comp->getOptions()->getEnableGPU(TR_EnableGPU))
       {
       switch (rm)
@@ -5122,8 +6019,8 @@ TR_InlinerFailureReason
        rm == TR::java_lang_Math_max_D ||
        rm == TR::java_lang_Math_min_D ||
        //DAA Intrinsic methods will get reduced if intrinsics are on, so don't consider it as a target
-       (resolvedMethod->isDAAMarshallingIntrinsicMethod() && !comp->getOption(TR_DisableMarshallingIntrinsics)) ||
-       (resolvedMethod->isDAAPackedDecimalIntrinsicMethod() && !comp->getOption(TR_DisablePackedDecimalIntrinsics)) ||
+       (((TR_ResolvedJ9Method*)resolvedMethod)->isDAAMarshallingIntrinsicMethod() && !comp->getOption(TR_DisableMarshallingIntrinsics)) ||
+       (((TR_ResolvedJ9Method*)resolvedMethod)->isDAAPackedDecimalIntrinsicMethod() && !comp->getOption(TR_DisablePackedDecimalIntrinsics)) ||
 
       // dont inline methods that contain the NumberFormat pattern
       // this is because we want to catch the opportunity with stringpeepholes
@@ -5181,6 +6078,15 @@ bool TR_J9InlinerPolicy::isJSR292SmallHelperMethod(TR_ResolvedMethod *resolvedMe
       case TR::java_lang_invoke_ConvertHandleFilterHelpers_number2J:
       case TR::java_lang_invoke_MethodHandle_doCustomizationLogic:
       case TR::java_lang_invoke_MethodHandle_undoCustomizationLogic:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_setElementI:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_setElementJ:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_setElementF:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_setElementD:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_setElementZ:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_setElementB:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_setElementS:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_setElementC:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_setElementL:
          return true;
 
       default:
@@ -5199,6 +6105,49 @@ bool TR_J9InlinerPolicy::isJSR292SmallGetterMethod(TR_ResolvedMethod *resolvedMe
       case TR::java_lang_invoke_MethodHandle_type:
       case TR::java_lang_invoke_DirectMethodHandle_internalMemberName:
       case TR::java_lang_invoke_MethodHandleImpl_CountingWrapper_getTarget:
+      case TR::java_lang_invoke_DirectMethodHandle_checkCast:
+      case TR::java_lang_invoke_DirectMethodHandle_Accessor_checkCast:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_getElementI:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_getElementJ:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_getElementF:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_getElementD:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_getElementZ:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_getElementB:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_getElementS:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_getElementC:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_getElementL:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthI:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthJ:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthF:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthD:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthZ:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthB:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthS:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthC:
+      case TR::java_lang_invoke_MethodHandleImpl_ArrayAccessor_lengthL:
+      case TR::java_lang_invoke_VarHandle_asDirect:
+         return true;
+
+      default:
+         break;
+      }
+   return false;
+   }
+
+bool
+TR_J9InlinerPolicy::isSimpleWrapperForInlineableUnsafeNativeMethod(TR_ResolvedMethod *resolvedMethod)
+   {
+   TR::RecognizedMethod method =  resolvedMethod->getRecognizedMethod();
+   switch (method)
+      {
+      case TR::jdk_internal_misc_Unsafe_getCharUnaligned:
+      case TR::jdk_internal_misc_Unsafe_getShortUnaligned:
+      case TR::jdk_internal_misc_Unsafe_getIntUnaligned:
+      case TR::jdk_internal_misc_Unsafe_getLongUnaligned:
+      case TR::jdk_internal_misc_Unsafe_putCharUnaligned:
+      case TR::jdk_internal_misc_Unsafe_putShortUnaligned:
+      case TR::jdk_internal_misc_Unsafe_putIntUnaligned:
+      case TR::jdk_internal_misc_Unsafe_putLongUnaligned:
          return true;
 
       default:
@@ -5585,9 +6534,11 @@ bool TR_J9InlinerUtil::needTargetedInlining(TR::ResolvedMethodSymbol *callee)
    // Tactically, we also inline again based on hasMethodHandleInvokes because EstimateCodeSize
    // doesn't yet cope with invokeHandle, invokeHandleGeneric, and invokeDynamic (but it should).
    //
+#if !defined(J9VM_OPT_OPENJDK_METHODHANDLE)
    if (callee->getMethod()->isArchetypeSpecimen() ||
        callee->hasMethodHandleInvokes())
       return true;
+#endif
    return false;
    }
 
@@ -5668,22 +6619,30 @@ void TR_J9InlinerUtil::checkForConstClass(TR_CallTarget *target, TR_LogTracer *t
             }
          }
 
-      if (argument->getOpCode().hasSymbolReference() && (knownObjectClass || argument->getSymbolReference()->hasKnownObjectIndex()))
+      if ((argument->getOpCode().hasSymbolReference() && (knownObjectClass || argument->getSymbolReference()->hasKnownObjectIndex()))
+          || argument->hasKnownObjectIndex())
          {
          if (priorKnowledge < KNOWN_OBJECT)
             {
+            const char *whence = NULL;
             if (knownObjectClass)
                {
-               ecsArgInfo->set(argOrdinal, new (comp->trStackMemory()) TR_PrexArgument(knownObjectIndex, comp));
-               if (tracePrex)
-                  traceMsg(comp, "checkForConstClass: %p: is known object obj%d (knownObjectClass)\n", ecsArgInfo->get(argOrdinal), knownObjectIndex);
+               whence = "constant class";
+               }
+            else if (argument->hasKnownObjectIndex())
+               {
+               knownObjectIndex = argument->getKnownObjectIndex();
+               whence = "node koi";
                }
             else
                {
-               ecsArgInfo->set(argOrdinal, new (comp->trStackMemory()) TR_PrexArgument(argument->getSymbolReference()->getKnownObjectIndex(), comp));
-               if (tracePrex)
-                  traceMsg(comp, "checkForConstClass: %p: is known object obj%d\n", ecsArgInfo->get(argOrdinal), argument->getSymbolReference()->getKnownObjectIndex());
+               knownObjectIndex = argument->getSymbolReference()->getKnownObjectIndex();
+               whence = "symref koi";
                }
+
+            ecsArgInfo->set(argOrdinal, new (comp->trStackMemory()) TR_PrexArgument(knownObjectIndex, comp));
+            if (tracePrex)
+               traceMsg(comp, "checkForConstClass: %p: is known object obj%d (from %s)\n", ecsArgInfo->get(argOrdinal), knownObjectIndex, whence);
             }
          }
 
@@ -5718,7 +6677,7 @@ TR_PrexArgInfo* TR_PrexArgInfo::buildPrexArgInfoForMethodSymbol(TR::ResolvedMeth
       int32_t len = 0;
       const char *sig = p->getTypeSignature(len);
 
-      if (*sig == 'L' || *sig == 'Q')
+      if (*sig == 'L' || *sig == '[')
          {
          TR_OpaqueClassBlock *clazz = (index == 0 && !methodSymbol->isStatic()) ? feMethod->containingClass() :  comp->fe()->getClassFromSignature(sig, len, feMethod);
          if (clazz)
@@ -5974,7 +6933,6 @@ bool TR_PrexArgInfo::validateAndPropagateArgsFromCalleeSymbol(TR_PrexArgInfo* ar
          if (!storeNode || !storeNode->getSymbolReference()->getSymbol()->isParm())
             continue;
 
-         TR_ASSERT(storeNode->getSymbolReference(), "stores should have symRefs");
          TR::ParameterSymbol*  parmSymbol = storeNode->getSymbolReference()->getSymbol()->getParmSymbol();
          if (parmSymbol->getOrdinal() < getNumArgs())
             {
@@ -6181,8 +7139,20 @@ TR_J9TransformInlinedFunction::wrapCalleeInTryRegion(bool isSynchronized, bool p
    TR::Block *block      = NULL;
    TR_ScratchList<TR::Block> newCatchBlocks(trMemory());
 
-   TR_CatchBlockProfileInfo * catchInfo = TR_CatchBlockProfileInfo::get(comp());
-   if (catchInfo && catchInfo->getCatchCounter() >= TR_CatchBlockProfileInfo::EDOThreshold)
+   bool doCreateExplicitCatchBlock = false;
+   if (comp()->getOption(TR_EnableOldEDO))
+      {
+      TR_CatchBlockProfileInfo * catchInfo = TR_CatchBlockProfileInfo::get(comp());
+      if (catchInfo && catchInfo->getCatchCounter() >= comp()->getOptions()->getCatchBlockCounterThreshold())
+         doCreateExplicitCatchBlock = true;
+      }
+   else
+      {
+      TR::Recompilation *recomp = comp()->getRecompilationInfo();
+      if (recomp && recomp->getMethodInfo()->getCatchBlockCounter() >= comp()->getOptions()->getCatchBlockCounterThreshold())
+         doCreateExplicitCatchBlock = true;
+      }
+   if (doCreateExplicitCatchBlock)
       {
       // For each explicit throw in the callee add an explicit catch block so that we have a chance
       // of converting throws to gotos.

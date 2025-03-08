@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9CFG_H
@@ -62,6 +62,11 @@ extern "C" {
 
 #if defined(J9VM_ENV_DATA64)
 #define J9VM_OPT_MULTI_LAYER_SHARED_CLASS_CACHE
+#endif
+
+#if defined(J9VM_OPT_SHARED_CLASSES) \
+	&& (defined(J9VM_ARCH_AARCH64) || defined(J9VM_ARCH_POWER) || defined(J9VM_ARCH_S390) || defined(J9VM_ARCH_X86))
+#define J9VM_OPT_PORTABLE_SHARED_CACHE
 #endif
 
 #ifdef __cplusplus

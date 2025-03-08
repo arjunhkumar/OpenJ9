@@ -1,5 +1,5 @@
-/*[INCLUDE-IF PLATFORM-mz31 | PLATFORM-mz64 | ! ( Sidecar18-SE-OpenJ9 | Sidecar19-SE )]*/
-/*******************************************************************************
+/*[INCLUDE-IF PLATFORM-mz31 | PLATFORM-mz64 | !Sidecar18-SE-OpenJ9]*/
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.utils.file;
 
 import java.io.FileNotFoundException;
@@ -32,7 +32,7 @@ import com.ibm.jzos.ZFile;
 /**
  * A wrapper class which converts z/OS record I/O to random access image input
  * stream I/O
- * 
+ *
  * @author ajohnson
  */
 public class MVSImageInputStream extends ImageInputStreamImpl {
@@ -44,7 +44,7 @@ public class MVSImageInputStream extends ImageInputStreamImpl {
 
 	/**
 	 * Open the file
-	 * 
+	 *
 	 * @param filename
 	 * @throws FileNotFoundException
 	 */
@@ -77,7 +77,7 @@ public class MVSImageInputStream extends ImageInputStreamImpl {
 
 		int recordOffset = (int) (streamPos % recordLength); // offset within the record
 		int n = 0;
-		
+
 		if (recordOffset != 0) {
 			// We can only read one record's worth, so limit the length of the temp buffer to that
 			if (recordOffset + len > recordLength) {

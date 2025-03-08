@@ -17,10 +17,10 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
-/* ANSI-C code produced by gperf version 3.0.4 */
+/* ANSI-C code produced by gperf version 3.1 */
 /* Command-line: gperf -CD -t --output-file=attrlookup.h attrlookup.gperf  */
 /* Computed positions: -k'2' */
 
@@ -48,7 +48,7 @@
       && ('w' == 119) && ('x' == 120) && ('y' == 121) && ('z' == 122) \
       && ('{' == 123) && ('|' == 124) && ('}' == 125) && ('~' == 126))
 /* The character set is not based on ISO-646.  */
-#error "gperf generated tables don't work with this execution character set. Please report a bug to <bug-gnu-gperf@gnu.org>."
+#error "gperf generated tables don't work with this execution character set. Please report a bug to <bug-gperf@gnu.org>."
 #endif
 
 #line 39 "attrlookup.gperf"
@@ -59,7 +59,7 @@ struct AttribType
 	U_8 strippedAttribCode;
 };
 
-#define TOTAL_KEYWORDS 28
+#define TOTAL_KEYWORDS 31
 #define MIN_WORD_LENGTH 4
 #define MAX_WORD_LENGTH 36
 #define MIN_HASH_VALUE 4
@@ -73,8 +73,8 @@ __inline
 inline
 #endif
 #endif
-static unsigned int
-attributeHash (register const char *str, register unsigned int len)
+static size_t
+attributeHash (register const char *str, register size_t len)
 {
   static const unsigned char asso_values[] =
     {
@@ -88,7 +88,7 @@ attributeHash (register const char *str, register unsigned int len)
       51, 51, 51, 51, 51, 51, 51, 51, 51, 51,
       51, 51, 51, 51, 51, 51, 51, 51, 51, 51,
       51, 51, 51, 51, 51, 51, 51, 51, 51, 51,
-      51, 31, 51, 51, 51, 15, 51, 51, 51, 51,
+      51, 31, 51, 51, 51, 15, 51, 51, 51,  5,
        0,  0, 51, 51, 51, 51, 15,  0, 51, 51,
       25,  0, 51, 51, 51, 51, 51, 51, 51, 51,
       51, 51, 51, 51, 51, 51, 51, 51, 51, 51,
@@ -115,7 +115,7 @@ __attribute__ ((__gnu_inline__))
 #endif
 #endif
 const struct AttribType *
-lookupKnownAttribute (register const char *str, register unsigned int len)
+lookupKnownAttribute (register const char *str, register size_t len)
 {
   static const struct AttribType wordlist[] =
     {
@@ -129,6 +129,8 @@ lookupKnownAttribute (register const char *str, register unsigned int len)
       {"InnerClasses", CFR_ATTRIBUTE_InnerClasses, CFR_ATTRIBUTE_InnerClasses},
 #line 55 "attrlookup.gperf"
       {"ConstantValue", CFR_ATTRIBUTE_ConstantValue, CFR_ATTRIBUTE_ConstantValue},
+#line 77 "attrlookup.gperf"
+      {"NullRestricted", CFR_ATTRIBUTE_NullRestricted, CFR_ATTRIBUTE_NullRestricted},
 #line 57 "attrlookup.gperf"
       {"EnclosingMethod", CFR_ATTRIBUTE_EnclosingMethod, CFR_ATTRIBUTE_EnclosingMethod},
 #line 59 "attrlookup.gperf"
@@ -137,8 +139,12 @@ lookupKnownAttribute (register const char *str, register unsigned int len)
       {"AnnotationDefault", CFR_ATTRIBUTE_AnnotationDefault, CFR_ATTRIBUTE_AnnotationDefault},
 #line 61 "attrlookup.gperf"
       {"LocalVariableTable", CFR_ATTRIBUTE_LocalVariableTable, CFR_ATTRIBUTE_StrippedLocalVariableTable},
+#line 76 "attrlookup.gperf"
+      {"LoadableDescriptors", CFR_ATTRIBUTE_LoadableDescriptors, CFR_ATTRIBUTE_LoadableDescriptors},
 #line 62 "attrlookup.gperf"
       {"SourceDebugExtension", CFR_ATTRIBUTE_SourceDebugExtension, CFR_ATTRIBUTE_StrippedSourceDebugExtension},
+#line 75 "attrlookup.gperf"
+      {"ImplicitCreation", CFR_ATTRIBUTE_ImplicitCreation, CFR_ATTRIBUTE_ImplicitCreation},
 #line 63 "attrlookup.gperf"
       {"LocalVariableTypeTable", CFR_ATTRIBUTE_LocalVariableTypeTable, CFR_ATTRIBUTE_StrippedLocalVariableTypeTable},
 #line 48 "attrlookup.gperf"
@@ -180,16 +186,16 @@ lookupKnownAttribute (register const char *str, register unsigned int len)
   static const signed char lookup[] =
     {
       -1, -1, -1, -1,  0, -1, -1, -1, -1,  1,  2, -1,  3,  4,
-      -1,  5,  6,  7,  8, -1,  9, -1, 10, 11, 12, 13, -1, 14,
-      15, 16, 17, 18, -1, -1, 19, 20, 21, 22, -1, 23, -1, 24,
-      25, -1, -1, -1, -1, 26, -1, -1, 27
+       5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15, 16, -1, 17,
+      18, 19, 20, 21, -1, -1, 22, 23, 24, 25, -1, 26, -1, 27,
+      28, -1, -1, -1, -1, 29, -1, -1, 30
     };
 
   if (len <= MAX_WORD_LENGTH && len >= MIN_WORD_LENGTH)
     {
-      register int key = attributeHash (str, len);
+      register size_t key = attributeHash (str, len);
 
-      if (key <= MAX_HASH_VALUE && key >= 0)
+      if (key <= MAX_HASH_VALUE)
         {
           register int index = lookup[key];
 

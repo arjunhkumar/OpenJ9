@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9.h"
@@ -38,6 +38,7 @@
 #include "ArrayCopyHelpers.hpp"
 #include "AtomicSupport.hpp"
 #include "ObjectMonitor.hpp"
+#include "UnsafeAPI.hpp"
 #include "VMHelpers.hpp"
 
 extern "C" {
@@ -572,7 +573,7 @@ copyMemory(J9VMThread* currentThread, j9object_t sourceObject, UDATA sourceOffse
 		UDATA destOffset, UDATA actualSize)
 {
 	/* Because array data is always 8-aligned, only the alignment of the offsets (and byte size) need be considered */
-	UDATA const headerSize = J9VMTHREAD_CONTIGUOUS_INDEXABLE_HEADER_SIZE(currentThread);
+	UDATA const headerSize = VM_UnsafeAPI::arrayBase(currentThread);
 	UDATA logElementSize = determineCommonAlignment(sourceOffset, destOffset, actualSize);
 	UDATA sourceIndex = (sourceOffset - headerSize) >> logElementSize;
 	UDATA destIndex = (destOffset - headerSize) >> logElementSize;
@@ -595,7 +596,7 @@ static VMINLINE void
 copyMemoryByte(J9VMThread* currentThread, j9object_t sourceObject, UDATA sourceOffset, j9object_t destObject,
 		UDATA destOffset)
 {
-	UDATA const headerSize = J9VMTHREAD_CONTIGUOUS_INDEXABLE_HEADER_SIZE(currentThread);
+	UDATA const headerSize = VM_UnsafeAPI::arrayBase(currentThread);
 	UDATA sourceIndex = sourceOffset - headerSize;
 	UDATA destIndex = destOffset - headerSize;
 
@@ -695,7 +696,7 @@ illegal:
 		if (!J9ROMCLASS_IS_PRIMITIVE_TYPE(((J9ArrayClass*)clazz)->componentType->romClass)) {
 			goto illegal;
 		}
-		offset -= J9VMTHREAD_CONTIGUOUS_INDEXABLE_HEADER_SIZE(currentThread);
+		offset -= VM_UnsafeAPI::arrayBase(currentThread);
 		VM_ArrayCopyHelpers::primitiveArrayFill(currentThread, object, (UDATA)offset, actualSize, (U_8)value);
 	}
 	vmFuncs->internalExitVMToJNI(currentThread);
@@ -810,8 +811,8 @@ Java_sun_misc_Unsafe_shouldBeInitialized(JNIEnv *env, jobject receiver, jclass c
 		vmFuncs->setCurrentExceptionUTF(currentThread, J9VMCONSTANTPOOL_JAVALANGNULLPOINTEREXCEPTION, NULL);
 	} else {
 		j9object_t classObject = J9_JNI_UNWRAP_REFERENCE(clazz);
-		J9Class *j9clazz =  J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, classObject);
-		if (VM_VMHelpers::classRequiresInitialization(currentThread, j9clazz)) {
+		J9Class *j9clazz = J9VM_J9CLASS_FROM_HEAPCLASS(currentThread, classObject);
+		if (J9ClassInitSucceeded != j9clazz->initializeStatus) {
 			result = JNI_TRUE;
 		}
 	}
@@ -886,19 +887,19 @@ Java_jdk_internal_misc_Unsafe_writebackMemory(JNIEnv *env, jobject receiver, jlo
 
 		VM_AtomicSupport::readWriteBarrier();
 		switch (vm->cpuCacheWritebackCapabilities) {
-		case J9PORT_X86_FEATURE_CLWB:
+		case OMR_FEATURE_X86_CLWB:
 			do {
 				cacheLine += cacheLineSize;
 				asm volatile("clwb %0" : "+m" (*(U_8 *)cacheLine));
 			} while (lastCacheLine != cacheLine);
 			break;
-		case J9PORT_X86_FEATURE_CLFLUSHOPT:
+		case OMR_FEATURE_X86_CLFLUSHOPT:
 			do {
 				cacheLine += cacheLineSize;
 				asm volatile("clflushopt %0" : "+m" (*(U_8 *)cacheLine));
 			} while (lastCacheLine != cacheLine);
 			break;
-		case J9PORT_X86_FEATURE_CLFSH:
+		case OMR_FEATURE_X86_CLFSH:
 			do {
 				cacheLine += cacheLineSize;
 				asm volatile("clflush %0" : "+m" (*(U_8 *)cacheLine));
@@ -936,9 +937,9 @@ Java_jdk_internal_misc_Unsafe_isWritebackEnabled(JNIEnv *env, jclass clazz)
 	J9JavaVM *vm = currentThread->javaVM;
 	if (vm->dCacheLineSize > 0) {
 		switch (vm->cpuCacheWritebackCapabilities) {
-		case J9PORT_X86_FEATURE_CLWB:
-		case J9PORT_X86_FEATURE_CLFLUSHOPT:
-		case J9PORT_X86_FEATURE_CLFSH:
+		case OMR_FEATURE_X86_CLFLUSHOPT:
+		case OMR_FEATURE_X86_CLFSH:
+		case OMR_FEATURE_X86_CLWB:
 			result = JNI_TRUE;
 			break;
 		default:

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.heapdump.portable;
 
 import java.io.DataOutput;
@@ -29,14 +29,14 @@ import com.ibm.jvm.dtfjview.heapdump.ReferenceIterator;
 
 /**
  * Record representing an object array.
- * 
+ *
  * As of PHD v5 this contains a number of elements record on the
  * end of the LongObjectRecord structure
  * @author andhall
  *
  */
 public class ObjectArrayRecord extends LongObjectRecord
-{    
+{
 	private final int _numberOfElements;
 	private final long _instanceSize;
 
@@ -55,8 +55,8 @@ public class ObjectArrayRecord extends LongObjectRecord
 		super.writeHeapDump(out);
 
 		out.writeInt(_numberOfElements);
-		// instance size is held in the PHD since PHD version 6     
-		// divide the size by 4 and write into the datastream as an 
+		// instance size is held in the PHD since PHD version 6
+		// divide the size by 4 and write into the datastream as an
 		// unsigned int to make it possible to encode up to 16GB
 		out.writeInt((int)(_instanceSize / 4));
 	}

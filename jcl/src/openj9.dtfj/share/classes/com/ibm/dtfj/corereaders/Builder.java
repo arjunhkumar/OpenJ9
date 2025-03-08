@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ public interface Builder {
 	public Object buildCorruptData(Object addressSpace, String message, long address);
 
 	public ClosingFileReader openFile(String filename) throws IOException;
-	
+
 	public long getEnvironmentAddress();
 
 	public long getValueOfNamedRegister(List registers, String string);
@@ -59,7 +59,7 @@ public interface Builder {
 	/**
 	 * Called to inform the builder that the executable data cannot be trusted.
 	 * Note that this also set the libraries unavailable as a side-effect
-	 * 
+	 *
 	 * @param description
 	 */
 	public void setExecutableUnavailable(String description);

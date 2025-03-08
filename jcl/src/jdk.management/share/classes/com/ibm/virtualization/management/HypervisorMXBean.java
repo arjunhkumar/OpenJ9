@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package com.ibm.virtualization.management;
 
@@ -32,7 +32,7 @@ import java.lang.management.PlatformManagedObject;
  * <b>Where there are multiple levels of Hypervisor, only the top level Hypervisor information is returned.</b>
  * The supported Hypervisors and the platforms on which they are supported:
  * <ol>
- *     <li>Linux and Windows on VMWare.
+ *     <li>Linux and Windows on VMWare (IBM Java 8 only).
  *     <li>Linux and Windows on KVM.
  *     <li>Windows on Hyper-V.
  *     <li>AIX and Linux on PowerVM.
@@ -53,9 +53,8 @@ import java.lang.management.PlatformManagedObject;
  *          indeterminate.
  * </ul>
  * <br>
- * <table border="1">
- * <caption><b>Usage example for the {@link HypervisorMXBean}</b></caption>
- * <tr> <td> <pre>
+ * <b>Usage example for the {@link HypervisorMXBean}</b>
+ * <pre>
  * {@code
  *   ...
  *   try {
@@ -68,12 +67,12 @@ import java.lang.management.PlatformManagedObject;
  *	if (true != mbeanServer.isRegistered(mxbeanName)) {
  *	   // HypervisorMXBean not registered
  *	}
- *	HypervisorMXBean hypBean = JMX.newMXBeanProxy(mbeanServer, mxbeanName, HypervisorMXBean.class); 
+ *	HypervisorMXBean hypBean = JMX.newMXBeanProxy(mbeanServer, mxbeanName, HypervisorMXBean.class);
  *   } catch (Exception e) {
  *	// Exception Handling
  *   }
  * }
- * </pre></td></tr></table>
+ * </pre>
  *
  * @since 1.7.1
  */
@@ -81,7 +80,7 @@ public interface HypervisorMXBean extends PlatformManagedObject {
 
 	/**
 	 * Indicates if the Operating System is running on a Hypervisor or not.
-	 * 
+	 *
 	 * @return true if running on a Hypervisor, false otherwise.
 
 	 * @throws UnsupportedOperationException if the underlying Hypervisor is unsupported.
@@ -91,7 +90,7 @@ public interface HypervisorMXBean extends PlatformManagedObject {
 
 	/**
 	 * Returns the vendor of the Hypervisor if running in a virtualized environment.
-	 * 
+	 *
 	 * @return string identifying the vendor of the Hypervisor if running under
 	 *         Hypervisor, null otherwise.
 	 */

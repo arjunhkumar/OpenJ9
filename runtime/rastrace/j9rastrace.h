@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9RASTRACE_H
@@ -54,6 +54,7 @@ extern "C" {
 #define RAS_STACKDEPTH_KEYWORD          "STACKDEPTH"
 #define RAS_SLEEPTIME_KEYWORD           "SLEEPTIME"
 #define RAS_COMPRESSION_LEVEL_KEYWORD   "STACKCOMPRESSIONLEVEL"
+#define RAS_MAX_STRING_LENGTH_KEYWORD   "MAXSTRINGLENGTH"
 
 /*
  * ======================================================================
@@ -128,8 +129,9 @@ void rasTriggerMethod(J9VMThread *thr, J9Method *mb, I_32 entry, const TriggerPh
 BOOLEAN matchMethod (RasMethodTable * methodTable, J9Method *method);
 omr_error_t processTriggerMethodClause(OMR_VMThread *, char *, BOOLEAN atRuntime);
 void doTriggerActionJstacktrace(OMR_VMThread *thr);
-omr_error_t setStackDepth(J9JavaVM *thr, const char * value, BOOLEAN atRuntime);
-omr_error_t setStackCompressionLevel(J9JavaVM * vm, const char *str, BOOLEAN atRuntime);
+omr_error_t setStackDepth(J9JavaVM *thr, const char *value, BOOLEAN atRuntime);
+omr_error_t setStackCompressionLevel(J9JavaVM *vm, const char *str, BOOLEAN atRuntime);
+omr_error_t setMaxStringLength(J9JavaVM *vm, const char *str, BOOLEAN atRuntime);
 
 /*
  * =============================================================================

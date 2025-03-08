@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef PPCHWPROFILERPRIVATE_INCL
@@ -179,7 +179,7 @@ extern "C" void ebbHandler(void);
 #define BHRBE_POWER_MASK    1L
 
 /* Any changes to MTSPR should be copied to runtime/port/linuxppc/j9ri.c. */
-#if defined(__xlC__) || defined(__ibmxl__)
+#if defined(__xlC__) || defined(__ibmxl__) || defined(__open_xl__)
 #define MTSPR(spr, src)         __mtspr(spr, src)
 #define MFSPR(dst, spr)         ((dst) = __mfspr(spr))
 #elif defined(__GNUC__)

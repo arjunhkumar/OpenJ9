@@ -2,7 +2,7 @@
 
 package com.ibm.virtualization.management;
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2013
  *
  * This program and the accompanying materials are made available under
@@ -21,11 +21,11 @@ package com.ibm.virtualization.management;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 /**
- * This exception class is thrown when retrieving 
+ * This exception class is thrown when retrieving
  * Guest (Virtual Machine(VM)/Logical Partition(LPAR)) usage statistics fails.
  * It could be trying to retrieve either {@link GuestOSProcessorUsage} or
  * {@link GuestOSMemoryUsage}.  For exact cause one needs to inspect the exception

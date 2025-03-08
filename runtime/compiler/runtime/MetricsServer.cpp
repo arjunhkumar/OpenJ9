@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -90,7 +90,7 @@ HttpGetRequest::ReturnCodes HttpGetRequest::acceptSSLConnection()
       {
       if (TR::Options::getVerboseOption(TR_VerboseJITServer))
          {
-         TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "SSL connection on socket 0x%x, Version: %s, Cipher: %s\n",
+         TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "SSL connection on socket 0x%x, Version: %s, Cipher: %s",
                                         _sockfd, (*OSSL_get_version)(_incompleteSSLConnection), (*OSSL_get_cipher)(_incompleteSSLConnection));
          }
       return SSL_CONNECTION_ESTABLISHED;
@@ -149,7 +149,7 @@ MetricsDatabase::MetricsDatabase(TR::CompilationInfo *compInfo) : _compInfo(comp
    _metrics[1] = new (PERSISTENT_NEW) AvailableMemoryMetric();
    _metrics[2] = new (PERSISTENT_NEW) ConnectedClientsMetric();
    _metrics[3] = new (PERSISTENT_NEW) ActiveThreadsMetric();
-   static_assert(3 == MAX_METRICS - 1);
+   static_assert(3 == MAX_METRICS - 1, "Unsupported number of metrics");
    }
 
 MetricsDatabase::~MetricsDatabase()
@@ -238,7 +238,7 @@ HttpGetRequest::readHttpGetRequest()
       if (bytesRead < 4)
          {
          if (TR::Options::getVerboseOption(TR_VerboseJITServer))
-            TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "MetricsServer: Too few bytes received when reading from socket  %d\n", socket);
+            TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "MetricsServer: Too few bytes received when reading from socket  %d", socket);
          return READ_ERROR;
          }
       if (strncmp(_buf, "GET ", 4) != 0)
@@ -648,7 +648,7 @@ MetricsServer::handleDataForConnectedSocket(nfds_t sockIndex, MetricsDatabase &m
    if (_pfd[sockIndex].revents & (POLLRDHUP | POLLERR | POLLHUP | POLLNVAL))
       {
       if (TR::Options::getVerboseOption(TR_VerboseJITServer))
-         TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "MetricsServer error on socket %d revents=%d\n", _pfd[sockIndex].fd, _pfd[sockIndex].revents);
+         TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "MetricsServer error on socket %d revents=%d", _pfd[sockIndex].fd, _pfd[sockIndex].revents);
       closeSocket(sockIndex);
       }
    else if (_requests[sockIndex].getRequestState() == HttpGetRequest::EstablishingSSLConnection)
@@ -859,11 +859,11 @@ MetricsServer::serveMetricsRequests()
       } // end while (!getMetricsThreadExitFlag())
 
    // The following piece of code will be executed only if the server shuts down properly
-   closeSocket(0);
    if (_sslCtx)
       {
       (*OSSL_CTX_free)(_sslCtx);
       }
+   closeSocket(0);
    }
 
 std::string

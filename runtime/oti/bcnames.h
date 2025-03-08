@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef BCNAMES_H
@@ -237,8 +237,6 @@ extern J9_CDATA char * const sunJavaBCNames[];
 #define JBifnonnull 199
 #define JBgotow 200
 #define JBbreakpoint 202
-#define JBaconst_init 203
-#define JBwithfield 204
 #define JBiincw 213
 #define JBaload0getfield 215
 #define JBnewdup 216

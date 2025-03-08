@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #define J9JSRI_DEBUG		0
@@ -1159,11 +1159,11 @@ _nextBranch:
 					stackError |= popStack (jsrData);
 					if (args[step] == '[') {
 						while (args[++step] == '[');
-						if (!IS_REF_OR_VAL_SIGNATURE(args[step])) {
+						if (!IS_CLASS_SIGNATURE(args[step])) {
 							continue;
 						}
 					}
-					if (IS_REF_OR_VAL_SIGNATURE(args[step])) {
+					if (IS_CLASS_SIGNATURE(args[step])) {
 						while (args[++step] != ';');
 						continue;
 					}

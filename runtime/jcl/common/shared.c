@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -71,16 +71,17 @@ typedef struct URLElements {
 } URLElements;
 
 
-static J9ClassPathEntry* getCachedURL(JNIEnv* env, jint helperID, const char* pathChars, jsize pathLen, UDATA cpeType, U_16 cpeStatus);
+static J9ClassPathEntry *getCachedURL(JNIEnv *env, jint helperID, const URLElements *urlElements, U_16 cpeStatus);
 static const char* copyString(J9PortLibrary* portlib, const char* toCopy, UDATA length, J9SharedStringFarm** farmRoot, const J9UTF8** makeUTF8);
 UDATA urlHashFn(void* item, void *userData);
-static jint createURLEntry(JNIEnv* env, jint helperID, J9ClassPathEntry** cpEntry_, char* correctedPathCopy, UDATA cpeType, U_16 cpeStatus);
+static jint createURLEntry(JNIEnv *env, jint helperID, J9ClassPathEntry **cpEntry_, const char *correctedPathCopy, UDATA cpeType, U_16 cpeStatus);
 UDATA utfHashEqualFn(void* left, void* right, void *userData);
 static jint createROMClassCookie(JNIEnv* env, J9JavaVM* vm, J9ROMClass* romClass, jbyteArray romClassCookieBuffer);
 static jint createToken(JNIEnv* env, jint helperID, J9ClassPathEntry** cpEntry_, const char* tokenChars, jsize tokenSize);
 static UDATA correctURLPath(JNIEnv* env, const char* pathChars, jsize pathLen, char** correctedPathPtr, J9SharedStringFarm** jclStringFarm);
 static const char* getCachedString(JNIEnv* env, const char* input, jsize length, J9SharedStringFarm** farmRoot, const J9UTF8** getUTF8);
-static UDATA getCpeTypeForProtocol(char* protocol, jsize protocolLen, const char* pathChars, jsize pathLen);
+static UDATA getCpeTypeForProtocol(JNIEnv *env, const char *protocol, jsize protocolLen, const char *urlPathChars, jsize urlPathLen, char **correctedPathPtr);
+static BOOLEAN isPathTypeJimage(const char *pathChars, jsize pathLen);
 static void getURLMethodIDs(JNIEnv* env);
 static J9Pool* getClasspathCache(JNIEnv* env);
 static J9Pool* getURLCache(JNIEnv* env);
@@ -122,14 +123,14 @@ correctURLPath(JNIEnv* env, const char* pathChars, jsize pathLen, char** correct
 	returnVal = 1;
 	startOffset = 0;
 
-#ifdef WIN32
+#if defined(WIN32)
 	for (;pathChars[startOffset]=='/'; startOffset++);
 
 	/* If Windows UNC (no path colon) do not remove leading spaces */
 	if (pathChars[startOffset+1] != ':') {
 		startOffset = 0;
 	}
-#endif
+#endif /* defined(WIN32) */
 
 	if (pathLen >= STACK_STRINGBUF_SIZE) {
 		if (!(bufPtr = (char*)j9mem_allocate_memory((pathLen + 1) * sizeof(char), J9MEM_CATEGORY_VM_JCL))) {
@@ -147,11 +148,11 @@ correctURLPath(JNIEnv* env, const char* pathChars, jsize pathLen, char** correct
 			if (i == (pathLen-1)) { 
 				current = '\0';		/* remove trailing slash */
 			} 
-#ifdef WIN32
+#if defined(WIN32)
 			else {
 				current = '\\';		/* convert / to \\ */
 			}
-#endif
+#endif /* defined(WIN32) */
 		}
 
 		/* Assumes escape sequence is %nn, where nn is hex value */
@@ -229,7 +230,6 @@ createROMClassCookie(JNIEnv* env, J9JavaVM* vm, J9ROMClass* romClass, jbyteArray
 static jint
 createCPEntries(JNIEnv* env, jint helperID, jint urlCount, J9ClassPathEntry*** cpEntries_, URLElements* urlArrayElements)
 {
-	J9JavaVM* vm = ((J9VMThread*)env)->javaVM;
 	J9ClassPathEntry* cpEntries = NULL;
 	struct J9ClasspathByID* newCacheItem = NULL;
 	J9ClassPathEntry** cpePtrArray = NULL;
@@ -251,23 +251,23 @@ createCPEntries(JNIEnv* env, jint helperID, jint urlCount, J9ClassPathEntry*** c
 	memset(cpePtrArray, 0, cpEntrySize);
 	cpEntries = (J9ClassPathEntry*)((char*)cpePtrArray + (urlCount * (sizeof(J9ClassPathEntry*))));
 
-	for (i=0; i<urlCount; i++) {
-		UDATA cpeType = 0;
-		char* correctPath = NULL;
-
-		cpeType = getCpeTypeForProtocol((char*)urlArrayElements[i].protocolChars, urlArrayElements[i].protocolLen, urlArrayElements[i].pathChars, urlArrayElements[i].pathLen);
+	for (i = 0; i < urlCount; i++) {
+		char *correctedPath = NULL;
+		UDATA cpeType = getCpeTypeForProtocol(
+				env,
+				urlArrayElements[i].protocolChars,
+				urlArrayElements[i].protocolLen,
+				urlArrayElements[i].pathChars,
+				urlArrayElements[i].pathLen,
+				&correctedPath);
 		if (CPE_TYPE_UNKNOWN == cpeType) {
 			Trc_JCL_com_ibm_oti_shared_createCPEntries_ExitFalse4(env);
 			goto _error;
 		}
-		if (!correctURLPath(env, urlArrayElements[i].pathChars, urlArrayElements[i].pathLen, &correctPath, &(vm->sharedClassConfig->jclStringFarm))) {
-			Trc_JCL_com_ibm_oti_shared_createCPEntries_ExitFalse5(env);
-			goto _error;
-		}
 
-		cpEntries[i].path = (U_8*)correctPath;
+		cpEntries[i].path = (U_8 *)correctedPath;
 		cpEntries[i].extraInfo = NULL;
-		cpEntries[i].pathLength = (U_32)strlen(correctPath);
+		cpEntries[i].pathLength = (U_32)strlen(correctedPath);
 		cpEntries[i].flags = 0;
 		cpEntries[i].type = (U_16)cpeType;
 		cpePtrArray[i] = &cpEntries[i];
@@ -455,11 +455,10 @@ _exit:
 	return;
 }
 
-
-/* Note:CorrectedPathCopy must be a copied string which will not disappear and partition must be also not disappear */
+/* Note: correctedPathCopy must not disappear. */
 /* THREADING: Must be protected by jclCacheMutex */
 static jint
-createURLEntry(JNIEnv* env, jint helperID, J9ClassPathEntry** cpEntry_, char* correctedPathCopy, UDATA cpeType, U_16 cpeStatus)
+createURLEntry(JNIEnv *env, jint helperID, J9ClassPathEntry **cpEntry_, const char *correctedPathCopy, UDATA cpeType, U_16 cpeStatus)
 {
 	J9JavaVM* vm = ((J9VMThread*)env)->javaVM;
 	J9ClassPathEntry* newEntry;
@@ -546,40 +545,67 @@ _end:
 	return rc;
 }
 
-
-/* THREADING: Can be called multi-threaded */
-static UDATA
-getCpeTypeForProtocol(char* protocol, jsize protocolLen, const char* pathChars, jsize pathLen)
+static BOOLEAN
+isPathTypeJimage(const char *pathChars, jsize pathLen)
 {
+	char JimageEndsWith[] = DIR_SEPARATOR_STR "lib" DIR_SEPARATOR_STR "modules";
+	IDATA len = LITERAL_STRLEN(JimageEndsWith);
+
+	if (pathLen > len) {
+		const char *endsWith = pathChars + (pathLen - len);
+		if (0 == strncmp(endsWith, JimageEndsWith, len)) {
+			return TRUE;
+		}
+	}
+	return FALSE;
+}
+
+/* THREADING: Must be protected by jclCacheMutex */
+static UDATA
+getCpeTypeForProtocol(JNIEnv *env, const char *protocol, jsize protocolLen, const char *urlPathChars, jsize urlPathLen, char **correctedPathPtr)
+{
+	J9JavaVM *vm = ((J9VMThread *)env)->javaVM;
+	const char *pathChars = NULL;
+	jsize pathLen = 0;
+
 	Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_Entry();
 
-	if (!protocol) {
-		Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_Exit0();
-		return 0;
+	if (NULL == protocol) {
+		Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitFail1();
+		return CPE_TYPE_UNKNOWN;
 	}
-	if (strncmp(protocol, "jar", 4)==0) {
+	if (!correctURLPath(env, urlPathChars, urlPathLen, correctedPathPtr, &(vm->sharedClassConfig->jclStringFarm))) {
+		Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitFail2();
+		return CPE_TYPE_UNKNOWN;
+	}
+	if (0 == strncmp(protocol, "jar", 4)) {
 		Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitJAR();
 		return CPE_TYPE_JAR;
 	}
-	if (strncmp(protocol, "file", 5)==0) {
-		char* endsWith = (char*)(pathChars + (pathLen-4));
-		if ((strncmp(endsWith, ".jar", 4)==0) || (strncmp(endsWith, ".zip", 4)==0) || strstr(pathChars,"!/") || strstr(pathChars,"!\\")) {
+	pathChars = *correctedPathPtr;
+	pathLen = (jsize)strlen(pathChars);
+	if (0 == strncmp(protocol, "file", 5)) {
+		if ((NULL != strstr(pathChars, "!/")) || (NULL != strstr(pathChars, "!\\"))) {
+			/* file is a fat jar */
 			Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitJAR();
 			return CPE_TYPE_JAR;
+		} else if (isPathTypeJimage(pathChars, pathLen)) {
+			Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitJIMAGE();
+			return CPE_TYPE_JIMAGE;
 		} else {
-			char JimageEndsWith[] = DIR_SEPARATOR_STR "lib" DIR_SEPARATOR_STR "modules";
-			IDATA len = LITERAL_STRLEN(JimageEndsWith);
-
-			if (pathLen >= len) {
-				endsWith = (char*)(pathChars + (pathLen - len));
-				if (strncmp(endsWith, JimageEndsWith, len) == 0) {
-					Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitJIMAGE();
-					return CPE_TYPE_JIMAGE;
-				}
+			PORT_ACCESS_FROM_JAVAVM(vm);
+			I_32 result = j9file_attr(pathChars);
+			if (EsIsFile == result) {
+				Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitJAR();
+				return CPE_TYPE_JAR;
+			} else if (EsIsDir == result) {
+				Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitDIR();
+				return CPE_TYPE_DIRECTORY;
+			} else {
+				Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitFail3(result);
+				return CPE_TYPE_UNKNOWN;
 			}
 		}
-		Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitDIR();
-		return CPE_TYPE_DIRECTORY;
 	}
 	Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_UnknownProtocol(protocolLen, protocol, pathLen, pathChars);
 	Trc_JCL_com_ibm_oti_shared_getCpeTypeForProtocol_ExitUnknown();
@@ -588,8 +614,8 @@ getCpeTypeForProtocol(char* protocol, jsize protocolLen, const char* pathChars, 
 
 
 /* THREADING: Must be protected by jclCacheMutex */
-static J9ClassPathEntry* 
-getCachedURL(JNIEnv* env, jint helperID, const char* pathChars, jsize pathLen, UDATA cpeType, U_16 cpeStatus)
+static J9ClassPathEntry *
+getCachedURL(JNIEnv *env, jint helperID, const URLElements *urlElements, U_16 cpeStatus)
 {
 	J9JavaVM* vm = ((J9VMThread*)env)->javaVM;
 	struct URLhtEntry* anElement = NULL;
@@ -599,15 +625,14 @@ getCachedURL(JNIEnv* env, jint helperID, const char* pathChars, jsize pathLen, U
 
 	PORT_ACCESS_FROM_JAVAVM(vm);
 
-	Trc_JCL_com_ibm_oti_shared_getCachedURL_Entry(env, helperID, cpeType);
+	Trc_JCL_com_ibm_oti_shared_getCachedURL_Entry_1(env, helperID);
 
 	if (urlHashTable) {
 		struct URLhtEntry dummy;
 
-		dummy.origPath = pathChars;
-		dummy.origPathLen = pathLen;
+		dummy.origPath = urlElements->pathChars;
+		dummy.origPathLen = urlElements->pathLen;
 		dummy.helperID = helperID;
-		dummy.cpeType = cpeType;
 
 		anElement = (struct URLhtEntry*)hashTableFind(urlHashTable, (void*)&dummy);
 	}
@@ -617,24 +642,32 @@ getCachedURL(JNIEnv* env, jint helperID, const char* pathChars, jsize pathLen, U
 	} else {
 		URLhtEntry newEntry;
 		const char* origPathCopy;
-		char* correctedPathCopy;
+		char *correctedPath = NULL;
+		UDATA cpeType = getCpeTypeForProtocol(
+			env,
+			urlElements->protocolChars,
+			urlElements->protocolLen,
+			urlElements->pathChars,
+			urlElements->pathLen,
+			&correctedPath);
+		if (CPE_TYPE_UNKNOWN == cpeType) {
+			goto _error;
+		}
 
 		/* We must make a copy of the path
 			This is kept in the URLhtEntry and must be valid for the lifetime of the JVM */
-		if (!(origPathCopy = getCachedString(env, (const char*)pathChars, (jsize)pathLen, &(config->jclStringFarm), NULL))) {
+		if (!(origPathCopy = getCachedString(env, urlElements->pathChars, urlElements->pathLen, &(config->jclStringFarm), NULL))) {
 			Trc_JCL_com_ibm_oti_shared_getCachedURL_FailedStringCopy(env);
 			goto _error;
 		}
 
-		/* Function returns a corrected copy of pathChars into correctedPathCopy. */
-		correctURLPath(env, pathChars, pathLen, &correctedPathCopy, &(config->jclStringFarm));
-		if (!createURLEntry(env, helperID, &urlEntry, correctedPathCopy, cpeType, cpeStatus)) {
+		if (!createURLEntry(env, helperID, &urlEntry, correctedPath, cpeType, cpeStatus)) {
 			goto _error;
 		}
 
 		/* The original (not corrected) path is used as a key so that the correction does not have to be performed for each lookup */
 		newEntry.origPath = (const char*)origPathCopy;
-		newEntry.origPathLen = pathLen;
+		newEntry.origPathLen = urlElements->pathLen;
 		newEntry.helperID = helperID;
 		newEntry.cpeType = cpeType;
 		newEntry.data = urlEntry;
@@ -793,10 +826,6 @@ urlHashEqualFn(void* left, void* right, void *userData)
 
 	if (leftItem->helperID != rightItem->helperID) {
 		Trc_JCL_com_ibm_oti_shared_urlHashEqualFn_Exit1();
-		return 0;
-	}
-	if (leftItem->cpeType != rightItem->cpeType) {
-		Trc_JCL_com_ibm_oti_shared_urlHashEqualFn_Exit2();
 		return 0;
 	}
 	result = J9UTF8_DATA_EQUALS(leftItem->origPath, leftItem->origPathLen, rightItem->origPath, rightItem->origPathLen);
@@ -1223,7 +1252,6 @@ Java_com_ibm_oti_shared_SharedClassURLHelperImpl_findSharedClassImpl3(JNIEnv* en
 	jmethodID urlGetProtocolID = NULL;
 	J9ROMClass* romClass = NULL;
 	J9ClassPathEntry* urlEntry = NULL;
-	UDATA cpeType = 0;
 	UDATA oldState;
 	const J9UTF8* partition = NULL;
 	omrthread_monitor_t jclCacheMutex = config->jclCacheMutex;
@@ -1261,13 +1289,11 @@ Java_com_ibm_oti_shared_SharedClassURLHelperImpl_findSharedClassImpl3(JNIEnv* en
 	if (!getStringPair(env, &nameChars, &nameLen, &partitionChars, &partitionLen, classNameObj, partitionObj)) {
 		goto _errorPostClassNamePartition;
 	}
-	if (!(cpeType = getCpeTypeForProtocol((char*)urlElements.protocolChars, urlElements.protocolLen, urlElements.pathChars, urlElements.pathLen))) {
-		goto _errorPostClassNamePartition;
-	}
 
 	omrthread_monitor_enter(jclCacheMutex);
 
-	if (!(urlEntry = getCachedURL(env, helperID, urlElements.pathChars, urlElements.pathLen, cpeType, cpeStatus))) {
+	urlEntry = getCachedURL(env, helperID, &urlElements, cpeStatus);
+	if (NULL == urlEntry) {
 		omrthread_monitor_exit(jclCacheMutex);
 		goto _errorPostClassNamePartition;
 	}
@@ -1332,7 +1358,6 @@ Java_com_ibm_oti_shared_SharedClassURLHelperImpl_storeSharedClassImpl3(JNIEnv* e
 	J9ROMClass* romClass = NULL;
 	J9ROMClass* newROMClass = NULL;
 	J9ClassPathEntry* urlEntry = NULL;
-	UDATA cpeType = 0;
 	J9ClassLoader* classloader;
 	UDATA oldState;
 	jint result;
@@ -1373,13 +1398,11 @@ Java_com_ibm_oti_shared_SharedClassURLHelperImpl_storeSharedClassImpl3(JNIEnv* e
 	if (!getStringChars(env, &partitionChars, &partitionLen, partitionObj)) {
 		goto _errorPostPathProtocol;
 	}
-	if (!(cpeType = getCpeTypeForProtocol((char*)urlElements.protocolChars, urlElements.protocolLen, urlElements.pathChars, urlElements.pathLen))) {
-		goto _errorPostPartition;
-	}
 
 	omrthread_monitor_enter(jclCacheMutex);
 
-	if (!(urlEntry = getCachedURL(env, helperID, urlElements.pathChars, urlElements.pathLen, cpeType, cpeStatus))) {
+	urlEntry = getCachedURL(env, helperID, &urlElements, cpeStatus);
+	if (NULL == urlEntry) {
 		omrthread_monitor_exit(jclCacheMutex);
 		goto _errorPostPartition;
 	}
@@ -2526,7 +2549,7 @@ runCorrectURLUnitTests(JNIEnv* env)
 	testCorrectURLPath(env, "///C:/dir%201/dir%202/dir%20%203/", "C:\\dir 1\\dir 2\\dir  3");
 	testCorrectURLPath(env, "//UNCTest/subdir", "\\\\UNCTest\\subdir");
 	testCorrectURLPath(env, "//UNCTest/sub%20dir", "\\\\UNCTest\\sub dir");
-#else
+#else /* defined(WIN32) */
 	testCorrectURLPath(env, "/dir1", "/dir1");
 	testCorrectURLPath(env, "/dir1/", "/dir1");
 	testCorrectURLPath(env, "//dir1/", "//dir1");
@@ -2534,7 +2557,7 @@ runCorrectURLUnitTests(JNIEnv* env)
 	testCorrectURLPath(env, "/dir%251", "/dir%1");
 	testCorrectURLPath(env, "/dir%201/", "/dir 1");
 	testCorrectURLPath(env, "/dir%201/dir%202/dir%20%203/", "/dir 1/dir 2/dir  3");
-#endif 		/* WIN32 */
+#endif /* defined(WIN32) */
 }
 
 #endif /* J9SHR_UNIT_TEST */

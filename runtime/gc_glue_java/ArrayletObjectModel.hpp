@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -256,7 +256,7 @@ public:
 
 #if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
 	/**
-	 * Checks if arraylet falls into corner case of discontigous data
+	 * Checks if arraylet falls into corner case of discontiguous data
 	 * Arraylet possible cases:
 	 * 0: Empty arraylets, in this case the array is represented as
 	 *		an arraylet however it does not contain any data, but it
@@ -295,7 +295,7 @@ public:
 
 	/**
 	 * Checks if arraylet falls into corner case of contiguous data
-	 * 
+	 *
 	 * @param spine Pointer to an array indexable object spine
 	 * @return true in case corner cases 2 or 3 are valid. On the other hand,
 	 * 		if cases 0, 4 or 5 are true, the function returns false.
@@ -366,7 +366,7 @@ public:
 		uintptr_t stride = J9ARRAYCLASS_GET_STRIDE(clazzPtr);
 		uintptr_t size = numberOfElements * stride;
 		uintptr_t alignedSize = UDATA_MAX;
-		if ((size / stride) == numberOfElements) {
+		if ((0 == stride) || ((size / stride) == numberOfElements)) {
 			alignedSize = MM_Math::roundToSizeofUDATA(size);
 			if (alignedSize < size) {
 				alignedSize = UDATA_MAX;
@@ -376,16 +376,31 @@ public:
 	}
 
 	/**
-	 * Get the size from the header for the given indexable object
+	 * Get the size from the header for the given indexable object,
+	 * assuming it is Contiguous
 	 * @param objPtr Pointer to an array object
 	 * @return the size
 	 */
-	MMINLINE uintptr_t
-	getArraySize(J9IndexableObject *objPtr)
+	MMINLINE uint32_t
+	getContiguousArraySize(J9IndexableObject *objPtr)
 	{
 		return compressObjectReferences()
 			? ((J9IndexableObjectContiguousCompressed*)objPtr)->size
 			: ((J9IndexableObjectContiguousFull*)objPtr)->size;
+	}
+
+	/**
+	 * Get the size from the header for the given indexable object,
+	 * assuming it is Discontiguous
+	 * @param objPtr Pointer to an array object
+	 * @return the size
+	 */
+	MMINLINE uint32_t
+	getDiscontiguousArraySize(J9IndexableObject *objPtr)
+	{
+		return compressObjectReferences()
+			? ((J9IndexableObjectDiscontiguousCompressed*)objPtr)->size
+			: ((J9IndexableObjectDiscontiguousFull*)objPtr)->size;
 	}
 
 	/**
@@ -398,32 +413,31 @@ public:
 	{
 		GC_ArrayletObjectModel::ArrayLayout layout = GC_ArrayletObjectModel::InlineContiguous;
 		/* Trivial check for InlineContiguous. */
-		if (0 != getArraySize(objPtr)) {
+		if (0 != getContiguousArraySize(objPtr)) {
 			return GC_ArrayletObjectModel::InlineContiguous;
 		}
 
 		/* Check if the objPtr is in the allowed arraylet range. */
 		if (((uintptr_t)objPtr >= (uintptr_t)_arrayletRangeBase) && ((uintptr_t)objPtr < (uintptr_t)_arrayletRangeTop)) {
-			uintptr_t dataSizeInBytes = getDataSizeInBytes(objPtr);
 			J9Class* clazz = J9GC_J9OBJECT_CLAZZ(objPtr, this);
-			layout = getArrayletLayout(clazz, dataSizeInBytes);
+			layout = getArrayletLayout(clazz, getDiscontiguousArraySize(objPtr));
 		}
 		return layout;
 	}
 
 	MMINLINE ArrayLayout
-	getArrayletLayout(J9Class* clazz, uintptr_t dataSizeInBytes)
+	getArrayletLayout(J9Class* clazz, uintptr_t numberOfElements)
 	{
-		return getArrayletLayout(clazz, dataSizeInBytes, _largestDesirableArraySpineSize);
+		return getArrayletLayout(clazz, numberOfElements, _largestDesirableArraySpineSize);
 	}
 
 	/**
 	 * Get the layout of an indexable object given it's class, data size in bytes and the subspace's largestDesirableSpine.
 	 * @param clazz The class of the object stored in the array.
-	 * @param dataSizeInBytes the size in bytes of the data of the array.
+	 * @param numberOfElements number of indexed fields
 	 * @param largestDesirableSpine The largest desirable spine of the arraylet.
 	 */
-	ArrayLayout getArrayletLayout(J9Class* clazz, uintptr_t dataSizeInBytes, uintptr_t largestDesirableSpine);
+	ArrayLayout getArrayletLayout(J9Class* clazz, uintptr_t numberOfElements, uintptr_t largestDesirableSpine);
 
 	/**
 	 * Perform a safe memcpy of one array to another.
@@ -478,6 +492,9 @@ public:
 			void* srcData = getDataPointerForContiguous(srcObject);
 			switch(elementSize)
 			{
+			case 0:
+				break;
+
 			case 1:
 				// byte/boolean
 				{
@@ -637,6 +654,9 @@ public:
 			void* destData = getDataPointerForContiguous(destObject);
 			switch(elementSize)
 			{
+			case 0:
+				break;
+
 			case 1:
 				// byte/boolean
 				{
@@ -833,7 +853,6 @@ public:
 	}
 
 #if defined(J9VM_ENV_DATA64)
-
 	/**
 	 * Gets data pointer of a contiguous indexable object.
 	 * Helper to get dataAddr field of contiguous indexable objects.
@@ -843,7 +862,7 @@ public:
 	MMINLINE void **
 	dataAddrSlotForContiguous(J9IndexableObject *arrayPtr)
 	{
-		AssertContiguousArrayletLayout(arrayPtr);
+		/* Not safe to access class data or size - this may be a forwarded object! */
 		bool const compressed = compressObjectReferences();
 		void **dataAddrPtr = NULL;
 		if (compressed) {
@@ -894,6 +913,21 @@ public:
 	}
 
 	/**
+	 * Sets the data pointer of a contiguous indexable object.
+	 *
+	 * @param arrayPtr      Pointer to the indexable object whose size is required
+	 * @param address       Pointer which points to indexable object data
+	 */
+	MMINLINE void
+	setDataAddrForContiguous(J9IndexableObject *arrayPtr, void *address)
+	{
+		void *calculatedDataAddr = address;
+		void **dataAddrPtr = dataAddrSlotForContiguous(arrayPtr);
+
+		*dataAddrPtr = calculatedDataAddr;
+	}
+
+	/**
 	 * Sets data pointer of a discontiguous indexable object.
 	 * Sets the data pointer of a discontiguous indexable object; in this case
 	 * dataAddr will point to the contiguous representation of the data
@@ -937,29 +971,10 @@ public:
 	MMINLINE void *
 	getDataAddrForContiguous(J9IndexableObject *arrayPtr)
 	{
-		void *dataAddr = *dataAddrSlotForContiguous(arrayPtr);
-		return dataAddr;
-	}
-
-	/**
-	 * Returns data pointer associated with a discontiguous Indexable object.
-	 * Data pointer will always be pointing at the arraylet data. In this
-	 * case the data pointer will be pointing to address immediately after
-	 * the header (the arrayoid), except when double mapping or sparse-heap
-	 * is enabled. In these cases, the data pointer will point to the
-	 * contiguous representation of the data; hence returning that pointer.
-	 *
-	 * @param arrayPtr      Pointer to the indexable object whose size is required
-	 * @return data address associated with the Indexable object
-	 */
-	MMINLINE void *
-	getDataAddrForDiscontiguous(J9IndexableObject *arrayPtr)
-	{
-		/* If double mapping is enabled only, arraylet will have a discontiguous layout.
-		 * If sparse-heap is enabled, arraylet will have a contiguous layout. For now we
-		 * Assert only the discontiguous case until sparse-heap is introduced. */
-		AssertDiscontiguousArrayletLayout(arrayPtr);
-		void *dataAddr = *dataAddrSlotForDiscontiguous(arrayPtr);
+		void *dataAddr = NULL;
+		if (_isIndexableDataAddrPresent) {
+			dataAddr = *dataAddrSlotForContiguous(arrayPtr);
+		}
 		return dataAddr;
 	}
 
@@ -967,10 +982,7 @@ public:
 	 * Returns data pointer associated with the Indexable object.
 	 * Data pointer will always be pointing at the arraylet data. In all
 	 * cases the data pointer will be pointing to address immediately after
-	 * the header, except when double mapping is enabled. In this case,
-	 * if double mapping is enabled and arraylet was double mapped
-	 * successfully the data pointer will point to the contiguous
-	 * representation of the data; hence returning that pointer.
+	 * the header,
 	 *
 	 * @param arrayPtr      Pointer to the indexable object whose size is required
 	 * @return data address associated with the Indexable object
@@ -980,36 +992,39 @@ public:
 	{
 		return (InlineContiguous == getArrayLayout(arrayPtr))
 			? getDataAddrForContiguous(arrayPtr)
-			: getDataAddrForDiscontiguous(arrayPtr);
+			/* DataAddr is only used for off-heap enabled case, return NULL for disContiguous layout */
+			: NULL;
 	}
 
 	/**
 	 * Checks that the dataAddr field of the indexable object is correct.
+	 * this method is supposed to be called only if offheap is enabled.
 	 *
-	 * @param arrayPtr      Pointer to the indexable object
-	 * @return if the dataAddr field of the indexable object is correct
+	 * @param arrayPtr[in]              Pointer to the indexable object
+	 * @param isDataNonAdjacent[out]    set true if the given indexable object is off heap
+	 * @return if the dataAddr field of the indexable object is correct(not heap object case), return false if indexable object is off heap
 	 */
 	MMINLINE bool
-	isValidDataAddr(J9IndexableObject *arrayPtr)
+	isValidDataAddrForAdjacentData(J9IndexableObject *arrayPtr, bool *isDataNonAdjacent)
 	{
 		bool isValidDataAddress = true;
-
 		if (_isIndexableDataAddrPresent) {
 			void *dataAddr = getDataAddrForIndexableObject(arrayPtr);
-			isValidDataAddress = isValidDataAddr(arrayPtr, dataAddr);
+			isValidDataAddress = isValidDataAddrForAdjacentData(arrayPtr, dataAddr, isDataNonAdjacent);
 		}
-
 		return isValidDataAddress;
 	}
 
 	/**
 	 * Checks that the dataAddr field of the indexable object is correct.
+	 * this method is supposed to be called only if offheap is enabled
 	 *
-	 * @param arrayPtr      Pointer to the indexable object
-	 * @return if the dataAddr field of the indexable object is correct
+	 * @param arrayPtr                 Pointer to the indexable object
+	 * @param isDataNonAdjacent[out]   set true if the given indexable object is off heap
+	 * @return if the dataAddr field of the indexable object is correct(not heap object case),  return false if indexable object is off heap
 	 */
 	MMINLINE bool
-	isValidDataAddr(J9IndexableObject *arrayPtr, void *dataAddr)
+	isValidDataAddrForAdjacentData(J9IndexableObject *arrayPtr, void *dataAddr, bool *isDataNonAdjacent)
 	{
 		bool isValidDataAddress = false;
 		uintptr_t dataSizeInBytes = getDataSizeInBytes(arrayPtr);
@@ -1019,7 +1034,7 @@ public:
 		} else if (dataSizeInBytes < _omrVM->_arrayletLeafSize) {
 			isValidDataAddress = (dataAddr == (void *)((uintptr_t)arrayPtr + contiguousIndexableHeaderSize()));
 		} else {
-			isValidDataAddress = (dataAddr == NULL);
+			*isDataNonAdjacent = true;
 		}
 
 		return isValidDataAddress;
@@ -1033,41 +1048,22 @@ public:
 	 * object.
 	 *
 	 * @param forwardedHeader Forwarded header of arrayPtr
-	 * @param arrayPtr        Pointer to the indexable object whose size is required
+	 * @param destinationArray Pointer to the indexable object whose size is required
 	 */
 	MMINLINE void
-	fixupDataAddr(MM_ForwardedHeader *forwardedHeader, omrobjectptr_t arrayPtr)
+	fixupDataAddr(MM_ForwardedHeader *forwardedHeader, J9IndexableObject *destinationArray)
 	{
 #if defined(J9VM_ENV_DATA64)
-		J9IndexableObject *j9ArrayPtr = (J9IndexableObject *)arrayPtr;
+		AssertVirtualLargeObjectHeapEnabled();
 
 		if (InlineContiguous == getPreservedArrayLayout(forwardedHeader)) {
-			setDataAddrForContiguous(j9ArrayPtr);
-		} else {
-			setDataAddrForDiscontiguous(j9ArrayPtr, NULL);
+			void *dataAddr = getDataAddrForContiguous(destinationArray);
+			/* forwardedHeader should not be treated as an object (since it does not have valid class).*/
+			if (shouldFixupDataAddrForContiguous(forwardedHeader, dataAddr)) {
+				setDataAddrForContiguous(destinationArray);
+			}
 		}
-#endif /* J9VM_ENV_DATA64 */
-	}
-	/**
-	 * External fixup dataAddr API to update pointer of indexable objects.
-	 * Sets the dataAddr of either a contiguous or discomtiguous indexable
-	 * object.
-	 *
-	 * @param arrayPtr      Pointer to the indexable object whose size is required
-	 */
-	MMINLINE void
-	fixupDataAddr(omrobjectptr_t arrayPtr)
-	{
-#if defined(J9VM_ENV_DATA64)
-		J9IndexableObject *j9ArrayPtr = (J9IndexableObject *)arrayPtr;
-		AssertArrayPtrIsIndexable(j9ArrayPtr);
-
-		if (InlineContiguous == getArrayLayout(j9ArrayPtr)) {
-			setDataAddrForContiguous(j9ArrayPtr);
-		} else {
-			setDataAddrForDiscontiguous(j9ArrayPtr, NULL);
-		}
-#endif /* J9VM_ENV_DATA64 */
+#endif /* defined(J9VM_ENV_DATA64) */
 	}
 
 	/**
@@ -1129,11 +1125,7 @@ public:
 
 		if (0 == size) {
 			/* Discontiguous */
-			if (compressObjectReferences()) {
-				size = ((J9IndexableObjectDiscontiguousCompressed *)forwardedHeader->getObject())->size;
-			} else {
-				size = ((J9IndexableObjectDiscontiguousFull *)forwardedHeader->getObject())->size;
-			}
+			size = getDiscontiguousArraySize((J9IndexableObject *)forwardedHeader->getObject());
 		}
 
 		return size;
@@ -1166,8 +1158,8 @@ public:
 
 		if (0 == size) {
 			/* we know we are dealing with heap object, so we don't need to check against _arrayletRangeBase/Top, like getArrayLayout does */
-			uintptr_t dataSizeInBytes = getDataSizeInBytes(clazz, getPreservedIndexableSize(forwardedHeader));
-			layout = getArrayletLayout(clazz, dataSizeInBytes);
+			uintptr_t numberOfElements = (uintptr_t)getPreservedIndexableSize(forwardedHeader);
+			layout = getArrayletLayout(clazz, numberOfElements);
 		}
 
 		return layout;
@@ -1186,8 +1178,7 @@ public:
 	{
 		J9Class* clazz = getPreservedClass(forwardedHeader);
 		uintptr_t numberOfElements = (uintptr_t)getPreservedIndexableSize(forwardedHeader);
-		uintptr_t dataSizeInBytes = getDataSizeInBytes(clazz, numberOfElements);
-		ArrayLayout layout = getArrayletLayout(clazz, dataSizeInBytes);
+		ArrayLayout layout = getArrayletLayout(clazz, numberOfElements);
 		*hashcodeOffset = getHashcodeOffset(clazz, layout, numberOfElements);
 		return getSizeInBytesWithHeader(clazz, layout, numberOfElements);
 	}
@@ -1216,16 +1207,22 @@ public:
 	}
 
 	/**
-	 * Returns the address of first data slot in the array
-	 * @param arrayPtr Ptr to an array
+	 * Returns the address of first data slot in the array.
+	 *
+	 * @param arrayPtr Pointer to the contiguous indexable object whose dataPointer we are trying to access
 	 * @return Address of first data slot in the array
 	 */
 	MMINLINE void *
 	getDataPointerForContiguous(J9IndexableObject *arrayPtr)
 	{
-		return (void *)((uintptr_t)arrayPtr + contiguousIndexableHeaderSize());
+		void *dataAddr = (void *)((uintptr_t)arrayPtr + contiguousIndexableHeaderSize());
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+		if (isVirtualLargeObjectHeapEnabled()) {
+			dataAddr = *dataAddrSlotForContiguous(arrayPtr);
+		}
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
+		return dataAddr;
 	}
-
 
 	/**
 	 * Returns the offset of the hashcode slot, in bytes, from the beginning of the header.
@@ -1293,6 +1290,64 @@ public:
 	void fixupInternalLeafPointersAfterCopy(J9IndexableObject *destinationPtr, J9IndexableObject *sourcePtr);
 
 	/**
+	 * Used to determine if the array data should be adjacent to its header or in offheap.
+	 * The determination is based on the size field in the header.
+	 * This API is meant to be used during object construction, when size is already initialized, but dataAddr is not initialized yet.
+	 *
+	 * @param arrayPtr Pointer to the indexable object
+	 * @return true if the data should be adjacent to the header, false otherwise
+	 */
+	bool shouldDataBeAdjacentToHeader(J9IndexableObject *arrayPtr);
+
+	/**
+	 * Used to determine if the array data should be adjacent to its header or in offheap.
+	 * The determination is based on provided size (coming from allocation request).
+	 * This API is primarily meant to be used during object allocation/construction.
+	 *
+	 * @param dataSizeInBytes the size of data in an indexable object, in bytes, including leaves and alignment padding
+	 * @return true if based on the value of dataSizeInBytes, the arraylet data is adjacent to the header, false otherwise
+	 */
+	bool shouldDataBeAdjacentToHeader(uintptr_t dataSizeInBytes);
+
+	/**
+	 * Check if data is adjacent to the header, based on dataAddr value (rather then on its size).
+	 * This API is faster/simpler than the one based on the size, and is meant to be used at any point
+	 * after object is constructed (for example GC points to fixup dataAddr etc).
+	 * This API makes sense to use only if offheap is enabled.
+	 *
+	 * @param arrayPtr Pointer to the indexable object
+	 * @return true if dataAddr point to the end of header, false otherwise
+	 */
+	bool isDataAdjacentToHeader(J9IndexableObject *arrayPtr) {
+#if defined(J9VM_ENV_DATA64)
+		return ((void *)((uintptr_t)arrayPtr + contiguousIndexableHeaderSize()) == getDataAddrForContiguous(arrayPtr));
+#else /* defined(J9VM_ENV_DATA64) */
+		return true;
+#endif /* defined(J9VM_ENV_DATA64) */
+	}
+
+
+	/**
+	 * Check if the data address for the contiguous indexable object should be fixed up.
+	 *
+	 * @param extensions pointer to MM_GCExtensionsBase
+	 * @param arrayPtr pointer to J9IndexableObject
+	 * @return true if we should fixup the data address of the indexable object
+	 */
+	bool shouldFixupDataAddrForContiguous(J9IndexableObject *arrayPtr);
+
+	/**
+	 * Check if the data address for the contiguous indexable object should be fixed up.
+	 *
+	 * @param extensions pointer to MM_GCExtensionsBase
+	 * @param forwardedHeader pointer to the MM_ForwardedHeader instance encapsulating the object
+	 * 		  forwardedHeader should not be treated as an object (since it does not have valid class).
+	 * @param dataAddr data address in the indexable object
+	 * @return true if we should fixup the data address of the indexable object
+	 */
+	bool shouldFixupDataAddrForContiguous(MM_ForwardedHeader *forwardedHeader, void *dataAddr);
+
+	/**
 	 * Initialize the receiver, a new instance of GC_ObjectModel
 	 * 
 	 * @return true on success, false on failure
@@ -1310,13 +1365,18 @@ public:
 	void AssertArrayletIsDiscontiguous(J9IndexableObject *objPtr);
 
 	/**
-	 * Asserts that an Arraylet has true contiguous layout
-	 */
-	void AssertContiguousArrayletLayout(J9IndexableObject *objPtr);
-
-	/**
 	 * Asserts that an Arraylet has true discontiguous layout
 	 */
 	void AssertDiscontiguousArrayletLayout(J9IndexableObject *objPtr);
+
+	/**
+	 * Asserts unreachable code if either off-heap or double-mapping is enabled.
+	 */
+	void AssertContiguousArrayDataUnreachable();
+
+	/**
+	 * Asserts that off-heap is enabled.
+	 */
+	void AssertVirtualLargeObjectHeapEnabled();
 };
 #endif /* ARRAYLETOBJECTMODEL_ */

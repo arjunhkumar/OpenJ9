@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(INDEXABLEOBJECTALLOCATIONMODEL_HPP_)
@@ -33,6 +33,8 @@
 #include "ArrayletObjectModel.hpp"
 #include "JavaObjectAllocationModel.hpp"
 #include "MemorySpace.hpp"
+
+class MM_HeapRegionDescriptorVLHGC;
 
 /**
  * Class definition for the array object allocation model.
@@ -58,7 +60,12 @@ public:
 	 */
 private:
 	/**
+
 	 * For contiguous arraylet all data is subsumed into the spine.
+	 *
+	 * @param env thread GC Environment
+	 * @param spine indexable object spine
+	 *
 	 * @return initialized arraylet spine with its arraylet pointers initialized.
 	 */
 	MMINLINE J9IndexableObject *layoutContiguousArraylet(MM_EnvironmentBase *env, J9IndexableObject *spine);
@@ -67,9 +74,27 @@ private:
 	 * For non-contiguous arraylet (i.e. discontiguous and hybrid), perform separate allocations
 	 * for spine and leaf data. The spine and attached leaves may move as each leaf is allocated
 	 * is GC is allowed. The final location of the spine is returned.
+	 *
+	 * @param env thread GC Environment
+	 * @param spine indexable object spine
+	 *
 	 * @return initialized arraylet spine with its arraylet pointers initialized.
 	 */
 	MMINLINE J9IndexableObject *layoutDiscontiguousArraylet(MM_EnvironmentBase *env, J9IndexableObject *spine);
+
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	/**
+	 * For discontiguous arraylet that will be allocated to sparse heap (off-heap). Even though this arraylet is large enough to be
+	 * discontiguous, its true layout is InlineContiguous. Arraylet leaves still need to be created and initialized,
+	 * even though they won't be used.
+	 *
+	 * @param env thread GC Environment
+	 * @param spine indexable object spine
+	 *
+	 * @return initialized arraylet spine with its arraylet pointers initialized
+	 */
+	MMINLINE J9IndexableObject *getSparseAddressAndDecommitLeaves(MM_EnvironmentBase *env, J9IndexableObject *spine);
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 
 protected:
 
@@ -83,7 +108,7 @@ public:
 				0, allocateObjectFlags | OMR_GC_ALLOCATE_OBJECT_INDEXABLE)
 		, _numberOfIndexedFields(numberOfIndexedFields)
 		, _dataSize(env->getExtensions()->indexableObjectModel.getDataSizeInBytes(_class, _numberOfIndexedFields))
-		, _layout(env->getExtensions()->indexableObjectModel.getArrayletLayout(_class, _dataSize,
+		, _layout(env->getExtensions()->indexableObjectModel.getArrayletLayout(_class, _numberOfIndexedFields,
 				_allocateDescription.getMemorySpace()->getDefaultMemorySubSpace()->largestDesirableArraySpine()))
 		, _alignSpineDataSection(env->getExtensions()->indexableObjectModel.shouldAlignSpineDataSection(_class))
 		, _numberOfArraylets(env->getExtensions()->indexableObjectModel.numArraylets(_dataSize))

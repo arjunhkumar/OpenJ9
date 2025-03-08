@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "errormessage_internal.h"
@@ -222,8 +222,8 @@ pushLiveStackToVerificationTypeBuffer(StackMapFrame* stackMapFrame, J9BytecodeVe
 	U_16 maxLocals = methodInfo->maxLocals;
 	IDATA lastIndex = 0;
 	IDATA slot = 0;
-
-	IDATA errorPositionInclusive = 1;
+	/* Don't print anything on the empty stack. */
+	IDATA errorPositionInclusive = (BCV_ERR_STACK_UNDERFLOW == verifyData->errorDetailCode) ? 0 : 1;
 	IDATA wideType = DATATYPE_1_SLOT;
 	BOOLEAN result = TRUE;
 	BOOLEAN nonTopFound = FALSE;
@@ -434,12 +434,6 @@ getBCVDataType(J9BytecodeVerificationData* verifyData, MethodContextInfo* method
 		UDATA bytecodeTypeInfo = ((UDATA)J9JavaBytecodeVerificationTable[opCode]) & 0xF;
 		UDATA convertedType = (UDATA)decodeTable[bytecodeTypeInfo];
 		typeNameIndex = CFR_STACKMAP_TYPE_OBJECT;
-
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
-		if (J9_ARE_ALL_BITS_SET(bcvType, BCV_PRIMITIVE_VALUETYPE)) {
-			typeNameIndex = CFR_STACKMAP_TYPE_PRIMITIVE_OBJECT;
-		}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 
 		/* Set the expected type to 'reference' if the type data extracted from bytecode is 'reference' type.
 		 * Note: according to the JVM Specification, the expected type for aastore is 'java/lang/Object' rather than 'reference'.

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.image.javacore;
 
 import java.nio.ByteOrder;
@@ -37,12 +37,11 @@ import com.ibm.dtfj.java.javacore.JCInvalidArgumentsException;
 import com.ibm.dtfj.javacore.builder.IBuilderData;
 
 public class JCImageAddressSpace implements ImageAddressSpace {
-	
+
 	private Vector fProcesses;
 	private Vector fImageSections;
 	private JCImage fImage;
 
-	
 	public JCImageAddressSpace(JCImage image) {
 		if (image == null) {
 			throw new IllegalArgumentException("Must pass a valid image");
@@ -72,14 +71,14 @@ public class JCImageAddressSpace implements ImageAddressSpace {
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	public Iterator getImageSections() {
 		return fImageSections.iterator();
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	public ImagePointer getPointer(long address) {
 		try {
@@ -91,12 +90,12 @@ public class JCImageAddressSpace implements ImageAddressSpace {
 	}
 
 	/**
-	 * 
+	 *
 	 */
 	public Iterator getProcesses() {
 		return fProcesses.iterator();
 	}
-	
+
 	/**
 	 * Not in DTFJ
 	 * @param imageProcess
@@ -106,25 +105,25 @@ public class JCImageAddressSpace implements ImageAddressSpace {
 			fProcesses.add(imageProcess);
 		}
 	}
-	
+
 	/**
 	 * Not in DTFJ
-	 * 
+	 *
 	 */
 	public JCImage getImage() {
 		return fImage;
 	}
-	
+
 	/**
 	 * NOT in DTFJ. For building purposes only. Do not use to check if an address value is found in a given address space.
 	 * It only checks that the address is not set to a default "unavailable" value.
 	 * @param id
-	 * 
+	 *
 	 */
 	public boolean isValidAddressID(long id) {
 		return id != (long)IBuilderData.NOT_AVAILABLE;
 	}
-	
+
 	/**
 	 * Not in DTFJ
 	 * @param imageSection The new image section to add to the list

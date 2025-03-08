@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef SCAVENGERROOTCLEARER_HPP_
@@ -47,7 +47,7 @@ class MM_ScavengerRootClearer : public MM_RootScanner
 private:
 	MM_Scavenger *_scavenger;
 
-	void processReferenceList(MM_EnvironmentStandard *env, MM_HeapRegionDescriptorStandard* region, omrobjectptr_t headOfList, MM_ReferenceStats *referenceStats);
+	void processReferenceList(MM_EnvironmentStandard *env, MM_HeapRegionDescriptorStandard *region, omrobjectptr_t headOfList, MM_ReferenceStats *referenceStats);
 	void scavengeReferenceObjects(MM_EnvironmentStandard *env, uintptr_t referenceObjectType);
 #if defined(J9VM_GC_FINALIZATION)
 	void scavengeUnfinalizedObjects(MM_EnvironmentStandard *env);
@@ -166,6 +166,9 @@ public:
 	}
 
 	virtual void
+	iterateAllContinuationObjects(MM_EnvironmentBase *env);
+
+	virtual void
 	scanPhantomReferenceObjects(MM_EnvironmentBase *env)
 	{
 		if (_scavenger->getDelegate()->getShouldScavengePhantomReferenceObjects()) {
@@ -199,7 +202,7 @@ public:
 	doMonitorReference(J9ObjectMonitor *objectMonitor, GC_HashTableIterator *monitorReferenceIterator)
 	{
 		bool const compressed = _extensions->compressObjectReferences();
-		J9ThreadAbstractMonitor * monitor = (J9ThreadAbstractMonitor*)objectMonitor->monitor;
+		J9ThreadAbstractMonitor *monitor = (J9ThreadAbstractMonitor*)objectMonitor->monitor;
 		omrobjectptr_t objectPtr = (omrobjectptr_t )monitor->userData;
 		_env->getGCEnvironment()->_scavengerJavaStats._monitorReferenceCandidates += 1;
 		
@@ -214,7 +217,7 @@ public:
 				/* We must call objectMonitorDestroy (as opposed to omrthread_monitor_destroy) when the
 				 * monitor is not internal to the GC
 				 */
-				static_cast<J9JavaVM*>(_omrVM->_language_vm)->internalVMFunctions->objectMonitorDestroy(static_cast<J9JavaVM*>(_omrVM->_language_vm), (J9VMThread *)_env->getLanguageVMThread(), (omrthread_monitor_t)monitor);
+				_javaVM->internalVMFunctions->objectMonitorDestroy(_javaVM, (J9VMThread *)_env->getLanguageVMThread(), (omrthread_monitor_t)monitor);
 			}
 		}
 	}
@@ -223,7 +226,7 @@ public:
 	scanMonitorReferencesComplete(MM_EnvironmentBase *env)
 	{
 		reportScanningStarted(RootScannerEntity_MonitorReferenceObjectsComplete);
-		static_cast<J9JavaVM*>(_omrVM->_language_vm)->internalVMFunctions->objectMonitorDestroyComplete(static_cast<J9JavaVM*>(_omrVM->_language_vm), (J9VMThread *)env->getOmrVMThread()->_language_vmthread);
+		_javaVM->internalVMFunctions->objectMonitorDestroyComplete(_javaVM, (J9VMThread *)env->getOmrVMThread()->_language_vmthread);
 		reportScanningEnded(RootScannerEntity_MonitorReferenceObjectsComplete);
 		return complete_phase_OK;
 	}
@@ -283,6 +286,11 @@ public:
 		_scavenger->pruneRememberedSet(MM_EnvironmentStandard::getEnvironment(env));
 		reportScanningEnded(RootScannerEntity_RememberedSet);
 	}
+
+	virtual void completedObjectScanPhasesCheckpoint() {
+		Assert_MM_false(_extensions->isScavengerBackOutFlagRaised());
+	}
+
 };
 #endif /* defined(OMR_GC_MODRON_SCAVENGER) */
 #endif /* SCAVENGERROOTCLEARER_HPP_ */

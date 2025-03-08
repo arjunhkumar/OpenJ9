@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "optimizer/StringPeepholes.hpp"
@@ -161,41 +161,41 @@ TR::SymbolReference* TR_StringPeepholes::MethodEnumToArgsForMethodSymRefFromName
           m !=  END_STRINGPEEPHOLES_METHODS , "wrong constant!!");
 
 
-   static char* classNames [] = {"java/math/BigDecimal",
-                                 "java/math/BigDecimal",
-                         "java/math/BigDecimal",
-                         "java/math/BigDecimal",
-                          NULL,
-                         "java/lang/String",
-                         "java/lang/String",
-                         "java/lang/String",
-                                 "java/lang/String",
-                         "java/lang/String",
-                         "java/lang/String"};
+   static const char* classNames [] =  {"java/math/BigDecimal",
+                                        "java/math/BigDecimal",
+                                        "java/math/BigDecimal",
+                                        "java/math/BigDecimal",
+                                        NULL,
+                                        "java/lang/String",
+                                        "java/lang/String",
+                                        "java/lang/String",
+                                        "java/lang/String",
+                                        "java/lang/String",
+                                        "java/lang/String"};
 
-   static char* methodNames [] = {"SMAAMSS",
-                                  "SMSS",
-                          "AAMSS",
-                          "MSS",
-                                  NULL,
-                                  "<init>",
-                          "<init>",
-                          "<init>",
-                          "<init>",
-                                  "<init>",
-                          "<init>"};
+   static const char* methodNames [] = {"SMAAMSS",
+                                        "SMSS",
+                                        "AAMSS",
+                                        "MSS",
+                                        NULL,
+                                        "<init>",
+                                        "<init>",
+                                        "<init>",
+                                        "<init>",
+                                        "<init>",
+                                        "<init>"};
 
-   static char* signatures [] =  {        "(Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;IIII)Ljava/math/BigDecimal;",
-                                  "(Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;II)Ljava/math/BigDecimal;",
-                          "(Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;III)Ljava/math/BigDecimal;",
-                          "(Ljava/math/BigDecimal;Ljava/math/BigDecimal;I)Ljava/math/BigDecimal;",
-                                  NULL,
-                                  "(Ljava/lang/String;C)V",
-                                  "(Ljava/lang/String;Ljava/lang/String;)V",
-                                  "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-                                  "(Ljava/lang/String;I)V",
-                                  "([BIIZ)V",
-                                  "(ILjava/lang/String;ILjava/lang/String;Ljava/lang/String;)V"};
+   static const char* signatures [] =  {"(Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;IIII)Ljava/math/BigDecimal;",
+                                        "(Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;II)Ljava/math/BigDecimal;",
+                                        "(Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;Ljava/math/BigDecimal;III)Ljava/math/BigDecimal;",
+                                        "(Ljava/math/BigDecimal;Ljava/math/BigDecimal;I)Ljava/math/BigDecimal;",
+                                        NULL,
+                                        "(Ljava/lang/String;C)V",
+                                        "(Ljava/lang/String;Ljava/lang/String;)V",
+                                        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+                                        "(Ljava/lang/String;I)V",
+                                        "([BIIZ)V",
+                                        "(ILjava/lang/String;ILjava/lang/String;Ljava/lang/String;)V"};
 
    // TODO: This is a workaround as we switched to using a byte[] backing array in String*. Remove this workaround once obsolete.
    if (m == SPH_String_init_AIIZ)
@@ -219,7 +219,8 @@ int32_t TR_StringPeepholes::perform()
    static char *skipitAtWarm = feGetEnv("TR_noPeepholeAtWarm");
    if (comp()->getOption(TR_DisableStringPeepholes)
        || (!comp()->fej9()->doStringPeepholing() && !comp()->getOption(TR_UseSymbolValidationManager))
-       || (skipitAtWarm && comp()->getMethodHotness()==warm))
+       || (skipitAtWarm && comp()->getMethodHotness() == warm)
+       || comp()->isFearPointPlacementUnrestricted())
       return 1;
 
    process(comp()->getStartTree(), NULL);
@@ -779,7 +780,7 @@ TR::TreeTop *TR_StringPeepholes::detectSubMulSetScalePattern(TR::TreeTop *tt, TR
    bool foundPattern = false;
 
    if (trace())
-      traceMsg(comp(), "Looking for subtract multiply setscale pattern in block %d, staring at tt: %p, node: %p\n", firstTree->getEnclosingBlock()->getNumber(), firstTree, firstTree->getNode());
+      traceMsg(comp(), "Looking for subtract multiply setscale pattern in block %d, starting at tt: %p, node: %p\n", firstTree->getEnclosingBlock()->getNumber(), firstTree, firstTree->getNode());
 
    for (; !foundPattern && tt != exit; tt = tt->getNextRealTreeTop())
       {
@@ -2088,7 +2089,7 @@ TR::TreeTop *TR_StringPeepholes::searchForStringAppend(const char *sig, TR::Tree
             }
          else
             {
-            char *sig2 = "java/lang/Integer.toString(I)";
+            const char *sig2 = "java/lang/Integer.toString(I)";
 
             // Expected reference count for the Integer.toString may change if pending pushes are being
             // generated

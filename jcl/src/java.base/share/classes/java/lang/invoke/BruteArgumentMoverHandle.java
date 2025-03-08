@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17 & !OPENJDK_METHODHANDLES]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2013
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.invoke;
 
 abstract class ArgumentMoverHandle extends PassThroughHandle {
@@ -61,7 +61,6 @@ abstract class ArgumentMoverHandle extends PassThroughHandle {
 		this.next = originalHandle.next;
 		this.permute = originalHandle.permute;
 	}
-
 
 	// {{{ JIT support
 
@@ -368,21 +367,21 @@ final class BruteArgumentMoverHandle extends ArgumentMoverHandle {
 	// Unbox if needed.  These allow us to skip an AsTypeHandle just for unboxing,
 	// though it does impose a checkcast unless the jit can eliminate it.
 	//
-	final boolean extra_Z(int index) { 
-		return (Boolean)extra_L(index); 
+	final boolean extra_Z(int index) {
+		return (Boolean)extra_L(index);
 	}
 	final byte extra_B(int index) {
 		return (Byte)extra_L(index); }
 	final short extra_S(int index) {
 		return (Short)extra_L(index); }
 	final char extra_C(int index) {
-		return (Character)extra_L(index); 
+		return (Character)extra_L(index);
 	}
-	final float extra_F(int index) { 
-		return (Float)extra_L(index); 
+	final float extra_F(int index) {
+		return (Float)extra_L(index);
 	}
-	final double extra_D(int index) { 
-		return (Double)extra_L(index); 
+	final double extra_D(int index) {
+		return (Double)extra_L(index);
 	}
 
 	private static Object[] infoAffectingThunks(MethodHandle next, int[] permute, Object[] extra) {
@@ -409,26 +408,26 @@ final class BruteArgumentMoverHandle extends ArgumentMoverHandle {
 	}
 
 	// }}} JIT support
- 	final void compareWith(MethodHandle right, Comparator c) {
- 		if (right instanceof BruteArgumentMoverHandle) {
- 			((BruteArgumentMoverHandle)right).compareWithBruteArgumentMover(this, c);
- 		} else {
- 			c.fail();
- 		}
- 	}
- 
- 	final void compareWithArgumentMover(ArgumentMoverHandle left, Comparator c) {
- 		// If left were an BruteArgumentMoverHandle, we'd be in
- 		// compareWithBruteArgumentMover, so it doesn't match.
- 		c.fail();
- 	}
+	final void compareWith(MethodHandle right, Comparator c) {
+		if (right instanceof BruteArgumentMoverHandle) {
+			((BruteArgumentMoverHandle)right).compareWithBruteArgumentMover(this, c);
+		} else {
+			c.fail();
+		}
+	}
 
- 	final void compareWithBruteArgumentMover(BruteArgumentMoverHandle left, Comparator c) {
- 		c.compareStructuralParameter(left.extra.length, this.extra.length);
- 		for (int i = 0; (i < left.extra.length) && (i < this.extra.length); i++) {
- 			c.compareUserSuppliedParameter(left.extra[i], this.extra[i]);
- 		}
- 		super.compareWithArgumentMover(left, c);
- 	}
+	final void compareWithArgumentMover(ArgumentMoverHandle left, Comparator c) {
+		// If left were an BruteArgumentMoverHandle, we'd be in
+		// compareWithBruteArgumentMover, so it doesn't match.
+		c.fail();
+	}
+
+	final void compareWithBruteArgumentMover(BruteArgumentMoverHandle left, Comparator c) {
+		c.compareStructuralParameter(left.extra.length, this.extra.length);
+		for (int i = 0; (i < left.extra.length) && (i < this.extra.length); i++) {
+			c.compareUserSuppliedParameter(left.extra[i], this.extra[i]);
+		}
+		super.compareWithArgumentMover(left, c);
+	}
 
 }

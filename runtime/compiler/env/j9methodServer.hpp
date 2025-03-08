@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef J9METHODSERVER_H
@@ -54,6 +54,8 @@ TR_ResolvedJ9JITServerMethodInfoStruct
    bool isLambdaFormGeneratedMethod;
    bool isForceInline;
    bool isDontInline;
+   bool isIntrinsicCandidate;
+   bool isChangesCurrentThread;
    };
 
 
@@ -126,6 +128,7 @@ TR_ResolvedMethodCacheEntry
    TR_PersistentMethodInfo *persistentMethodInfo;
    TR_ContiguousIPMethodHashTableEntry *IPMethodInfo;
    int32_t ttlForUnresolved;
+   bool isUnresolvedInCP;
    };
 
 using TR_ResolvedMethodInfoCache = UnorderedMap<TR_ResolvedMethodKey, TR_ResolvedMethodCacheEntry>;
@@ -176,8 +179,8 @@ public:
    virtual TR_ResolvedMethod *   getResolvedPossiblyPrivateVirtualMethod(TR::Compilation *, int32_t cpIndex, bool ignoreRtResolve, bool * unresolvedInCP) override;
    virtual TR_ResolvedMethod * getResolvedStaticMethod(TR::Compilation * comp, I_32 cpIndex, bool * unresolvedInCP) override;
    virtual TR_ResolvedMethod * getResolvedSpecialMethod(TR::Compilation * comp, I_32 cpIndex, bool * unresolvedInCP) override;
-   virtual TR_ResolvedMethod * createResolvedMethodFromJ9Method(TR::Compilation *comp, int32_t cpIndex, uint32_t vTableSlot, J9Method *j9Method, bool * unresolvedInCP, TR_AOTInliningStats *aotStats) override;
-   virtual TR_ResolvedMethod * createResolvedMethodFromJ9Method(TR::Compilation *comp, int32_t cpIndex, uint32_t vTableSlot, J9Method *j9Method, bool * unresolvedInCP, TR_AOTInliningStats *aotStats, const TR_ResolvedJ9JITServerMethodInfo &methodInfo);
+   virtual TR_ResolvedMethod * createResolvedMethodFromJ9Method(TR::Compilation *comp, int32_t cpIndex, uint32_t vTableSlot, J9Method *j9Method, TR_AOTInliningStats *aotStats) override;
+   virtual TR_ResolvedMethod * createResolvedMethodFromJ9Method(TR::Compilation *comp, int32_t cpIndex, uint32_t vTableSlot, J9Method *j9Method, TR_AOTInliningStats *aotStats, const TR_ResolvedJ9JITServerMethodInfo &methodInfo);
    virtual bool fieldsAreSame(int32_t cpIndex1, TR_ResolvedMethod *m2, int32_t cpIndex2, bool &sigSame) override;
    virtual bool staticsAreSame(int32_t cpIndex1, TR_ResolvedMethod *m2, int32_t cpIndex2, bool &sigSame) override;
    virtual bool fieldAttributes(TR::Compilation *, int32_t cpIndex, uint32_t * fieldOffset, TR::DataType * type, bool * volatileP, bool * isFinal, bool *isPrivate, bool isStore, bool * unresolvedInCP, bool needsAOTValidation) override;
@@ -193,6 +196,7 @@ public:
    virtual TR_ResolvedMethod *getResolvedVirtualMethod(TR::Compilation * comp, TR_OpaqueClassBlock * classObject, I_32 virtualCallOffset , bool ignoreRtResolve) override;
    virtual bool isSubjectToPhaseChange(TR::Compilation *comp) override;
    virtual void * stringConstant(int32_t cpIndex) override;
+   virtual TR_OpaqueMethodBlock *  getTargetMethodFromMemberName(uintptr_t * invokeCacheArray, bool * isInvokeCacheAppendixNull) override;
    virtual TR_ResolvedMethod *getResolvedHandleMethod(TR::Compilation *, int32_t cpIndex, bool * unresolvedInCP, bool * isInvokeCacheAppendixNull = 0) override;
    virtual bool isUnresolvedMethodTypeTableEntry(int32_t cpIndex) override;
    virtual void * methodTypeTableEntryAddress(int32_t cpIndex) override;
@@ -215,10 +219,12 @@ public:
    virtual void getFaninInfo(uint32_t *count, uint32_t *weight, uint32_t *otherBucketWeight = NULL) override;
    virtual bool getCallerWeight(TR_ResolvedJ9Method *caller, uint32_t *weight, uint32_t pcIndex=~0) override;
    virtual uint16_t archetypeArgPlaceholderSlot() override;
-   virtual bool isFieldQType(int32_t cpIndex) override;
+   virtual bool isFieldNullRestricted(TR::Compilation *comp, int32_t cpIndex, bool isStatic, bool isStore) override;
    virtual bool isFieldFlattened(TR::Compilation *comp, int32_t cpIndex, bool isStatic) override;
    bool isForceInline() const { return _isForceInline; }
    bool isDontInline() const { return _isDontInline; }
+   bool isIntrinsicCandidate() const { return _isIntrinsicCandidate; }
+   bool isChangesCurrentThread() const { return _isChangesCurrentThread; }
 
    TR_ResolvedJ9Method *getRemoteMirror() const { return _remoteMirror; }
    static void createResolvedMethodMirror(TR_ResolvedJ9JITServerMethodInfo &methodInfo, TR_OpaqueMethodBlock *method, uint32_t vTableSlot, TR_ResolvedMethod *owningMethod, TR_FrontEnd *fe, TR_Memory *trMemory);
@@ -258,6 +264,8 @@ private:
    bool _isLambdaFormGeneratedMethod;
    bool _isForceInline;
    bool _isDontInline;
+   bool _isIntrinsicCandidate;
+   bool _isChangesCurrentThread;
 
    void unpackMethodInfo(TR_OpaqueMethodBlock *aMethod, TR_FrontEnd *fe, TR_Memory *trMemory, uint32_t vTableSlot,
                          TR::CompilationInfoPerThread *threadCompInfo, const TR_ResolvedJ9JITServerMethodInfo &methodInfo);
@@ -299,6 +307,8 @@ class TR_ResolvedRelocatableJ9JITServerMethod : public TR_ResolvedJ9JITServerMet
    virtual bool                  isUnresolvedMethodType(int32_t cpIndex) override;
    virtual void *                methodHandleConstant(int32_t cpIndex) override;
    virtual bool                  isUnresolvedMethodHandle(int32_t cpIndex) override;
+   virtual bool                  isUnresolvedMethodTypeTableEntry(int32_t cpIndex) override;
+   virtual bool                  isUnresolvedCallSiteTableEntry(int32_t callSiteIndex) override;
    virtual TR_OpaqueClassBlock * classOfStatic(int32_t cpIndex, bool returnClassForAOT = false) override;
    virtual TR_ResolvedMethod *   getResolvedPossiblyPrivateVirtualMethod(TR::Compilation *, int32_t cpIndex, bool ignoreRtResolve, bool * unresolvedInCP) override;
    virtual bool                  getUnresolvedFieldInCP(I_32 cpIndex) override;
@@ -307,7 +317,7 @@ class TR_ResolvedRelocatableJ9JITServerMethod : public TR_ResolvedJ9JITServerMet
    virtual bool                  getUnresolvedVirtualMethodInCP(int32_t cpIndex) override;
    /* No need to override the stringConstant method as the parent method will be sufficient */
    virtual bool                  fieldAttributes(TR::Compilation * comp, int32_t cpIndex, uint32_t * fieldOffset, TR::DataType * type, bool * volatileP, bool * isFinal, bool * isPrivate, bool isStore, bool * unresolvedInCP, bool needAOTValidation) override;
-   virtual bool                  staticAttributes(TR::Compilation * comp, int32_t cpIndex, void * * address,TR::DataType * type, bool * volatileP, bool * isFinal, bool * isPrivate, bool isStore, bool * unresolvedInCP, bool needAOTValidation);
+   virtual bool                  staticAttributes(TR::Compilation * comp, int32_t cpIndex, void * * address,TR::DataType * type, bool * volatileP, bool * isFinal, bool * isPrivate, bool isStore, bool * unresolvedInCP, bool needAOTValidation) override;
    virtual TR_ResolvedMethod *   getResolvedImproperInterfaceMethod(TR::Compilation * comp, I_32 cpIndex) override;
 
    virtual TR_OpaqueMethodBlock *getNonPersistentIdentifier() override;
@@ -316,8 +326,8 @@ class TR_ResolvedRelocatableJ9JITServerMethod : public TR_ResolvedJ9JITServerMet
    bool                  storeValidationRecordIfNecessary(TR::Compilation * comp, J9ConstantPool *constantPool, int32_t cpIndex, TR_ExternalRelocationTargetKind reloKind, J9Method *ramMethod, J9Class *definingClass=0);
 
 protected:
-   virtual TR_ResolvedMethod *   createResolvedMethodFromJ9Method(TR::Compilation *comp, int32_t cpIndex, uint32_t vTableSlot, J9Method *j9Method, bool * unresolvedInCP, TR_AOTInliningStats *aotStats) override;
-   virtual TR_ResolvedMethod * createResolvedMethodFromJ9Method(TR::Compilation *comp, int32_t cpIndex, uint32_t vTableSlot, J9Method *j9Method, bool * unresolvedInCP, TR_AOTInliningStats *aotStats, const TR_ResolvedJ9JITServerMethodInfo &methodInfo) override;
+   virtual TR_ResolvedMethod *   createResolvedMethodFromJ9Method(TR::Compilation *comp, int32_t cpIndex, uint32_t vTableSlot, J9Method *j9Method, TR_AOTInliningStats *aotStats) override;
+   virtual TR_ResolvedMethod * createResolvedMethodFromJ9Method(TR::Compilation *comp, int32_t cpIndex, uint32_t vTableSlot, J9Method *j9Method, TR_AOTInliningStats *aotStats, const TR_ResolvedJ9JITServerMethodInfo &methodInfo) override;
    virtual void                  handleUnresolvedStaticMethodInCP(int32_t cpIndex, bool * unresolvedInCP) override;
    virtual void                  handleUnresolvedSpecialMethodInCP(int32_t cpIndex, bool * unresolvedInCP) override;
    virtual void                  handleUnresolvedVirtualMethodInCP(int32_t cpIndex, bool * unresolvedInCP) override;
@@ -329,6 +339,6 @@ protected:
 class TR_J9ServerMethod : public TR_J9Method
    {
 public:
-   TR_J9ServerMethod(TR_FrontEnd *trvm, TR_Memory *, J9Class * aClazz, uintptr_t cpIndex);
+   TR_J9ServerMethod(TR_FrontEnd *trvm, TR_Memory *, J9Class * aClazz, int32_t cpIndex);
    };
 #endif // J9METHODSERVER_H

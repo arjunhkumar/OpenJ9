@@ -1,5 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2017
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package openj9.internal.tools.attach.target;
 
 import java.io.IOException;
@@ -62,7 +62,7 @@ final class WaitLoop extends Thread {
 		if (LOGGING_DISABLED != loggingStatus) {
 			IPC.logMessage("iteration ", AttachHandler.notificationCount, " waitForNotification starting wait"); //$NON-NLS-1$ //$NON-NLS-2$
 		}
-		
+
 		int status = CommonDirectory.SEMAPHORE_OKAY;
 		if (AttachHandler.startWaitingForSemaphore()) { /* check if we are shutting down */
 			status = CommonDirectory.waitSemaphore(AttachHandler.vmId);
@@ -74,7 +74,7 @@ final class WaitLoop extends Thread {
 
 		if (AttachHandler.isAttachApiTerminated()) {
 			/*
-			 * Now that I have woken up, eat the remaining posts to the semaphore 
+			 * Now that I have woken up, eat the remaining posts to the semaphore
 			 * to avoid waking other processes.
 			 */
 			if (AttachHandler.getDoCancelNotify()) {
@@ -84,7 +84,7 @@ final class WaitLoop extends Thread {
 				CommonDirectory.cancelNotify(AttachHandler.getNumberOfTargets(), true);
 			}
 			return null;
-		} 
+		}
 
 		if (status != CommonDirectory.SEMAPHORE_OKAY) {
 			if (retry) {
@@ -93,15 +93,15 @@ final class WaitLoop extends Thread {
 					if (!AttachHandler.isAttachApiTerminated()) {
 						try {
 							/*[PR 164751 avoid scanning the directory when an attach API is launching ]*/
-							CommonDirectory.obtainControllerLock("WaitLoop.waitForNotification(" + retry + ")_1"); //$NON-NLS-1$ //$NON-NLS-2$ 
-							status = CommonDirectory.reopenSemaphore(); 
+							CommonDirectory.obtainControllerLock("WaitLoop.waitForNotification(" + retry + ")_1"); //$NON-NLS-1$ //$NON-NLS-2$
+							status = CommonDirectory.reopenSemaphore();
 							CommonDirectory.releaseControllerLock("WaitLoop.waitForNotification(" + retry + ")_2"); //$NON-NLS-1$ //$NON-NLS-2$
-						} catch (IOException e) { 
+						} catch (IOException e) {
 							IPC.logMessage("waitForNotification: IOError on controller lock : ", e.toString()); //$NON-NLS-1$
 						}
 					}
 				}
-				
+
 				/*[PR Jazz 41720 - Recreate notification directory if it is deleted. ]*/
 				if ((CommonDirectory.SEMAPHORE_OKAY == status) && TargetDirectory.ensureMyAdvertisementExists(AttachHandler.getVmId())) {
 					/*[PR 199483] post to the semaphore to test it */
@@ -165,7 +165,7 @@ final class WaitLoop extends Thread {
 			} catch (IOException e) {
 				IPC.logMessage("WaitLoop.waitForNotification exception: AttachHandler.notificationCount = " + AttachHandler.notificationCount, e.toString()); //$NON-NLS-1$
 				/*[PR CMVC 188652] Suppress OOM output from attach API */
-			} catch (OutOfMemoryError e) { 
+			} catch (OutOfMemoryError e) {
 				IPC.tracepoint(IPC.TRACEPOINT_STATUS_OOM_DURING_WAIT, e.getMessage());
 				try {
 					IPC.logMessage("WaitLoop.waitForNotification OutOfMemoryError before sleep"); //$NON-NLS-1$
@@ -177,6 +177,6 @@ final class WaitLoop extends Thread {
 			}
 			++AttachHandler.notificationCount;
 		}
-		AttachHandler.mainHandler.syncFileLock = null;	
+		AttachHandler.mainHandler.syncFileLock = null;
 	}
 }

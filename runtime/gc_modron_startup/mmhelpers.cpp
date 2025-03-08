@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
  /**
@@ -63,7 +63,16 @@ extern void initializeVerboseFunctionTableWithDummies(J9MemoryManagerVerboseInte
 void
 allocateZeroedTLHPages(J9JavaVM *javaVM, UDATA flag)
 {
-	MM_GCExtensions::getExtensions(javaVM)->batchClearTLH = (flag != 0) ? 1 : 0;
+	MM_GCExtensions *ext = MM_GCExtensions::getExtensions(javaVM);
+
+	ext->batchClearTLH = (flag != 0) ? 1 : 0;
+
+	/* For batch clearing limit maximum size (since clearing too much may flush useful data from CPU data caches).
+	 * Apply the limit only if user did not specify another value.
+	 */
+	if ((1 == ext->batchClearTLH) && !ext->tlhMaximumSizeSpecified) {
+		ext->tlhMaximumSize = OMR_MIN(J9_MAXIMUM_TLH_SIZE_BATCH_CLEAR, ext->tlhMaximumSize);
+	}
 }
 
 /**
@@ -162,6 +171,22 @@ j9gc_hot_reference_field_required(J9JavaVM *javaVM)
 #else /* J9VM_GC_MODRON_SCAVENGER || OMR_GC_VLHGC */
 	return FALSE;
 #endif /* defined(J9VM_GC_MODRON_SCAVENGER) || defined(OMR_GC_VLHGC) */
+}
+
+/**
+ * Query if off heap allocation for large objects is enabled.
+ *
+ * @param javaVM pointer to J9JavaVM
+ * @return true if extensions flag isVirtualLargeObjectHeapEnabled is set, 0 otherwise
+ */
+BOOLEAN
+j9gc_off_heap_allocation_enabled(J9JavaVM *javaVM)
+{
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	return MM_GCExtensions::getExtensions(javaVM)->isVirtualLargeObjectHeapEnabled;
+#else /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
+	return FALSE;
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 }
 
 /**

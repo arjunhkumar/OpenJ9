@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -28,6 +28,7 @@
 
 #include "j9.h"
 #include "j9cfg.h"
+#include "modronnls.h"
 
 #include "ConfigurationIncrementalGenerational.hpp"
 
@@ -53,6 +54,7 @@
 #include "PhysicalSubArenaRegionBased.hpp"
 #include "SweepPoolManagerAddressOrderedList.hpp"
 #include "SweepPoolManagerVLHGC.hpp"
+#include  "SparseVirtualMemory.hpp"
 
 #define TAROK_MINIMUM_REGION_SIZE_BYTES (512 * 1024)
 
@@ -96,6 +98,14 @@ MM_ConfigurationIncrementalGenerational::createHeapWithManager(MM_EnvironmentBas
 	if (NULL == heap) {
 		return NULL;
 	}
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	/* set off-heap disabled as default for balanced GC */
+	extensions->isVirtualLargeObjectHeapEnabled = false;
+
+	if (extensions->virtualLargeObjectHeap._wasSpecified) {
+		extensions->isVirtualLargeObjectHeapEnabled = extensions->virtualLargeObjectHeap._valueSpecified;
+	}
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
 
 #if defined(J9VM_GC_ENABLE_DOUBLE_MAP)
 	/* Enable double mapping if glibc version 2.27 or newer is found. For double map to
@@ -106,12 +116,12 @@ MM_ConfigurationIncrementalGenerational::createHeapWithManager(MM_EnvironmentBas
 	 * try to mmap with huge pages with the respective file descriptor the mmap call
 	 * fails. It would only succeed if MAP_ANON flag was provided, but doing so ignores
 	 * the file descriptor which is the opposite of what we want. In a newer glibc
-	 * version (glibc 2.27 onwards) there’s a new function that does exactly what we
+	 * version (glibc 2.27 onwards) there's a new function that does exactly what we
 	 * want, and that's memfd_create(2); however that's only supported in glibc 2.27. We
 	 * also need to check if region size is a bigger or equal to multiple of page size.
 	 *
 	 */
-	if (extensions->isArrayletDoubleMapRequested && extensions->isArrayletDoubleMapAvailable) {
+	if (!extensions->isVirtualLargeObjectHeapEnabled && extensions->isArrayletDoubleMapRequested && extensions->isArrayletDoubleMapAvailable) {
 		uintptr_t pagesize = heap->getPageSize();
 		if (!extensions->memoryManager->isLargePage(env, pagesize) || (pagesize <= extensions->getOmrVM()->_arrayletLeafSize)) {
 			extensions->indexableObjectModel.setEnableDoubleMapping(true);
@@ -153,6 +163,40 @@ MM_ConfigurationIncrementalGenerational::createHeapWithManager(MM_EnvironmentBas
 		}
 	}
 #endif /* defined(OMR_GC_VLHGC_CONCURRENT_COPY_FORWARD) */
+
+#if defined(J9VM_ENV_DATA64)
+	extensions->indexableObjectModel.setIsDataAddressPresent(true);
+	J9JavaVM *vm = (J9JavaVM *)extensions->getOmrVM()->_language_vm;
+	/* Let VM know that indexable objects in Balanced always have dataAddr, and
+	   let's assume initially it has arraylets, which can be later overridden if Offheap is Enabled.
+	 */
+	vm->indexableObjectLayout = J9IndexableObjectLayout_DataAddr_Arraylet;
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+	if (extensions->isVirtualLargeObjectHeapEnabled) {
+		/* Create off-heap */
+		MM_SparseVirtualMemory *largeObjectVirtualMemory = MM_SparseVirtualMemory::newInstance(env, OMRMEM_CATEGORY_MM_RUNTIME_HEAP, heap);
+		if (NULL != largeObjectVirtualMemory) {
+			extensions->largeObjectVirtualMemory = largeObjectVirtualMemory;
+			extensions->indexableObjectModel.setEnableVirtualLargeObjectHeap(true);
+			/* Overriding the original assumption that Balanced has arraylets. */
+			vm->indexableObjectLayout = J9IndexableObjectLayout_DataAddr_NoArraylet;
+			/* reset vm->unsafeIndexableHeaderSize for off-heap case */
+			vm->unsafeIndexableHeaderSize = 0;
+		} else {
+#if defined(OMR_GC_VLHGC_CONCURRENT_COPY_FORWARD)
+			extensions->heapRegionStateTable->kill(env->getForge());
+			extensions->heapRegionStateTable = NULL;
+#endif /* defined(OMR_GC_VLHGC_CONCURRENT_COPY_FORWARD) */
+			extensions->compressedCardTable->kill(env);
+			extensions->compressedCardTable = NULL;
+			extensions->cardTable->kill(env);
+			extensions->cardTable = NULL;
+			heap->kill(env);
+			return NULL;
+		}
+	}
+#endif /* defined(J9VM_GC_SPARSE_HEAP_ALLOCATION) */
+#endif /* defined(J9VM_ENV_DATA64) */
 
 	return heap;
 }
@@ -277,6 +321,10 @@ MM_ConfigurationIncrementalGenerational::initialize(MM_EnvironmentBase *env)
 
 	if (result) {
 		if (MM_GCExtensions::OMR_GC_SCAVENGER_SCANORDERING_NONE == extensions->scavengerScanOrdering) {
+			extensions->scavengerScanOrdering = MM_GCExtensions::OMR_GC_SCAVENGER_SCANORDERING_DYNAMIC_BREADTH_FIRST;
+		} else if (MM_GCExtensions::OMR_GC_SCAVENGER_SCANORDERING_HIERARCHICAL == extensions->scavengerScanOrdering) {
+			PORT_ACCESS_FROM_ENVIRONMENT(env);
+			j9nls_printf(PORTLIB, J9NLS_WARNING, J9NLS_GC_OPTIONS_HIERARCHICAL_SCAN_ORDERING_NOT_SUPPORTED_WARN, "balanced");
 			extensions->scavengerScanOrdering = MM_GCExtensions::OMR_GC_SCAVENGER_SCANORDERING_DYNAMIC_BREADTH_FIRST;
 		}
 		extensions->setVLHGC(true);
@@ -407,7 +455,8 @@ MM_ConfigurationIncrementalGenerational::prepareParameters(OMR_VM *omrVM, UDATA 
 bool
 MM_ConfigurationIncrementalGenerational::verifyRegionSize(MM_EnvironmentBase *env, UDATA regionSize)
 {
-	return regionSize >= TAROK_MINIMUM_REGION_SIZE_BYTES;
+	MM_GCExtensions *extensions = MM_GCExtensions::getExtensions(env);
+	return extensions->isRegionSizeWithOverrideSpecified || (regionSize >= TAROK_MINIMUM_REGION_SIZE_BYTES);
 }
 
 bool

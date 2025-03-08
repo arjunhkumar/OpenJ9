@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <algorithm>
@@ -303,11 +303,6 @@ calculateMapSize(
    }
 
 
-// This method creates the internal ptr data structure (common to entire method;
-// so hung off the stack atlas). It contains information specifying the base array
-// temps and which internal pointers are derived from each base array temp
-// in the format described above.
-//
 // This method creates the internal ptr data structure (common to entire method;
 // so hung off the stack atlas). It contains information specifying the base array
 // temps and which internal pointers are derived from each base array temp
@@ -1308,9 +1303,12 @@ static void populateInlineCalls(
    }
 
 
+
+// The routine that sequences the creation of the meta-data for the method
 //
-//the routine that sequences the creation of the meta-data for the method
-//
+// The layout, specifically the variable length section, is described in
+// J9JITExceptionTable.md; this doc should be updated when changes are
+// made to the layout.
 TR_MethodMetaData *
 createMethodMetaData(
    TR_J9VMBase & vmArg,
@@ -1491,8 +1489,13 @@ createMethodMetaData(
 
    data->startPC = (UDATA)comp->cg()->getCodeStart();
    data->endPC = (UDATA)comp->cg()->getCodeEnd();
-   data->startColdPC = (UDATA)0;
-   data->endWarmPC = data->endPC;
+   data->startColdPC = (UDATA)comp->cg()->getColdCodeStart();
+
+   if (data->startColdPC)
+      data->endWarmPC = (UDATA)comp->cg()->getWarmCodeEnd();
+   else
+      data->endWarmPC = data->endPC;
+
    data->codeCacheAlloc = (UDATA)comp->cg()->getBinaryBufferStart();
 
    if (fourByteOffsets)
@@ -1541,6 +1544,11 @@ createMethodMetaData(
       }
 #endif
 
+   if (comp->getOption(TR_FullSpeedDebug))
+      {
+      data->flags |= JIT_METADATA_IS_FSD_COMP;
+      }
+
 #if defined(J9VM_INTERP_AOT_COMPILE_SUPPORT)
    if (vm->isAOT_DEPRECATED_DO_NOT_USE()
 #if defined(J9VM_OPT_JITSERVER)
@@ -1588,16 +1596,19 @@ createMethodMetaData(
 
       // Set some flags in the AOTMethodHeader
       //
-      if (!vm->isMethodTracingEnabled(vmMethod->getPersistentIdentifier()) &&
-          !vm->canMethodExitEventBeHooked())
+      if (vm->canMethodEnterEventBeHooked())
          {
-         aotMethodHeaderEntry->flags |= TR_AOTMethodHeader_IsNotCapableOfMethodExitTracing;
+         aotMethodHeaderEntry->flags |= TR_AOTMethodHeader_MethodEnterEventCanBeHooked;
          }
 
-      if (!vm->isMethodTracingEnabled(vmMethod->getPersistentIdentifier()) &&
-          !vm->canMethodEnterEventBeHooked())
+      if (vm->canMethodExitEventBeHooked())
          {
-         aotMethodHeaderEntry->flags |= TR_AOTMethodHeader_IsNotCapableOfMethodEnterTracing;
+         aotMethodHeaderEntry->flags |= TR_AOTMethodHeader_MethodExitEventCanBeHooked;
+         }
+
+      if (vm->isMethodTracingEnabled(vmMethod->getNonPersistentIdentifier()))
+         {
+         aotMethodHeaderEntry->flags |= TR_AOTMethodHeader_MethodTracingEnabled;
          }
 
       if (!vm->canExceptionEventBeHooked())
@@ -1608,6 +1619,11 @@ createMethodMetaData(
       if (comp->getOption(TR_DisableTM))
          {
          aotMethodHeaderEntry->flags |= TR_AOTMethodHeader_TMDisabled;
+         }
+
+      if (comp->getOption(TR_FullSpeedDebug))
+         {
+         aotMethodHeaderEntry->flags |= TR_AOTMethodHeader_UsesFSD;
          }
 
       // totalAllocated space is in comp object

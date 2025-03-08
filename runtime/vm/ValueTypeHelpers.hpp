@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(VALUETYPEHELPERS_HPP_)
@@ -72,7 +72,11 @@ private:
 		J9JavaVM *vm = currentThread->javaVM;
 		U_32 walkFlags = J9VM_FIELD_OFFSET_WALK_INCLUDE_INSTANCE;
 		J9ROMFieldOffsetWalkState state;
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 		J9ROMFieldOffsetWalkResult *result = fieldOffsetsStartDo(vm, clazz->romClass, VM_VMHelpers::getSuperclass(clazz), &state, walkFlags, clazz->flattenedClassCache);
+#else /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
+		J9ROMFieldOffsetWalkResult *result = fieldOffsetsStartDo(vm, clazz->romClass, VM_VMHelpers::getSuperclass(clazz), &state, walkFlags);
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		bool rc = true;
 
 		Assert_VM_notNull(lhs);
@@ -93,39 +97,23 @@ private:
 				case 'B': /* byte */
 				case 'C': /* char */
 				case 'I': /* int */
-				case 'S': { /* short */
-					I_32 lhsValue = objectAccessBarrier.inlineMixedObjectReadI32(currentThread, lhs, startOffset + result->offset);
-					I_32 rhsValue = objectAccessBarrier.inlineMixedObjectReadI32(currentThread, rhs, startOffset + result->offset);
-					if (lhsValue != rhsValue) {
-						rc = false;
-						goto done;
-					}
-					break;
-				}
-				case 'J': { /* long */
-					I_64 lhsValue = objectAccessBarrier.inlineMixedObjectReadI64(currentThread, lhs, startOffset + result->offset);
-					I_64 rhsValue = objectAccessBarrier.inlineMixedObjectReadI64(currentThread, rhs, startOffset + result->offset);
-					if (lhsValue != rhsValue) {
-						rc = false;
-						goto done;
-					}
-					break;
-				}
-				case 'D': { /* double */
-					U_64 lhsValue = objectAccessBarrier.inlineMixedObjectReadU64(currentThread, lhs, startOffset + result->offset);
-					U_64 rhsValue = objectAccessBarrier.inlineMixedObjectReadU64(currentThread, rhs, startOffset + result->offset);
-
-					if (!checkDoubleEquality(lhsValue, rhsValue)) {
-						rc = false;
-						goto done;
-					}
-					break;
-				}
+				case 'S': /* short */
 				case 'F': { /* float */
 					U_32 lhsValue = objectAccessBarrier.inlineMixedObjectReadU32(currentThread, lhs, startOffset + result->offset);
 					U_32 rhsValue = objectAccessBarrier.inlineMixedObjectReadU32(currentThread, rhs, startOffset + result->offset);
 
-					if (!checkFloatEquality(lhsValue, rhsValue)) {
+					if (lhsValue != rhsValue) {
+						rc = false;
+						goto done;
+					}
+					break;
+				}
+				case 'J':  /* long */
+				case 'D': { /* double */
+					U_64 lhsValue = objectAccessBarrier.inlineMixedObjectReadU64(currentThread, lhs, startOffset + result->offset);
+					U_64 rhsValue = objectAccessBarrier.inlineMixedObjectReadU64(currentThread, rhs, startOffset + result->offset);
+
+					if (lhsValue != rhsValue) {
 						rc = false;
 						goto done;
 					}
@@ -140,34 +128,23 @@ private:
 					}
 					break;
 				}
-				case 'L': { /* Nullable class type or interface type */
-					j9object_t lhsObject = objectAccessBarrier.inlineMixedObjectReadObject(currentThread, lhs, startOffset + result->offset);
-					j9object_t rhsObject = objectAccessBarrier.inlineMixedObjectReadObject(currentThread, rhs, startOffset + result->offset);
-
-					if (!VM_ValueTypeHelpers::acmp(currentThread, objectAccessBarrier, lhsObject, rhsObject)) {
-						rc = false;
-						goto done;
-					}
-					break;
-				}
-				case 'Q': { /* Null-free class type */
-					J9Class *fieldClass = findJ9ClassInFlattenedClassCache(clazz->flattenedClassCache, sigChar + 1, J9UTF8_LENGTH(signature) - 2);
+				case 'L': {
+					bool flattened = false;
+					J9Class *fieldClass = NULL;
 					rc = false;
-
-					if (J9_IS_FIELD_FLATTENED(fieldClass, result->field)) {
+					if (J9ROMFIELD_IS_NULL_RESTRICTED(result->field)) {
+						fieldClass = findJ9ClassInFlattenedClassCache(clazz->flattenedClassCache, sigChar + 1, J9UTF8_LENGTH(signature) - 2);
+						flattened = J9_IS_FIELD_FLATTENED(fieldClass, result->field);
+					}
+					if (flattened) {
 						rc = isSubstitutable(currentThread, objectAccessBarrier, lhs, rhs, startOffset + result->offset, fieldClass);
 					} else {
 						j9object_t lhsFieldObject = objectAccessBarrier.inlineMixedObjectReadObject(currentThread, lhs, startOffset + result->offset);
 						j9object_t rhsFieldObject = objectAccessBarrier.inlineMixedObjectReadObject(currentThread, rhs, startOffset + result->offset);
 
-						if (lhsFieldObject == rhsFieldObject) {
-							rc = true;
-						} else {
-							/* When unflattened, we get our object from the specified offset, then increment past the header to the first field. */
-							rc = isSubstitutable(currentThread, objectAccessBarrier, lhsFieldObject, rhsFieldObject, J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread), fieldClass);
-						}
+						/* When unflattened, we get our object from the specified offset, then increment past the header to the first field. */
+						rc = VM_ValueTypeHelpers::acmp(currentThread, objectAccessBarrier, lhsFieldObject, rhsFieldObject);
 					}
-
 					if (false == rc) {
 						goto done;
 					}
@@ -189,31 +166,6 @@ private:
 #endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 	}
 
-	static VMINLINE bool
-	checkDoubleEquality(U_64 a, U_64 b)
-	{
-		bool result = false;
-
-		if (a == b) {
-			result = true;
-		} else if (IS_NAN_DBL(*(jdouble*)&a) && IS_NAN_DBL(*(jdouble*)&b)) {
-			result = true;
-		}
-		return result;
-	}
-
-	static VMINLINE bool
-	checkFloatEquality(U_32 a, U_32 b)
-	{
-		bool result = false;
-
-		if (a == b) {
-			result = true;
-		} else if (IS_NAN_SNGL(*(jfloat*)&a) && IS_NAN_SNGL(*(jfloat*)&b)) {
-			result = true;
-		}
-		return result;
-	}
 protected:
 
 public:
@@ -238,50 +190,22 @@ public:
 	}
 
 	/**
-	* Determines if a name or a signature pointed by a J9UTF8 pointer is a Qtype.
-	*
-	* @param[in] utfWrapper J9UTF8 pointer that points to the name or the signature
-	*
-	* @return true if the name or the signature pointed by the J9UTF8 pointer is a Qtype, false otherwise
-	*/
+	 * Determines if null-restricted attribute is set on a field or not.
+	 *
+	 * @param[in] field The field to be checked
+	 *
+	 * @return TRUE if the field has null-restricted attribute set, FALSE otherwise
+	 */
 	static VMINLINE bool
-	isNameOrSignatureQtype(J9UTF8 *utfWrapper)
+	isFieldNullRestricted(J9ROMFieldShape *field)
 	{
-		bool rc = false;
-		if (NULL != utfWrapper) {
-			U_8 *nameOrSignatureData = J9UTF8_DATA(utfWrapper);
-			U_16 nameOrSignatureLength = J9UTF8_LENGTH(utfWrapper);
-
-			if ((nameOrSignatureLength > 0)
-				&& (';' == nameOrSignatureData[nameOrSignatureLength - 1])
-				&& ('Q' == nameOrSignatureData[0])
-			) {
-				rc = true;
-			}
-		}
-		return rc;
-	}
-
-	/**
-	* Determines if the classref c=signature is a Qtype. There is no validation performed
-	* to ensure that the cpIndex points at a classref.
-	*
-	* @param[in] ramCP the constantpool that is being queried
-	* @param[in] cpIndex the CP index
-	*
-	* @return true if classref is a Qtype, false otherwise
-	*/
-	static VMINLINE bool
-	isClassRefQtype(J9ConstantPool *ramCP, U_16 cpIndex)
-	{
-		J9ROMStringRef *romStringRef = (J9ROMStringRef *)&ramCP->romConstantPool[cpIndex];
-		J9UTF8 *classNameWrapper = J9ROMSTRINGREF_UTF8DATA(romStringRef);
-		return isNameOrSignatureQtype(classNameWrapper);
+		Assert_VM_notNull(field);
+		return J9_ARE_ALL_BITS_SET(field->modifiers, J9FieldFlagIsNullRestricted);
 	}
 
 	/**
 	 * Performs a getfield operation on an object. Handles flattened and non-flattened cases.
-	 * This helper assumes that the cpIndex points to the fieldRef of a resolved Qtype. This helper
+	 * This helper assumes that the cpIndex points to a resolved null-restricted fieldRef. This helper
 	 * also assumes that the cpIndex points to an instance field.
 	 *
 	 * @param currentThread thread token
@@ -301,7 +225,7 @@ public:
 		UDATA const flags = cpEntry->flags;
 		j9object_t returnObjectRef = NULL;
 
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 		if (flags & J9FieldFlagFlattened) {
 			J9FlattenedClassCacheEntry *cache = (J9FlattenedClassCacheEntry *) cpEntry->valueOffset;
 			J9Class *flattenedFieldClass = J9_VM_FCC_CLASS_FROM_ENTRY(cache);
@@ -315,7 +239,7 @@ public:
 				cache->offset + J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread),
 				fastPath);
 		} else
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		{
 			bool isVolatile = (0 != (flags & J9AccVolatile));
 			returnObjectRef = objectAccessBarrier.inlineMixedObjectReadObject(currentThread, receiver, cpEntry->valueOffset + objectHeaderSize, isVolatile);
@@ -323,7 +247,7 @@ public:
 		return returnObjectRef;
 	}
 
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	/**
 	 * Performs a getfield operation on an object given an offset in bytes. Only Handles flattened cases.
 	 *
@@ -397,7 +321,7 @@ public:
 			destObject,
 			destOffset);
 	}
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 	/**
 	 * Performs a clone operation on an object.
@@ -442,7 +366,7 @@ done:
 
 	/**
 	 * Performs a putfield operation on an object. Handles flattened and non-flattened cases.
-	 * This helper assumes that the cpIndex points to the fieldRef of a resolved Qtype. This helper
+	 * This helper assumes that the cpIndex points to a resolved null-restricted fieldRef. This helper
 	 * also assumes that the cpIndex points to an instance field.
 	 *
 	 * @param currentThread thread token
@@ -457,7 +381,7 @@ done:
 		UDATA const objectHeaderSize = J9VMTHREAD_OBJECT_HEADER_SIZE(currentThread);
 		UDATA const flags = cpEntry->flags;
 
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 		if (J9_ARE_ALL_BITS_SET(flags, J9FieldFlagFlattened)) {
 			J9FlattenedClassCacheEntry *cache = (J9FlattenedClassCacheEntry *) cpEntry->valueOffset;
 			UDATA fromObjectOffset = 0;
@@ -474,7 +398,7 @@ done:
 								receiver,
 								cache->offset + objectHeaderSize);
 		} else
-#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		{
 			bool isVolatile = (0 != (flags & J9AccVolatile));
 			objectAccessBarrier.inlineMixedObjectStoreObject(currentThread, receiver, cpEntry->valueOffset + objectHeaderSize, paramObject, isVolatile);
@@ -496,12 +420,12 @@ done:
 	static VMINLINE void
 	storeFlattenableArrayElement(J9VMThread *currentThread, MM_ObjectAccessBarrierAPI _objectAccessBarrier, j9object_t receiverObject, U_32 index, j9object_t paramObject)
 	{
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 		J9ArrayClass *arrayrefClass = (J9ArrayClass *) J9OBJECT_CLAZZ(currentThread, receiverObject);
 		if (J9_IS_J9CLASS_FLATTENED(arrayrefClass)) {
 			_objectAccessBarrier.copyObjectFieldsToFlattenedArrayElement(currentThread, arrayrefClass, paramObject, (J9IndexableObject *) receiverObject, index);
 		} else
-#endif /* if defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		{
 			_objectAccessBarrier.inlineIndexableObjectStoreObject(currentThread, receiverObject, index, paramObject);
 		}
@@ -530,7 +454,7 @@ done:
 	loadFlattenableArrayElement(J9VMThread *currentThread, MM_ObjectAccessBarrierAPI _objectAccessBarrier, MM_ObjectAllocationAPI _objectAllocate, j9object_t receiverObject, U_32 index, bool fast)
 	{
 		j9object_t value = NULL;
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 		j9object_t newObjectRef = NULL;
 		J9Class *arrayrefClass = J9OBJECT_CLAZZ(currentThread, receiverObject);
 		if (J9_IS_J9CLASS_FLATTENED(arrayrefClass)) {
@@ -551,15 +475,111 @@ done:
 			_objectAccessBarrier.copyObjectFieldsFromFlattenedArrayElement(currentThread, (J9ArrayClass *) arrayrefClass, newObjectRef, (J9IndexableObject *) receiverObject, index);
 			value = newObjectRef;
 		} else
-#endif /* if defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		{
 			value = _objectAccessBarrier.inlineIndexableObjectReadObject(currentThread, receiverObject, index);
 		}
-#if defined(J9VM_OPT_VALHALLA_VALUE_TYPES)
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 done:
-#endif /* if defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
+#endif /* if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 		return value;
 	}
+
+#if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
+	/**
+	 * Copies an array of non-primitive objects
+	 * Handles flattened and non-flattened cases
+	 * A generic special stack frame must be built before calling this function
+	 *
+	 * Assumes srcObject and destObject are not null
+	 * Assumes array bounds (srcIndex to (srcIndex + lengthInSlots), and destIndex to (destIndex + lengthInSlots)) are valid
+	 * Assumes a generic special stack frame has been built on the stack
+	 *
+	 * @param[in] currentThread thread token
+	 * @param[in] objectAccessBarrier access barrier
+	 * @param[in] objectAllocate allocator
+	 * @param[in] srcObject the source array to copy objects from
+	 * @param[out] destObject the destination array in which objects should be stored
+	 * @param[in] srcIndex the index in the source array to begin copying objects from
+	 * @param[in] destIndex the index in the destination array to begin storing objects
+	 * @param[in] lengthInSlots the number of elements to copy
+	 *
+	 * @return 0 if copy was successful, -1 if there was an array store error, -2 if there was a null pointer exception
+	 */
+	static VMINLINE I_32
+	copyFlattenableArray(J9VMThread *currentThread, MM_ObjectAccessBarrierAPI objectAccessBarrier, MM_ObjectAllocationAPI objectAllocate, j9object_t srcObject, j9object_t destObject, I_32 srcIndex, I_32 destIndex, I_32 lengthInSlots)
+	{
+		I_32 srcEndIndex = srcIndex + lengthInSlots;
+		J9Class *srcClazz = J9OBJECT_CLAZZ(currentThread, srcObject);
+		J9Class *destClazz = J9OBJECT_CLAZZ(currentThread, destObject);
+
+		/* Array elements must be copied backwards if source and destination overlap in memory and source is before destination */
+		if ((srcObject == destObject) && (srcIndex < destIndex) && ((srcIndex + lengthInSlots) > destIndex)) {
+			srcEndIndex = srcIndex;
+			srcIndex += lengthInSlots;
+			destIndex += lengthInSlots;
+
+			while (srcIndex > srcEndIndex) {
+				srcIndex--;
+				destIndex--;
+
+				j9object_t copyObject = loadFlattenableArrayElement(currentThread, objectAccessBarrier, objectAllocate, srcObject, srcIndex, true);
+
+				/*
+				When the return value of loadFlattenableArrayElement is NULL, 2 things are possible:
+					1: The array element at that index is actually NULL
+					2: There was an allocation failure
+				But loadFlattenableArrayElement only tries to allocate when srcClazz is flattened, and so if copyObject is NULL and srcClazz is flattened then there has been an allocation failure
+				*/
+				if ((NULL == copyObject) && J9_IS_J9CLASS_FLATTENED(srcClazz)) {
+					VM_VMHelpers::pushObjectInSpecialFrame(currentThread, srcObject);
+					VM_VMHelpers::pushObjectInSpecialFrame(currentThread, destObject);
+					copyObject = loadFlattenableArrayElement(currentThread, objectAccessBarrier, objectAllocate, srcObject, srcIndex, false);
+					destObject = VM_VMHelpers::popObjectInSpecialFrame(currentThread);
+					srcObject = VM_VMHelpers::popObjectInSpecialFrame(currentThread);
+				}
+
+				/* No type checks required since srcObject == destObject */
+
+				storeFlattenableArrayElement(currentThread, objectAccessBarrier, destObject, destIndex, copyObject);
+			}
+		} else {
+
+			UDATA typeChecksRequired = !isSameOrSuperClassOf(destClazz, srcClazz);
+
+			while (srcIndex < srcEndIndex) {
+				j9object_t copyObject = loadFlattenableArrayElement(currentThread, objectAccessBarrier, objectAllocate, srcObject, srcIndex, true);
+
+				/*
+				When the return value of loadFlattenableArrayElement is NULL, 2 things are possible:
+					1: The array element at that index is actually NULL
+					2: There was an allocation failure
+				But loadFlattenableArrayElement only tries to allocate when srcClazz is flattened, and so if copyObject is NULL and srcClazz is flattened then there has been an allocation failure
+				*/
+				if ((NULL == copyObject) && J9_IS_J9CLASS_FLATTENED(srcClazz)) {
+					VM_VMHelpers::pushObjectInSpecialFrame(currentThread, srcObject);
+					VM_VMHelpers::pushObjectInSpecialFrame(currentThread, destObject);
+					copyObject = loadFlattenableArrayElement(currentThread, objectAccessBarrier, objectAllocate, srcObject, srcIndex, false);
+					destObject = VM_VMHelpers::popObjectInSpecialFrame(currentThread);
+					srcObject = VM_VMHelpers::popObjectInSpecialFrame(currentThread);
+				}
+
+				if (typeChecksRequired) {
+					if (!VM_VMHelpers::objectArrayStoreAllowed(currentThread, destObject, copyObject)) {
+						return -1;
+					}
+				}
+
+				storeFlattenableArrayElement(currentThread, objectAccessBarrier, destObject, destIndex, copyObject);
+
+				srcIndex++;
+				destIndex++;
+			}
+		}
+
+		return 0;
+	}
+#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 
 };
 

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -18,15 +18,15 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package java.lang;
 
 /*
  * InternalAnonymousClassLoader cannot directly load classes.
  * This ClassLoader "owns" the native memory for classes that
- * have been loaded using sun.misc.Unsafe.defineAnonymousClass.   
+ * have been loaded using sun.misc.Unsafe.defineAnonymousClass.
  */
 final class InternalAnonymousClassLoader extends ClassLoader {
 
@@ -36,11 +36,11 @@ final class InternalAnonymousClassLoader extends ClassLoader {
 
 	 @Override
 	 protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-	 		 throw new ClassNotFoundException();
+			 throw new ClassNotFoundException();
 	 }
 
 	 @Override
 	 protected Class<?> findClass(String name) throws ClassNotFoundException {
-	 		 throw new ClassNotFoundException();
+			 throw new ClassNotFoundException();
 	 }
 }

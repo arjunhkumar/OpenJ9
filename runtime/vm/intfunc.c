@@ -17,11 +17,12 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9protos.h"
 #include "vm_api.h"
+#include "vm_internal.h"
 #if defined(J9VM_OPT_VM_LOCAL_STORAGE)
 
 #include "j9vmls.h"
@@ -63,22 +64,29 @@ J9InternalVMFunctions J9InternalFunctions = {
 	javaThreadProc,
 	copyStringToUTF8WithMemAlloc,
 	copyStringToJ9UTF8WithMemAlloc,
+	copyStringToJ9UTF8WithPortLib,
+	copyJ9UTF8ToUTF8WithMemAlloc,
+	copyJ9UTF8WithMemAlloc,
+	copyJ9UTF8WithPortLib,
 	internalAcquireVMAccess,
 	internalAcquireVMAccessWithMask,
 	internalAcquireVMAccessNoMutexWithMask,
 	internalReleaseVMAccessSetStatus,
 	instanceFieldOffset,
 	staticFieldAddress,
+	getStaticFields,
 	internalFindKnownClass,
 	resolveKnownClass,
 	computeHashForUTF8,
 	getStringUTF8Length,
+	getStringUTF8LengthTruncated,
 	acquireExclusiveVMAccess,
 	releaseExclusiveVMAccess,
 	internalReleaseVMAccess,
 	sendInit,
 	internalAcquireVMAccessNoMutex,
 	internalCreateArrayClass,
+	internalCreateArrayClassWithOptions,
 	attachSystemDaemonThread,
 	internalAcquireVMAccessClearStatus,
 #if defined(J9VM_OPT_REFLECT)
@@ -149,6 +157,9 @@ J9InternalVMFunctions J9InternalFunctions = {
 	printThreadInfo,
 	initializeAttachedThread,
 	initializeMethodRunAddressNoHook,
+#if defined(J9VM_OPT_SNAPSHOTS)
+	initializeMethodRunAddressForSnapshot,
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
 	sidecarInvokeReflectMethod,
 	sidecarInvokeReflectConstructor,
 	allocateMemorySegmentListWithSize,
@@ -173,6 +184,7 @@ J9InternalVMFunctions J9InternalFunctions = {
 	optionValueOperations,
 	dumpStackTrace,
 	loadJ9DLL,
+	setErrorJ9dll,
 	runJVMOnLoad,
 	checkRomClassForError,
 	setExceptionForErroredRomClass,
@@ -374,14 +386,14 @@ J9InternalVMFunctions J9InternalFunctions = {
 	setNestmatesError,
 #endif /* JAVA_SPEC_VERSION >= 11 */
 	areValueTypesEnabled,
+	areFlattenableValueTypesEnabled,
 	peekClassHashTable,
 #if defined(J9VM_OPT_JITSERVER)
 	isJITServerEnabled,
 #endif /* J9VM_OPT_JITSERVER */
 	createJoinableThreadWithCategory,
 	valueTypeCapableAcmp,
-	isNameOrSignatureQtype,
-	isClassRefQtype,
+	isFieldNullRestricted,
 	getFlattenableFieldOffset,
 	isFlattenableFieldFlattened,
 	getFlattenableFieldType,
@@ -404,10 +416,15 @@ J9InternalVMFunctions J9InternalFunctions = {
 #if defined(J9VM_OPT_CRIU_SUPPORT)
 	jvmCheckpointHooks,
 	jvmRestoreHooks,
+	isCRaCorCRIUSupportEnabled,
 	isCRIUSupportEnabled,
-	isCRIUSupportEnabled_VM,
+	enableCRIUSecProvider,
 	isCheckpointAllowed,
 	isNonPortableRestoreMode,
+	isJVMInPortableRestoreMode,
+	isDebugOnRestoreEnabled,
+	isDebugAgentDisabled,
+	setRequiredGhostFileLimit,
 	runInternalJVMCheckpointHooks,
 	runInternalJVMRestoreHooks,
 	runDelayedLockRelatedOperations,
@@ -415,6 +432,8 @@ J9InternalVMFunctions J9InternalFunctions = {
 	addInternalJVMClassIterationRestoreHook,
 	setCRIUSingleThreadModeJVMCRIUException,
 	getRestoreSystemProperites,
+	setupJNIFieldIDsAndCRIUAPI,
+	criuCheckpointJVMImpl,
 #endif /* defined(J9VM_OPT_CRIU_SUPPORT) */
 	getClassNameString,
 	getDefaultValueSlotAddress,
@@ -429,10 +448,12 @@ J9InternalVMFunctions J9InternalFunctions = {
 	native2InterpJavaUpcallF,
 	native2InterpJavaUpcallD,
 	native2InterpJavaUpcallStruct,
+	hasMemoryScope,
 #endif /* JAVA_SPEC_VERSION >= 16 */
 #if JAVA_SPEC_VERSION >= 19
 	copyFieldsFromContinuation,
 	freeContinuation,
+	recycleContinuation,
 	freeTLS,
 	walkContinuationStackFrames,
 	walkAllStackFrames,
@@ -440,4 +461,27 @@ J9InternalVMFunctions J9InternalFunctions = {
 	releaseVThreadInspector,
 #endif /* JAVA_SPEC_VERSION >= 19 */
 	checkArgsConsumed,
+#if defined(J9VM_ZOS_3164_INTEROPERABILITY) && (JAVA_SPEC_VERSION >= 17)
+	invoke31BitJNI_OnXLoad,
+#endif /* defined(J9VM_ZOS_3164_INTEROPERABILITY) && (JAVA_SPEC_VERSION >= 17) */
+#if defined(J9VM_OPT_JFR)
+	initializeJFR,
+	isJFREnabled,
+	isJFRRecordingStarted,
+	jfrDump,
+	jfrExecutionSample,
+	setJFRRecordingFileName,
+	tearDownJFR,
+	getTypeIdUTF8,
+	getTypeId,
+#endif /* defined(J9VM_OPT_JFR) */
+#if defined(J9VM_OPT_SNAPSHOTS)
+	initializeSnapshotClassLoaderObject,
+	initializeSnapshotClassObject,
+	loadWarmClassFromSnapshot,
+#endif /* defined(J9VM_OPT_SNAPSHOTS) */
+#if JAVA_SPEC_VERSION >= 24
+	monitorTablePeek,
+	takeVirtualThreadListToUnblock,
+#endif /* JAVA_SPEC_VERSION >= 24 */
 };

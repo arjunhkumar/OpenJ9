@@ -1,6 +1,5 @@
 /*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
 /*
- *******************************************************************************
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -19,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package java.lang.management;
 
 /**
@@ -30,28 +29,28 @@ public interface BufferPoolMXBean extends PlatformManagedObject {
 
 	/**
 	 * Returns the name of the buffer pool.
-	 * 
+	 *
 	 * @return the name of the buffer pool.
 	 */
 	String getName();
 
 	/**
 	 * Returns the number of buffers of the pool.
-	 * 
+	 *
 	 * @return the number of buffers of the pool.
 	 */
 	long getCount();
 
 	/**
 	 * Returns the total capacity of the buffers in this pool.
-	 * 
+	 *
 	 * @return the total capacity of the buffers in this pool.
 	 */
 	long getTotalCapacity();
 
 	/**
 	 * Returns the count of used memory.
-	 * 
+	 *
 	 * @return the count of used memory.
 	 */
 	long getMemoryUsed();

@@ -16,7 +16,7 @@ dnl
 dnl [1] https://www.gnu.org/software/classpath/license.html
 dnl [2] https://openjdk.org/legal/assembly-exception.html
 dnl
-dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+dnl SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 include(phelpers.m4)
 
@@ -130,6 +130,8 @@ ifdef({ASM_J9VM_ENV_DATA64},{
 	CALL_INDIRECT
 	cmpliaddr r3,J9TR_bcloop_exit_interpreter
 	beq .L_cInterpExit
+	cmpliaddr r3,J9TR_bcloop_reenter_interpreter
+	beq .L_cInterpOnCStack
 	RESTORE_PRESERVED_REGS
 	RESTORE_LR
 	SWITCH_TO_JAVA_STACK

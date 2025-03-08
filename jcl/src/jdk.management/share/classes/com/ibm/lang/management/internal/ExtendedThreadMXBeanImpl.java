@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management.internal;
 
 import java.lang.management.ThreadInfo;
@@ -37,7 +37,7 @@ public final class ExtendedThreadMXBeanImpl extends ThreadMXBeanImpl implements 
 
 	/**
 	 * Singleton accessor method.
-	 * 
+	 *
 	 * @return the <code>ExtendedThreadMXBeanImpl</code> singleton.
 	 */
 	public static ThreadMXBean getInstance() {
@@ -67,12 +67,22 @@ public final class ExtendedThreadMXBeanImpl extends ThreadMXBeanImpl implements 
 		return resultArray;
 	}
 
+	private native static long getThreadAllocatedBytesImpl(long threadID);
+
 	/**
 	 * {@inheritDoc}
 	 */
 	@Override
 	public long getThreadAllocatedBytes(long threadId) {
-		throw new UnsupportedOperationException();
+		if (isThreadAllocatedMemorySupported()) {
+			if (isThreadAllocatedMemoryEnabled()) {
+				return getThreadAllocatedBytesImpl(threadId);
+			} else {
+				return -1;
+			}
+		} else {
+			throw new UnsupportedOperationException();
+		}
 	}
 
 	/**
@@ -80,7 +90,37 @@ public final class ExtendedThreadMXBeanImpl extends ThreadMXBeanImpl implements 
 	 */
 	@Override
 	public long[] getThreadAllocatedBytes(long[] threadIds) {
-		throw new UnsupportedOperationException();
+		int length = threadIds.length;
+		long[] allocatedBytes = new long[length];
+
+		for (int i = 0; i < length; i++) {
+			allocatedBytes[i] = getThreadAllocatedBytes(threadIds[i]);
+		}
+
+		return allocatedBytes;
+	}
+
+	/*[IF Sidecar18-SE-OpenJ9]*/
+	/**
+	 * {@inheritDoc}
+	 */
+	@Override
+	/*[ENDIF] Sidecar18-SE-OpenJ9 */
+	public long getTotalThreadAllocatedBytes() {
+		if (!isThreadAllocatedMemorySupported()) {
+			throw new UnsupportedOperationException();
+		}
+		if (!isThreadAllocatedMemoryEnabled()) {
+			return -1;
+		}
+		long total = 0;
+		long[] allocatedBytes = getThreadAllocatedBytes(getAllThreadIds());
+		for (long threadAllocated : allocatedBytes) {
+			if (threadAllocated != -1) {
+				total += threadAllocated;
+			}
+		}
+		return total;
 	}
 
 	/**
@@ -135,12 +175,15 @@ public final class ExtendedThreadMXBeanImpl extends ThreadMXBeanImpl implements 
 		return result;
 	}
 
+	private boolean isThreadAllocatedMemoryEnabled = true;
+
 	/**
 	 * {@inheritDoc}
 	 */
 	@Override
 	public boolean isThreadAllocatedMemorySupported() {
-		return false;
+		/* Currently, this capability is always supported. */
+		return true;
 	}
 
 	/**
@@ -148,7 +191,7 @@ public final class ExtendedThreadMXBeanImpl extends ThreadMXBeanImpl implements 
 	 */
 	@Override
 	public boolean isThreadAllocatedMemoryEnabled() {
-		throw new UnsupportedOperationException();
+		return isThreadAllocatedMemoryEnabled && isThreadAllocatedMemorySupported();
 	}
 
 	/**
@@ -156,6 +199,6 @@ public final class ExtendedThreadMXBeanImpl extends ThreadMXBeanImpl implements 
 	 */
 	@Override
 	public void setThreadAllocatedMemoryEnabled(boolean value) {
-		throw new UnsupportedOperationException();
+		isThreadAllocatedMemoryEnabled = value;
 	}
 }

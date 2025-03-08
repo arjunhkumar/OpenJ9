@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "j9cfg.h"
@@ -1331,7 +1331,7 @@ tracePrint(UtThreadData **thr, UtModuleInfo *modInfo, uint32_t traceId, va_list 
 		strcpy(qualifiedModuleName, "dg");
 		moduleName = "dg";
 	} else 	if ( modInfo->traceVersionInfo->traceVersion >= 7 && modInfo->containerModule != NULL ) {
-		j9str_printf(PORTLIB, qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
+		j9str_printf(qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
 		moduleName = modInfo->name;
 	} else {
 		strncpy(qualifiedModuleName, modInfo->name, MAX_QUALIFIED_NAME_LENGTH);
@@ -1407,7 +1407,7 @@ tracePrint(UtThreadData **thr, UtModuleInfo *modInfo, uint32_t traceId, va_list 
 		/*
 		 *  Indented print
 		 */
-		j9tty_err_printf(PORTLIB, "%02d:%02d:%02d.%03d%c" UT_POINTER_SPEC
+		j9tty_err_printf("%02d:%02d:%02d.%03d%c" UT_POINTER_SPEC
 				"%16s.%-6d %c %s %c ", hh, mm, ss, millis, threadSwitch, (*thr)->id, qualifiedModuleName,
 				id, excpt, indent, entryexit);
 		j9tty_err_vprintf(format + 2, var);
@@ -1419,13 +1419,13 @@ tracePrint(UtThreadData **thr, UtModuleInfo *modInfo, uint32_t traceId, va_list 
 		excpt = format[0];
 		format[1] == ' ' ? (entryexit = '-') : (entryexit = format[1]);
 
-		j9tty_err_printf(PORTLIB, "%02d:%02d:%02d.%03d%c" UT_POINTER_SPEC
-				   "%16s.%-6d %c %c ", hh, mm, ss, millis, threadSwitch, (*thr)->id, qualifiedModuleName,
-				   id, excpt, entryexit);
+		j9tty_err_printf("%02d:%02d:%02d.%03d%c" UT_POINTER_SPEC
+				"%16s.%-6d %c %c ", hh, mm, ss, millis, threadSwitch, (*thr)->id, qualifiedModuleName,
+				id, excpt, entryexit);
 		j9tty_err_vprintf(format + 2, var);
 
 	}
-	j9tty_err_printf(PORTLIB, "\n");
+	j9tty_err_printf("\n");
 	freeTraceLock(thr);
 }
 
@@ -1449,7 +1449,7 @@ traceAssertion(UtThreadData **thr, UtModuleInfo *modInfo, uint32_t traceId, va_l
 	if (modInfo == NULL){
 		strcpy(qualifiedModuleName, "dg");
 	} else 	if ( modInfo->traceVersionInfo->traceVersion >= 7 && modInfo->containerModule != NULL ) {
-		j9str_printf(PORTLIB, qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
+		j9str_printf(qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
 	} else {
 		strncpy(qualifiedModuleName, modInfo->name, MAX_QUALIFIED_NAME_LENGTH);
 	}
@@ -1472,12 +1472,11 @@ traceAssertion(UtThreadData **thr, UtModuleInfo *modInfo, uint32_t traceId, va_l
 	/*
 	 *  Non-indented print
 	 */
-	j9tty_err_printf(PORTLIB, "%02d:%02d:%02d.%03d " UT_POINTER_SPEC
-			   "%8s.%-6d *   ", hh, mm, ss, millis, (*thr)->id, qualifiedModuleName,
-			   id);
+	j9tty_err_printf(
+			"%02d:%02d:%02d.%03d " UT_POINTER_SPEC "%8s.%-6d *   ",
+			hh, mm, ss, millis, (*thr)->id, qualifiedModuleName, id);
 	j9tty_err_vprintf(format + 2, var);
-
-	j9tty_err_printf(PORTLIB, "\n");
+	j9tty_err_printf("\n");
 
 	freeTraceLock(thr);
 }
@@ -2465,27 +2464,30 @@ static UtProcessorInfo * getProcessorInfo(void)
 	initHeader(&ret->procInfo.header, "PIN", sizeof(UtProcInfo));
 	osarch = j9sysinfo_get_CPU_architecture();
 	if (NULL != osarch) {
-		if ((strcmp(osarch, J9PORT_ARCH_PPC) == 0)
-		|| (strcmp(osarch, J9PORT_ARCH_PPC64) == 0)
-		|| (strcmp(osarch, J9PORT_ARCH_PPC64LE) == 0)
+		if ((0 == strcmp(osarch, OMRPORT_ARCH_PPC))
+		|| (0 == strcmp(osarch, OMRPORT_ARCH_PPC64))
+		|| (0 == strcmp(osarch, OMRPORT_ARCH_PPC64LE))
 		) {
 			ret->architecture = UT_POWER;
 			ret->procInfo.subtype = UT_POWERPC;
-		} else if (strcmp(osarch, J9PORT_ARCH_S390) == 0) {
+		} else if (0 == strcmp(osarch, OMRPORT_ARCH_S390)) {
 			ret->architecture = UT_S390;
 			ret->procInfo.subtype = UT_ESA;
-		} else if (strcmp(osarch, J9PORT_ARCH_S390X) == 0) {
+		} else if (0 == strcmp(osarch, OMRPORT_ARCH_S390X)) {
 			ret->architecture = UT_S390X;
 			ret->procInfo.subtype = UT_TREX;
-		} else if (strcmp(osarch, J9PORT_ARCH_HAMMER) == 0) {
+		} else if (0 == strcmp(osarch, OMRPORT_ARCH_HAMMER)) {
 			ret->architecture = UT_AMD64;
 			ret->procInfo.subtype = UT_OPTERON;
-		} else if (strcmp(osarch, J9PORT_ARCH_X86) == 0) {
+		} else if (0 == strcmp(osarch, OMRPORT_ARCH_X86)) {
 			ret->architecture = UT_X86;
 			ret->procInfo.subtype = UT_PIV;
-		} else if (0 == strcmp(osarch, J9PORT_ARCH_RISCV)) {
+		} else if (0 == strcmp(osarch, OMRPORT_ARCH_RISCV)) {
 			ret->architecture = UT_RISCV;
 			ret->procInfo.subtype = UT_RV64G;
+		} else if (0 == strcmp(osarch, OMRPORT_ARCH_AARCH64)) {
+			ret->architecture = UT_AARCH64;
+			ret->procInfo.subtype = UT_ARMV8A;
 		} else {
 			ret->architecture = UT_UNKNOWN;
 		}
@@ -2549,7 +2551,7 @@ raiseAssertion(UtThreadData **thread, UtModuleInfo *modInfo, uint32_t traceId)
 
 		/* Set and fire the trigger to fire the dump assertion event. */
 		memset(triggerClause, 0, sizeof(triggerClause));
-		j9str_printf(PORTLIB, triggerClause, sizeof(triggerClause), "tpnid{%s.%d,assert}", (NULL != modInfo)?modInfo->name:"dg", (traceId >> 8) & UT_TRC_ID_MASK);
+		j9str_printf(triggerClause, sizeof(triggerClause), "tpnid{%s.%d,assert}", (NULL != modInfo)?modInfo->name:"dg", (traceId >> 8) & UT_TRC_ID_MASK);
 		setTriggerActions(thread, triggerClause, TRUE);
 		fireTriggerHit(thread, (NULL != modInfo)?modInfo->name:"dg", (traceId >> 8) & UT_TRC_ID_MASK, AFTER_TRACEPOINT);
 		j9exit_shutdown_and_exit(-1);
@@ -2587,13 +2589,13 @@ void omrTraceMem(void *env, UtModuleInfo *modInfo, uint32_t traceId, uintptr_t l
 	if (modInfo == NULL) {
 		strcpy(qualifiedModuleName, "dg");
 	} else 	if ( modInfo->traceVersionInfo->traceVersion >= 7 && modInfo->containerModule != NULL ) {
-		j9str_printf(PORTLIB, qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
+		j9str_printf(qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
 	} else {
 		strncpy(qualifiedModuleName, modInfo->name, MAX_QUALIFIED_NAME_LENGTH);
 	}
 
-	j9tty_err_printf(PORTLIB, "* ** ASSERTION FAILED ** Obsolete trace function TraceMem called for trace point %s.%-6d", qualifiedModuleName, id);
-	j9tty_err_printf(PORTLIB, "\n");
+	j9tty_err_printf("* ** ASSERTION FAILED ** Obsolete trace function TraceMem called for trace point %s.%-6d", qualifiedModuleName, id);
+	j9tty_err_printf("\n");
 
 	raiseAssertion(thr, modInfo, traceId);
 }
@@ -2619,13 +2621,13 @@ void omrTraceState(void *env, UtModuleInfo *modInfo, uint32_t traceId, const cha
 	if (modInfo == NULL) {
 		strcpy(qualifiedModuleName, "dg");
 	} else 	if ( modInfo->traceVersionInfo->traceVersion >= 7 && modInfo->containerModule != NULL ) {
-		j9str_printf(PORTLIB, qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
+		j9str_printf(qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
 	} else {
 		strncpy(qualifiedModuleName, modInfo->name, MAX_QUALIFIED_NAME_LENGTH);
 	}
 
-	j9tty_err_printf(PORTLIB, "* ** ASSERTION FAILED ** Obsolete trace function TraceState called for trace point %s.%-6d", qualifiedModuleName, id);
-	j9tty_err_printf(PORTLIB, "\n");
+	j9tty_err_printf("* ** ASSERTION FAILED ** Obsolete trace function TraceState called for trace point %s.%-6d", qualifiedModuleName, id);
+	j9tty_err_printf("\n");
 
 	raiseAssertion(thr, modInfo, traceId);
 }
@@ -2661,7 +2663,7 @@ callSubscriber(UtThreadData **thr, UtSubscription *subscription, UtModuleInfo *m
 		strcpy(qualifiedModuleName, "dg");
 		moduleName = "dg";
 	} else if ( modInfo->traceVersionInfo->traceVersion >= 7 && modInfo->containerModule != NULL ) {
-		j9str_printf(PORTLIB, qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
+		j9str_printf(qualifiedModuleName, MAX_QUALIFIED_NAME_LENGTH,"%s(%s)", modInfo->name, modInfo->containerModule->name);
 		moduleName = modInfo->name;
 	} else {
 		strncpy(qualifiedModuleName, modInfo->name, MAX_QUALIFIED_NAME_LENGTH);
@@ -2677,7 +2679,7 @@ callSubscriber(UtThreadData **thr, UtSubscription *subscription, UtModuleInfo *m
 	}
 
 	/* Calculate the size of buffer we need to hold the tracepoint header plus formatted tracepoint data */
-	headerSize = j9str_printf(PORTLIB, NULL, 0, "%02d:%02d:%02d.%03d 0x%x %s.%3d", hours, mins, secs, msecs, (*thr)->id, qualifiedModuleName, id);
+	headerSize = j9str_printf(NULL, 0, "%02d:%02d:%02d.%03d 0x%x %s.%3d", hours, mins, secs, msecs, (*thr)->id, qualifiedModuleName, id);
 	COPY_VA_LIST(argsCopy, args);
 	dataSize = j9str_vprintf(NULL, 0, format, argsCopy); 
 
@@ -2691,7 +2693,7 @@ callSubscriber(UtThreadData **thr, UtSubscription *subscription, UtModuleInfo *m
 
 	/* Format the tracepoint header information, followed by the tracepoint data, into the buffer */
 	cursor = buffer;
-	j9str_printf(PORTLIB, cursor, headerSize, "%02d:%02d:%02d.%03d 0x%x %s.%3d", hours, mins, secs, msecs, (*thr)->id, qualifiedModuleName, id);
+	j9str_printf(cursor, headerSize, "%02d:%02d:%02d.%03d 0x%x %s.%3d", hours, mins, secs, msecs, (*thr)->id, qualifiedModuleName, id);
 	cursor += headerSize - 1;
 	COPY_VA_LIST(argsCopy, args);
 	j9str_vprintf(cursor, dataSize, format, argsCopy); 

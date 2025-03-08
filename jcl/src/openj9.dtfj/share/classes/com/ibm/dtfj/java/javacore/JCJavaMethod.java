@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.java.javacore;
 
 import java.util.Iterator;
@@ -32,14 +32,14 @@ import com.ibm.dtfj.java.JavaClass;
 import com.ibm.dtfj.java.JavaMethod;
 
 public class JCJavaMethod implements JavaMethod {
-	
+
 	private final String fName;
 	private final JavaClass fJavaClass;
-	
+
 	private String fSignature;
 	private Vector fBytecodeSections;
 	private Vector fCompiledSections;
-	
+
 	public JCJavaMethod (String name, JCJavaClass javaClass) throws JCInvalidArgumentsException{
 		if (name == null) {
 			throw new JCInvalidArgumentsException("A method from a javacore must have a valid name.");
@@ -49,32 +49,29 @@ public class JCJavaMethod implements JavaMethod {
 		}
 		fName = name;
 		fJavaClass = javaClass;
-		
+
 		fSignature = null;
 		fBytecodeSections = new Vector();
 		fCompiledSections = new Vector();
 		javaClass.addMethod(this);
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public Iterator getBytecodeSections() {
 		return fBytecodeSections.iterator();
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public Iterator getCompiledSections() {
 		return fCompiledSections.iterator();
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public JavaClass getDeclaringClass() throws CorruptDataException, DataUnavailable {
 		if (fJavaClass == null) {
@@ -83,17 +80,15 @@ public class JCJavaMethod implements JavaMethod {
 		return fJavaClass;
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public int getModifiers() throws CorruptDataException {
 		throw new CorruptDataException(new JCCorruptData(null));
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public String getName() throws CorruptDataException {
 		if (fName == null) {
@@ -102,9 +97,8 @@ public class JCJavaMethod implements JavaMethod {
 		return fName;
 	}
 
-	
 	/**
-	 * 
+	 *
 	 */
 	public String getSignature() throws CorruptDataException {
 		if (fSignature == null) {
@@ -119,11 +113,11 @@ public class JCJavaMethod implements JavaMethod {
 		JCJavaMethod jm2 = (JCJavaMethod)o;
 		return fName.equals(jm2.fName) && fJavaClass.equals(jm2.fJavaClass);
 	}
-	
+
 	public int hashCode() {
 		return fName.hashCode() ^ fJavaClass.hashCode();
 	}
-	
+
 	public String toString() {
 		try {
 			return getDeclaringClass().getName() + "." + getName();

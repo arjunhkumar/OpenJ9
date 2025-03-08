@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <algorithm>
@@ -47,6 +47,16 @@ const float TR_J9EstimateCodeSize::STRING_COMPRESSION_ADJUSTMENT_FACTOR = 0.75f;
 // There was no analysis done to determine this factor. It was chosen by intuition.
 const float TR_J9EstimateCodeSize::METHOD_INVOKE_ADJUSTMENT_FACTOR = 0.20f;
 
+// Empirically determined value
+const float TR_J9EstimateCodeSize::CONST_ARG_IN_CALLEE_ADJUSTMENT_FACTOR = 0.75f;
+
+#define DEFAULT_KNOWN_OBJ_WEIGHT 10
+
+#define DEFAULT_FREQ_CUTOFF 40
+
+#define DEFAULT_GRACE_INLINING_THRESHOLD 100
+
+#define DEFAULT_ANALYZED_ALLOWANCE_FACTOR 2
 
 /*
 DEFINEs are ugly in general, but putting
@@ -91,7 +101,7 @@ class NeedsPeekingHeuristic
             int32_t len;
             const char *sig = p->getTypeSignature(len);
             if (i >= argInfo->getNumArgs() ||            //not enough slots in argInfo
-               (*sig != 'L' && *sig != 'Q') ||           //primitive arg
+               (*sig != 'L') ||                          //primitive arg
                !argInfo->get(i) ||                       //no arg at the i-th slot
                !argInfo->get(i)->getClass()         //no classInfo at the i-th slot
                )
@@ -155,11 +165,15 @@ class NeedsPeekingHeuristic
          {
             if (_bci.bcIndex() - _loadIndices[i] <= _distance)
             {
-               _needsPeeking = true;
                heuristicTraceIfTracerIsNotNull(_tracer, "there is a parm load at %d which is within %d of a call at %d", _loadIndices[i], _distance, _bci.bcIndex());
             }
          }
       };
+
+      void setNeedsPeekingToTrue()
+      {
+      _needsPeeking = true;
+      }
 
       void processByteCode()
          {
@@ -412,6 +426,138 @@ TR_J9EstimateCodeSize::adjustEstimateForMethodInvoke(TR_ResolvedMethod* method, 
    }
 
 bool
+TR_J9EstimateCodeSize::adjustEstimateForConstArgs(TR_CallTarget * target, int32_t& value, float factor)
+   {
+   static const char * disableConstArgWeightReduction = feGetEnv("TR_disableConstArgWeightReduction");
+   if (disableConstArgWeightReduction || !target->_calleeSymbol)
+      return false;
+
+   // Weight adjustments performed for load consts or boxed primitive arg types can still be beneficial but
+   // may require a different adjustment factor.
+   static const char * enableLoadConstArgWeightAdjustment = feGetEnv("TR_enableLoadConstArgWeightAdjustment");
+
+   // Weight reduction by numArgs * 4 is done in TR_MultipleCallTargetInliner::applyArgumentHeuristics, but
+   // doing this adjustment this early can have a negative impact on performance in some workloads
+   static const char * enableArgCountWeightAdjustment = feGetEnv("TR_enableArgCountWeightAdjustment");
+
+   // This for remaining consistent with TR_MultipleCallTargetInliner::applyArgumentHeuristics
+   static const char * envKnownObjWeight = feGetEnv("TR_constClassWeight");
+   int32_t knownObjWeight = envKnownObjWeight ? atoi(envKnownObjWeight) : DEFAULT_KNOWN_OBJ_WEIGHT;
+
+   // The less aggressive adjustment factor, which is just the factor increased by 15% is
+   // intended to be used in cases where we can distinguish different degree of benefit
+   // to be had, with the original factor applied for the more beneficial cases, and the
+   // less aggressive factor being applied for the less beneficial cases.
+
+   float lessAggressiveAdjustmentFactor = factor * 1.15f;
+
+   int32_t originalWeight = value;
+   TR_LinkHead<TR_ParameterMapping> argMap;
+   TR_PrexArgInfo *prexArgInfo = target->_ecsPrexArgInfo;
+   if (((TR_J9InlinerPolicy *)_inliner->getPolicy())->validateArguments(target,argMap))
+      {
+      int32_t argIndex = 0;
+      for (TR_ParameterMapping* parm = argMap.getFirst(); parm; parm = parm->getNext())
+         {
+         int32_t interimWeight = value;
+         TR::Node * parmNode = parm->_parameterNode;
+         TR::ParameterSymbol * parmSym = parm->_parmSymbol;
+         const char * parmClassName = NULL;
+         int32_t parmClassNameLen = 0;
+         char * argClassName = NULL;
+         TR_PrexArgument * prexArg = NULL;
+         if (prexArgInfo) prexArg = prexArgInfo->get(argIndex++);
+
+         if (parmSym)
+            parmClassName = parmSym->getTypeSignature(parmClassNameLen);
+
+         if (prexArg && prexArg->getClass())
+            argClassName = TR::Compiler->cls.classSignature(comp(), prexArg->getClass(), comp()->trMemory());
+
+         if (parmNode->getOpCode().hasSymbolReference()
+            && parmNode->getSymbolReference()->getSymbol()->isStatic()
+            && parmNode->getSymbolReference()->getSymbol()->castToStaticSymbol()->isConstString())
+            {
+            value *= factor;
+            heuristicTrace(tracer(),"Setting size from %d to %d because arg is constant string.", interimWeight, value);
+            }
+         else if (argClassName
+                 && parmClassName
+                 && strncmp(argClassName, parmClassName, parmClassNameLen) != 0 // arg type needs to be more specific than declared type to benefit from weight adjustment
+                 && strcmp(argClassName, "Ljava/lang/String;") == 0)
+            {
+            value *= lessAggressiveAdjustmentFactor;
+            heuristicTrace(tracer(),"Setting size from %d to %d because arg is a string.", interimWeight, value);
+            }
+         else if (parmNode->getOpCodeValue() == TR::aload
+                 && parmNode->getSymbolReference()
+                 && parmNode->getSymbolReference()->getSymbol()->isConstObjectRef())
+            {
+            value *= factor;
+            heuristicTrace(tracer(),"Setting size from %d to %d because arg is const object ref.", interimWeight, value);
+            }
+         else if (parmNode->getOpCodeValue() == TR::aloadi
+               && parmNode->getOpCode().hasSymbolReference()
+               && parmNode->getSymbolReference() == comp()->getSymRefTab()->findJavaLangClassFromClassSymbolRef()
+               && parmNode->getFirstChild()
+               && parmNode->getFirstChild()->getOpCodeValue() == TR::loadaddr
+               && parmNode->getFirstChild()->getSymbol()->isStatic()
+               && !parmNode->getFirstChild()->getSymbolReference()->isUnresolved()
+               && parmNode->getFirstChild()->getSymbol()->isClassObject())
+            {
+            value *= factor;
+            heuristicTrace(tracer(),"Setting size from %d to %d because arg is const class ref.", interimWeight, value);
+            }
+         else if (argClassName
+               && parmClassName
+               && strncmp(argClassName, parmClassName, parmClassNameLen) != 0
+               && strcmp(argClassName, "Ljava/lang/Class;") == 0)
+            {
+            value *= lessAggressiveAdjustmentFactor;
+            heuristicTrace(tracer(),"Setting size from %d to %d because arg is a class ref.", interimWeight, value);
+            }
+         else if (enableLoadConstArgWeightAdjustment
+               && parmNode->getOpCode().isLoadConst())
+            {
+            value *= factor;
+            heuristicTrace(tracer(),"Setting size from %d to %d because arg is load const.", interimWeight, value);
+            }
+         else if (enableLoadConstArgWeightAdjustment
+               && argClassName
+               && parmClassName
+               && strncmp(argClassName, parmClassName, parmClassNameLen) != 0
+               && (strcmp(argClassName, "Ljava/lang/Integer;") == 0
+                  || strcmp(argClassName, "Ljava/lang/Long;") == 0
+                  || strcmp(argClassName, "Ljava/lang/Byte;") == 0
+                  || strcmp(argClassName, "Ljava/lang/Double;") == 0
+                  || strcmp(argClassName, "Ljava/lang/Float;") == 0
+                  || strcmp(argClassName, "Ljava/lang/Short;") == 0
+                  || strcmp(argClassName, "Ljava/lang/Boolean;") == 0
+                  || strcmp(argClassName, "Ljava/lang/Character;") == 0))
+            {
+            value *= lessAggressiveAdjustmentFactor;
+            heuristicTrace(tracer(),"Setting size from %d to %d because arg is boxed primitive type.", interimWeight, value);
+            }
+         if (prexArg && prexArg->hasKnownObjectIndex())
+            {
+            value = knownObjWeight;
+            heuristicTrace(tracer(),"Setting size from %d to %d because arg is known object.", interimWeight, value);
+            break;
+            }
+         }
+      if (enableArgCountWeightAdjustment)
+         {
+         value -= (argMap.getSize() * 4);
+         heuristicTrace(tracer(),"Reduced size estimate to %d (subtract num args * 4)", value);
+         }
+      }
+      if (value < originalWeight)
+         return true;
+      else
+         return false;
+   }
+
+bool
 TR_J9EstimateCodeSize::estimateCodeSize(TR_CallTarget *calltarget, TR_CallStack *prevCallStack, bool recurseDown)
    {
    if (realEstimateCodeSize(calltarget, prevCallStack, recurseDown, comp()->trMemory()->currentStackRegion()))
@@ -420,7 +566,7 @@ TR_J9EstimateCodeSize::estimateCodeSize(TR_CallTarget *calltarget, TR_CallStack 
          {
          heuristicTrace(tracer(),"Subtracting 1 from sizes because _isLeaf is true");
          --_realSize;
-         --_optimisticSize;
+         --_analyzedSize;
          }
       return true;
       }
@@ -602,6 +748,17 @@ TR_J9EstimateCodeSize::processBytecodeAndGenerateCFG(TR_CallTarget *calltarget, 
             auto calleeMethod = (TR_ResolvedJ9Method*)calltarget->_calleeMethod;
             resolvedMethod = calleeMethod->getResolvedPossiblyPrivateVirtualMethod(comp(), cpIndex, true, &isUnresolvedInCP);
 
+            if (resolvedMethod)
+               {
+               TR::RecognizedMethod rm = resolvedMethod->getRecognizedMethod();
+               if (rm == TR::java_util_HashMap_put ||
+                   rm == TR::java_util_HashMap_get ||
+                   rm == TR::java_lang_Object_hashCode)
+                  {
+                  nph.setNeedsPeekingToTrue();
+                  heuristicTrace(tracer(), "Depth %d: invokevirtual call at bc index %d has Signature %s, enabled peeking for caller to propagate prex arg info from caller.", _recursionDepth, i, tracer()->traceSignature(resolvedMethod));
+                  }
+               }
             ///if (!resolvedMethod || isUnresolvedInCP || resolvedMethod->isCold(comp(), true))
             if ((isUnresolvedInCP && !resolvedMethod) || (resolvedMethod
                   && resolvedMethod->isCold(comp(), true)))
@@ -678,6 +835,13 @@ TR_J9EstimateCodeSize::processBytecodeAndGenerateCFG(TR_CallTarget *calltarget, 
             TR::Node *parent = 0;
             TR::Node *callNode = 0;
             TR::ResolvedMethodSymbol *resolvedSymbol = 0;
+
+            if (resolvedMethod &&
+               resolvedMethod->getRecognizedMethod() == TR::java_util_HashMap_hash)
+               {
+               nph.setNeedsPeekingToTrue();
+               heuristicTrace(tracer(), "Depth %d: invokestatic call at bc index %d has Signature %s, enabled peeking for caller to propagate prex arg info from caller.", _recursionDepth, i, tracer()->traceSignature(resolvedMethod));
+               }
             if (!resolvedMethod || isUnresolvedInCP || resolvedMethod->isCold(comp(), false))
                {
                if (unresolvedSymbolsAreCold)
@@ -700,7 +864,26 @@ TR_J9EstimateCodeSize::processBytecodeAndGenerateCFG(TR_CallTarget *calltarget, 
             flags[i].set(InterpreterEmulator::BytecodePropertyFlag::isUnsanitizeable);
             break;
          case J9BCinvokeinterface:
+            {
             cpIndex = bci.next2Bytes();
+            TR::Method *meth = comp()->fej9()->createMethod(comp()->trMemory(), calltarget->_calleeMethod->containingClass(), cpIndex);
+            if (meth)
+               {
+               const char * sig = meth->signature(comp()->trMemory());
+               if (sig && (!strncmp(sig, "java/util/Map.put", 17) || !strncmp(sig, "java/util/Map.get", 17)))
+                  {
+                  nph.setNeedsPeekingToTrue();
+                  heuristicTrace(tracer(), "Depth %d: invokeinterface call at bc index %d has Signature %s, enabled peeking for caller to propagate prex arg info from caller.", _recursionDepth, i, sig);
+                  }
+#if JAVA_SPEC_VERSION >= 21
+               else if (sig && (!strncmp(sig, "java/lang/foreign/MemorySegment.get", 35) || !strncmp(sig, "java/lang/foreign/MemorySegment.set", 35) ))
+                  {
+                  nph.setNeedsPeekingToTrue();
+                  heuristicTrace(tracer(), "Depth %d: invokeinterface call at bc index %d has Signature %s, enabled peeking for caller to fold layout field load necessary for VarHandle operation inlining.", _recursionDepth, i, sig);
+                  }
+#endif // JAVA_SPEC_VERSION >= 21
+               }
+            }
             flags[i].set(InterpreterEmulator::BytecodePropertyFlag::isUnsanitizeable);
             break;
          case J9BCgetfield:
@@ -821,6 +1004,12 @@ TR_J9EstimateCodeSize::processBytecodeAndGenerateCFG(TR_CallTarget *calltarget, 
       heuristicTrace(tracer(), "*** Depth %d: Adjusting size for %s because of java/lang/reflect/Method.invoke from %d to %d", _recursionDepth, callerName, sizeBeforeAdjustment, size);
       }
 
+   sizeBeforeAdjustment = size;
+   if (adjustEstimateForConstArgs(calltarget, size, CONST_ARG_IN_CALLEE_ADJUSTMENT_FACTOR))
+      {
+      heuristicTrace(tracer(), "*** Depth %d: Adjusting size for %s because of constants in args from %d to %d", _recursionDepth, callerName, sizeBeforeAdjustment, size);
+      }
+
    calltarget->_fullSize = size;
 
    if (calltarget->_calleeSymbol)
@@ -830,7 +1019,7 @@ TR_J9EstimateCodeSize::processBytecodeAndGenerateCFG(TR_CallTarget *calltarget, 
 
    /********* PHASE 2: Generate CFG **********/
 
-   heuristicTrace(tracer(),"--- Done Iterating over Bytecodes in call to %s.  size = %d _recursionDepth = %d _optimisticSize = %d _realSize = %d _sizeThreshold = %d",callerName, size, _recursionDepth, _optimisticSize, _realSize, _sizeThreshold);
+   heuristicTrace(tracer(),"--- Done Iterating over Bytecodes in call to %s.  size = %d _recursionDepth = %d _analyzedSize = %d _realSize = %d _sizeThreshold = %d",callerName, size, _recursionDepth, _analyzedSize, _realSize, _sizeThreshold);
 
    if (hasThisCalls && calltarget->_calleeSymbol)
       calltarget->_calleeSymbol->setHasThisCalls(true);
@@ -853,8 +1042,7 @@ TR_J9EstimateCodeSize::processBytecodeAndGenerateCFG(TR_CallTarget *calltarget, 
       flags[end + 1].set(InterpreterEmulator::BytecodePropertyFlag::bbStart);
       flags[handler].set(InterpreterEmulator::BytecodePropertyFlag::bbStart);
 
-      tryCatchInfo[i].initialize((uint16_t) start, (uint16_t) end,
-            (uint16_t) handler, (uint32_t) type);
+      tryCatchInfo[i].initialize(start, end, handler, (uint32_t) type);
       }
 
       calltarget->_cfg = new (cfgRegion) TR::CFG(comp(), calltarget->_calleeSymbol, cfgRegion);
@@ -1098,12 +1286,6 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
    if (calltarget->_calleeMethod->numberOfExceptionHandlers() > 0)
       _hasExceptionHandlers = true;
 
-   if (_aggressivelyInlineThrows)
-      {
-      TR_CatchBlockProfileInfo * catchInfo = TR_CatchBlockProfileInfo::get(comp(), calltarget->_calleeMethod);
-      if (catchInfo)
-         _throwCount += catchInfo->getThrowCounter();
-      }
 
    //TR::Compilation * comp = _inliner->comp();
 
@@ -1116,7 +1298,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
 
    heuristicTrace(tracer(),
          "*** Depth %d: ECS to begin for target %p signature %s size assuming we can partially inline (optimistic size)  = %d total real size so far = %d sizeThreshold %d",
-         _recursionDepth, calltarget, callerName, _optimisticSize, _realSize,
+         _recursionDepth, calltarget, callerName, _analyzedSize, _realSize,
          _sizeThreshold);
 
    TR_ByteCodeInfo newBCInfo;
@@ -1141,7 +1323,11 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       return returnCleanup(ECS_VISITED_COUNT_THRESHOLD_EXCEEDED);
       }
 
-   if (_recursionDepth > MAX_ECS_RECURSION_DEPTH)
+
+   static const char *mrd = feGetEnv("TR_MaxRecursionDepth");
+   static const int32_t maxRecDepth = mrd ? atoi(mrd) : MAX_ECS_RECURSION_DEPTH;
+
+   if (_recursionDepth > maxRecDepth)
       {
       calltarget->_isPartialInliningCandidate = false;
       heuristicTrace(tracer(), "*** Depth %d: ECS end for target %p signature %s. Exceeded Recursion Depth", _recursionDepth, calltarget, callerName);
@@ -1168,10 +1354,10 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
    TR_PrexArgInfo* argsFromSymbol = TR_PrexArgInfo::buildPrexArgInfoForMethodSymbol(methodSymbol, tracer());
 
    if (!TR_PrexArgInfo::validateAndPropagateArgsFromCalleeSymbol(argsFromSymbol, calltarget->_ecsPrexArgInfo, tracer()))
-   {
+      {
       heuristicTrace(tracer(), "*** Depth %d: ECS end for target %p signature %s. Incompatible arguments", _recursionDepth, calltarget, callerName);
       return returnCleanup(ECS_ARGUMENTS_INCOMPATIBLE);
-   }
+      }
 
    NeedsPeekingHeuristic nph(calltarget, bci, methodSymbol, comp());
    //this might be a little bit too verbose, so let's hide the heuristic's output behind this env var
@@ -1181,7 +1367,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       nph.setTracer(tracer());
       }
 
-   bool wasPeekingSuccessfull = false;
+   bool wasPeekingSuccessful = false;
 
    const static bool debugMHInlineWithOutPeeking = feGetEnv("TR_DebugMHInlineWithOutPeeking") ? true: false;
    bool mhInlineWithPeeking =  comp()->getOption(TR_DisableMHInlineWithoutPeeking);
@@ -1190,6 +1376,13 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                                    (!disableMethodHandleInliningAfterFirstPass || _inliner->firstPass());
    bool inlineLambdaFormGeneratedMethod = comp()->fej9()->isLambdaFormGeneratedMethod(calltarget->_calleeMethod) &&
                                    (!disableMethodHandleInliningAfterFirstPass || _inliner->firstPass());
+
+   TR::Block * * blocks =
+         (TR::Block * *) comp()->trMemory()->allocateStackMemory(maxIndex
+               * sizeof(TR::Block *));
+   memset(blocks, 0, maxIndex * sizeof(TR::Block *));
+
+   TR::CFG &cfg = processBytecodeAndGenerateCFG(calltarget, cfgRegion, bci, nph, blocks, flags);
 
    // No need to peek LF methods, as we'll always interprete the method with state in order to propagate object info
    // through bytecodes to find call targets
@@ -1206,7 +1399,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
          {
          heuristicTrace(tracer(), "*** Depth %d: ECS CSI -- peeking was successfull for calltarget %p", _recursionDepth, calltarget);
          _inliner->getUtil()->clearArgInfoForNonInvariantArguments(calltarget->_ecsPrexArgInfo, methodSymbol, tracer());
-         wasPeekingSuccessfull = true;
+         wasPeekingSuccessful = true;
          }
       }
    else if (inlineArchetypeSpecimen && !mhInlineWithPeeking && debugMHInlineWithOutPeeking)
@@ -1215,12 +1408,6 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       methodSymbol->getResolvedMethod()->genMethodILForPeekingEvenUnderMethodRedefinition(methodSymbol, comp(), false, NULL);
       }
 
-   TR::Block * * blocks =
-         (TR::Block * *) comp()->trMemory()->allocateStackMemory(maxIndex
-               * sizeof(TR::Block *));
-   memset(blocks, 0, maxIndex * sizeof(TR::Block *));
-
-   TR::CFG &cfg = processBytecodeAndGenerateCFG(calltarget, cfgRegion, bci, nph, blocks, flags);
    int size = calltarget->_fullSize;
 
    // Adjust call frequency for unknown or direct calls, for which we don't get profiling information
@@ -1265,7 +1452,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       }
 
    bool callsitesAreCreatedFromTrees = false;
-   if (wasPeekingSuccessfull
+   if (wasPeekingSuccessful
        && comp()->getOrCreateKnownObjectTable()
        && calltarget->_calleeMethod->convertToMethod()->isArchetypeSpecimen())
       {
@@ -1332,7 +1519,17 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       bci.prepareToFindAndCreateCallsites(blocks, flags, callSites, &cfg, &newBCInfo, _recursionDepth, &callStack);
       bool iteratorWithState = (inlineArchetypeSpecimen && !mhInlineWithPeeking) || inlineLambdaFormGeneratedMethod;
 
-      if (!bci.findAndCreateCallsitesFromBytecodes(wasPeekingSuccessfull, iteratorWithState))
+// in JDK21+, iterating bytecodes of MemorySegment methods with state is necesssary to obtain the segment view
+// VarHandle object through folding ValueLayouts$AbstractValueLayout.accessHandle() if the VarHandle has been created
+#if JAVA_SPEC_VERSION >= 21
+      if (calltarget->_calleeMethod->getRecognizedMethod() == TR::java_lang_foreign_MemorySegment_method)
+         {
+         heuristicTrace(tracer(), "Callee method is a MemorySegment method. Setting iteratorWithState to true.\n");
+         iteratorWithState = true;
+         }
+#endif // JAVA_SPEC_VERSION >= 21
+
+      if (!bci.findAndCreateCallsitesFromBytecodes(wasPeekingSuccessful, iteratorWithState))
          {
          heuristicTrace(tracer(), "*** Depth %d: ECS end for target %p signature %s. bci.findAndCreateCallsitesFromBytecode failed", _recursionDepth, calltarget, callerName);
          return returnCleanup(ECS_CALLSITES_CREATION_FAILED);
@@ -1411,7 +1608,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       }
 
 
-      /*************** PHASE 3:  Optimistically Assume we can partially inline calltarget and add to an optimisticSize ******************/
+      /*************** PHASE 3:  Optimistically Assume we can partially inline calltarget and add to an analyzedSize ******************/
 
       TR_Queue<TR::Block> callBlocks(comp()->trMemory());
       bool isCandidate = trimBlocksForPartialInlining(calltarget, &callBlocks);
@@ -1428,20 +1625,23 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
       }
 
    if (isCandidate)
-      _optimisticSize += calltarget->_partialSize;
+      _analyzedSize += calltarget->_partialSize;
    else
-      _optimisticSize += calltarget->_fullSize;
+      _analyzedSize += calltarget->_fullSize;
 
    int32_t sizeThreshold = _sizeThreshold;
    if (isCandidate)
       sizeThreshold = std::max(4096, sizeThreshold);
-   ///if(_optimisticSize > _sizeThreshold)   // even optimistically we've blown our budget
-   heuristicTrace(tracer(),"--- Depth %d: Checking Optimistic size vs Size Threshold: _optimisticSize %d _sizeThreshold %d sizeThreshold %d ",_recursionDepth, _optimisticSize, _sizeThreshold, sizeThreshold);
+   ///if(_analyzedSize > _sizeThreshold)   // even optimistically we've blown our budget
+   heuristicTrace(tracer(),"--- Depth %d: Checking Analyzed size vs Size Threshold: _analyzedSize %d _sizeThreshold %d sizeThreshold %d ",_recursionDepth, _analyzedSize, _sizeThreshold, sizeThreshold);
 
-   if (_optimisticSize > sizeThreshold) // even optimistically we've blown our budget
+   static const char *af = feGetEnv("TR_AnalyzedAllowanceFactor");
+   static const int32_t allowanceFactor = af ? atoi(af) : DEFAULT_ANALYZED_ALLOWANCE_FACTOR;
+
+   if (_analyzedSize > allowanceFactor*sizeThreshold) // even optimistically we've blown our budget
       {
       calltarget->_isPartialInliningCandidate = false;
-      heuristicTrace(tracer(), "*** Depth %d: ECS end for target %p signature %s. optimisticSize exceeds Size Threshold", _recursionDepth, calltarget, callerName);
+      heuristicTrace(tracer(), "*** Depth %d: ECS end for target %p signature %s. analyzedSize exceeds Size Threshold", _recursionDepth, calltarget, callerName);
       return returnCleanup(ECS_OPTIMISTIC_SIZE_THRESHOLD_EXCEEDED);
       }
 
@@ -1505,7 +1705,9 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                   }
                else
                   {
-                  int32_t freqCutoff = 40;
+                  static const char *fc = feGetEnv("TR_FrequencyCutoff");
+                  static const int32_t freqCutoff = fc ? atoi(fc) : DEFAULT_FREQ_CUTOFF;
+
                   bool isColdCall = (((comp()->getMethodHotness() <= warm) && profileManager->isColdCall(targetCallee->_calleeMethod->getPersistentIdentifier(), calltarget->_calleeMethod->getPersistentIdentifier(), i, comp())) || (currentBlock->getFrequency() < freqCutoff)) && !_inliner->alwaysWorthInlining(targetCallee->_calleeMethod, NULL);
 
                   if (coldCallInfoIsReliable && isColdCall)
@@ -1539,18 +1741,18 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                continue;
                }
 
-            if (_optimisticSize <= sizeThreshold) // for multiple calltargets, is this the desired behaviour?
+            if (_analyzedSize <= allowanceFactor*sizeThreshold) // for multiple calltargets, is this the desired behaviour?
                {
                _recursionDepth++;
                _numOfEstimatedCalls++;
 
                _lastCallBlockFrequency = currentBlock->getFrequency();
 
-               debugTrace(tracer(),"About to call ecs on call target %p at depth %d _optimisticSize = %d _realSize = %d _sizeThreshold = %d",
-                                    targetCallee, _recursionDepth, _optimisticSize, _realSize, _sizeThreshold);
+               debugTrace(tracer(),"About to call ecs on call target %p at depth %d _analyzedSize = %d _realSize = %d _sizeThreshold = %d",
+                                    targetCallee, _recursionDepth, _analyzedSize, _realSize, _sizeThreshold);
                heuristicTrace(tracer(),"--- Depth %d: EstimateCodeSize to recursively estimate call from %s to %s",_recursionDepth, callerName, calleeName);
 
-               int32_t origOptimisticSize = _optimisticSize;
+               int32_t origAnalyzedSize = _analyzedSize;
                int32_t origRealSize = _realSize;
                bool prevNonColdCalls = _hasNonColdCalls;
                bool estimateSuccess = estimateCodeSize(targetCallee, &callStack); //recurseDown = true
@@ -1558,7 +1760,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                bool calleeHasNonColdCalls = _hasNonColdCalls;
                _hasNonColdCalls = prevNonColdCalls;// reset the bool for the parent
 
-               // update optimisticSize and cull candidates
+               // update analyzedSize and cull candidates
 
                if ((comp()->getMethodHotness() >= warm) && comp()->isServerInlining())
                   {
@@ -1597,35 +1799,38 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                      }
 
 
-                  if (_optimisticSize - origOptimisticSize > bigCalleeThreshold)
+                  if (_analyzedSize - origAnalyzedSize > bigCalleeThreshold)
                      {
                      ///printf("set warmcallgraphtoobig for method %s at index %d\n", calleeName, newBCInfo._byteCodeIndex);fflush(stdout);
                      calltarget->_calleeMethod->setWarmCallGraphTooBig( newBCInfo.getByteCodeIndex(), comp());
                      heuristicTrace(tracer(), "set warmcallgraphtoobig for method %s at index %d\n", calleeName, newBCInfo.getByteCodeIndex());
-                     //_optimisticSize = origOptimisticSize;
+                     //_analyzedSize = origAnalyzedSize;
                      //_realSize = origRealSize;
                      calltargetSetTooBig = true;
-                        
                      }
                   }
 
                if (!estimateSuccess && !calltargetSetTooBig)
                   {
-                  int32_t estimatedSize = (_optimisticSize - origOptimisticSize);
+                  int32_t estimatedSize = (_analyzedSize - origAnalyzedSize);
                   int32_t bytecodeSize = targetCallee->_calleeMethod->maxBytecodeIndex();
                   bool inlineAnyway = false;
 
-                  if ((_optimisticSize - origOptimisticSize) < 40)
-                     inlineAnyway = true;
-                  else if (estimatedSize < 100)
-                     {
-                     if ((estimatedSize < bytecodeSize) || ((bytecodeSize - estimatedSize)< 20))
-                        inlineAnyway = true;
-                     }
+                  static const char *git = feGetEnv("TR_GraceInliningThreshold");
+                  static const int32_t graceInliningThreshold = git ? atoi(git) : DEFAULT_GRACE_INLINING_THRESHOLD;
 
+                  if (estimatedSize < graceInliningThreshold)
+                     inlineAnyway = true;
+
+                  // non cold calls are checked here probably since we did not add any call sites from the callee that failed estimation,
+                  // and so we are making sure that we did not miss out on anything important (non cold)
+                  //
                   if (inlineAnyway && !calleeHasNonColdCalls)
                      {
-                     _optimisticSize = origOptimisticSize;
+                     // This resetting is probably needed on this path since we are inlining despite exceeding some condition/threshold
+                     // and so it would be an odd state to carry on with _analyzedSize being potentially more than sizeThreshold
+                     //
+                     _analyzedSize = origAnalyzedSize;
                      _realSize = origRealSize;
                      }
                   else if (!_inliner->alwaysWorthInlining(targetCallee->_calleeMethod, NULL))
@@ -1633,11 +1838,12 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                      calltarget->_isPartialInliningCandidate = false;
                      callSites[i]->removecalltarget(j, tracer(),
                            Callee_Too_Many_Bytecodes);
-                     _optimisticSize = origOptimisticSize;
+                     //_analyzedSize = origAnalyzedSize;
                      _realSize = origRealSize;
                      calltarget->addDeadCallee(callSites[i]);
                      j--;
                      _numOfEstimatedCalls--;
+                     heuristicTrace(tracer(),"Depth %d: estimateCodeSize skipping estimated call and resetting _analyzedSize to %d and _realSize to %d", _recursionDepth, _analyzedSize, _realSize);
                      }
 
                   if(comp()->getVisitCount() > HIGH_VISIT_COUNT)
@@ -1648,17 +1854,19 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                   }
                else if (calltargetSetTooBig)
                   {
-                  _optimisticSize = origOptimisticSize;
-                  _realSize = origRealSize;
-
                   if (!_inliner->alwaysWorthInlining(targetCallee->_calleeMethod, NULL))
                      {
                      calltarget->_isPartialInliningCandidate = false;
                      callSites[i]->removecalltarget(j, tracer(),
                            Callee_Too_Many_Bytecodes);
+                     //_analyzedSize = origAnalyzedSize;
+                     _realSize = origRealSize;
                      calltarget->addDeadCallee(callSites[i]);
                      j--;
                      _numOfEstimatedCalls--;
+
+
+                     heuristicTrace(tracer(),"Depth %d: estimateCodeSize skipping too big estimated call and resetting _analyzedSize to %d and _realSize to %d", _recursionDepth, _analyzedSize, _realSize);
                      }
 
                   if(comp()->getVisitCount() > HIGH_VISIT_COUNT)
@@ -1672,7 +1880,7 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
                }
             else
                {
-               heuristicTrace(tracer(),"Depth %d: estimateCodeSize aborting due to _optimisticSize: %d > sizeThreshold: %d",_optimisticSize,sizeThreshold);
+               heuristicTrace(tracer(),"Depth %d: estimateCodeSize aborting due to _analyzedSize: %d > sizeThreshold: %d", _recursionDepth, _analyzedSize,sizeThreshold);
                break;
                }
             }
@@ -1681,8 +1889,8 @@ TR_J9EstimateCodeSize::realEstimateCodeSize(TR_CallTarget *calltarget, TR_CallSt
             {
             calltarget->addCallee(callSites[i]);
             heuristicTrace(tracer(), "Depth %d: Subtracting %d from optimistic and real size to account for eliminating call", _recursionDepth, bci.estimatedCodeSize());
-            if (_optimisticSize > bci.estimatedCodeSize())
-               _optimisticSize -= bci.estimatedCodeSize(); // subtract what we added before for the size of the call instruction
+            if (_analyzedSize > bci.estimatedCodeSize())
+               _analyzedSize -= bci.estimatedCodeSize(); // subtract what we added before for the size of the call instruction
             if (_realSize > bci.estimatedCodeSize())
                _realSize -= bci.estimatedCodeSize();
             }
@@ -1762,10 +1970,10 @@ bool TR_J9EstimateCodeSize::reduceDAAWrapperCodeSize(TR_CallTarget* target)
    // DAA Wrappers are basically free if intrinsics are on since all they consist of is the slow and fast paths
    if (target->_calleeMethod)
       {
-      bool reduceMarshallingWrapper = target->_calleeMethod->isDAAMarshallingWrapperMethod() &&
+      bool reduceMarshallingWrapper = ((TR_ResolvedJ9Method*)target->_calleeMethod)->isDAAMarshallingWrapperMethod() &&
               !comp()->getOption(TR_DisableMarshallingIntrinsics);
 
-      bool reducePackedDecimalWrapper = target->_calleeMethod->isDAAPackedDecimalWrapperMethod() &&
+      bool reducePackedDecimalWrapper = ((TR_ResolvedJ9Method*)target->_calleeMethod)->isDAAPackedDecimalWrapperMethod() &&
               !comp()->getOption(TR_DisableMarshallingIntrinsics);
 
       if (reduceMarshallingWrapper || reducePackedDecimalWrapper)

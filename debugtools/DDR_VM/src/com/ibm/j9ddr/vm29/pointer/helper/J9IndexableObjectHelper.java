@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2001
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.pointer.helper;
 
 import java.io.StringWriter;
@@ -67,64 +67,104 @@ import com.ibm.j9ddr.vm29.structure.J9IndexableObjectWithDataAddressDiscontiguou
 import com.ibm.j9ddr.vm29.types.U32;
 import com.ibm.j9ddr.vm29.types.UDATA;
 
-public class J9IndexableObjectHelper extends J9ObjectHelper 
+public class J9IndexableObjectHelper extends J9ObjectHelper
 {
 	private static long contiguousHeaderSize;
 	private static long discontiguousHeaderSize;
 
 	public static U32 flags(J9IndexableObjectPointer objPointer) throws CorruptDataException
-	{		
+	{
 		return J9ObjectHelper.flags(J9ObjectPointer.cast(objPointer));
 	}
 
 	public static J9ArrayClassPointer clazz(J9IndexableObjectPointer objPointer) throws CorruptDataException
-	{	
+	{
 		return J9ArrayClassPointer.cast(J9ObjectHelper.clazz(J9ObjectPointer.cast(objPointer)));
 	}
-	
-	public static UDATA monitor(J9IndexableObjectPointer objPointer) throws CorruptDataException 
+
+	public static UDATA monitor(J9IndexableObjectPointer objPointer) throws CorruptDataException
 	{
 		return J9ObjectHelper.monitor(J9ObjectPointer.cast(objPointer));
 	}
-	
-	public static String getClassName(J9IndexableObjectPointer objPointer) throws CorruptDataException 
+
+	public static String getClassName(J9IndexableObjectPointer objPointer) throws CorruptDataException
 	{
 		return J9ArrayClassHelper.getName(clazz(objPointer));
 	}
 
-	public static U32 rawSize(J9IndexableObjectPointer objPointer) throws CorruptDataException 
+	public static U32 rawSize(J9IndexableObjectPointer objPointer) throws CorruptDataException
 	{
-		if (mixedReferenceMode) {
-			try {
-				if (compressObjectReferences) {
-					return (U32)J9IndexableObjectContiguousCompressedPointer.cast(objPointer).size();
-				}
-				return (U32)J9IndexableObjectContiguousFullPointer.cast(objPointer).size();
-			} catch (NoSuchFieldException e) {
-				// the 'size' field should be present in a VM that supports mixed reference mode
-				throw new CorruptDataException(e);
-			}
+		boolean isIndexableDataAddrPresent;
+		try {
+			J9JavaVMPointer javaVM = J9RASHelper.getVM(DataType.getJ9RASPointer());
+			isIndexableDataAddrPresent = (J9BuildFlags.J9VM_ENV_DATA64 && !javaVM.isIndexableDataAddrPresent().isZero());
+		} catch (CorruptDataException | NoSuchFieldException e) {
+			isIndexableDataAddrPresent = false;
 		}
-		return (U32)J9IndexableObjectContiguousPointer.cast(objPointer).size();
+
+		try {
+			if (mixedReferenceMode) {
+				if (compressObjectReferences) {
+					if (isIndexableDataAddrPresent) {
+						return (U32) J9IndexableObjectWithDataAddressContiguousCompressedPointer.cast(objPointer).size();
+					} else {
+						return (U32) J9IndexableObjectContiguousCompressedPointer.cast(objPointer).size();
+					}
+				}
+				if (isIndexableDataAddrPresent) {
+					return (U32) J9IndexableObjectWithDataAddressContiguousFullPointer.cast(objPointer).size();
+				} else {
+					return (U32) J9IndexableObjectContiguousFullPointer.cast(objPointer).size();
+				}
+			}
+			if (isIndexableDataAddrPresent) {
+				return (U32) J9IndexableObjectWithDataAddressContiguousPointer.cast(objPointer).size();
+			}
+		} catch (NoSuchFieldException e) {
+			// the 'size' field should be present in a VM that supports mixed reference mode
+			throw new CorruptDataException(e);
+		}
+
+		return (U32) J9IndexableObjectContiguousPointer.cast(objPointer).size();
 	}
 
-	public static U32 size(J9IndexableObjectPointer objPointer) throws CorruptDataException 
+	public static U32 size(J9IndexableObjectPointer objPointer) throws CorruptDataException
 	{
 		U32 size = rawSize(objPointer);
 		if (size.isZero()) {
-			if (mixedReferenceMode) {
-				try {
+			boolean isIndexableDataAddrPresent;
+			try {
+				J9JavaVMPointer javaVM = J9RASHelper.getVM(DataType.getJ9RASPointer());
+				isIndexableDataAddrPresent = (J9BuildFlags.J9VM_ENV_DATA64 && !javaVM.isIndexableDataAddrPresent().isZero());
+			} catch (CorruptDataException | NoSuchFieldException e) {
+				isIndexableDataAddrPresent = false;
+			}
+
+			try {
+				if (mixedReferenceMode) {
 					if (compressObjectReferences) {
-						size = (U32)J9IndexableObjectDiscontiguousCompressedPointer.cast(objPointer).size();
+						if (isIndexableDataAddrPresent) {
+							size = (U32) J9IndexableObjectWithDataAddressDiscontiguousCompressedPointer.cast(objPointer).size();
+						} else {
+							size = (U32) J9IndexableObjectDiscontiguousCompressedPointer.cast(objPointer).size();
+						}
 					} else {
-						size = (U32)J9IndexableObjectDiscontiguousFullPointer.cast(objPointer).size();
+						if (isIndexableDataAddrPresent) {
+							size = (U32) J9IndexableObjectWithDataAddressDiscontiguousFullPointer.cast(objPointer).size();
+						} else {
+							size = (U32) J9IndexableObjectDiscontiguousFullPointer.cast(objPointer).size();
+						}
 					}
-				} catch (NoSuchFieldException e) {
-					// the 'size' field should be present in a VM that supports mixed reference mode
-					throw new CorruptDataException(e);
+				} else {
+					if (isIndexableDataAddrPresent) {
+						size = (U32) J9IndexableObjectWithDataAddressDiscontiguousPointer.cast(objPointer).size();
+					} else {
+						size = (U32) J9IndexableObjectDiscontiguousPointer.cast(objPointer).size();
+					}
 				}
-			} else {
-				size = (U32)J9IndexableObjectDiscontiguousPointer.cast(objPointer).size();
+			} catch (NoSuchFieldException e) {
+				// the 'size' field should be present in a VM that supports mixed reference mode
+				throw new CorruptDataException(e);
 			}
 		}
 		if (size.anyBitsIn(0x80000000)) {
@@ -132,8 +172,8 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 		}
 		return size;
 	}
-	
-	public static U32 size(J9ObjectPointer objPointer) throws CorruptDataException 
+
+	public static U32 size(J9ObjectPointer objPointer) throws CorruptDataException
 	{
 		return size(J9IndexableObjectPointer.cast(objPointer));
 	}
@@ -146,7 +186,7 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 		if (0 == contiguousHeaderSize) {
 			try {
 				J9JavaVMPointer javaVM = J9RASHelper.getVM(DataType.getJ9RASPointer());
-				if (J9BuildFlags.env_data64 && !javaVM.isIndexableDataAddrPresent().isZero()) {
+				if (J9BuildFlags.J9VM_ENV_DATA64 && !javaVM.isIndexableDataAddrPresent().isZero()) {
 					contiguousHeaderSize = contiguousHeaderSizeWithDataAddress();
 					return contiguousHeaderSize;
 				}
@@ -193,7 +233,7 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 		if (0 == discontiguousHeaderSize) {
 			try {
 				J9JavaVMPointer javaVM = J9RASHelper.getVM(DataType.getJ9RASPointer());
-				if (J9BuildFlags.env_data64 && !javaVM.isIndexableDataAddrPresent().isZero()) {
+				if (J9BuildFlags.J9VM_ENV_DATA64 && !javaVM.isIndexableDataAddrPresent().isZero()) {
 					discontiguousHeaderSize = discontiguousHeaderSizeWithDataAddress();
 					return discontiguousHeaderSize;
 				}
@@ -290,11 +330,23 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 	 * @param index the desired index within then array
 	 * @param dataSize size of the data held in the array
 	 * @return the address for the desired element in the array
-	 * @throws CorruptDataException 
+	 * @throws CorruptDataException
 	 */
 	public static VoidPointer getElementEA(J9IndexableObjectPointer objPointer, int index, int dataSize) throws CorruptDataException
 	{
 		return ObjectModel.getElementAddress(objPointer, index, dataSize);
+	}
+
+	/**
+	 * Determine the validity of the data address belonging to objPointer.
+	 *
+	 * @param objPointer array object who's data address validity we are checking
+	 * @throws CorruptDataException if there's a problem accessing the indexable object dataAddr field
+	 * @return true if the data address of objPointer is valid, false otherwise
+	 */
+	public static boolean hasCorrectDataAddrPointer(J9IndexableObjectPointer objPointer) throws CorruptDataException
+	{
+		return ObjectModel.hasCorrectDataAddrPointer(objPointer);
 	}
 
 	/**
@@ -310,111 +362,108 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 	{
 		String className = J9IndexableObjectHelper.getClassName(objPointer);
 		int arraySize = (int) J9IndexableObjectHelper.size(objPointer).longValue();
-		
+
 		if (start + length > arraySize) {
 			throw new ArrayIndexOutOfBoundsException("Requested range " + start + " to " + (start + length) + " overflows array of length " + arraySize);
 		}
-		
+
 		switch (className.charAt(1)) {
 		case 'B':
 		{
-			if (! (dst instanceof byte[])) {
+			if (!(dst instanceof byte[])) {
 				throw new IllegalArgumentException("Destination array of type " + dst.getClass().getName() + " incompatible with byte array (expects byte[])");
 			}
-			
-			getByteData(objPointer, (byte[])dst, start, length, destStart);
+
+			getByteData(objPointer, (byte[]) dst, start, length, destStart);
 			break;
 		}
-		
+
 		case 'C':
 		{
-			if (! (dst instanceof char[])) {
+			if (!(dst instanceof char[])) {
 				throw new IllegalArgumentException("Destination array of type " + dst.getClass().getName() + " incompatible with char array (expects char[])");
 			}
-			
-			getCharData(objPointer, (char[])dst, start, length, destStart);
+
+			getCharData(objPointer, (char[]) dst, start, length, destStart);
 			break;
 		}
-		
+
 		case 'D':
 		{
-			if (! (dst instanceof double[])) {
+			if (!(dst instanceof double[])) {
 				throw new IllegalArgumentException("Destination array of type " + dst.getClass().getName() + " incompatible with double array (expects double[])");
 			}
-			
-			getDoubleData(objPointer, (double[])dst, start, length, destStart);
+
+			getDoubleData(objPointer, (double[]) dst, start, length, destStart);
 			break;
 		}
-		
+
 		case 'F':
 		{
-			if (! (dst instanceof float[])) {
+			if (!(dst instanceof float[])) {
 				throw new IllegalArgumentException("Destination array of type " + dst.getClass().getName() + " incompatible with float array (expects float[])");
 			}
-			
-			getFloatData(objPointer,(float[])dst, start, length, destStart);
+
+			getFloatData(objPointer, (float[]) dst, start, length, destStart);
 			break;
 		}
-		
+
 		case 'I':
 		{
-			if (! (dst instanceof int[])) {
+			if (!(dst instanceof int[])) {
 				throw new IllegalArgumentException("Destination array of type " + dst.getClass().getName() + " incompatible with int array (expects int[])");
 			}
-			
-			getIntData(objPointer, (int[])dst, start, length, destStart);
+
+			getIntData(objPointer, (int[]) dst, start, length, destStart);
 			break;
 		}
-		
+
 		case 'J':
 		{
-			if (! (dst instanceof long[])) {
+			if (!(dst instanceof long[])) {
 				throw new IllegalArgumentException("Destination array of type " + dst.getClass().getName() + " incompatible with long array (expects long[])");
 			}
-			
-			getLongData(objPointer, (long[])dst, start, length, destStart);
+
+			getLongData(objPointer, (long[]) dst, start, length, destStart);
 			break;
 		}
-		
+
 		case 'S':
 		{
-			if (! (dst instanceof short[])) {
+			if (!(dst instanceof short[])) {
 				throw new IllegalArgumentException("Destination array of type " + dst.getClass().getName() + " incompatible with short array (expects short[])");
 			}
-			
-			getShortData(objPointer, (short[])dst, start, length, destStart);
+
+			getShortData(objPointer, (short[]) dst, start, length, destStart);
 			break;
 		}
-		
+
 		case 'Z':
 		{
-			if (! (dst instanceof boolean[])) {
+			if (!(dst instanceof boolean[])) {
 				throw new IllegalArgumentException("Destination array of type " + dst.getClass().getName() + " incompatible with boolean array (expects boolean[])");
 			}
-			
-			getBooleanData(objPointer, (boolean[])dst, start, length, destStart);
+
+			getBooleanData(objPointer, (boolean[]) dst, start, length, destStart);
 			break;
 		}
 
 		case 'L':
-		/*[IF INLINE-TYPES]*/
-		case 'Q':
-		/*[ENDIF] INLINE-TYPES */
 		case '[':
 		{
-			if (! (dst instanceof J9ObjectPointer[])) {
+			if (!(dst instanceof J9ObjectPointer[])) {
 				throw new IllegalArgumentException("Destination array of type " + dst.getClass().getName() + " incompatible with Object array (expects J9ObjectPointer[])");
 			}
-			
-			getObjectData(objPointer, (J9ObjectPointer[])dst, start, length, destStart);
+
+			getObjectData(objPointer, (J9ObjectPointer[]) dst, start, length, destStart);
 			break;
 		}
 		default:
 			throw new CorruptDataException("The data identifier : " + className.charAt(1) + " was not recognised");
 		}
 	}
-	
-	public static void getByteData(J9IndexableObjectPointer objPointer, final byte[] dst, final int start, final int length, final int destStart) throws CorruptDataException 
+
+	public static void getByteData(J9IndexableObjectPointer objPointer, final byte[] dst, final int start, final int length, final int destStart) throws CorruptDataException
 	{
 		if (destStart + length > dst.length) {
 			throw new ArrayIndexOutOfBoundsException("Supplied destination array too small. Requires: " + destStart + length + ", was " + dst.length);
@@ -423,8 +472,8 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 			dst[destStart + i] = U8Pointer.cast(ObjectModel.getElementAddress(objPointer, start + i, 1)).at(0).byteValue();
 		}
 	}
-	
-	public static void getCharData(J9IndexableObjectPointer objPointer, final char[] dst, final int start, final int length, final int destStart) throws CorruptDataException 
+
+	public static void getCharData(J9IndexableObjectPointer objPointer, final char[] dst, final int start, final int length, final int destStart) throws CorruptDataException
 	{
 		if (destStart + length > dst.length) {
 			throw new ArrayIndexOutOfBoundsException("Supplied destination array too small. Requires: " + destStart + length + ", was " + dst.length);
@@ -433,8 +482,8 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 			dst[destStart + i] = (char)U16Pointer.cast(ObjectModel.getElementAddress(objPointer, start + i, 2)).at(0).intValue();
 		}
 	}
-	
-	public static void getDoubleData(J9IndexableObjectPointer objPointer, final double[] dst, final int start, final int length, final int destStart) throws CorruptDataException 
+
+	public static void getDoubleData(J9IndexableObjectPointer objPointer, final double[] dst, final int start, final int length, final int destStart) throws CorruptDataException
 	{
 		if (destStart + length > dst.length) {
 			throw new ArrayIndexOutOfBoundsException("Supplied destination array too small. Requires: " + destStart + length + ", was " + dst.length);
@@ -444,8 +493,8 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 			dst[destStart + i] = Double.longBitsToDouble(bits);
 		}
 	}
-	
-	public static void getFloatData(J9IndexableObjectPointer objPointer, final float[] dst, final int start, final int length, final int destStart) throws CorruptDataException 
+
+	public static void getFloatData(J9IndexableObjectPointer objPointer, final float[] dst, final int start, final int length, final int destStart) throws CorruptDataException
 	{
 		if (destStart + length > dst.length) {
 			throw new ArrayIndexOutOfBoundsException("Supplied destination array too small. Requires: " + destStart + length + ", was " + dst.length);
@@ -455,8 +504,8 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 			dst[destStart + i] = Float.intBitsToFloat(bits);
 		}
 	}
-	
-	public static void getIntData(J9IndexableObjectPointer objPointer, final int[] dst, final int start, final int length, final int destStart) throws CorruptDataException 
+
+	public static void getIntData(J9IndexableObjectPointer objPointer, final int[] dst, final int start, final int length, final int destStart) throws CorruptDataException
 	{
 		if (destStart + length > dst.length) {
 			throw new ArrayIndexOutOfBoundsException("Supplied destination array too small. Requires: " + destStart + length + ", was " + dst.length);
@@ -465,8 +514,8 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 			dst[destStart + i] = I32Pointer.cast(ObjectModel.getElementAddress(objPointer, start + i, 4)).at(0).intValue();
 		}
 	}
-	
-	public static void getLongData(J9IndexableObjectPointer objPointer, final long[] dst, final int start, final int length, final int destStart) throws CorruptDataException 
+
+	public static void getLongData(J9IndexableObjectPointer objPointer, final long[] dst, final int start, final int length, final int destStart) throws CorruptDataException
 	{
 		if (destStart + length > dst.length) {
 			throw new ArrayIndexOutOfBoundsException("Supplied destination array too small. Requires: " + destStart + length + ", was " + dst.length);
@@ -475,8 +524,8 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 			dst[destStart + i] = I64Pointer.cast(ObjectModel.getElementAddress(objPointer, start + i, 8)).at(0).longValue();
 		}
 	}
-	
-	public static void getShortData(J9IndexableObjectPointer objPointer, final short[] dst, final int start, final int length, final int destStart) throws CorruptDataException 
+
+	public static void getShortData(J9IndexableObjectPointer objPointer, final short[] dst, final int start, final int length, final int destStart) throws CorruptDataException
 	{
 		if (destStart + length > dst.length) {
 			throw new ArrayIndexOutOfBoundsException("Supplied destination array too small. Requires: " + destStart + length + ", was " + dst.length);
@@ -485,8 +534,8 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 			dst[destStart + i] = I16Pointer.cast(ObjectModel.getElementAddress(objPointer, start + i, 2)).at(0).shortValue();
 		}
 	}
-	
-	public static void getBooleanData(J9IndexableObjectPointer objPointer, final boolean[] dst, final int start, final int length, final int destStart) throws CorruptDataException 
+
+	public static void getBooleanData(J9IndexableObjectPointer objPointer, final boolean[] dst, final int start, final int length, final int destStart) throws CorruptDataException
 	{
 		if (destStart + length > dst.length) {
 			throw new ArrayIndexOutOfBoundsException("Supplied destination array too small. Requires: " + destStart + length + ", was " + dst.length);
@@ -495,8 +544,8 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 			dst[destStart + i] = (0 != U8Pointer.cast(ObjectModel.getElementAddress(objPointer, start + i, 1)).at(0).intValue());
 		}
 	}
-	
-	public static void getObjectData(J9IndexableObjectPointer objPointer, final J9ObjectPointer[] dst, final int start, final int length, final int destStart) throws CorruptDataException 
+
+	public static void getObjectData(J9IndexableObjectPointer objPointer, final J9ObjectPointer[] dst, final int start, final int length, final int destStart) throws CorruptDataException
 	{
 		if (destStart + length > dst.length) {
 			throw new ArrayIndexOutOfBoundsException("Supplied destination array too small. Requires: " + destStart + length + ", was " + dst.length);
@@ -505,10 +554,9 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 			dst[destStart + i] = ObjectReferencePointer.cast(ObjectModel.getElementAddress(objPointer, start + i, (int)ObjectReferencePointer.SIZEOF)).at(0);
 		}
 	}
-	
-	public static Object getData(J9IndexableObjectPointer objPointer) throws CorruptDataException 
+
+	public static Object getData(J9IndexableObjectPointer objPointer) throws CorruptDataException
 	{
-		
 		String className = J9IndexableObjectHelper.getClassName(objPointer);
 		int arraySize;
 		arraySize = (int) J9IndexableObjectHelper.size(objPointer).longValue();
@@ -518,78 +566,75 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 		{
 			byte[] data = new byte[arraySize];
 			getByteData(objPointer, data, 0, arraySize, 0);
-			return data;			
+			return data;
 		}
-			
+
 		case 'C':
 		{
 			char[] data = new char[arraySize];
 			getCharData(objPointer, data, 0, arraySize, 0);
-			return data;			
+			return data;
 		}
 
 		case 'D':
 		{
 			double[] data = new double[arraySize];
 			getDoubleData(objPointer, data, 0, arraySize, 0);
-			return data;			
+			return data;
 		}
-		
+
 		case 'F':
 		{
 			float[] data = new float[arraySize];
 			getFloatData(objPointer, data, 0, arraySize, 0);
-			return data;			
+			return data;
 		}
-		
+
 		case 'I':
 		{
 			int[] data = new int[arraySize];
 			getIntData(objPointer, data, 0, arraySize, 0);
-			return data;			
+			return data;
 		}
-		
+
 		case 'J':
 		{
 			long[] data = new long[arraySize];
 			getLongData(objPointer, data, 0, arraySize, 0);
-			return data;			
+			return data;
 		}
-		
+
 		case 'S':
 		{
 			short[] data = new short[arraySize];
 			getShortData(objPointer, data, 0, arraySize, 0);
-			return data;			
+			return data;
 		}
-		
+
 		case 'Z':
 		{
 			boolean[] data = new boolean[arraySize];
 			getBooleanData(objPointer, data, 0, arraySize, 0);
-			return data;			
+			return data;
 		}
 
 		case 'L':
-		/*[IF INLINE-TYPES]*/
-		case 'Q':
-		/*[ENDIF] INLINE-TYPES */
 		case '[':
 		{
-			J9ObjectPointer[] data = new J9ObjectPointer[arraySize];			
+			J9ObjectPointer[] data = new J9ObjectPointer[arraySize];
 			getObjectData(objPointer, data, 0, arraySize, 0);
-			return data;			
+			return data;
 		}
-		
+
 		default:
 			throw new CorruptDataException("The data identifier : " + className.charAt(1) + " was not recognised");
 		}
 	}
-	
+
 	public static String getDataAsString(J9IndexableObjectPointer array) throws CorruptDataException {
 		return getDataAsString(array, 10, 80);
 	}
-	
+
 	public static String getDataAsString(J9IndexableObjectPointer array, int dumpLimit, int characterDumpLimit) throws CorruptDataException {
 		StringWriter buf = new StringWriter();
 		J9ClassPointer clazz = J9ObjectHelper.clazz(J9ObjectPointer.cast(array));
@@ -601,62 +646,59 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 		} else {
 			limit = characterDumpLimit;
 		}
-		
+
 		buf.write("{ ");
-		
+
 		int i;
 		for (i = 0; i < Math.min(length, limit); i++) {
 			Object data = J9IndexableObjectHelper.getData(array);
 			switch (typeChar) {
 			case 'B':
 				buf.write("0x");
-				buf.write(Integer.toHexString(((byte[])data)[i]));
+				buf.write(Integer.toHexString(((byte[]) data)[i]));
 				break;
-				
+
 			case 'C':
-				char ch = ((char[])data)[i];
-				if(ch > 31 && ch < 127) {
+				char ch = ((char[]) data)[i];
+				if (ch > 31 && ch < 127) {
 					buf.write(ch);
 				} else {
 					buf.write('?');
 				}
 				break;
-				
+
 			case 'D':
-				buf.write(Double.toString(((double[])data)[i]));
+				buf.write(Double.toString(((double[]) data)[i]));
 				break;
-				
+
 			case 'F':
-				buf.write(Float.toString(((float[])data)[i]));
+				buf.write(Float.toString(((float[]) data)[i]));
 				break;
-				
+
 			case 'I':
 				buf.write("0x");
-				buf.write(Integer.toHexString(((int[])data)[i]));
+				buf.write(Integer.toHexString(((int[]) data)[i]));
 				break;
 
 			case 'J':
 				buf.write("0x");
-				buf.write(Long.toHexString(((long[])data)[i]));
+				buf.write(Long.toHexString(((long[]) data)[i]));
 				break;
-				
+
 			case 'S':
 				buf.write("0x");
-				buf.write(Integer.toHexString(((short[])data)[i]));
-				break;	
-				
+				buf.write(Integer.toHexString(((short[]) data)[i]));
+				break;
+
 			case 'Z':
-				buf.write(((boolean[])data)[i] ? "true" : "false");
-				break;								
+				buf.write(((boolean[]) data)[i] ? "true" : "false");
+				break;
 
 			case 'L':
-			/*[IF INLINE-TYPES]*/
-			case 'Q':
-			/*[ENDIF] INLINE-TYPES */
 			case '[':
 			{
-				J9ObjectPointer item = ((J9ObjectPointer[])data)[i];
-				if(null == item) {
+				J9ObjectPointer item = ((J9ObjectPointer[]) data)[i];
+				if (null == item) {
 					buf.write("null");
 				} else {
 					buf.write("0x");
@@ -664,23 +706,23 @@ public class J9IndexableObjectHelper extends J9ObjectHelper
 				}
 				break;
 			}
-				
+
 			default:
 				buf.write("?");
 			}
-			
-			if (typeChar != 'C' && (i != length-1)) {
+
+			if (typeChar != 'C' && (i != length - 1)) {
 				/* We aren't printing out a character and we aren't the last element */
 				buf.write(", ");
 			}
 		}
-		
+
 		if (i != length) {
 			/* We hit the limit */
 			buf.write("... ");
 		}
 		buf.write(" }");
-	
+
 		return buf.toString();
 	}
 

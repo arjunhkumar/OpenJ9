@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2004
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview;
 
 import com.ibm.dtfj.image.ImageFactory;
@@ -36,21 +36,21 @@ public class Version {
 	private static int majorVersion = 4;
 	private static int minorVersion = 29;	// minor version is the VM stream
 	private static int buildVersion = 5;	// build version - historically the tag from RAS_Auto-Build/projects.psf - now just a number
-	
+
 	private static String name = "DTFJView";
-	
+
 	public static String getVersion()
 	{
 		return Integer.toString(majorVersion) + "." +
 			Integer.toString(minorVersion) + "." +
 			Integer.toString(buildVersion);
 	}
-	
+
 	public static String getName()
 	{
 		return name;
 	}
-	
+
 	public static String getAllVersionInfo(ImageFactory factory)
 	{
 		String DTFJViewVersion = getName() + " version " + getVersion();

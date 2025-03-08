@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar19-SE & SharedClasses]*/
-/*******************************************************************************
+/*[INCLUDE-IF (JAVA_SPEC_VERSION >= 9) & SharedClasses]*/
+/*
  * Copyright IBM Corp. and others 2017
  *
  * This program and the accompanying materials are made available under
@@ -18,20 +18,24 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package com.ibm.oti.shared.provider;
 
 import java.net.URL;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.BasicPermission;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import java.util.function.IntConsumer;
 import com.ibm.sharedclasses.spi.SharedClassProvider;
 import com.ibm.oti.shared.CannotSetClasspathException;
 import com.ibm.oti.shared.HelperAlreadyDefinedException;
 import com.ibm.oti.shared.Shared;
 import com.ibm.oti.shared.SharedClassHelperFactory;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import com.ibm.oti.shared.SharedClassPermission;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 import com.ibm.oti.shared.SharedClassStatistics;
 import com.ibm.oti.shared.SharedClassURLClasspathHelper;
 import com.ibm.oti.shared.SharedClassURLHelper;
@@ -82,7 +86,7 @@ public class SharedClassProviderImpl implements SharedClassProvider {
 					return null;
 				}
 			}
- 		} catch (HelperAlreadyDefinedException ex) {
+		} catch (HelperAlreadyDefinedException ex) {
 			return null;
 		}
 		return this;
@@ -196,6 +200,7 @@ public class SharedClassProviderImpl implements SharedClassProvider {
 			return 0;
 		}
 	}
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@Override
 	public BasicPermission createPermission(String classLoaderClassName, String actions) {
 		if (!isSharedClassEnabled()) {
@@ -203,4 +208,5 @@ public class SharedClassProviderImpl implements SharedClassProvider {
 		}
 		return new SharedClassPermission(classLoaderClassName, actions);
 	}
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 }

@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 #
 
 #
@@ -945,4 +945,16 @@ J9NLS_EXELIB_INTERNAL_HELP_XXNOPORTABLESHAREDCACHE.system_action=
 J9NLS_EXELIB_INTERNAL_HELP_XXNOPORTABLESHAREDCACHE.user_response=
 # END NON-TRANSLATABLE
 
+J9NLS_EXELIB_INTERNAL_HELP_XXENABLESHAREORPAH=\  -XX:+ShareOrphans   enable sharing classes with no class/module path information as orphans
+# START NON-TRANSLATABLE
+J9NLS_EXELIB_INTERNAL_HELP_XXENABLESHAREORPAH.explanation=NOTAG
+J9NLS_EXELIB_INTERNAL_HELP_XXENABLESHAREORPAH.system_action=
+J9NLS_EXELIB_INTERNAL_HELP_XXENABLESHAREORPAH.user_response=
+# END NON-TRANSLATABLE
 
+J9NLS_EXELIB_INTERNAL_HELP_XXDISABLESHAREORPAHN=\  -XX:-ShareOrphans   disable sharing classes with no class/module path information as orphans
+# START NON-TRANSLATABLE
+J9NLS_EXELIB_INTERNAL_HELP_XXDISABLESHAREORPAHN.explanation=NOTAG
+J9NLS_EXELIB_INTERNAL_HELP_XXDISABLESHAREORPAHN.system_action=
+J9NLS_EXELIB_INTERNAL_HELP_XXDISABLESHAREORPAHN.user_response=
+# END NON-TRANSLATABLE

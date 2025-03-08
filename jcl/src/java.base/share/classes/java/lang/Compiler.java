@@ -1,7 +1,5 @@
-/*[INCLUDE-IF Sidecar16]*/
-package java.lang;
-
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION < 21]*/
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -20,9 +18,10 @@ package java.lang;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
- 
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
+package java.lang;
+
 /**
  * This class is a placeholder for environments which
  * explicitly manage the action of a "Just In Time"
@@ -33,9 +32,9 @@ package java.lang;
  *
  * @see			Cloneable
  */
-/*[IF Sidecar19-SE]*/
+/*[IF JAVA_SPEC_VERSION >= 9]*/
 @Deprecated(forRemoval=true, since="9")
-/*[ENDIF]*/
+/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 public final class Compiler {
 
 private Compiler() {}
@@ -82,8 +81,8 @@ private static native boolean compileClassImpl(Class classToCompile);
 
 /**
  * Compiles all classes whose name matches the argument
- * using the JIT compiler. Answers true if the compilation 
- * was successful, or false if it failed or there was no 
+ * using the JIT compiler. Answers true if the compilation
+ * was successful, or false if it failed or there was no
  * JIT compiler available.
  *
  * @return		boolean

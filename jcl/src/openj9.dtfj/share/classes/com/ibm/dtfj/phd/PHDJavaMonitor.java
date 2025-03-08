@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2008
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.phd;
 
 import java.util.ArrayList;
@@ -49,7 +49,7 @@ public class PHDJavaMonitor implements JavaMonitor {
 	private CorruptData owner_cd;
 	private ArrayList<JavaThread> enterWaiters = new ArrayList<JavaThread>();
 	private ArrayList<JavaThread> notifyWaiters = new ArrayList<JavaThread>();
-	
+
 	/**
 	 * Build Java monitor information from a JavaMonitor from another dump type.
 	 * Extract all the information on object construction.
@@ -74,10 +74,10 @@ public class PHDJavaMonitor implements JavaMonitor {
 			}
 		}
 		try {
-		    JavaThread thr = source.getOwner();
-		    if (thr != null) {
-		    	owner = runtime.getThread(thr);
-		    }
+			JavaThread thr = source.getOwner();
+			if (thr != null) {
+				owner = runtime.getThread(thr);
+			}
 		} catch (CorruptDataException e) {
 			owner_cd = new PHDCorruptData(space, e);
 		}
@@ -100,7 +100,7 @@ public class PHDJavaMonitor implements JavaMonitor {
 			}
 		}
 	}
-	
+
 	public Iterator<JavaThread> getEnterWaiters() {
 		return enterWaiters.iterator();
 	}
@@ -131,7 +131,7 @@ public class PHDJavaMonitor implements JavaMonitor {
 		if (o == null || !getClass().equals(o.getClass())) return false;
 		return id == ((PHDJavaMonitor)o).id;
 	}
-	
+
 	public int hashCode() {
 		return id.hashCode();
 	}

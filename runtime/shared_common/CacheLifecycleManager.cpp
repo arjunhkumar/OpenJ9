@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 /**
@@ -293,7 +293,7 @@ printSharedCache(void* element, void* param)
 		char addrmodeStr[10];
 		getStringForShcAddrmode(PORTLIB, currentItem->versionData.addrmode, addrmodeStr);
 		char levelStr[20];
-		j9str_printf(PORTLIB, levelStr, sizeof(levelStr), "%s %s", jclLevelStr, addrmodeStr);
+		j9str_printf(levelStr, sizeof(levelStr), "%s %s", jclLevelStr, addrmodeStr);
 		j9tty_printf(PORTLIB, "%-15s", levelStr);
 		if (J9PORT_SHR_CACHE_TYPE_PERSISTENT == currentItem->versionData.cacheType) {
 			j9tty_printf(PORTLIB, "%-16s", "persistent");

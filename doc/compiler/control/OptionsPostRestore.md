@@ -17,7 +17,7 @@ OpenJDK Assembly Exception [2].
 [1] https://www.gnu.org/software/classpath/license.html
 [2] https://openjdk.org/legal/assembly-exception.html
 
-SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 
 # Overview
@@ -139,13 +139,14 @@ consequence of this is that if the same file name is specified then a
 new file will be opened. This can have the consequence of overwriting
 the previous file if the PID of the restored process is the same.
 
-### Start and Elapsed Time
+### Start Time
 
-The Checkpoint phase is conceptually part of building the application;
-therefore it does not make sense to expect a user who specifies an
-option such as `-XsamplingExpirationTime` to take into account the time
-spent executing in the Checkpoint phase. Therefore, on restore, both
-the start and elapsed time are reset.
+While the checkpoint phase is conceptually part of building the
+application, in order to ensure consistency with parts of the compiler
+that memoize elapsed time, the start time is reset to pretend like the
+JVM started `persistentInfo->getElapsedTime()` milliseconds ago. This
+will impact options such as `-XsamplingExpirationTime`. However, such
+an option may not make sense in the context of checkpoint/restore.
 
 ### `-Xrs`, `-Xtrace`, `-Xjit:disableTraps`, `-Xjit:noResumableTrapHandler`
 
@@ -155,3 +156,16 @@ then specified post-restore, the options processing code will
 invalidate all JIT code in the code cache, as well as prevent further
 AOT compilation (since the AOT method header would have already been
 validated).
+
+### JITServer
+
+The following table outlines when a client JVM will connect to a
+JITServer instance.
+
+||Non-Portable CRIU Pre-Checkpoint|Non-Portable CRIU Post-Restore|Portable CRIU Pre-Checkpoint|Portable CRIU Post-Restore|
+|--|--|--|--|--|
+|No Options Pre-Checkpoint; No Options Post-Restore|:x:|:x:|:x:|:x:|
+|No Options Pre-checkpoint; `-XX:+UseJITServer` Post-Restore|:x:|:white_check_mark:|:x:|:white_check_mark:|
+|`-XX:+UseJITServer` Pre-Checkpoint; No Options Post-Restore|:x:|:white_check_mark:|:white_check_mark:|:white_check_mark:|
+|`-XX:+UseJITServer` Pre-Checkpoint; `-XX:-UseJITServer` Post-Restore|:x:|:x:|:white_check_mark:|:x:|
+|`-XX:-UseJITServer` Pre-Checkpoint; `-XX:+UseJITServer` Post-Restore|:x:|:x:|:x:|:x:|

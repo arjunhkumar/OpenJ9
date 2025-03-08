@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2011
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.utils.file;
 
 import java.io.File;
@@ -33,19 +33,19 @@ import javax.imageio.stream.ImageInputStream;
 
 /**
  * Abstract class for handling compressed files
- * 
+ *
  * @author adam
  *
  */
 public abstract class CompressedFileManager extends SimpleFileManager {
 	protected final byte[] buffer = new byte[4096];
-	
+
 	public CompressedFileManager(File file) {
 		super(file);
 	}
 
 	public abstract void extract(File todir) throws IOException;
-	
+
 	public abstract void extract(ManagedImageSource file, File todir) throws IOException;
 
 	public abstract ImageInputStream getStream(ManagedImageSource source) throws IOException;
@@ -66,7 +66,7 @@ public abstract class CompressedFileManager extends SimpleFileManager {
 			todir.mkdirs();
 		}
 	}
-	
+
 	/**
 	 * Returns a specified image source specified by the path in the zip file
 	 * @param path path within the zip
@@ -83,7 +83,7 @@ public abstract class CompressedFileManager extends SimpleFileManager {
 			throw new FileNotFoundException("The entry " + path + " was not found in " + managedFile.getAbsolutePath());
 		}
 	}
-	
+
 	protected void extractEntry(InputStream in, File path) throws IOException {
 		FileOutputStream out = null;
 		long total = 0;

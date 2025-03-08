@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2018
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.tools.ddrinteractive.commands;
 
 import java.io.PrintStream;
@@ -35,9 +35,9 @@ import com.ibm.j9ddr.vm29.j9.SlotIterator;
 import com.ibm.j9ddr.vm29.pointer.generated.J9HashTablePointer;
 import com.ibm.j9ddr.vm29.pointer.generated.J9JavaVMPointer;
 import com.ibm.j9ddr.vm29.pointer.generated.J9ModulePointer;
-import com.ibm.j9ddr.vm29.pointer.helper.J9ObjectHelper;
 import com.ibm.j9ddr.vm29.pointer.helper.J9RASHelper;
 import com.ibm.j9ddr.vm29.tools.ddrinteractive.JavaVersionHelper;
+import com.ibm.j9ddr.vm29.tools.ddrinteractive.ModularityHelper;
 
 /**
  * DumpModuleReads command displays all modules that the target module reads
@@ -72,7 +72,7 @@ public class DumpModuleReadsCommand extends Command{
 				SlotIterator<J9ModulePointer> slotIterator = moduleHashTable.iterator();
 				while (slotIterator.hasNext()) {
 					J9ModulePointer readModulePtr = slotIterator.next();
-					String moduleName = J9ObjectHelper.stringValue(readModulePtr.moduleName());
+					String moduleName = ModularityHelper.getModuleName(readModulePtr);
 					String hexAddress = readModulePtr.getHexAddress();
 					out.printf("%-30s !j9module %s%n", moduleName, hexAddress);
 				}

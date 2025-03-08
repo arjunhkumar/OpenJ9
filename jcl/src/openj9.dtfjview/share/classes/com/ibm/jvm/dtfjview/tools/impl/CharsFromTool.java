@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.dtfjview.tools.impl;
 
 import java.io.PrintStream;
@@ -48,7 +48,7 @@ public class CharsFromTool extends Tool implements IPipe {
 	 * @param command	The command
 	 * @param args		The arguments taken by the command.
 	 * <p>
-	 * @return		<code>true</code> if this is the correct tool for this command; 
+	 * @return		<code>true</code> if this is the correct tool for this command;
 	 * 				<code>false</code> otherwise.
 	 */
 	public boolean accept(String command, String[] args) {
@@ -126,7 +126,7 @@ public class CharsFromTool extends Tool implements IPipe {
 		boolean includeToken = true;
 		boolean keepMismatchedLines = false;
 		boolean ignoreCase = false;
-		
+
 		int x = 0;
 		for (;x < args.length; ++x) {
 			if(args[x].equalsIgnoreCase("-e") || args[x].equalsIgnoreCase("-exclude")) {
@@ -139,26 +139,26 @@ public class CharsFromTool extends Tool implements IPipe {
 				break;
 			}
 		}
-		
+
 		if (x >= args.length) {
 			return null;
 		}
 		String searchToken = args[x];
 		++x;
-		
+
 		if (x >= args.length) {
 			return null;
 		}
-		
+
 		String command = args[x];
 		++x;
-		
+
 		String [] commandArgs = new String[args.length - x];
 		System.arraycopy(args, x, commandArgs, 0, args.length - x);
 
 		return new Arguments(searchToken, includeToken, keepMismatchedLines, ignoreCase, command, commandArgs);
 	}
-	
+
 	private static final class Arguments {
 		Arguments(String searchToken, boolean includeToken, boolean keepMismatchedLines, boolean ignoreCase, String command, String [] commandArgs) {
 			this.searchToken = ignoreCase ? searchToken.toLowerCase() : searchToken;

@@ -18,11 +18,11 @@
   [1] https://www.gnu.org/software/classpath/license.html
   [2] https://openjdk.org/legal/assembly-exception.html
 
-  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+  SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 -->
 <playlist xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../TKG/playlist.xsd">
 	<test>
-		<testCaseName>IllegalAccessProtectedMethodTest</testCaseName>
+		<testCaseName>IllegalAccessProtectedMethodTest_hs</testCaseName>
 		<command>$(JAVA_COMMAND) $(JVM_OPTIONS) \
 	-javaagent:$(Q)$(TEST_RESROOT)$(D)IllegalAccessProtectedMethod.jar$(Q) \
 	-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(LIB_DIR)$(D)asm-all.jar$(P)$(TEST_RESROOT)$(D)IllegalAccessProtectedMethod.jar$(Q) \
@@ -37,5 +37,29 @@
 		<groups>
 			<group>functional</group>
 		</groups>
+		<impls>
+			<impl>hotspot</impl>
+		</impls>
+	</test>
+	<test>
+		<testCaseName>IllegalAccessProtectedMethodTest_j9</testCaseName>
+		<command>$(JAVA_COMMAND) $(JVM_OPTIONS) \
+	-javaagent:$(Q)$(TEST_RESROOT)$(D)IllegalAccessProtectedMethod.jar$(Q) \
+	-cp $(Q)$(RESOURCES_DIR)$(P)$(TESTNG)$(P)$(LIB_DIR)$(D)asm-all.jar$(P)$(TEST_RESROOT)$(D)IllegalAccessProtectedMethod.jar$(Q) \
+	org.testng.TestNG -d $(REPORTDIR) $(Q)$(TEST_RESROOT)$(D)testng.xml$(Q) \
+	-testnames IllegalAccessProtectedMethodTest \
+	-groups $(TEST_GROUP) \
+	-excludegroups $(DEFAULT_EXCLUDE); \
+	$(TEST_STATUS)</command>
+		<levels>
+			<level>extended</level>
+		</levels>
+		<groups>
+			<group>functional</group>
+		</groups>
+		<impls>
+			<impl>openj9</impl>
+			<impl>ibm</impl>
+		</impls>
 	</test>
 </playlist>

@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 include(CheckCXXCompilerFlag)
@@ -38,6 +38,12 @@ if(OMR_ARCH_X86)
 		endif()
 	endif()
 	enable_language(ASM_NASM)
+	if(OMR_OS_WINDOWS)
+		# On Windows, automatic dependency tracking for ASM_NASM files doesn't play
+		# nicely with fixpath.sh. Remove the nasm options that would produce *.d
+		# files: cmake silently treats missing *.d files as if they were empty.
+		set(CMAKE_DEPFILE_FLAGS_ASM_NASM "")
+	endif()
 	# We have to manually append "/" to the paths as NASM versions older than v2.14 requires trailing / in the directory paths.
 	set(asm_inc_dirs
 		"-I${j9vm_SOURCE_DIR}/oti/"
@@ -159,9 +165,9 @@ endif()
 set(REMOVED_OMR_FILES
 	${omr_SOURCE_DIR}/compiler/codegen/CCData.cpp
 	${omr_SOURCE_DIR}/compiler/control/CompileMethod.cpp
-	${omr_SOURCE_DIR}/compiler/env/FEBase.cpp
 	${omr_SOURCE_DIR}/compiler/optimizer/FEInliner.cpp
-	${omr_SOURCE_DIR}/compiler/env/JitConfig.cpp
+	${omr_SOURCE_DIR}/compiler/env/OMRJitConfig.cpp
+	${omr_SOURCE_DIR}/compiler/env/OMRFrontEnd.cpp
 	${omr_SOURCE_DIR}/compiler/env/PersistentAllocator.cpp
 	${omr_SOURCE_DIR}/compiler/env/SystemSegmentProvider.cpp
 	${omr_SOURCE_DIR}/compiler/infra/OMRMonitor.cpp
@@ -237,11 +243,20 @@ if(OMR_OS_LINUX OR OMR_OS_OSX)
 		-Wno-deprecated
 		-Wno-enum-compare
 		-Wno-write-strings
-		-fomit-frame-pointer
 		-fasynchronous-unwind-tables
 		-Wreturn-type
 		-pthread
 	)
+	# Workaround for problem seen in x86_64-macOS builds for JDK 22.
+	if((NOT JAVA_SPEC_VERSION LESS 22) AND OMR_OS_OSX AND OMR_ARCH_X86)
+		list(APPEND J9_SHAREDFLAGS
+			-fno-omit-frame-pointer
+		)
+	else()
+		list(APPEND J9_SHAREDFLAGS
+			-fomit-frame-pointer
+		)
+	endif()
 
 	# Platform-specific CXX flags, also derived from the makefiles.
 	list(APPEND J9_CXXFLAGS
@@ -269,7 +284,11 @@ elseif(OMR_OS_AIX)
 		-DSUPPORTS_THREAD_LOCAL
 	)
 	if(OMR_ENV_DATA64)
-		list(APPEND J9_SHAREDFLAGS -q64)
+		if(OMR_TOOLCONFIG STREQUAL "openxl")
+			list(APPEND J9_SHAREDFLAGS -m64)
+		else()
+			list(APPEND J9_SHAREDFLAGS -q64)
+		endif()
 		if(OMR_TOOLCONFIG STREQUAL "xlc")
 			# Modify the arch tuning value we inherit from OMR.
 			list(REMOVE_ITEM TR_COMPILE_OPTIONS "-qarch=pwr7")
@@ -319,7 +338,7 @@ omr_stringify(J9_CXXFLAGS_STR ${J9_SHAREDFLAGS} ${J9_CXXFLAGS})
 set(CMAKE_CXX_FLAGS "${J9_CXXFLAGS_STR}")
 set(CMAKE_C_FLAGS "${J9_CFLAGS_STR}")
 
-if(OMR_ARCH_X86 OR OMR_ARCH_S390)
+if(OMR_ARCH_AARCH64 OR (OMR_ARCH_POWER AND NOT OMR_TOOLCONFIG STREQUAL "xlc") OR OMR_ARCH_S390 OR OMR_ARCH_X86)
 	set(OMR_WARNINGS_AS_ERRORS ON)
 	set(OMR_ENHANCED_WARNINGS OFF)
 else()
@@ -339,6 +358,10 @@ create_omr_compiler_library(NAME j9jit
 if(OMR_OS_ZOS)
 	# Workaround a compile problem on z/OS by appending "-O" (to override "-O3").
 	set_property(SOURCE "optimizer/VectorAPIExpansion.cpp" APPEND PROPERTY COMPILE_FLAGS "-O")
+	if(OMR_TOOLCONFIG STREQUAL "openxl")
+		# Workaround a Open XL compile problem on z/OS by appending "-O0" (to override "-O3").
+		set_property(SOURCE "runtime/codertinit.cpp" APPEND PROPERTY COMPILE_FLAGS "-O0")
+	endif()
 endif()
 
 add_dependencies(j9jit
@@ -376,7 +399,7 @@ set_source_files_properties(
 
 if(OMR_OS_LINUX)
 	set_property(TARGET j9jit APPEND_STRING PROPERTY
-		LINK_FLAGS " -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/build/scripts/j9jit.linux.exp")
+		LINK_FLAGS " -Wl,-z,noexecstack -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/build/scripts/j9jit.linux.exp")
 	target_link_libraries(j9jit PRIVATE m)
 elseif(OMR_OS_WINDOWS)
 	target_sources(j9jit PRIVATE build/scripts/j9jit.def)

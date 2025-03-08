@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.diagnostics.utils.plugins;
 
 import java.io.File;
@@ -30,9 +30,9 @@ import java.util.List;
 import java.util.logging.Level;
 
 /**
- * Represents a class file container in the file system, this 
+ * Represents a class file container in the file system, this
  * could be a directory or a jar file.
- * 
+ *
  * @author adam
  */
 public class Container extends Entry {
@@ -86,7 +86,7 @@ public class Container extends Entry {
 
 	/**
 	 * Recursively scan all nodes in the tree looking for the specified entry.
-	 * 
+	 *
 	 * @param entry entry to be searched for
 	 * @return
 	 */

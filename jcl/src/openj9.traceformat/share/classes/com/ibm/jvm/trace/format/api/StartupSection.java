@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2000
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.trace.format.api;
 
 import java.io.UnsupportedEncodingException;
@@ -28,13 +28,13 @@ import java.util.*;
 
 /**
  * Startup section of a file header.
- * 
+ *
  * @author Tim Preece
  */
 public class StartupSection {
 	TraceContext context;
 	String textSummary = null;
-	
+
 	private Vector options = new Vector();
 
 	public StartupSection(TraceContext context, ByteBuffer data) throws IllegalArgumentException {
@@ -73,7 +73,7 @@ public class StartupSection {
 	public String toString() {
 		return "JVM startup options";
 	}
-	
+
 	public String summary() {
 		if (textSummary == null) {
 			StringBuilder s = new StringBuilder(toString()+":"+System.getProperty("line.separator"));
@@ -82,10 +82,10 @@ public class StartupSection {
 				s.append(options.get(i));
 				s.append(System.getProperty("line.separator"));
 			}
-		
+
 			textSummary = s.toString();
 		}
-		
+
 		return textSummary;
 	}
 }

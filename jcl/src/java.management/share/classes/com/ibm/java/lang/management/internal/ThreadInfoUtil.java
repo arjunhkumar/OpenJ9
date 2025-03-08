@@ -1,5 +1,5 @@
-/*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*[INCLUDE-IF JAVA_SPEC_VERSION >= 8]*/
+/*
  * Copyright IBM Corp. and others 2016
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.java.lang.management.internal;
 
 import java.lang.management.LockInfo;
@@ -35,7 +35,7 @@ import javax.management.openmbean.OpenType;
 import javax.management.openmbean.SimpleType;
 
 /**
- * Support for the {@link ThreadInfo} class. 
+ * Support for the {@link ThreadInfo} class.
  */
 public final class ThreadInfoUtil {
 
@@ -52,18 +52,18 @@ public final class ThreadInfoUtil {
 						"waitedCount", "waitedTime", "lockInfo", "lockName", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
 						"lockOwnerId", "lockOwnerName", "stackTrace", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 						"lockedMonitors", "lockedSynchronizers" //$NON-NLS-1$ //$NON-NLS-2$
-						/*[IF Sidecar19-SE]*/
+						/*[IF JAVA_SPEC_VERSION >= 9]*/
 						, "daemon", "priority" //$NON-NLS-1$ //$NON-NLS-2$
-						/*[ENDIF]*/
+						/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 				};
 				String[] descs = { "threadId", "threadName", "threadState", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 						"suspended", "inNative", "blockedCount", "blockedTime", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
 						"waitedCount", "waitedTime", "lockInfo", "lockName", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
 						"lockOwnerId", "lockOwnerName", "stackTrace", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$
 						"lockedMonitors", "lockedSynchronizers" //$NON-NLS-1$ //$NON-NLS-2$
-						/*[IF Sidecar19-SE]*/
+						/*[IF JAVA_SPEC_VERSION >= 9]*/
 						, "daemon", "priority" //$NON-NLS-1$ //$NON-NLS-2$
-						/*[ENDIF]*/
+						/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 				};
 				OpenType<?>[] types = { SimpleType.LONG, SimpleType.STRING, SimpleType.STRING, SimpleType.BOOLEAN,
 						SimpleType.BOOLEAN, SimpleType.LONG, SimpleType.LONG, SimpleType.LONG, SimpleType.LONG,
@@ -71,9 +71,9 @@ public final class ThreadInfoUtil {
 						new ArrayType<>(1, StackTraceElementUtil.getCompositeType()),
 						new ArrayType<>(1, MonitorInfoUtil.getCompositeType()),
 						new ArrayType<>(1, LockInfoUtil.getCompositeType())
-						/*[IF Sidecar19-SE]*/
+						/*[IF JAVA_SPEC_VERSION >= 9]*/
 						, SimpleType.BOOLEAN, SimpleType.INTEGER
-						/*[ENDIF]*/
+						/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 				};
 
 				compositeType = new CompositeType(
@@ -126,9 +126,9 @@ public final class ThreadInfoUtil {
 					"waitedCount", "waitedTime", "lockInfo", "lockName", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
 					"lockOwnerId", "lockOwnerName", "stackTrace", "lockedMonitors", //$NON-NLS-1$ //$NON-NLS-2$ //$NON-NLS-3$ //$NON-NLS-4$
 					"lockedSynchronizers" //$NON-NLS-1$
-					/*[IF Sidecar19-SE]*/
+					/*[IF JAVA_SPEC_VERSION >= 9]*/
 					, "daemon", "priority" //$NON-NLS-1$ //$NON-NLS-2$
-					/*[ENDIF]*/
+					/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 			};
 			Object[] values = {
 					Long.valueOf(info.getThreadId()),
@@ -145,10 +145,10 @@ public final class ThreadInfoUtil {
 					Long.valueOf(info.getLockOwnerId()),
 					info.getLockOwnerName(),
 					stArray, lmArray, lsArray
-					/*[IF Sidecar19-SE]*/
+					/*[IF JAVA_SPEC_VERSION >= 9]*/
 					, Boolean.valueOf(info.isDaemon()),
 					Integer.valueOf(info.getPriority())
-					/*[ENDIF]*/
+					/*[ENDIF] JAVA_SPEC_VERSION >= 9 */
 			};
 
 			try {
@@ -162,7 +162,6 @@ public final class ThreadInfoUtil {
 
 		return result;
 	}
-
 
 	private ThreadInfoUtil() {
 		super();

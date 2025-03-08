@@ -17,7 +17,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 ################################################################################
 
 # Wrapper around omr_add_exports which strips windows name mangling (except on 32-bit windows).
@@ -66,7 +66,6 @@ jvm_add_exports(jvm
 	_JVM_CurrentClassLoader@4
 	_JVM_CurrentLoadedClass@4
 	_JVM_CurrentTimeMillis@8
-	_JVM_CX8Field@28
 	_JVM_DefineClassWithSource@28
 	_JVM_DumpThreads@12
 	_JVM_ExpandFdTable@4
@@ -79,7 +78,6 @@ jvm_add_exports(jvm
 	_JVM_GetClassAccessFlags@8
 	_JVM_GetClassAnnotations@8
 	_JVM_GetClassConstantPool@8
-	_JVM_GetClassContext@4
 	_JVM_GetClassLoader@8
 	_JVM_GetClassSignature@8
 	_JVM_GetEnclosingMethodInfo@8
@@ -116,7 +114,6 @@ jvm_add_exports(jvm
 	_JVM_Recv@16
 	_JVM_RecvFrom@24
 	_JVM_RegisterSignal@8
-	_JVM_RegisterUnsafeMethods@8
 	_JVM_Send@16
 	_JVM_SendTo@24
 	_JVM_SetLength@12
@@ -125,7 +122,6 @@ jvm_add_exports(jvm
 	_JVM_SocketAvailable@8
 	_JVM_SocketClose@4
 	_JVM_Startup@8
-	_JVM_SupportsCX8@0
 	_JVM_Sync@4
 	_JVM_Timeout@8
 	_JVM_TotalMemory@0
@@ -148,15 +144,12 @@ jvm_add_exports(jvm
 	post_block
 	pre_block
 	# Additions for Java 7
-	_JVM_GetStackAccessControlContext@8
-	_JVM_GetInheritedAccessControlContext@8
 	_JVM_GetArrayLength@8
 	_JVM_GetArrayElement@12
 	_JVM_GetStackTraceElement@12
 	_JVM_GetStackTraceDepth@8
 	_JVM_FillInStackTrace@8
 	_JVM_StartThread@8
-	_JVM_IsThreadAlive@8
 	_JVM_SetThreadPriority@12
 	_JVM_Yield@8
 	_JVM_CurrentThread@8
@@ -166,7 +159,6 @@ jvm_add_exports(jvm
 	_JVM_HoldsLock@12
 	_JVM_InitProperties@8
 	_JVM_ArrayCopy@28
-	_JVM_DoPrivileged@20
 	_JVM_IHashCode@8
 	_JVM_Clone@8
 	_JVM_CompileClass@12
@@ -186,14 +178,10 @@ jvm_add_exports(jvm
 	_JVM_IsInterface@8
 	_JVM_GetClassSigners@8
 	_JVM_SetClassSigners@12
-	_JVM_IsArrayClass@8
-	_JVM_IsPrimitiveClass@8
 	_JVM_GetComponentType@8
-	_JVM_GetClassModifiers@8
 	_JVM_GetClassDeclaredFields@12
 	_JVM_GetClassDeclaredMethods@12
 	_JVM_GetClassDeclaredConstructors@12
-	_JVM_GetProtectionDomain@8
 	_JVM_SetProtectionDomain@12
 	_JVM_GetDeclaredClasses@8
 	_JVM_GetDeclaringClass@8
@@ -286,6 +274,12 @@ jvm_add_exports(jvm
 	JVM_BeforeHalt
 )
 
+if((JAVA_SPEC_VERSION LESS 9) AND OMR_OS_WINDOWS)
+	jvm_add_exports(jvm
+		_JVM_DoPrivileged@20
+	)
+endif()
+
 if(JAVA_SPEC_VERSION LESS 11)
 	jvm_add_exports(jvm
 		_JVM_GetCallerClass@8
@@ -348,18 +342,26 @@ if(NOT JAVA_SPEC_VERSION LESS 15)
 	jvm_add_exports(jvm
 		JVM_RegisterLambdaProxyClassForArchiving
 		JVM_LookupLambdaProxyClassFromArchive
-		JVM_IsCDSDumpingEnabled
 	)
+	if(JAVA_SPEC_VERSION LESS 23)
+		jvm_add_exports(jvm
+			JVM_IsCDSDumpingEnabled
+		)
+	endif()
 endif()
 
 if(NOT JAVA_SPEC_VERSION LESS 16)
 	jvm_add_exports(jvm
 		JVM_DefineArchivedModules
 		JVM_GetRandomSeedForDumping
-		JVM_IsSharingEnabled
 		JVM_LogLambdaFormInvoker
-		JVM_IsDumpingClassList
 	)
+	if(JAVA_SPEC_VERSION LESS 23)
+		jvm_add_exports(jvm
+			JVM_IsDumpingClassList
+			JVM_IsSharingEnabled
+		)
+	endif()
 endif()
 
 if(JAVA_SPEC_VERSION LESS 17)
@@ -370,6 +372,7 @@ if(JAVA_SPEC_VERSION LESS 17)
 		_JVM_DTraceIsProbeEnabled@8
 		_JVM_DTraceIsSupported@4
 		_JVM_GetInterfaceVersion@0
+		_JVM_IsThreadAlive@8
 	)
 endif()
 
@@ -377,7 +380,18 @@ if(NOT JAVA_SPEC_VERSION LESS 17)
 	jvm_add_exports(jvm
 		JVM_DumpClassListToFile
 		JVM_DumpDynamicArchive
+		JVM_GetProperties
 	)
+	if(J9VM_ZOS_3164_INTEROPERABILITY)
+		jvm_add_exports(jvm
+			JVM_Invoke31BitJNI_OnXLoad
+		)
+	endif()
+	if(J9VM_OPT_JAVA_OFFLOAD_SUPPORT)
+		jvm_add_exports(jvm
+			JVM_ValidateJNILibrary
+		)
+	endif()
 endif()
 
 if(NOT JAVA_SPEC_VERSION LESS 18)
@@ -389,14 +403,10 @@ endif()
 
 if(NOT JAVA_SPEC_VERSION LESS 19)
 	jvm_add_exports(jvm
-		JVM_LoadZipLibrary
-		JVM_RegisterContinuationMethods
 		JVM_IsContinuationsSupported
 		JVM_IsPreviewEnabled
-		JVM_VirtualThreadMountBegin
-		JVM_VirtualThreadMountEnd
-		JVM_VirtualThreadUnmountBegin
-		JVM_VirtualThreadUnmountEnd
+		JVM_LoadZipLibrary
+		JVM_RegisterContinuationMethods
 	)
 endif()
 
@@ -409,14 +419,63 @@ if(JAVA_SPEC_VERSION LESS 20)
 else()
 	jvm_add_exports(jvm
 		JVM_GetClassFileVersion
-		JVM_VirtualThreadHideFrames
 	)
+	if(JAVA_SPEC_VERSION LESS 24)
+		jvm_add_exports(jvm
+			JVM_VirtualThreadHideFrames
+		)
+	endif()
 endif()
 
 if(NOT JAVA_SPEC_VERSION LESS 21)
 	jvm_add_exports(jvm
+		JVM_IsForeignLinkerSupported
+		JVM_PrintWarningAtDynamicAgentLoad
+		JVM_VirtualThreadEnd
 		JVM_VirtualThreadMount
+		JVM_VirtualThreadStart
 		JVM_VirtualThreadUnmount
+	)
+endif()
+
+if(JAVA_SPEC_VERSION LESS 22)
+	jvm_add_exports(jvm
+		_JVM_SupportsCX8@0
+	)
+else()
+	jvm_add_exports(jvm
+		JVM_ExpandStackFrameInfo
+		JVM_VirtualThreadDisableSuspend
+	)
+endif()
+
+if(NOT JAVA_SPEC_VERSION LESS 23)
+	jvm_add_exports(jvm
+		JVM_GetCDSConfigStatus
+	)
+endif()
+
+if(JAVA_SPEC_VERSION LESS 24)
+	jvm_add_exports(jvm
+		_JVM_GetClassContext@4
+		_JVM_GetInheritedAccessControlContext@8
+		_JVM_GetStackAccessControlContext@8
+	)
+else()
+	jvm_add_exports(jvm
+		JVM_IsContainerized
+		JVM_IsStaticallyLinked
+		JVM_VirtualThreadPinnedEvent
+		JVM_TakeVirtualThreadListToUnblock
+	)
+endif()
+
+if(JAVA_SPEC_VERSION LESS 25)
+	jvm_add_exports(jvm
+		_JVM_GetClassModifiers@8
+		_JVM_GetProtectionDomain@8
+		_JVM_IsArrayClass@8
+		_JVM_IsPrimitiveClass@8
 	)
 endif()
 
@@ -428,6 +487,13 @@ endif()
 
 if(J9VM_OPT_VALHALLA_VALUE_TYPES)
 	jvm_add_exports(jvm
+		JVM_IsFlatArray
+		JVM_IsImplicitlyConstructibleClass
+		JVM_IsNullRestrictedArray
 		JVM_IsValhallaEnabled
+		JVM_NewNullableAtomicArray
+		JVM_NewNullRestrictedArray
+		JVM_NewNullRestrictedAtomicArray
+		JVM_VirtualThreadHideFrames
 	)
 endif()

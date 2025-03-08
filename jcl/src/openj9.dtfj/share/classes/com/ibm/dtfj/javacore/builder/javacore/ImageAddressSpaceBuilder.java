@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2007
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.javacore.builder.javacore;
 
 import com.ibm.dtfj.image.ImagePointer;
@@ -42,7 +42,7 @@ public class ImageAddressSpaceBuilder extends AbstractBuilderComponent implement
 	private BuilderContainer fBuilderContainer;
 
 	/**
-	 * 
+	 *
 	 * @param image valid com.ibm.dtfj.javacore.image.JCImage associated with this image address factory. Must not be null.
 	 * @param id unique id for this factory. Must not be null.
 	 * @throws JCInvalidArgumentsException if image is null
@@ -63,7 +63,7 @@ public class ImageAddressSpaceBuilder extends AbstractBuilderComponent implement
 	public IImageProcessBuilder getCurrentImageProcessBuilder() {
 		return (IImageProcessBuilder) fBuilderContainer.getLastAdded();
 	}
-	
+
 	/**
 	 * @see com.ibm.dtfj.javacore.builder.IImageAddressSpaceBuilder#generateImageProcessBuilder(String)
 	 * @param id unique id for the new image address space factory
@@ -87,7 +87,7 @@ public class ImageAddressSpaceBuilder extends AbstractBuilderComponent implement
 		}
 		return imageProcessBuilder;
 	}
-	
+
 	/**
 	 * @see com.ibm.dtfj.javacore.builder.IImageAddressSpaceBuilder#getImageProcessBuilder(String)
 	 * @return found image process factory, or null if not found
@@ -95,7 +95,7 @@ public class ImageAddressSpaceBuilder extends AbstractBuilderComponent implement
 	public IImageProcessBuilder getImageProcessBuilder(String builderID) {
 		return (IImageProcessBuilder) fBuilderContainer.findComponent(builderID);
 	}
-	
+
 	public ImageSection addImageSection(String name, long base, long size) {
 		ImagePointer basePointer = fImageAddressSpace.getPointer(base);
 		ImageSection section = new JCImageSection(name, basePointer, size);

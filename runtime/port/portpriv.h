@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef portlibraryprivatedefines_h
@@ -234,10 +234,6 @@ extern J9_CFUNC void
 j9sysinfo_shutdown (struct J9PortLibrary *portLibrary);
 extern J9_CFUNC uint16_t
 j9sysinfo_get_classpathSeparator (struct J9PortLibrary *portLibrary );
-extern J9_CFUNC intptr_t
-j9sysinfo_get_processor_description(struct J9PortLibrary *portLibrary, J9ProcessorDesc *desc);
-extern J9_CFUNC BOOLEAN
-j9sysinfo_processor_has_feature(struct J9PortLibrary *portLibrary, J9ProcessorDesc *desc, uint32_t feature);
 extern J9_CFUNC int32_t
 j9sysinfo_get_hw_info(struct J9PortLibrary *portLibrary, uint32_t infoType, char * buf, uint32_t bufLen);
 extern J9_CFUNC int32_t

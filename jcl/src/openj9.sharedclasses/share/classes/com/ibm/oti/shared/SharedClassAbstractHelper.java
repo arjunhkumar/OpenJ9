@@ -1,5 +1,5 @@
 /*[INCLUDE-IF SharedClasses]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 1998
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.oti.shared;
 
 import java.io.File;
@@ -27,8 +27,10 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+/*[IF JAVA_SPEC_VERSION < 24]*/
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 
 import com.ibm.oti.util.Msg;
 import com.ibm.oti.util.Util;
@@ -175,10 +177,12 @@ public abstract class SharedClassAbstractHelper extends SharedAbstractHelper imp
 		}
 		if (checkExists) {
 			final URL urlToCheck = getURLToCheck(url);
+			/*[IF JAVA_SPEC_VERSION < 24]*/
 			@SuppressWarnings("removal")
 			Integer fExists = AccessController.doPrivileged(new PrivilegedAction<Integer>() {
 				@Override
 				public Integer run() {
+			/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 					File f;
 					try {
 						f = new File(urlToCheck.toURI());
@@ -198,9 +202,13 @@ public abstract class SharedClassAbstractHelper extends SharedAbstractHelper imp
 						 * If we hit this, revert to using simple string path */
 						f = new File(urlToCheck.getPath());
 					}
+			/*[IF JAVA_SPEC_VERSION >= 24]*/
+					Integer fExists = Integer.valueOf((f.exists() ? FILE_EXIST : FILE_NOT_EXIST));
+			/*[ELSE] JAVA_SPEC_VERSION >= 24 */
 					return Integer.valueOf((f.exists() ? FILE_EXIST : FILE_NOT_EXIST));
 				}
 			});
+			/*[ENDIF] JAVA_SPEC_VERSION >= 24 */
 			if (fExists.intValue() == FILE_NOT_EXIST) {
 				/*[MSG "K0598", "URL resource {0} does not exist."]*/
 				printVerboseError(Msg.getString("K0598", url.toString())); //$NON-NLS-1$
@@ -223,8 +231,11 @@ public abstract class SharedClassAbstractHelper extends SharedAbstractHelper imp
 	 * @param filter the filter to use when finding and storing classes
 	 */
 	@Override
+	/*[IF JAVA_SPEC_VERSION < 24]*/
 	@SuppressWarnings("removal")
+	/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 	public synchronized void setSharingFilter(SharedClassFilter filter) {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		if (System.getSecurityManager() != null) {
 			ClassLoader loader = getClassLoader();
 			if (loader == null) {
@@ -243,6 +254,7 @@ public abstract class SharedClassAbstractHelper extends SharedAbstractHelper imp
 				return;
 			}
 		}
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		this.sharedClassFilter = filter;
 	}
 

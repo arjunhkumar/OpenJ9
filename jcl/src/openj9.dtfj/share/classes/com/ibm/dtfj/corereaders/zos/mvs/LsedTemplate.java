@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2006
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders.zos.mvs;
 
 import javax.imageio.stream.ImageInputStream;
@@ -29,21 +29,23 @@ import java.io.IOException;
 
 public final class LsedTemplate {
 
-    public static int length() {
-        return 8;
-    }
+	public static int length() {
+		return 8;
+	}
 
-    public static long getLsednes(ImageInputStream inputStream, long address) throws IOException {
-        inputStream.seek(address + 4);
-        long result = inputStream.readBits(16);
-        result <<= 48;
-        result >>= 48;
-        return result;
-    }
-    public static int getLsednes$offset() {
-        return 4;
-    }
-    public static int getLsednes$length() {
-        return 16;
-    }
+	public static long getLsednes(ImageInputStream inputStream, long address) throws IOException {
+		inputStream.seek(address + 4);
+		long result = inputStream.readBits(16);
+		result <<= 48;
+		result >>= 48;
+		return result;
+	}
+
+	public static int getLsednes$offset() {
+		return 4;
+	}
+
+	public static int getLsednes$length() {
+		return 16;
+	}
 }

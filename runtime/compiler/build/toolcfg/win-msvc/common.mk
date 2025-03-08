@@ -16,7 +16,7 @@
 # [1] https://www.gnu.org/software/classpath/license.html
 # [2] https://openjdk.org/legal/assembly-exception.html
 #
-# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+# SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
 
 #
 # Explicitly set shell
@@ -214,11 +214,11 @@ SOLINK_LIBPATH+=$(PRODUCT_LIBPATH)
 SOLINK_SLINK+=$(PRODUCT_SLINK) j9thr j9hookable kernel32 oldnames msvcrt msvcprt ws2_32
 
 ifeq ($(origin MSVC_VERSION), undefined)
-    ifneq (,$(filter 14.0 15.0, $(VisualStudioVersion)))
+    ifneq (,$(filter 14.0 15.0 16.0 17.0, $(VisualStudioVersion)))
         SOLINK_SLINK+=ucrt vcruntime
     endif
 else
-    ifneq (,$(filter 2013 2015 2017 2019, $(MSVC_VERSION)))
+    ifneq (,$(filter 2013 2015 2017 2019 2022, $(MSVC_VERSION)))
         SOLINK_SLINK+=ucrt vcruntime
     endif
 endif

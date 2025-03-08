@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "ReadBarrierVerifier.hpp"
@@ -51,11 +51,10 @@ MM_RootScannerReadBarrierVerifier::doJNIWeakGlobalReference(omrobjectptr_t *slot
 void
 MM_RootScannerReadBarrierVerifier::scanClass(MM_EnvironmentBase *env)
 {
-	OMR_VMThread *omrVMThread = env->getOmrVMThread();
-	GC_SegmentIterator segmentIterator(static_cast<J9JavaVM*>(omrVMThread->_vm->_language_vm)->classMemorySegments, MEMORY_TYPE_RAM_CLASS);
+	GC_SegmentIterator segmentIterator(_javaVM->classMemorySegments, MEMORY_TYPE_RAM_CLASS);
 
 	while (J9MemorySegment *segment = segmentIterator.nextSegment()) {
-		GC_ClassHeapIterator classHeapIterator(static_cast<J9JavaVM*>(omrVMThread->_vm->_language_vm), segment);
+		GC_ClassHeapIterator classHeapIterator(_javaVM, segment);
 		J9Class *clazz = NULL;
 
 		while (NULL != (clazz = classHeapIterator.nextClass())) {

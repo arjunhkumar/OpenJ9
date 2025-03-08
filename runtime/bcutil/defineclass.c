@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <stdlib.h>
@@ -155,10 +155,13 @@ internalDefineClass(
 		 */
 		if ((NULL != hostClass) && (J2SE_VERSION(vm) >= J2SE_V11)) {
 			J9ROMClass *hostROMClass = hostClass->romClass;
-			/* This error-check should only be done for anonymous classes. */
-			Trc_BCU_Assert_True(isAnonFlagSet || isHiddenFlagSet);
 			/* From Java 9 and onwards, set IllegalArgumentException when host class and anonymous class have different packages. */
-			if (!hasSamePackageName(romClass, hostROMClass)) {
+			if (!hasSamePackageName(romClass, hostROMClass)
+#if JAVA_SPEC_VERSION >= 22
+			/* The below error only applies if the host class is not an interface. */
+			&& !J9ROMCLASS_IS_INTERFACE(hostROMClass)
+#endif /* JAVA_SPEC_VERSION >= 22 */
+			) {
 				omrthread_monitor_exit(vm->classTableMutex);
 				setIllegalArgumentExceptionHostClassAnonClassHaveDifferentPackages(vmThread, romClass, hostROMClass);
 				freeAnonROMClass(vm, romClass);
@@ -774,7 +777,14 @@ callDynamicLoader(J9VMThread *vmThread, J9LoadROMClassData *loadData, U_8 * inte
 			}
 		}
 
-		if (J9_ARE_ANY_BITS_SET(vm->extendedRuntimeFlags, J9_EXTENDED_RUNTIME_RECREATE_CLASSFILE_ONLOAD)) {
+		/* Skip RecreateClassFileOnload if there is a non-NULL J9ClassPatchMap on the localBuffer.
+		 * j9bcutil_transformROMClass provides no guarantee to preserve the previous constant pool
+		 * and thus the size of the constant pool could change. This causes downstream errors when
+		 * attempting to patch the constant pool with the unchanged patchMap.
+		 */
+		if (J9_ARE_ANY_BITS_SET(vm->extendedRuntimeFlags, J9_EXTENDED_RUNTIME_RECREATE_CLASSFILE_ONLOAD)
+			&& ((NULL == localBuffer) || (NULL == localBuffer->patchMap))
+		) {
 			U_8 * classFileBytes = NULL;
 			U_32 classFileBytesCount = 0;
 			U_8 * prevClassData = loadData->classData;
@@ -1004,13 +1014,13 @@ createErrorMessage(J9VMThread *vmStruct, J9ROMClass *anonROMClass, J9ROMClass *h
 			}
 		}
 
-		bufLen = j9str_printf(PORTLIB, NULL, 0, errorMsg,
+		bufLen = j9str_printf(NULL, 0, errorMsg,
 						hostClassNameLength, hostClassNameData,
 						anonClassNameLength, anonClassNameData);
 		if (bufLen > 0) {
 			buf = j9mem_allocate_memory(bufLen, OMRMEM_CATEGORY_VM);
 			if (NULL != buf) {
-				j9str_printf(PORTLIB, buf, bufLen, errorMsg,
+				j9str_printf(buf, bufLen, errorMsg,
 						hostClassNameLength, hostClassNameData,
 						anonClassNameLength, anonClassNameData);
 			}

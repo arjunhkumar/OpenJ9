@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2012
  *
  * This program and the accompanying materials are made available under
@@ -18,16 +18,16 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 
 package com.ibm.lang.management;
 
 /**
- * Exception class whose instance is thrown when Memory usage sampling fails. 
+ * Exception class whose instance is thrown when Memory usage sampling fails.
  * For exact cause one needs to inspect the exception string message capturing
  * the details by calling the toString() method.
- * 
+ *
  * @author sonchakr
  * @since 1.7.1
  */
@@ -35,10 +35,10 @@ public class MemoryUsageRetrievalException extends Exception {
 	private static final long serialVersionUID = -1503193846804870838L;
 
 	/**
-	 * Constructor for the exception class that takes a message string 
+	 * Constructor for the exception class that takes a message string
 	 * describing the exact nature of the exception.
 	 *
-	 * @param msg The string that describes the exact nature of the exception 
+	 * @param msg The string that describes the exact nature of the exception
 	 * that occurred while sampling memory usage statistics.
 	 */
 	public MemoryUsageRetrievalException(String msg)

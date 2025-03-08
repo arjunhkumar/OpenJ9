@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 //On zOS XLC linker can't handle files with same name at link time
@@ -2070,7 +2070,7 @@ J9::Z::TreeEvaluator::BCDCHKEvaluatorImpl(TR::Node * node,
       callNode->setAndIncChild(i, childRootNode->getChild(i + callChildStartIndex));
 
    // Evaluate secondChild's children, if the secondChild is an address node into a byte[]
-   if(isResultPD && secondChild->getNumChildren() == 2)
+   if(isResultPD && secondChild->getNumChildren() == 2 && secondChild->getReferenceCount() > 1)
       {
       cg->evaluate(secondChild->getFirstChild());
       cg->evaluate(secondChild->getSecondChild());
@@ -3028,7 +3028,7 @@ J9::Z::TreeEvaluator::pdnegEvaluator(TR::Node * node, TR::CodeGenerator * cg)
       {
       // This path used to contain a call to an API which would have returned a garbage result. Rather than 100% of the
       // time generating an invalid sequence here which is guaranteed to crash if executed, we fail the compilation.
-      cg->comp()->failCompilation<TR::CompilationException>("Existing code relied on an unimplemented API and is thus not safe. See eclipse/omr#5937.");
+      cg->comp()->failCompilation<TR::CompilationException>("Existing code relied on an unimplemented API and is thus not safe. See eclipse-omr/omr#5937.");
       }
 
    if (isSignManipulation)
@@ -5138,6 +5138,115 @@ J9::Z::TreeEvaluator::pdchkEvaluator(TR::Node *node, TR::CodeGenerator *cg)
    return chkResultReg;
    }
 
+TR::Register *
+J9::Z::TreeEvaluator::zdchkEvaluator(TR::Node *node, TR::CodeGenerator *cg)
+   {
+   cg->traceBCDEntry("zdchk",node);
+   TR::Compilation *comp = cg->comp();
+   TR::Register *chkResultReg  = cg->allocateRegister(TR_GPR);
+   generateRRInstruction(cg, TR::InstOpCode::getXORRegOpCode(), node, chkResultReg, chkResultReg);
+
+   TR::Node *child = node->getFirstChild();
+   int32_t precision = child->getDecimalPrecision();
+   TR_ASSERT_FATAL_WITH_NODE(node, precision > 0 && precision < 32,
+      "External decimal precision was expected to be greater than 0 and less than 32, but was %d.\n",
+      precision);
+
+   int32_t bytesWithSpacesConst = node->getSecondChild()->getInt();
+   TR_ASSERT_FATAL_WITH_NODE(node, bytesWithSpacesConst >= 0 && bytesWithSpacesConst < 32,
+      "Space bytes count(%d) for external decimal was outside expected range [0-31].\n",
+      bytesWithSpacesConst);
+
+   TR::DataType dataType = child->getDataType();
+   // Safe to downcast here because decimalLength can at most be precision + 1
+   int8_t decimalLength = static_cast<int8_t>(TR::DataType::getSizeFromBCDPrecision(dataType, precision));
+   TR_ASSERT_FATAL_WITH_NODE(node, decimalLength > 0 && decimalLength <= (static_cast<int8_t>(precision) + 1),
+      "External decimal length was expected to be greater than 0 and less than equal to precision + 1, "
+         "but decimal length was %d and precision was %d.\n",
+      decimalLength, precision);
+   TR_PseudoRegister *sourceReg = cg->evaluateBCDNode(child);
+   sourceReg = cg->privatizeBCDRegisterIfNeeded(node, child, sourceReg);
+   TR::MemoryReference *sourceMR = generateS390LeftAlignedMemoryReference(child, sourceReg->getStorageReference(), cg, decimalLength);
+
+   TR::Register *vZondedLowReg = cg->allocateRegister(TR_VRF);
+   TR::Register *vZondedHighReg = cg->allocateRegister(TR_VRF);
+
+   /**
+    * I3: / SSC LS DSC   STC DC
+    *     0 0   0  00000 000 00000
+    *    - Separate-Sign Control (SSC)  : 1 if sign is separate, otherwise 0 for embedded sign.
+    *    - Leading Sign (LS)            : 1 if sign is leading, otherwise 0 for trailing sign.
+    *    - Disallowed-Spaces Count (DSC): DC is total number of digits, DSC represents number of digits
+    *                                     with zone and digit format, rest can have space.
+    *                                     Only relevant when SSC is 0.
+    *    - Sign-Test Control (STC)      : Specifies which codes are considered as valid sign codes.
+    *                                     110 (C,D,F) for embedded sign (will return false for non-preferred sign codes).
+    *                                     010 (4e,60) for sign separate (leading/trailing).
+    *                                     000 all sign codes are considered valid (hex) (A-F).
+    *    - Digits Count (DC)            : Integer specifying number of bytes to be verified. Does not include sign byte.
+    */
+   #define I3_SSC_SEPARATE 0x1
+   #define I3_STC_SIGN_SEPARATE 0x2
+   #define I3_LS_LEADING 0x1
+   #define I3_STC_EMBEDDED_SIGN 0x6
+
+   uint16_t zonedDecimalInfo = static_cast<uint16_t>(precision); // I3 operand
+   int8_t dsc = static_cast<int8_t>(precision - bytesWithSpacesConst);
+
+   if (dataType == TR::ZonedDecimalSignTrailingSeparate) // Sign trailing separate
+      {
+      zonedDecimalInfo |= ((I3_SSC_SEPARATE << 14) | (I3_STC_SIGN_SEPARATE << 5));
+      }
+   else if (dataType == TR::ZonedDecimalSignLeadingEmbedded) // Sign leading embedded
+      {
+      zonedDecimalInfo |= ((I3_LS_LEADING << 13) | (dsc << 8));
+      }
+   else if (dataType == TR::ZonedDecimalSignLeadingSeparate) // Sign leading separate
+      {
+      zonedDecimalInfo |= ((I3_SSC_SEPARATE << 14) | (I3_LS_LEADING << 13) | (I3_STC_SIGN_SEPARATE << 5));
+      }
+   else if (dataType == TR::ZonedDecimal) // Sign embedded trailing
+      {
+      zonedDecimalInfo |= (dsc << 8);
+      }
+
+   // Must use decimalLength because precision does not equal length when sign is separate
+   int8_t firstByteIndexToLoad = decimalLength - 1;
+   TR::MemoryReference *zonedDecimalLowMR = generateS390MemoryReference(*sourceMR, 0, cg);
+   TR::MemoryReference *zonedDecimalHighMR = NULL;
+   if (decimalLength > TR_VECTOR_REGISTER_SIZE)
+      {
+      zonedDecimalHighMR = zonedDecimalLowMR;
+      firstByteIndexToLoad = firstByteIndexToLoad - TR_VECTOR_REGISTER_SIZE;
+      generateVSIInstruction(cg, TR::InstOpCode::VLRL, node, vZondedHighReg, zonedDecimalHighMR, firstByteIndexToLoad);
+
+      zonedDecimalLowMR = generateS390MemoryReference(*sourceMR, decimalLength - TR_VECTOR_REGISTER_SIZE, cg);
+      firstByteIndexToLoad = TR_VECTOR_REGISTER_SIZE - 1;
+      }
+
+   generateVSIInstruction(cg, TR::InstOpCode::VLRL, node, vZondedLowReg, zonedDecimalLowMR, firstByteIndexToLoad);
+   generateVRIlInstruction(cg, TR::InstOpCode::VTZ, node, vZondedHighReg, vZondedLowReg, zonedDecimalInfo);
+   generateRRInstruction(cg, TR::InstOpCode::IPM, node, chkResultReg, chkResultReg);
+   if(cg->comp()->target().is64Bit())
+      {
+      generateRRInstruction(cg, TR::InstOpCode::LLGTR, node, chkResultReg, chkResultReg);
+      generateRSInstruction(cg, TR::InstOpCode::SRLG, node, chkResultReg, chkResultReg, 28);
+      }
+   else
+      {
+      generateRSInstruction(cg, TR::InstOpCode::SRL, node, chkResultReg, 28);
+      }
+
+   if (vZondedLowReg) cg->stopUsingRegister(vZondedLowReg);
+   if (vZondedHighReg) cg->stopUsingRegister(vZondedHighReg);
+
+   node->setRegister(chkResultReg);
+   cg->decReferenceCount(child);
+   cg->decReferenceCount(node->getSecondChild());
+   cg->traceBCDExit("zdchk", node);
+   return chkResultReg;
+   }
+
 /**
  * pd<op>Evaluator - various binary packed decimal evaluators
  */
@@ -5522,7 +5631,7 @@ TR::Register *
 J9::Z::TreeEvaluator::pddivremVectorEvaluatorHelper(TR::Node * node, TR::CodeGenerator * cg)
    {
    TR::Register* vTargetReg = NULL;
-   TR::InstOpCode::Mnemonic opCode;
+   TR::InstOpCode::Mnemonic opCode = TR::InstOpCode::bad;
    switch(node->getOpCodeValue())
       {
       case TR::pddiv:

@@ -1,4 +1,4 @@
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2018
  *
  * This program and the accompanying materials are made available under
@@ -17,8 +17,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.j9ddr.vm29.tools.ddrinteractive.structureformat.extensions;
 
 import java.io.PrintStream;
@@ -30,7 +30,7 @@ import com.ibm.j9ddr.tools.ddrinteractive.Context;
 import com.ibm.j9ddr.tools.ddrinteractive.FormatWalkResult;
 import com.ibm.j9ddr.tools.ddrinteractive.IFieldFormatter;
 import com.ibm.j9ddr.vm29.pointer.generated.J9ModulePointer;
-import com.ibm.j9ddr.vm29.pointer.helper.J9ObjectHelper;
+import com.ibm.j9ddr.vm29.tools.ddrinteractive.ModularityHelper;
 
 /**
  * Structure Formatter that adds a suffix to the command "!j9module $moduleAddress$" output
@@ -55,7 +55,7 @@ public class J9ModuleStructureFormatter extends BaseStructureFormatter
 			J9ModulePointer modulePtr = J9ModulePointer.cast(address);
 			String moduleAddress = modulePtr.getHexAddress();
 			try {
-				out.println("Module name: " + J9ObjectHelper.stringValue(modulePtr.moduleName()));
+				out.println("Module name: " + ModularityHelper.getModuleName(modulePtr));
 			} catch (CorruptDataException e) {
 				// Do nothing
 			}

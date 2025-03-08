@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "Wildcard.hpp"
@@ -27,7 +27,7 @@
 
 #include "GCExtensions.hpp"
 
-MM_Wildcard::MM_Wildcard(U_32 matchFlag, const char* needle, UDATA needleLength, char* pattern) 
+MM_Wildcard::MM_Wildcard(uint32_t matchFlag, const char *needle, uintptr_t needleLength, char *pattern)
 	: MM_BaseNonVirtual()
 	, _next(NULL)
 	, _matchFlag(matchFlag)
@@ -39,12 +39,12 @@ MM_Wildcard::MM_Wildcard(U_32 matchFlag, const char* needle, UDATA needleLength,
 }
 
 MM_Wildcard *
-MM_Wildcard::newInstance(MM_GCExtensions *extensions, U_32 matchFlag, const char* needle, UDATA needleLength, char* pattern)
+MM_Wildcard::newInstance(MM_GCExtensions *extensions, uint32_t matchFlag, const char *needle, uintptr_t needleLength, char *pattern)
 {
-	MM_Wildcard *wildcard = (MM_Wildcard*)extensions->getForge()->allocate(sizeof(MM_Wildcard), MM_AllocationCategory::FIXED, J9_GET_CALLSITE());
+	MM_Wildcard *wildcard = (MM_Wildcard *)extensions->getForge()->allocate(sizeof(MM_Wildcard), MM_AllocationCategory::FIXED, J9_GET_CALLSITE());
 	if (NULL != wildcard) {
 		new(wildcard) MM_Wildcard(matchFlag, needle, needleLength, pattern);
-		if(!wildcard->initialize(extensions)) {
+		if (!wildcard->initialize(extensions)) {
 			wildcard->kill(extensions);
 			return NULL;
 		}
@@ -76,8 +76,8 @@ MM_Wildcard::tearDown(MM_GCExtensions *extensions)
 }
 
 bool 
-MM_Wildcard::match(const char* haystack, UDATA haystackLength)
+MM_Wildcard::match(const char *haystack, uintptr_t haystackLength)
 {
-	IDATA rc = wildcardMatch(_matchFlag, _needle, _needleLength, haystack, haystackLength);
+	intptr_t rc = wildcardMatch(_matchFlag, _needle, _needleLength, haystack, haystackLength);
 	return rc != FALSE;
 }

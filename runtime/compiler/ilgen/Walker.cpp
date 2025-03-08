@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <algorithm>
@@ -38,6 +38,7 @@
 #include "exceptions/FSDFailure.hpp"
 #include "exceptions/RuntimeFailure.hpp"
 #include "optimizer/TransformUtil.hpp"
+#include "il/AutomaticSymbol.hpp"
 #include "il/Node.hpp"
 #include "il/Node_inlines.hpp"
 #include "il/TreeTop.hpp"
@@ -106,6 +107,7 @@
 #define JSR292_forGenericInvoke    "forGenericInvoke"
 #define JSR292_forGenericInvokeSig "(Ljava/lang/invoke/MethodType;Z)Ljava/lang/invoke/MethodHandle;"
 
+static TR::SymbolReference * createLoadFieldSymRef(TR::Compilation * comp, TR_OpaqueClassBlock * fieldClass, const char * fieldname, bool nullIfNotFound = false);
 
 static void printStack(TR::Compilation *comp, TR_Stack<TR::Node*> *stack, const char *message)
    {
@@ -124,7 +126,7 @@ static void printStack(TR::Compilation *comp, TR_Stack<TR::Node*> *stack, const 
          {
          TR::Node *node = stack->element(i);
          traceMsg(comp, "\n");
-         sprintf(buf, "   @%-2d", i);
+         snprintf(buf, sizeof(buf), "   @%-2d", i);
          comp->getDebug()->printWithFixedPrefix(comp->getOutFile(), node, 1, false, true, buf);
          if (!nodesAlreadyPrinted.isSet(node->getGlobalIndex()))
             {
@@ -549,31 +551,6 @@ TR::Block * TR_J9ByteCodeIlGenerator::walker(TR::Block * prevBlock)
          case J9BCReturnZ:
             _bcIndex = genReturn(method()->returnOpCode(), method()->isSynchronized());
             break;
-
-         case J9BCaconst_init:
-            {
-            if (TR::Compiler->om.areValueTypesEnabled())
-               {
-               genAconst_init(next2Bytes());
-               _bcIndex += 3;
-               }
-            else
-               {
-               fej9()->unsupportedByteCode(comp(), opcode);
-               }
-            break;
-            }
-         case J9BCwithfield:
-            if (TR::Compiler->om.areValueTypesEnabled())
-               {
-               genWithField(next2Bytes());
-               _bcIndex += 3;
-               }
-            else
-               {
-               fej9()->unsupportedByteCode(comp(), opcode);
-               }
-            break;
          case J9BCbreakpoint:
             fej9()->unsupportedByteCode(comp(), opcode);
          case J9BCunknown:
@@ -780,7 +757,7 @@ TR_J9ByteCodeIlGenerator::placeholderWithDummySignature()
    }
 
 TR::SymbolReference *
-TR_J9ByteCodeIlGenerator::placeholderWithSignature(char *prefix, int prefixLength, char *middle, int middleLength, char *suffix, int suffixLength)
+TR_J9ByteCodeIlGenerator::placeholderWithSignature(const char *prefix, int prefixLength, const char *middle, int middleLength, const char *suffix, int suffixLength)
    {
    return symRefWithArtificialSignature(placeholderWithDummySignature(),
       ".#.#.#",
@@ -790,7 +767,7 @@ TR_J9ByteCodeIlGenerator::placeholderWithSignature(char *prefix, int prefixLengt
    }
 
 TR::SymbolReference *
-TR_J9ByteCodeIlGenerator::symRefWithArtificialSignature(TR::SymbolReference *original, char *effectiveSigFormat, ...)
+TR_J9ByteCodeIlGenerator::symRefWithArtificialSignature(TR::SymbolReference *original, const char *effectiveSigFormat, ...)
    {
    TR::StackMemoryRegion stackMemoryRegion(*comp()->trMemory());
 
@@ -804,14 +781,14 @@ TR_J9ByteCodeIlGenerator::symRefWithArtificialSignature(TR::SymbolReference *ori
    return result;
    }
 
-static int32_t processArtificialSignature(char *result, char *format, va_list args)
+static int32_t processArtificialSignature(char *result, size_t maxResult, const char *format, va_list args)
    {
    int32_t resultLength = 0;
    char *cur = result;
    for (int32_t i = 0; format[i]; i++)
       {
-      int32_t length=-1;
-      char   *startChar=NULL;
+      int32_t length = -1;
+      const char *startChar = NULL;
       if (format[i] == '.') // period is the ONLY character (besides null) that can never appear in a method signature
          {
          // Formatting code
@@ -877,7 +854,7 @@ static int32_t processArtificialSignature(char *result, char *format, va_list ar
                // case, proceed on the assumption that the period was a literal character;
                // if TR has a bug, we will very likely crash soon enough anyway.
                //
-               startChar = format+i-1; // back up to the period
+               startChar = format + i - 1; // back up to the period
                length = 2;
                break;
             }
@@ -885,23 +862,32 @@ static int32_t processArtificialSignature(char *result, char *format, va_list ar
       else
          {
          // Literal character
-         startChar = format+i;
+         startChar = format + i;
          length = 1;
          }
 
       TR_ASSERT(length >= 0, "assertion failure");
       TR_ASSERT(startChar != NULL, "assertion failure");
 
-      resultLength += length;
       if (result)
-         cur += sprintf(cur, "%.*s", length, startChar);
-
+         {
+         int len = snprintf(cur, maxResult - resultLength, "%.*s", length, startChar);
+         if ((0 < len) && ((size_t)len <= (maxResult - resultLength)))
+            {
+            cur += len;
+            resultLength += len;
+            }
+         }
+      else
+         {
+         resultLength += length;
+         }
       }
 
    return resultLength;
    }
 
-char *TR_J9ByteCodeIlGenerator::artificialSignature(TR_AllocationKind allocKind, char *format, ...)
+char *TR_J9ByteCodeIlGenerator::artificialSignature(TR_AllocationKind allocKind, const char *format, ...)
    {
    va_list args;
    va_start(args, format);
@@ -910,19 +896,19 @@ char *TR_J9ByteCodeIlGenerator::artificialSignature(TR_AllocationKind allocKind,
    return result;
    }
 
-char *TR_J9ByteCodeIlGenerator::vartificialSignature(TR_AllocationKind allocKind, char *format, va_list args)
+char *TR_J9ByteCodeIlGenerator::vartificialSignature(TR_AllocationKind allocKind, const char *format, va_list args)
    {
    // Compute size
    //
    va_list argsCopy;
    va_copy(argsCopy, args);
-   int32_t resultLength = processArtificialSignature(NULL, format, argsCopy);
+   int32_t resultLength = processArtificialSignature(NULL, 0, format, argsCopy);
    va_copy_end(argsCopy);
 
    // Produce formatted signature
    //
    char *result = (char*)trMemory()->allocateMemory(resultLength+1, allocKind);
-   processArtificialSignature(result, format, args);
+   processArtificialSignature(result, resultLength + 1, format, args);
    return result;
    }
 
@@ -1653,9 +1639,6 @@ TR_J9ByteCodeIlGenerator::stashArgumentsForOSR(TR_J9ByteCode byteCode)
 
    TR::MethodSymbol *symbol = symRef->getSymbol()->castToMethodSymbol();
    int32_t numArgs = symbol->getMethod()->numberOfExplicitParameters() + (symbol->isStatic() ? 0 : 1);
-   // For OpenJDK MH implementation, some args for invokedynamic/invokehandle (details below)
-   // that are already pushed to stack must not be stashed
-   int32_t numArgsToNotStash = 0;
 
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
    // If the transition target is invokehandle/invokedynamic, the arguments to be
@@ -1694,6 +1677,7 @@ TR_J9ByteCodeIlGenerator::stashArgumentsForOSR(TR_J9ByteCode byteCode)
    // Notice that we always generate a resolved call, thus we use unresolvedInCP to tell
    // us whether the side table entry is resolved
    //
+   int32_t numArgsToNotStash = 0;
    if (byteCode == J9BCinvokedynamic ||
        byteCode == J9BCinvokehandle)
       {
@@ -1707,10 +1691,10 @@ TR_J9ByteCodeIlGenerator::stashArgumentsForOSR(TR_J9ByteCode byteCode)
       if (trace())
          traceMsg(comp(), "Original num args for invokedynamic/handle: %d, num args to not stash for OSR: %d, stack size: %d\n", numArgs, numArgsToNotStash, _stack->size());
       }
-#endif
+
    numArgs -= numArgsToNotStash;
-   // For OpenJDK MethodHandle implementation, there may be items on stack that we need to exclude
-   int32_t adjustedStackSize = _stack->size() - numArgsToNotStash;
+#endif
+
    TR_OSRMethodData *osrMethodData =
       comp()->getOSRCompilationData()->findOrCreateOSRMethodData(comp()->getCurrentInlinedSiteIndex(), _methodSymbol);
    osrMethodData->ensureArgInfoAt(_bcIndex, numArgs);
@@ -1719,10 +1703,10 @@ TR_J9ByteCodeIlGenerator::stashArgumentsForOSR(TR_J9ByteCode byteCode)
    // It is necessary to walk the whole stack to determine the slot numbers
    int32_t slot = 0;
    int arg = 0;
-   for (int32_t i = 0; i < adjustedStackSize; ++i)
+   for (int32_t i = 0; i < _stack->size(); ++i)
       {
       TR::Node * n = _stack->element(i);
-      if (adjustedStackSize - numArgs <= i)
+      if (_stack->size() - numArgs <= i)
          {
          TR::SymbolReference * symRef = symRefTab()->findOrCreatePendingPushTemporary(_methodSymbol, slot, getDataType(n));
          osrMethodData->addArgInfo(_bcIndex, arg, symRef->getReferenceNumber());
@@ -2008,11 +1992,12 @@ TR_J9ByteCodeIlGenerator::calculateElementAddressInContiguousArray(int32_t width
    int32_t shift = TR::TransformUtil::convertWidthToShift(width);
    if (shift)
       {
+      traceMsg(comp(), "shift > 0 (i.e., is true)\n");
       loadConstant(TR::iconst, shift);
       // generate a TR::aladd instead if required
       if (comp()->target().is64Bit())
          {
-         // stack is now ...index,shift<===
+         // stack is now ...aryRef,index,shift<===
          TR::Node *second = pop();
          genUnary(TR::i2l, isForArrayAccess);
          push(second);
@@ -2021,6 +2006,7 @@ TR_J9ByteCodeIlGenerator::calculateElementAddressInContiguousArray(int32_t width
       else
          genBinary(TR::ishl);
       }
+   // stack is now ...aryRef,index+shift<===
    if (comp()->target().is64Bit())
       {
       if (headerSize > 0)
@@ -2028,7 +2014,7 @@ TR_J9ByteCodeIlGenerator::calculateElementAddressInContiguousArray(int32_t width
          loadConstant(TR::lconst, (int64_t)headerSize);
          // shift could have been null here (if no scaling is done for the index
          // ...so check for that and introduce an i2l if required for the aladd
-         // stack now is ....index,loadConst<===
+         // stack now is ....aryRef,index,loadConst<===
          if (!shift)
             {
             TR::Node *second = pop();
@@ -2043,6 +2029,7 @@ TR_J9ByteCodeIlGenerator::calculateElementAddressInContiguousArray(int32_t width
          }
 
       genBinary(TR::aladd);
+      // stack now is ....aryRef+index+loadConst<===
       }
    else
       {
@@ -2054,6 +2041,38 @@ TR_J9ByteCodeIlGenerator::calculateElementAddressInContiguousArray(int32_t width
       genBinary(TR::aiadd);
       }
    }
+
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+void
+TR_J9ByteCodeIlGenerator::calculateElementAddressInContiguousArrayUsingDataAddrField(int32_t width)
+   {
+   TR_ASSERT(fej9()->isOffHeapAllocationEnabled(), "calculateElementAddressInContiguousArrayUsingDataAddrField should only be called when OffHeap is enabled");
+
+   const bool isForArrayAccess = true;
+   int32_t shift = TR::TransformUtil::convertWidthToShift(width);
+
+   // Stack is now ...,aryRef,index<===
+   TR::Node* index = pop();
+   TR::Node* arrayBase = pop();
+
+   TR::Node *firstArrayElementAddress = TR::TransformUtil::generateDataAddrLoadTrees(comp(), arrayBase);
+   push(firstArrayElementAddress);
+   push(index);
+
+   // stack is now ...,firstArrayElement,index<===
+   genUnary(TR::i2l, isForArrayAccess);
+
+   if (shift)
+      {
+      loadConstant(TR::iconst, shift);
+      // stack is now ...,firstArrayElement,index,shift<===
+      genBinary(TR::lshl);
+      }
+
+   // stack is now ...,firstArrayElement,shift/index<===
+   genBinary(TR::aladd);
+   }
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
 
 // Helper to calculate the index of the array element in a contiguous array
 // Stack: ..., offset for array element index
@@ -2138,7 +2157,18 @@ TR_J9ByteCodeIlGenerator::calculateArrayElementAddress(TR::DataType dataType, bo
    }
 
    // Stack is now ...,aryRef,index<===
+#if defined(J9VM_GC_SPARSE_HEAP_ALLOCATION)
+   if (fej9()->isOffHeapAllocationEnabled())
+      {
+      // stack is now ...,aryRef,index<===
+      calculateElementAddressInContiguousArrayUsingDataAddrField(width);
+      // stack is now ...,firstArrayElement+index/shift<===
+      _stack->top()->setIsInternalPointer(true);
+      }
+   else if (comp()->generateArraylets())
+#else
    if (comp()->generateArraylets())
+#endif /* J9VM_GC_SPARSE_HEAP_ALLOCATION */
       {
       // shift the index on the current stack to get index into array spine
       loadConstant(TR::iconst, fej9()->getArraySpineShift(width));
@@ -2225,8 +2255,6 @@ TR_J9ByteCodeIlGenerator::genCheckCast()
  *
  * If the class specified in the bytecode is unresolved, this leaves out the
  * ResolveCHK since it has to be conditional on a non-null object.
- * If the class specified in the bytecode is a primitive value type, it has to
- * be resolved unconditionally, regardless of whether the value is null.
  *
  * @param cpIndex The constant pool entry of the class given in the bytecode
  *
@@ -2236,20 +2264,7 @@ TR_J9ByteCodeIlGenerator::genCheckCast()
 void
 TR_J9ByteCodeIlGenerator::genCheckCast(int32_t cpIndex)
    {
-   if (TR::Compiler->om.areValueTypesEnabled()
-       && TR::Compiler->cls.isClassRefPrimitiveValueType(comp(), method()->classOfMethod(), cpIndex))
-      {
-      TR::Node * objNode = _stack->top();
-
-      loadClassObject(cpIndex);
-
-      TR::Node *passThruNode = TR::Node::create(TR::PassThrough, 1, objNode);
-      genTreeTop(genNullCheck(passThruNode));
-      }
-   else
-      {
-      loadClassObjectForTypeTest(cpIndex, TR_DisableAOTCheckCastInlining);
-      }
+   loadClassObjectForTypeTest(cpIndex, TR_DisableAOTCheckCastInlining);
    genCheckCast();
    }
 
@@ -2824,8 +2839,6 @@ TR_J9ByteCodeIlGenerator::genInvokeStatic(int32_t cpIndex)
    if (comp()->getOption(TR_TraceILGen))
       traceMsg(comp(), "  genInvokeStatic(%d) // %s\n", cpIndex, comp()->getDebug()->getName(methodSymRef));
 
-   _staticMethodInvokeEncountered = true;
-
    if (runMacro(methodSymRef))
       {
       if (comp()->compileRelocatableCode())
@@ -3064,6 +3077,15 @@ TR_J9ByteCodeIlGenerator::genInvokeInterface(int32_t cpIndex)
       }
    else
       {
+      /*
+       * The sequence of the nodes being generated below matters for the following reasons:
+       * - If OSR generates the call, it can also generate some pending push stores,
+       *   and especially for involuntary OSR. The ZEROCHK needs to be between the
+       *   pending push stores and the call
+       *
+       * - The generated instanceof depends on the NULLCHK on the receiver generated through
+       *   the call node
+       */
       _methodSymbol->setMayHaveInlineableCall(true);
       TR::TreeTop *prevLastTree = _block->getExit()->getPrevTreeTop();
       TR::Node *callNode = NULL;
@@ -3108,13 +3130,63 @@ TR_J9ByteCodeIlGenerator::genInvokeInterface(int32_t cpIndex)
       genInstanceof(interfaceCPIndex);
       TR::Node *instanceof = pop();
 
+      // The receiver should not be NULL at this point because there should already be a NULLCHK
+      // before the call or there is no need of NULLCHK
+      instanceof->setReferenceIsNonNull(true);
+
       TR::SymbolReference *icce =
          symRefTab()->findOrCreateIncompatibleClassChangeErrorSymbolRef(_methodSymbol);
 
       TR::Node *check =
          TR::Node::createWithSymRef(TR::ZEROCHK, 1, 1, instanceof, icce);
 
-      callTree->insertBefore(TR::TreeTop::create(comp(), check));
+      TR::TreeTop *zeroCHKTT = callTree->insertBefore(TR::TreeTop::create(comp(), check));
+
+      /*
+       * If the class is unresolved, genInstanceof anchors instanceof under a treetop node.
+       * Then the anchored instanceof treetop appears after the callTree and it commons with
+       * the previous instanceof node under the ZEROCHK.
+       * This causes a problem because expandUnresolvedClassInstanceof does not expect the
+       * treetop that has the anchored instanceof to have already been evaluated when it appears
+       * under ZEROCHK. The transformation in expandUnresolvedClassInstanceof will not function correctly.
+       * Therefore, the anchored instanceof treetop needs to be moved up before ZEROCHK.
+       *
+       * preTT
+       * ZEROCHKTT
+       *    instanceof
+       * callTree
+       * treetop
+       *    ==>instanceof
+       * nextTT
+       *
+       *    ||
+       *    ||
+       *    \/
+       *
+       * preTT
+       * treetop
+       *    instanceof
+       * ZEROCHKTT
+       *    ==>instanceof
+       * callTree
+       * nextTT
+       *
+       */
+      TR::TreeTop *instanceOfTT = callTree->getNextTreeTop();
+      if (instanceOfTT &&
+          instanceOfTT->getNode()->getOpCodeValue() == TR::treetop &&
+          instanceOfTT->getNode()->getFirstChild() &&
+          instanceOfTT->getNode()->getFirstChild() == instanceof)
+         {
+         callTree->join(instanceOfTT->getNextTreeTop());
+
+         zeroCHKTT->insertBefore(instanceOfTT);
+
+         if (comp()->getOption(TR_TraceILGen))
+            {
+            traceMsg(comp(), "%s: move the anchored instanceof n%dn before ZEROCHK n%dn\n", __FUNCTION__, instanceOfTT->getNode()->getGlobalIndex(), zeroCHKTT->getNode()->getGlobalIndex());
+            }
+         }
       }
    }
 
@@ -3124,22 +3196,20 @@ static char *suffixedName(char *baseName, char typeSuffix, char *buf, int32_t bu
    int32_t methodNameLength = strlen(baseName) + 2;
    if (methodNameLength >= bufSize)
       methodName = (char*)comp->trMemory()->allocateStackMemory(methodNameLength+1, TR_MemoryBase::IlGenerator);
-   sprintf(methodName, "%s%c", baseName, typeSuffix);
+   snprintf(methodName, methodNameLength + 1, "%s%c", baseName, typeSuffix);
    return methodName;
    }
 
 void
 TR_J9ByteCodeIlGenerator::genInvokeDynamic(int32_t callSiteIndex)
    {
-   if (comp()->compileRelocatableCode())
-      {
-      comp()->failCompilation<J9::AOTHasInvokeHandle>("COMPILATION_AOT_HAS_INVOKEHANDLE 0");
-      }
-
    if (comp()->getOption(TR_FullSpeedDebug) && !isPeekingMethod())
       comp()->failCompilation<J9::FSDHasInvokeHandle>("FSD_HAS_INVOKEHANDLE 0");
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
-
+   if (comp()->compileRelocatableCode() && (!comp()->getOption(TR_EnableMHRelocatableCompile) || !comp()->getOption(TR_UseSymbolValidationManager)))
+      {
+      comp()->failCompilation<J9::AOTHasInvokeHandle>("COMPILATION_AOT_HAS_INVOKEHANDLE 0");
+      }
    // Call generated when call site table entry is resolved:
    // -----------------------------------------------------
    // call <target method obtained from memberName object>
@@ -3194,6 +3264,10 @@ TR_J9ByteCodeIlGenerator::genInvokeDynamic(int32_t callSiteIndex)
    TR::Node* callNode = genInvokeDirect(targetMethodSymRef);
 
 #else
+   if (comp()->compileRelocatableCode())
+      {
+      comp()->failCompilation<J9::AOTHasInvokeHandle>("COMPILATION_AOT_HAS_INVOKEHANDLE 0");
+      }
 
    TR::SymbolReference *symRef = symRefTab()->findOrCreateDynamicMethodSymbol(_methodSymbol, callSiteIndex);
 
@@ -3227,14 +3301,13 @@ TR_J9ByteCodeIlGenerator::genInvokeDynamic(int32_t callSiteIndex)
 TR::Node *
 TR_J9ByteCodeIlGenerator::genInvokeHandle(int32_t cpIndex)
    {
-   if (comp()->compileRelocatableCode())
-      {
-      comp()->failCompilation<J9::AOTHasInvokeHandle>("COMPILATION_AOT_HAS_INVOKEHANDLE 1");
-      }
-
    if (comp()->getOption(TR_FullSpeedDebug) && !isPeekingMethod())
       comp()->failCompilation<J9::FSDHasInvokeHandle>("FSD_HAS_INVOKEHANDLE 1");
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+   if (comp()->compileRelocatableCode() && (!comp()->getOption(TR_EnableMHRelocatableCompile) || !comp()->getOption(TR_UseSymbolValidationManager)))
+      {
+      comp()->failCompilation<J9::AOTHasInvokeHandle>("COMPILATION_AOT_HAS_INVOKEHANDLE 1");
+      }
    // Call generated when methodType table entry is resolved:
    // -----------------------------------------------------
    // call <target method obtained from memberName object>
@@ -3277,8 +3350,6 @@ TR_J9ByteCodeIlGenerator::genInvokeHandle(int32_t cpIndex)
    bool isUnresolved = false;
    bool isInvokeCacheAppendixNull = false;
    TR::SymbolReference * targetMethodSymRef = symRefTab()->findOrCreateHandleMethodSymbol(_methodSymbol, cpIndex, &isUnresolved, &isInvokeCacheAppendixNull);
-   if (isUnresolved)
-      targetMethodSymRef->getSymbol()->setDummyResolvedMethod(); // linkToStatic is a dummy TR_ResolvedMethod
    TR::SymbolReference *methodTypeTableEntrySymRef = symRefTab()->findOrCreateMethodTypeTableEntrySymbol(_methodSymbol, cpIndex);
    TR_ResolvedJ9Method* owningMethod = static_cast<TR_ResolvedJ9Method *>(_methodSymbol->getResolvedMethod());
    uintptr_t * invokeCacheArray = (uintptr_t *) owningMethod->methodTypeTableEntryAddress(cpIndex);
@@ -3292,6 +3363,10 @@ TR_J9ByteCodeIlGenerator::genInvokeHandle(int32_t cpIndex)
    TR::Node* callNode = genInvokeDirect(targetMethodSymRef);
 
 #else
+   if (comp()->compileRelocatableCode())
+      {
+      comp()->failCompilation<J9::AOTHasInvokeHandle>("COMPILATION_AOT_HAS_INVOKEHANDLE 1");
+      }
 
    TR::SymbolReference * invokeExactSymRef = symRefTab()->findOrCreateHandleMethodSymbol(_methodSymbol, cpIndex);
 
@@ -3527,11 +3602,87 @@ TR_J9ByteCodeIlGenerator::genInvokeWithVFTChild(TR::SymbolReference *symRef)
    return genInvoke(symRef, vftLoad);
    }
 
+/** @brief
+  *   Tries to find the corresponding symbol reference for the field `value` that is returned by the implementations of
+  *   BOXED_TYPE.TYPEValue() method based  on the recognized method.
+  *   If the method is not one of the recognized getter methods, this method has a fatal assert.
+  *
+  * @param generator
+  *   The current IL generator instance.
+  * @param method
+  *   The recognized method, one of the getters belonging to a primitive boxed class.
+  * @return
+  *   The symbol reference for the field holding the primitive value.
+  */
+static TR::SymbolReference * getPrimitiveValueFieldSymbolReference(TR_J9ByteCodeIlGenerator * generator, TR::RecognizedMethod method)
+   {
+   const char * className = NULL;
+   switch (method)
+      {
+      case TR::java_lang_Boolean_booleanValue:
+         className = "Ljava/lang/Boolean;";
+         break;
+      case TR::java_lang_Byte_byteValue:
+         className = "Ljava/lang/Byte;";
+         break;
+      case TR::java_lang_Character_charValue:
+         className = "Ljava/lang/Character;";
+         break;
+      case TR::java_lang_Short_shortValue:
+         className = "Ljava/lang/Short;";
+         break;
+      case TR::java_lang_Integer_intValue:
+         className = "Ljava/lang/Integer;";
+         break;
+      case TR::java_lang_Long_longValue:
+         className = "Ljava/lang/Long;";
+         break;
+      case TR::java_lang_Float_floatValue:
+         className = "Ljava/lang/Float;";
+         break;
+      case TR::java_lang_Double_doubleValue:
+         className = "Ljava/lang/Double;";
+         break;
+      default:
+         TR_ASSERT_FATAL(false, "unrecognized unboxing method");
+      }
+   TR_OpaqueClassBlock * fieldClass = generator->fej9()->getClassFromSignature(className, strlen(className), generator->method());
 
+   // It's possible that the class is NULL because of a failed lookup during AOT. The lookup for the resolved class in
+   // the Share Class Cache (SCC) may return NULL when AOT is enabled. As there is no way to resolve a field lookup
+   // without a resolved class, we return NULL to disable the unboxing optimization.
+   // See eclipse-openj9/openj9#9416 for further information.
+   if (!fieldClass)
+      return NULL;
 
+   return createLoadFieldSymRef(generator->comp(), fieldClass, "value", /*nullIfNotFound*/ true);
+   }
 
 TR::Node*
 TR_J9ByteCodeIlGenerator::genInvoke(TR::SymbolReference * symRef, TR::Node *indirectCallFirstChild, TR::Node *invokedynamicReceiver)
+   {
+   TR::KnownObjectTable::Index requiredKoi;
+   TR::Node *callNode = genInvokeInner(
+      symRef, indirectCallFirstChild, invokedynamicReceiver, &requiredKoi);
+
+   if (requiredKoi == TR::KnownObjectTable::UNKNOWN)
+      return callNode;
+
+   TR_ASSERT_FATAL(
+      callNode != NULL,
+      "required constant at bc index %d (invoke*): missing call node",
+      _bcIndex);
+
+   markRequiredKnownObjectIndex(callNode, requiredKoi);
+   return callNode;
+   }
+
+TR::Node*
+TR_J9ByteCodeIlGenerator::genInvokeInner(
+   TR::SymbolReference * symRef,
+   TR::Node *indirectCallFirstChild,
+   TR::Node *invokedynamicReceiver,
+   TR::KnownObjectTable::Index *requiredKoi)
    {
    TR::MethodSymbol * symbol = symRef->getSymbol()->castToMethodSymbol();
    bool isStatic     = symbol->isStatic();
@@ -3540,9 +3691,43 @@ TR_J9ByteCodeIlGenerator::genInvoke(TR::SymbolReference * symRef, TR::Node *indi
    TR::Method * calledMethod = symbol->getMethod();
    int32_t numArgs = calledMethod->numberOfExplicitParameters() + (isStatic ? 0 : 1);
 
-   TR::ILOpCodes opcode = TR::BadILOp;
-   switch (symbol->getRecognizedMethod())
+   if (pushRequiredConst(requiredKoi))
       {
+      TR::Node *result = pop();
+
+      int32_t argsToPop = numArgs - int32_t(invokedynamicReceiver != NULL);
+      for (int32_t i = 0; i < argsToPop; i++)
+         pop();
+
+      push(result);
+      return NULL; // no call node
+      }
+
+   TR::ILOpCodes opcode = TR::BadILOp;
+   switch (auto method = symbol->getRecognizedMethod())
+      {
+      // Eliminate calls to unboxing methods if they can be replaced with a load of the
+      // `value` field. If the `value` field symbol reference cannot be found, e.g.
+      // The underlying implementation of the boxed class has changed, emit the call
+      // to getter as normal.
+      case TR::java_lang_Boolean_booleanValue:
+      case TR::java_lang_Byte_byteValue:
+      case TR::java_lang_Character_charValue:
+      case TR::java_lang_Short_shortValue:
+      case TR::java_lang_Integer_intValue:
+      case TR::java_lang_Long_longValue:
+      case TR::java_lang_Float_floatValue:
+      case TR::java_lang_Double_doubleValue:
+         if (comp()->getOption(TR_DisableIntrinsics))
+            break;
+
+         if (auto fieldSymRef = getPrimitiveValueFieldSymbolReference(this, method))
+            {
+            loadInstance(fieldSymRef);
+            return NULL;
+            }
+
+         break;
       case TR::java_lang_Integer_valueOf:
          // TODO: It's gross that ilgen knows what a dememoization opportunity is.  This should be refactored.
          _methodSymbol->setHasDememoizationOpportunities(true);
@@ -3752,165 +3937,6 @@ TR_J9ByteCodeIlGenerator::genInvoke(TR::SymbolReference * symRef, TR::Node *indi
       }
 #endif
 
-   if (symbol->getRecognizedMethod() == TR::com_ibm_Compiler_Internal__TR_Prefetch)
-      {
-      TR::Node *node = NULL;
-
-      if ((comp()->getOptLevel() < hot))
-        {
-        int i = 0;
-        for (i=0; i<numArgs; i++)
-           genTreeTop(pop());
-        return node;
-        }
-
-      // Get the type of prefetch
-      PrefetchType prefetchType = NoPrefetch;
-      TR::Method *method = symbol->castToMethodSymbol()->getMethod();
-      if (method->nameLength() == 15 && !strncmp(method->nameChars(), "_TR_Release_All", 15))
-         {
-         prefetchType = ReleaseAll;
-         }
-      else if (method->nameLength() == 17 && !strncmp(method->nameChars(), "_TR_Prefetch_Load", 17))
-         {
-         prefetchType = PrefetchLoad;
-         }
-      else if (method->nameLength() == 18 && !strncmp(method->nameChars(), "_TR_Prefetch_Store", 18))
-         {
-         prefetchType = PrefetchStore;
-         }
-      else if (method->nameLength() == 20)
-         {
-         if (!strncmp(method->nameChars(), "_TR_Prefetch_LoadNTA", 20))
-            prefetchType = PrefetchLoadNonTemporal;
-         else if (!strncmp(method->nameChars(), "_TR_Prefetch_Load_L1", 20))
-            prefetchType = PrefetchLoadL1;
-         else if (!strncmp(method->nameChars(), "_TR_Prefetch_Load_L2", 20))
-            prefetchType = PrefetchLoadL2;
-         else if (!strncmp(method->nameChars(), "_TR_Prefetch_Load_L3", 20))
-            prefetchType = PrefetchLoadL3;
-         }
-      else if (method->nameLength() == 21)
-         {
-         if (!strncmp(method->nameChars(), "_TR_Prefetch_StoreNTA", 21))
-            prefetchType = PrefetchStoreNonTemporal;
-         else if (!strncmp(method->nameChars(), "_TR_Release_StoreOnly", 21))
-            prefetchType = ReleaseStore;
-         }
-      else if (method->nameLength() == 29 && !strncmp(method->nameChars(), "_TR_Prefetch_StoreConditional", 29))
-         {
-         prefetchType = PrefetchStoreConditional;
-         }
-
-      TR::Node *n2 = pop();
-      if (2 == numArgs  && n2->getOpCode().isInt())
-         {
-         node = TR::Node::createWithSymRef(TR::Prefetch, 4, symRef);
-         TR::Node *addrNode = pop();
-
-         // For constant 2nd arguments, we'll add it to the offset.
-         if  (n2->getOpCode().isLoadConst())
-            {
-            // TR::Prefetch 1st child: address
-            node->setAndIncChild(0, addrNode);
-            // TR::Prefetch 2nd child: offset
-            node->setAndIncChild(1, n2);
-            }
-         else
-            {
-            // TR::Prefetch 1st child: address
-            //    aiadd
-            //       addrNode
-            //       offsetNode
-            TR::Node * aiaddNode = TR::Node::create(TR::aiadd, 2, addrNode, n2);
-            node->setAndIncChild(0, aiaddNode);
-
-            // TR::Prefetch 2nd child: Set offset to be zero.
-            TR::Node * offsetNode = TR::Node::create(TR::iconst, 0, 0);
-            node->setAndIncChild(1, offsetNode);
-            }
-
-         // TR::Prefetch 3rd child : size
-         TR::Node * size = TR::Node::create(TR::iconst, 0, 1);
-         node->setAndIncChild(2, size);
-
-         // TR::Prefetch 4th child : type
-         TR::Node * type = TR::Node::create(TR::iconst, 0, (int32_t)prefetchType);
-         node->setAndIncChild(3, type);
-
-         genTreeTop(node);
-         }
-      else if (3 == numArgs || 2 == numArgs)
-         {
-         TR::Node * n3 = n2;   // it's already popped above
-         TR::Node * n2 = pop();
-         TR::Node * n1 = (numArgs == 3) ? pop() : NULL;
-
-         if (n3->getSymbolReference() &&
-             n3->getSymbolReference()->getSymbol()->isStatic() &&
-             n3->getSymbolReference()->getSymbol()->castToStaticSymbol()->isConstString() &&
-             n2->getSymbolReference() &&
-             n2->getSymbolReference()->getSymbol()->isStatic() &&
-             n2->getSymbolReference()->getSymbol()->castToStaticSymbol()->isConstString())
-            {
-             uintptr_t offset = fej9()->getFieldOffset(comp(), n2->getSymbolReference(), n3->getSymbolReference() );
-             if (offset)
-               {
-               TR::Node * n ;
-               if (comp()->target().is32Bit() ||
-                   (int32_t)(((uint32_t)((uint64_t)offset >> 32)) & 0xffffffff) == (uint32_t)0)
-                  {
-                  n = TR::Node::create(TR::iconst, 0, offset);
-                  }
-                  else
-                  {
-                  n = TR::Node::create(TR::lconst, 0, 0);
-                  n->setLongInt(offset);
-                  }
-               if (numArgs == 3)
-                  {
-                  node = TR::Node::createWithSymRef(TR::Prefetch, 4, symRef);
-                  node->setAndIncChild(1, n);
-                  node->setAndIncChild(0, n1);
-                  }
-               else
-                  {
-                  node = TR::Node::createWithSymRef(TR::Prefetch, 4, symRef);
-                  node->setAndIncChild(0, n);
-                  TR::Node * offsetNode = TR::Node::create(TR::iconst, 0, 0);
-                  node->setAndIncChild(1, offsetNode);
-                  }
-
-               // TR::Prefetch 3rd child : size
-               TR::Node * size = TR::Node::create(TR::iconst, 0, 1);
-               node->setAndIncChild(2, size);
-
-               // TR::Prefetch 4th child : type
-               TR::Node * type = TR::Node::create(TR::iconst, 0, (int32_t)prefetchType);
-               node->setAndIncChild(3, type);
-
-               genTreeTop(node);
-               }
-             else
-               {
-               // Generate treetops to retain proper reference count.
-               genTreeTop(n2);
-               genTreeTop(n3);
-               if (n1)
-                  genTreeTop(n1);
-
-               traceMsg(comp(),"Prefetch: Unable to resolve offset.\n");
-               }
-            }
-         }
-      else
-         {
-         TR_ASSERT(0, "TR::Prefetch does not have two or three children");
-         }
-
-      return node;
-      }
-
 #define DAA_PRINT(a) \
 case a: \
    if(trace()) \
@@ -4004,6 +4030,8 @@ break
       DAA_PRINT(TR::com_ibm_dataaccess_PackedDecimal_shiftLeftPackedDecimal);
       DAA_PRINT(TR::com_ibm_dataaccess_PackedDecimal_shiftRightPackedDecimal);
       DAA_PRINT(TR::com_ibm_dataaccess_PackedDecimal_movePackedDecimal);
+
+      DAA_PRINT(TR::com_ibm_dataaccess_ExternalDecimal_checkExternalDecimal);
 
       default:
          break;
@@ -4512,20 +4540,12 @@ break
       TR::Node* obj = callNode->getChild(1);
       TR::Node* vftLoad = TR::Node::createWithSymRef(callNode, TR::aloadi, 1, obj, symRefTab()->findOrCreateVftSymbolRef());
 
-      if (comp()->target().is32Bit())
-         {
-         resultNode = TR::Node::createWithSymRef(callNode, TR::iloadi, 1, vftLoad, symRefTab()->findOrCreateClassAndDepthFlagsSymbolRef());
-         }
-      else
-         {
-         resultNode = TR::Node::createWithSymRef(callNode, TR::lloadi, 1, vftLoad, symRefTab()->findOrCreateClassAndDepthFlagsSymbolRef());
-         resultNode = TR::Node::create(callNode, TR::l2i, 1, resultNode);
-         }
-
       int32_t andMask = comp()->fej9()->getFlagValueForArrayCheck();
+      resultNode = comp()->fej9()->testIsClassArrayType(vftLoad);
+
       int32_t shiftAmount = trailingZeroes(andMask);
-      resultNode  = TR::Node::create(callNode, TR::iand, 2, resultNode, TR::Node::iconst(callNode, andMask));
       resultNode  = TR::Node::create(callNode, TR::iushr, 2, resultNode, TR::Node::iconst(callNode, shiftAmount));
+
       // Handle NullCHK
       if (callNodeTreeTop->getNode()->getOpCode().isNullCheck())
          TR::Node::recreate(callNodeTreeTop->getNode(), TR::treetop);
@@ -4602,29 +4622,50 @@ break
    // required by this optimization efficiently, we can re-enable this optimization.
    if (cg()->getEnforceStoreOrder() && calledMethod->isConstructor())
       {
+      bool fenceRequired = false;
       if (resolvedMethodSymbol
 #ifdef J9VM_OPT_JITSERVER
          && !cg()->comp()->isOutOfProcessCompilation()
 #endif /* defined(J9VM_OPT_JITSERVER) */
          )
          {
-         J9Class *methodClass = (J9Class *) resolvedMethodSymbol->getResolvedMethod()->containingClass();
-         TR_VMFieldsInfo *fieldsInfoByIndex = new (comp()->trStackMemory()) TR_VMFieldsInfo(comp(), methodClass, 1, stackAlloc);
-         ListIterator<TR_VMField> fieldIter(fieldsInfoByIndex->getFields());
-         for (TR_VMField *field = fieldIter.getFirst(); field; field = fieldIter.getNext())
+         TR_OpaqueClassBlock *methodSymClass = resolvedMethodSymbol->getResolvedMethod()->containingClass();
+         int32_t len;
+         char *className;
+         className = TR::Compiler->cls.classNameChars(comp(), methodSymClass, len);
+         // For classes where we would like to remove Null-Checks, add an allocation fence after the init()
+         // so that we can be sure the fields initialized in the init() are visible to other threads.
+         if ((len==22 && !strncmp(className, "java/lang/StringBuffer", 22)) ||
+             (len==23 && !strncmp(className, "java/lang/StringBuilder", 23)))
             {
-            if ((field->modifiers & J9AccFinal) && methodClass == jitGetDeclaringClassOfROMField(comp()->j9VMThread(), methodClass, field->shape))
-               {
                if (comp()->getOption(TR_TraceILGen))
-                  traceMsg(comp(), "added fence due to field %s \n", field->name);
-               push(callNode->getFirstChild());
-               genFlush(0);
-               pop();
-               break;
+                  traceMsg(comp(), "added post-init fence for recognized class %s\n", className);
+               fenceRequired = true;
+            }
+         else
+            {
+            // Check if there are final fields in the class and add a fence if we see one.
+            // The spec requires that final fields are visible to all threads after the init()
+            J9Class *methodClass = (J9Class *)methodSymClass;
+            TR_VMFieldsInfo *fieldsInfoByIndex = new (comp()->trStackMemory()) TR_VMFieldsInfo(comp(), methodClass, 1, stackAlloc);
+            ListIterator<TR_VMField> fieldIter(fieldsInfoByIndex->getFields());
+            for (TR_VMField *field = fieldIter.getFirst(); field; field = fieldIter.getNext())
+               {
+               if ((field->modifiers & J9AccFinal) && methodClass == jitGetDeclaringClassOfROMField(comp()->j9VMThread(), methodClass, field->shape))
+                  {
+                  if (comp()->getOption(TR_TraceILGen))
+                     traceMsg(comp(), "added fence due to final field %s \n", field->name);
+                  fenceRequired = true;
+                  break;
+                  }
                }
             }
          }
       else
+         {
+         fenceRequired = true;
+         }
+      if (fenceRequired)
          {
          push(callNode->getFirstChild());
          genFlush(0);
@@ -4675,17 +4716,46 @@ TR_J9ByteCodeIlGenerator::chopPlaceholder(TR::Node *placeholder, int32_t firstCh
 bool
 TR_J9ByteCodeIlGenerator::runMacro(TR::SymbolReference * symRef)
    {
+   TR::MethodSymbol * symbol = symRef->getSymbol()->castToMethodSymbol();
+   TR::RecognizedMethod recognizedMethod = symbol->getMandatoryRecognizedMethod();
+   if (_requiredConsts != NULL)
+      {
+      switch (recognizedMethod)
+         {
+         case TR::java_lang_invoke_ILGenMacros_isCustomThunk:
+         case TR::java_lang_invoke_ILGenMacros_isShareableThunk:
+            {
+            auto entry = _requiredConsts->find(_bcIndex);
+            if (entry != _requiredConsts->end())
+               {
+               // This call has been constant-folded by InterpreterEmulator.
+               // Skip running the macro so that the folding can be repeated in
+               // the same way as for other calls. It will definitely be folded
+               // because the repeat folding is not optional.
+               //
+               // This strategy is possible here only because these particular
+               // macros have the same effect on the stack as the original call
+               // would. (Many of the other macros have a custom effect on the
+               // stack, e.g. due to placeholders.)
+               //
+               return false;
+               }
+            }
+         default:
+            break;
+         }
+      }
+
    // Give FE first kick at the can
    //
    if (runFEMacro(symRef))
       return true;
 
-   TR::MethodSymbol * symbol = symRef->getSymbol()->castToMethodSymbol();
    int32_t archetypeParmCount = symbol->getMethod()->numberOfExplicitParameters() + (symbol->isStatic() ? 0 : 1);
 
    TR_ASSERT(symbol->isStatic(), "Macro methods must be static or else signature processing gets complicated by the implicit receiver");
 
-   switch (symRef->getSymbol()->castToMethodSymbol()->getMandatoryRecognizedMethod())
+   switch (recognizedMethod)
       {
       case TR::java_lang_invoke_ILGenMacros_numArguments:
          {
@@ -4709,7 +4779,7 @@ TR_J9ByteCodeIlGenerator::runMacro(TR::SymbolReference * symRef)
                push(array);
                loadConstant(TR::iconst, i);
                push(arg);
-               storeArrayElement(arg->getDataType()); // TODO:JSR292: use isstore for char arguments
+               storeArrayElement(arg->getDataType()); // TODO:JSR292: use sstorei for char arguments
                }
             argShepherd->removeAllChildren();
             push(array);
@@ -4841,7 +4911,8 @@ TR_J9ByteCodeIlGenerator::runMacro(TR::SymbolReference * symRef)
             char *secondArgType = nextSignatureArgument(arrayElementType);
             int arrayElementTypeLength = secondArgType - arrayElementType;
 
-            char *expandedArgsSignature = (char*)comp()->trMemory()->allocateStackMemory(numElements * arrayElementTypeLength + 1);
+            size_t argsLen = (numElements * arrayElementTypeLength) + 1;
+            char *expandedArgsSignature = (char*)comp()->trMemory()->allocateStackMemory(argsLen);
 
             TR::DataType arrayElementDataType = TR::NoType;
             TR::ILOpCodes convertOp = TR::BadILOp;
@@ -4874,7 +4945,6 @@ TR_J9ByteCodeIlGenerator::runMacro(TR::SymbolReference * symRef)
                   break;
                case 'L':
                case '[':
-               case 'Q':
                   arrayElementDataType = TR::Address;
                   break;
                default:
@@ -4892,7 +4962,16 @@ TR_J9ByteCodeIlGenerator::runMacro(TR::SymbolReference * symRef)
                loadArrayElement(arrayElementDataType);
                if (convertOp != TR::BadILOp)
                   genUnary(convertOp);
-               cursor += sprintf(cursor, "%.*s", arrayElementTypeLength, arrayElementType);
+               int len = snprintf(cursor, argsLen, "%.*s", arrayElementTypeLength, arrayElementType);
+               if ((0 < len) && ((size_t)len <= argsLen))
+                  {
+                  cursor += len;
+                  argsLen -= len;
+                  }
+               else
+                  {
+                  argsLen = 0;
+                  }
                }
 
             // Create placeholder with signature that reflects the expansion of arguments.
@@ -4962,13 +5041,14 @@ TR_J9ByteCodeIlGenerator::loadInstance(int32_t cpIndex)
       comp()->failCompilation<J9::AOTNoSupportForAOTFailure>("NO support for AOT in field watch");
 
    TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
-   if (TR::Compiler->om.areValueTypesEnabled() && owningMethod->isFieldQType(cpIndex))
+
+   if (owningMethod->isFieldNullRestricted(comp(), cpIndex, false /* isStatic */, false /* isStore */))
       {
       if (!isFieldResolved(comp(), owningMethod, cpIndex, false))
          {
          abortForUnresolvedValueTypeOp("getfield", "field");
          }
-      else if (owningMethod->isFieldFlattened(comp(), cpIndex, _methodSymbol->isStatic()))
+      else if (owningMethod->isFieldFlattened(comp(), cpIndex, false /* isStatic */))
          {
          return comp()->getOption(TR_UseFlattenedFieldRuntimeHelpers) ?
                   loadFlattenableInstanceWithHelper(cpIndex) :
@@ -4988,6 +5068,11 @@ TR_J9ByteCodeIlGenerator::loadInstance(TR::SymbolReference * symRef)
    TR::Node * address = pop();
    TR::Node * load, *dummyLoad;
    TR::Node * treeTopNode = 0;
+
+   TR::KnownObjectTable::Index requiredKoi;
+   if (pushRequiredConst(&requiredKoi))
+      return;
+
    TR::ILOpCodes op = _generateReadBarriersForFieldWatch ? comp()->il.opCodeForIndirectReadBarrier(type): comp()->il.opCodeForIndirectLoad(type);
    dummyLoad = load = TR::Node::createWithSymRef(op, 1, 1, address, symRef);
 
@@ -5011,7 +5096,6 @@ TR_J9ByteCodeIlGenerator::loadInstance(TR::SymbolReference * symRef)
 
    if (type == TR::Address)
       {
-
       if (comp()->useCompressedPointers())
          {
          if (!symRefTab()->isFieldClassObject(symRef))
@@ -5028,6 +5112,8 @@ TR_J9ByteCodeIlGenerator::loadInstance(TR::SymbolReference * symRef)
             }
          }
       }
+
+   markRequiredKnownObjectIndex(load, requiredKoi);
 
    static char *disableFinalFieldFoldingInILGen = feGetEnv("TR_DisableFinalFieldFoldingInILGen");
    static char *disableInstanceFinalFieldFoldingInILGen = feGetEnv("TR_DisableInstanceFinalFieldFoldingInILGen");
@@ -5186,10 +5272,13 @@ TR_J9ByteCodeIlGenerator::loadStatic(int32_t cpIndex)
    if (_generateReadBarriersForFieldWatch && comp()->compileRelocatableCode())
       comp()->failCompilation<J9::AOTNoSupportForAOTFailure>("NO support for AOT in field watch");
 
-   _staticFieldReferenceEncountered = true;
+   TR::KnownObjectTable::Index requiredKoi;
+   if (pushRequiredConst(&requiredKoi))
+      return;
+
    TR::SymbolReference * symRef = symRefTab()->findOrCreateStaticSymbol(_methodSymbol, cpIndex, false);
    if (comp()->getOption(TR_TraceILGen))
-      traceMsg(comp(), "load static symref %d created with knownObjectIndex %d", symRef->getReferenceNumber(), symRef->getKnownObjectIndex());
+      traceMsg(comp(), "load static symref %d created with knownObjectIndex %d\n", symRef->getReferenceNumber(), symRef->getKnownObjectIndex());
    TR::StaticSymbol *      symbol = symRef->getSymbol()->castToStaticSymbol();
    TR_ASSERT(symbol, "Didn't geta static symbol.");
 
@@ -5359,141 +5448,42 @@ TR_J9ByteCodeIlGenerator::loadStatic(int32_t cpIndex)
       }
 
    TR::DataType type = symbol->getDataType();
-   bool isResolved = !symRef->isUnresolved();
-   TR_OpaqueClassBlock * classOfStatic = isResolved ? _method->classOfStatic(cpIndex) : 0;
-   if (classOfStatic == NULL)
-      {
-      int         len = 0;
-      char * classNameOfFieldOrStatic = NULL;
-      classNameOfFieldOrStatic = symRef->getOwningMethod(comp())->classNameOfFieldOrStatic(symRef->getCPIndex(), len);
-      if (classNameOfFieldOrStatic)
-         {
-         classNameOfFieldOrStatic = TR::Compiler->cls.classNameToSignature(classNameOfFieldOrStatic, len, comp());
-         TR_OpaqueClassBlock * curClass = fej9->getClassFromSignature(classNameOfFieldOrStatic, len, symRef->getOwningMethod(comp()));
-         TR_OpaqueClassBlock * owningClass = comp()->getJittedMethodSymbol()->getResolvedMethod()->containingClass();
-         if (owningClass == curClass)
-            classOfStatic = curClass;
-         }
-      }
-
-
-   bool isClassInitialized = false;
-   TR_PersistentClassInfo * classInfo = _noLookahead ? 0 :
-      comp()->getPersistentInfo()->getPersistentCHTable()->findClassInfoAfterLocking(classOfStatic, comp());
-   if (classInfo && classInfo->isInitialized())
-      isClassInitialized = true;
-
-   /*
-   if (classOfStatic)
-      {
-      char *name; int32_t len;
-      name = comp()->fej9->getClassNameChars(classOfStatic, len);
-      printf("class name %s class init %d class %p classInfo %p no %d hotness %d\n", name, isClassInitialized, classOfStatic, classInfo, _noLookahead, comp()->getMethodHotness()); fflush(stdout);
-      }
-   */
-
-   bool canOptimizeFinalStatic = false;
-   if (isResolved && symbol->isFinal() && !symRef->isUnresolved() &&
-       classOfStatic != comp()->getSystemClassPointer() &&
-       isClassInitialized)
-      {
-      //if (type == TR::Address)
-         {
-
-         // todo: figure out why classInfo would be NULL here?
-         if (!classInfo->getFieldInfo())
-            performClassLookahead(classInfo);
-         }
-
-      if (classInfo->getFieldInfo() && !classInfo->cannotTrustStaticFinal())
-         canOptimizeFinalStatic = true;
-      }
-
-   TR::VMAccessCriticalSection loadStaticCriticalSection(fej9,
-                                                          TR::VMAccessCriticalSection::tryToAcquireVMAccess,
-                                                          comp());
-
    TR::Node * load = NULL;
 
-   if (canOptimizeFinalStatic &&
-       loadStaticCriticalSection.hasVMAccess())
+   if (_generateReadBarriersForFieldWatch)
       {
-      void * p = symbol->getStaticAddress();
-
-      switch (type)
-         {
-         case TR::Address:
-            if ((void *)comp()->fej9()->getStaticReferenceFieldAtAddress((uintptr_t)p) == 0)
-               {
-               loadConstant(TR::aconst, 0);
-               break;
-               }
-            else
-               {
-               // the address isn't constant, because a GC could move it, however is it nonnull
-               //
-               load = TR::Node::createLoad(symRef);
-               load->setIsNonNull(true);
-               push(load);
-               break;
-               }
-         case TR::Double:  loadConstant(TR::dconst, *(double *) p); break;
-         case TR::Int64:   loadConstant(TR::lconst, *(int64_t *)p); break;
-         case TR::Float:   loadConstant(TR::fconst, *(float *)  p); break;
-         case TR::Int32:
-         default:         loadConstant(TR::iconst, *(int32_t *)p); break;
-         }
-      }
-   else if (symbol->isVolatile() && type == TR::Int64 && isResolved && comp()->target().is32Bit() &&
-            !comp()->cg()->getSupportsInlinedAtomicLongVolatiles() && 0)
-      {
-      TR::SymbolReference * volatileLongSymRef =
-          comp()->getSymRefTab()->findOrCreateRuntimeHelper(TR_volatileReadLong, false, false, true);
-      TR::Node * statics = TR::Node::createWithSymRef(TR::loadaddr, 0, symRef);
-      TR::Node * call = TR::Node::createWithSymRef(TR::lcall, 1, 1, statics, volatileLongSymRef);
-
-      handleSideEffect(call);
-
-      genTreeTop(call);
-      push(call);
+      void * staticClass = method()->classOfStatic(cpIndex);
+      loadSymbol(TR::loadaddr, symRefTab()->findOrCreateClassSymbol(_methodSymbol, cpIndex, staticClass, true /* cpIndexOfStatic */));
+      load = TR::Node::createWithSymRef(comp()->il.opCodeForDirectReadBarrier(type), 1, pop(), 0, symRef);
       }
    else
+      load = TR::Node::createWithSymRef(comp()->il.opCodeForDirectLoad(type), 0, symRef);
+
+   TR::Node * treeTopNode = 0;
+   if (symRef->isUnresolved())
+      treeTopNode = genResolveCheck(load);
+   else if (symbol->isVolatile() || _generateReadBarriersForFieldWatch)
+      treeTopNode = load;
+
+   if (treeTopNode)
       {
-      if (_generateReadBarriersForFieldWatch)
-         {
-         void * staticClass = method()->classOfStatic(cpIndex);
-         loadSymbol(TR::loadaddr, symRefTab()->findOrCreateClassSymbol(_methodSymbol, cpIndex, staticClass, true /* cpIndexOfStatic */));
-         load = TR::Node::createWithSymRef(comp()->il.opCodeForDirectReadBarrier(type), 1, pop(), 0, symRef);
-         }
-      else
-         load = TR::Node::createWithSymRef(comp()->il.opCodeForDirectLoad(type), 0, symRef);
-
-      TR::Node * treeTopNode = 0;
-      if (symRef->isUnresolved())
-         treeTopNode = genResolveCheck(load);
-      else if (symbol->isVolatile() || _generateReadBarriersForFieldWatch)
-         treeTopNode = load;
-
-      if (treeTopNode)
-         {
-         handleSideEffect(treeTopNode);
-         genTreeTop(treeTopNode);
-         }
-
-      push(load);
+      handleSideEffect(treeTopNode);
+      genTreeTop(treeTopNode);
       }
+
+   push(load);
+
+   markRequiredKnownObjectIndex(load, requiredKoi);
 
    static char *disableFinalFieldFoldingInILGen = feGetEnv("TR_DisableFinalFieldFoldingInILGen");
    static char *disableStaticFinalFieldFoldingInILGen = feGetEnv("TR_DisableStaticFinalFieldFoldingInILGen");
-   if (load &&
-       !disableFinalFieldFoldingInILGen &&
+   if (!disableFinalFieldFoldingInILGen &&
        !disableStaticFinalFieldFoldingInILGen &&
        symbol->isFinal() &&
        TR::TransformUtil::canFoldStaticFinalField(comp(), load) == TR_yes)
       {
       TR::TransformUtil::foldReliableStaticFinalField(comp(), load);
       }
-
    }
 
 TR::Node *
@@ -5679,7 +5669,7 @@ TR_J9ByteCodeIlGenerator::loadFromCP(TR::DataType type, int32_t cpIndex)
             // for unresolved primitive the resolve helper only returns an autobox'd object).
             if (isCondyPrimitive)
                {
-               char *autoboxClassSig = NULL;
+               const char *autoboxClassSig = NULL;
                int32_t autoboxClassSigLength = 0;
                switch (returnTypeUtf8Data[0])
                   {
@@ -5791,7 +5781,7 @@ TR_J9ByteCodeIlGenerator::loadFromCP(TR::DataType type, int32_t cpIndex)
             // Condy is primitive type, emit indirect load of the value field from the autobox object.
             if (isCondyPrimitive)
                {
-               char *recogFieldName = NULL;
+               const char *recogFieldName = NULL;
                TR::Symbol::RecognizedField valueRecogField= TR::Symbol::UnknownField;
                TR::DataType dt = TR::NoType;
                switch (returnTypeUtf8Data[0])
@@ -5906,10 +5896,10 @@ TR_J9ByteCodeIlGenerator::loadArrayElement(TR::DataType dataType, TR::ILOpCodes 
    // helper is needed.
    //
    if (mayBeValueType &&
-       TR::Compiler->om.areValueTypesEnabled() &&
-       TR::Compiler->om.isValueTypeArrayFlatteningEnabled() &&
+       TR::Compiler->om.isValueTypeArrayFlatteningEnabled() && // isValueTypeArrayFlatteningEnabled() checks areFlattenableValueTypesEnabled()
        !TR::Compiler->om.canGenerateArraylets() &&
-       dataType == TR::Address)
+       dataType == TR::Address &&
+       !_methodSymbol->skipFlattenableArrayElementNonHelperCall())
       {
       TR::Node* elementIndex = pop();
       TR::Node* arrayBaseAddress = pop();
@@ -5919,7 +5909,7 @@ TR_J9ByteCodeIlGenerator::loadArrayElement(TR::DataType dataType, TR::ILOpCodes 
          nullchk = genNullCheck(nullchk);
          genTreeTop(nullchk);
          }
-      auto* helperSymRef = comp()->getSymRefTab()->findOrCreateLoadFlattenableArrayElementSymbolRef();
+      auto* helperSymRef = comp()->getSymRefTab()->findOrCreateLoadFlattenableArrayElementNonHelperSymbolRef();
       auto* helperCallNode = TR::Node::createWithSymRef(TR::acall, 2, 2, elementIndex, arrayBaseAddress, helperSymRef);
 
       TR::TreeTop *loadHelperCallTT = genTreeTop(helperCallNode);
@@ -6057,11 +6047,31 @@ TR_J9ByteCodeIlGenerator::genMonitorEnter()
       }
    */
 
-   node = TR::Node::createWithSymRef(TR::monent, 1, 1, node, monitorEnterSymbolRef);
-   if (isStatic)
-      node->setStaticMonitor(true);
+   static const bool disableMonentIdentityException = (feGetEnv("TR_disableMonentIdentityException") != NULL);
 
-   genTreeTop(genNullCheck(node));
+   if (disableMonentIdentityException || !TR::Compiler->om.areValueTypesEnabled())
+      {
+      node = TR::Node::createWithSymRef(TR::monent, 1, 1, node, monitorEnterSymbolRef);
+      if (isStatic)
+         node->setStaticMonitor(true);
+
+      genTreeTop(genNullCheck(node));
+      }
+   else
+      {
+      genTreeTop(genNullCheck(TR::Node::create(TR::PassThrough, 1, node)));
+
+      TR::SymbolReference *isIdentitySymRef = comp()->getSymRefTab()->findOrCreateIsIdentityObjectNonHelperSymbolRef();
+      TR::Node *isIdentityObjectTestNode = TR::Node::createWithSymRef(TR::icall, 1, 1, node, isIdentitySymRef);
+      TR::SymbolReference *identityExceptionSymRef = comp()->getSymRefTab()->findOrCreateIdentityExceptionSymbolRef(_methodSymbol);
+      genTreeTop(TR::Node::createWithSymRef(TR::ZEROCHK, 1, 1, isIdentityObjectTestNode, identityExceptionSymRef));
+
+      node = TR::Node::createWithSymRef(TR::monent, 1, 1, node, monitorEnterSymbolRef);
+      if (isStatic)
+         node->setStaticMonitor(true);
+
+      genTreeTop(node);
+      }
 
    if (!comp()->getOption(TR_DisableLiveMonitorMetadata))
       {
@@ -6144,11 +6154,19 @@ TR_J9ByteCodeIlGenerator::genNew(TR::ILOpCodes opCode)
    if (!node->getFirstChild()->getSymbolReference()->isUnresolved() && node->getFirstChild()->getSymbol()->isStatic())
       {
       TR_OpaqueClassBlock *clazz = (TR_OpaqueClassBlock*)node->getFirstChild()->getSymbol()->castToStaticSymbol()->getStaticAddress();
+
+      if (TR::Compiler->cls.isValueTypeClass(clazz))
+         {
+         node->setIdentityless(true);
+         }
+
       int32_t len;
       char *sig;
       sig = TR::Compiler->cls.classSignature_DEPRECATED(comp(), clazz, len, comp()->trMemory());
       OMR::ResolvedMethodSymbol *resolvedMethodSymbol = node->getSymbol()->getResolvedMethodSymbol();
 
+      // The following classes contain final fields and therefore need a post-init flush.
+      // The <init> for these classes do not allow the 'this' to escape so we can skip the pre-init flush.
       if (((len == 16) && strncmp(sig, "Ljava/lang/Long;", 16) == 0) ||
           ((len == 16) && strncmp(sig, "Ljava/lang/Byte;", 16) == 0) ||
           ((len == 17) && strncmp(sig, "Ljava/lang/Short;", 17) == 0) ||
@@ -6181,9 +6199,15 @@ TR_J9ByteCodeIlGenerator::genNew(TR::ILOpCodes opCode)
           ((len == 68) && strncmp(sig, "Ljava/util/concurrent/locks/ReentrantReadWriteLock$Sync$HoldCounter;", 68) == 0) ||
           ((len == 25) && strncmp(sig, "Ljava/util/PriorityQueue;", 25) == 0) ||
           ((len == 42) && strncmp(sig, "Ljava/util/concurrent/locks/ReentrantLock;", 42) == 0) ||
-          ((len == 54) && strncmp(sig, "Ljava/util/concurrent/locks/ReentrantLock$NonfairSync;", 54) == 0)
+          ((len == 54) && strncmp(sig, "Ljava/util/concurrent/locks/ReentrantLock$NonfairSync;", 54) == 0) ||
+          // The JIT removes checks for the following classes, therefore we need a post-init flush to ensure fields are non-null.
+          // The <init> for these classes do not allow the 'this' to escape so we can skip the pre-init flush.
+          ((len == 24) && strncmp(sig, "Ljava/lang/StringBuffer;", 24) == 0) ||
+          ((len == 25) && strncmp(sig, "Ljava/lang/StringBuilder;", 25) == 0)
          )
          {
+         if (comp()->getOption(TR_TraceILGen))
+            traceMsg(comp(), "skipping pre-init fence for recognized class %s\n", sig);
          skipFlush = true;
          }
       }
@@ -6192,114 +6216,7 @@ TR_J9ByteCodeIlGenerator::genNew(TR::ILOpCodes opCode)
          genFlush(0);
    }
 
-void
-TR_J9ByteCodeIlGenerator::genWithField(int32_t fieldCpIndex)
-   {
-   const int32_t bcIndex = currentByteCodeIndex();
-   int32_t classCpIndex = method()->classCPIndexOfFieldOrStatic(fieldCpIndex);
-   TR_OpaqueClassBlock *valueClass = method()->getClassFromConstantPool(comp(), classCpIndex, true);
-   if (!valueClass)
-      {
-      abortForUnresolvedValueTypeOp("withfield", "class");
-      }
-
-   TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
-   if (owningMethod->isFieldQType(fieldCpIndex) && owningMethod->isFieldFlattened(comp(), fieldCpIndex, _methodSymbol->isStatic()))
-      {
-      return comp()->getOption(TR_UseFlattenedFieldRuntimeHelpers) ?
-               genFlattenableWithFieldWithHelper(fieldCpIndex) :
-               genFlattenableWithField(fieldCpIndex, valueClass);
-      }
-
-   bool isStore = false;
-   TR::SymbolReference * symRef = symRefTab()->findOrCreateShadowSymbol(_methodSymbol, fieldCpIndex, isStore);
-   if (symRef->isUnresolved())
-      {
-      abortForUnresolvedValueTypeOp("withfield", "field");
-      }
-
-   genWithField(symRef, valueClass);
-   }
-
-void
-TR_J9ByteCodeIlGenerator::genWithField(TR::SymbolReference * symRef, TR_OpaqueClassBlock * valueClass)
-   {
-   TR::Node *newFieldValue = pop();
-   TR::Node *originalObject = pop();
-
-   /*
-    * Insert nullchk for the original object as requested by the JVM spec.
-    * Especially in case of value type class with a single field, the nullchk is still
-    * necessary even though the original object is actually not needed.
-    */
-   TR::Node *passThruNode = TR::Node::create(TR::PassThrough, 1, originalObject);
-   genTreeTop(genNullCheck(passThruNode));
-
-   loadClassObject(valueClass);
-   const TR::TypeLayout *typeLayout = comp()->typeLayout(valueClass);
-   size_t fieldCount = typeLayout->count();
-
-   for (size_t idx = 0; idx < fieldCount; idx++)
-      {
-      const TR::TypeLayoutEntry &fieldEntry = typeLayout->entry(idx);
-      if (fieldEntry._offset == symRef->getOffset())
-         push(newFieldValue);
-      else
-         {
-         auto* fieldSymRef = comp()->getSymRefTab()->findOrFabricateShadowSymbol(valueClass,
-                                                                     fieldEntry._datatype,
-                                                                     fieldEntry._offset,
-                                                                     fieldEntry._isVolatile,
-                                                                     fieldEntry._isPrivate,
-                                                                     fieldEntry._isFinal,
-                                                                     fieldEntry._fieldname,
-                                                                     fieldEntry._typeSignature
-                                                                     );
-         push(originalObject);
-         loadInstance(fieldSymRef);
-         }
-      }
-
-   TR::Node *newValueNode = genNodeAndPopChildren(TR::newvalue, fieldCount+1, symRefTab()->findOrCreateNewValueSymbolRef(_methodSymbol));
-   newValueNode->setIdentityless(true);
-   _methodSymbol->setHasNews(true);
-
-   genTreeTop(newValueNode);
-   push(newValueNode);
-   genFlush(0);
-   }
-
-void
-TR_J9ByteCodeIlGenerator::genFlattenableWithFieldWithHelper(int32_t fieldCpIndex)
-   {
-   bool isStore = false;
-   TR::SymbolReference * symRef = symRefTab()->findOrCreateShadowSymbol(_methodSymbol, fieldCpIndex, isStore);
-   if (symRef->isUnresolved())
-      {
-      abortForUnresolvedValueTypeOp("withfield", "field");
-      }
-
-   TR::Node *newFieldValue = pop();
-   TR::Node *originalObject = pop();
-
-   /*
-    * Insert nullchk for the original object as requested by the JVM spec.
-    * Especially in case of value type class with a single field, the nullchk is still
-    * necessary even though the original object is actually not needed.
-    */
-   TR::Node *passThruNode = TR::Node::create(TR::PassThrough, 1, originalObject);
-   genTreeTop(genNullCheck(passThruNode));
-
-   auto* j9ResolvedMethod = static_cast<TR_ResolvedJ9Method *>(_methodSymbol->getResolvedMethod());
-   auto* ramFieldRef = reinterpret_cast<J9RAMFieldRef*>(j9ResolvedMethod->cp()) + fieldCpIndex;
-   auto* ramFieldRefNode = TR::Node::aconst(reinterpret_cast<uintptr_t>(ramFieldRef));
-   auto* helperCallNode = TR::Node::createWithSymRef(TR::acall, 3, 3, newFieldValue, originalObject, ramFieldRefNode, comp()->getSymRefTab()->findOrCreateWithFlattenableFieldSymbolRef());
-   handleSideEffect(helperCallNode);
-   genTreeTop(helperCallNode);
-   push(helperCallNode);
-   }
-
-static TR::SymbolReference * createLoadFieldSymRef(TR::Compilation * comp, TR_OpaqueClassBlock * fieldClass, const char * fieldname)
+static TR::SymbolReference * createLoadFieldSymRef(TR::Compilation * comp, TR_OpaqueClassBlock * fieldClass, const char * fieldname, bool nullIfNotFound)
    {
    const TR::TypeLayout *fieldClassLayout = comp->typeLayout(fieldClass);
    size_t fieldClassFieldCount = fieldClassLayout->count();
@@ -6322,295 +6239,42 @@ static TR::SymbolReference * createLoadFieldSymRef(TR::Compilation * comp, TR_Op
          }
       }
 
-   TR_ASSERT_FATAL(false, "Did not find the matching fieldname %s", fieldname);
+   TR_ASSERT_FATAL(nullIfNotFound, "Did not find the matching fieldname %s", fieldname);
+
    return NULL;
    }
 
-void
-TR_J9ByteCodeIlGenerator::genFlattenableWithField(int32_t fieldCpIndex, TR_OpaqueClassBlock * valueClass)
+
+/**
+ * Check the call chain for the following pattern: StringBuilder.toString() -> String<init>(StringBuilder)
+ *                -> String<init>(AbstractStringBuilder, Void) -> Arrays.copyOfRange([BII)
+ *
+ * @param comp the compilation class.
+ * @return true if the call chain matches the expected stack or false otherwise.
+ */
+static bool isCallChainFromStringBuilderToStringToArraysCopyOfRange(TR::Compilation *comp)
    {
-   /* An example on what the tree with flattened fields would look like
-    *
-    * value Point2D {
-    *    public final int x;
-    *    public final int y;
-    * }
-    *
-    * value FlattenedLine2D {
-    *    public final Point2D st;
-    *    public final Point2D en;
-    *
-    *    public static FlattenedLine2D withSt(FlattenedLine2D line, Point2D st) {
-    *       0: aload_1
-    *       1: aload_0
-    *       3: withfield #3 // Field st:QPoint2D;
-    *       6: astore_2
-    *       7: aload_2
-    *       8: areturn
-    *    }
-    * }
-    *
-    * method="FlattenedLine2D.withSt(QFlattenedLine2D;QPoint2D;)QFlattenedLine2D;"
-    * 3: JBwithfield
-    * /--- trees inserted ------------------------
-    * n7n      (  0)  NULLCHK on n3n [#32]
-    * n6n      (  2)    iloadi  Point2D.x I[#355  final Point2D.x I +4]
-    * n3n      (  2)      aload  <parm 1 F>[#353  Parm]
-    * n9n      (  0)  NULLCHK on n3n [#32]
-    * n8n      (  2)    iloadi  Point2D.y I[#356  final Point2D.y I +8]
-    * n3n      (  2)      ==>aload
-    * n11n     (  0)  NULLCHK on n4n [#32]
-    * n10n     (  2)    iloadi  FlattenedLine2D.en.x I[#357  final FlattenedLine2D.en.x I +12]
-    * n4n      (  2)      aload  <parm 0 Q>[#352  Parm]
-    * n13n     (  0)  NULLCHK on n4n [#32]
-    * n12n     (  2)    iloadi  FlattenedLine2D.en.y I[#358  final FlattenedLine2D.en.y I +16]
-    * n4n      (  2)      ==>aload
-    * n15n     (  0)  treetop
-    * n14n     (  1)    newvalue  jitNewValue[#100  helper Method]
-    * n5n      (  1)      loadaddr  FlattenedLine2D[#354  Static]
-    * n6n      (  2)      ==>iloadi
-    * n8n      (  2)      ==>iloadi
-    * n10n     (  2)      ==>iloadi
-    * n12n     (  2)      ==>iloadi
-    * /--- stack after ------------------------
-    * @0 n14n     (  1)  ==>newvalue (Identityless sharedMemory )
-    * ============================================================
-    */
-   TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
+   if(comp->getInlineDepth() < 4)
+      return false;
 
-   if (isFieldResolved(comp(), owningMethod, fieldCpIndex, false))
-      {
-      TR::Node *newFieldValue = pop();
-      TR::Node *originalObject = pop();
+   int32_t callerIndex = comp->getCurrentInlinedCallSite()->_byteCodeInfo.getCallerIndex();
+   if(comp->getInlinedResolvedMethodSymbol(callerIndex)->getRecognizedMethod() != TR::java_util_Arrays_copyOfRange_byte)
+      return false;
 
-      int32_t prefixLen = 0;
-      char * fieldNamePrefix = getTopLevelPrefixForFlattenedFields(owningMethod, fieldCpIndex, prefixLen, comp()->trMemory()->currentStackRegion());
+   callerIndex = comp->getInlinedCallSite(callerIndex)._byteCodeInfo.getCallerIndex();
+   if(comp->getInlinedResolvedMethodSymbol(callerIndex)->getRecognizedMethod() != TR::java_lang_String_init_AbstractStringBuilder_Void)
+      return false;
 
-      int len;
-      const char * fieldClassChars = owningMethod->fieldSignatureChars(fieldCpIndex, len);
-      TR_OpaqueClassBlock * fieldClass = fej9()->getClassFromSignature(fieldClassChars, len, owningMethod);
+   callerIndex = comp->getInlinedCallSite(callerIndex)._byteCodeInfo.getCallerIndex();
+   if(comp->getInlinedResolvedMethodSymbol(callerIndex)->getRecognizedMethod() != TR::java_lang_String_init_StringBuilder)
+      return false;
 
-      loadClassObject(valueClass);
+   callerIndex = comp->getInlinedCallSite(callerIndex)._byteCodeInfo.getCallerIndex();
+   TR::ResolvedMethodSymbol *caller = callerIndex > -1 ? comp->getInlinedResolvedMethodSymbol(callerIndex) : comp->getOptimizer()->getMethodSymbol();
+   if(caller->getRecognizedMethod() != TR::java_lang_StringBuilder_toString)
+      return false;
 
-      const TR::TypeLayout *typeLayout = comp()->typeLayout(valueClass);
-      size_t fieldCount = typeLayout->count();
-
-      TR_OpaqueClassBlock * containingClass = owningMethod->definingClassFromCPFieldRef(comp(), fieldCpIndex, _methodSymbol->isStatic());
-
-      for (size_t idx = 0; idx < fieldCount; idx++)
-         {
-         const TR::TypeLayoutEntry &fieldEntry = typeLayout->entry(idx);
-         if (!strncmp(fieldNamePrefix, fieldEntry._fieldname, prefixLen))
-            {
-            const char * fieldNameRemovedTopLevelPrefix = fieldEntry._fieldname + prefixLen;
-            auto * newFieldValueSymRef = createLoadFieldSymRef(comp(), fieldClass, fieldNameRemovedTopLevelPrefix);
-
-            if (comp()->getOption(TR_TraceILGen))
-               {
-               traceMsg(comp(), "Withfield flattened field %s\n - field[%d] name %s type %d offset %d\n",
-                     comp()->getDebug()->getName(newFieldValueSymRef), idx, fieldEntry._fieldname,
-                     fieldEntry._datatype.getDataType(), fieldEntry._offset);
-               }
-
-            push(newFieldValue);
-            loadInstance(newFieldValueSymRef);
-            }
-         else
-            {
-            auto * fieldSymRef = comp()->getSymRefTab()->findOrFabricateShadowSymbol(valueClass,
-                                                                        fieldEntry._datatype,
-                                                                        fieldEntry._offset,
-                                                                        fieldEntry._isVolatile,
-                                                                        fieldEntry._isPrivate,
-                                                                        fieldEntry._isFinal,
-                                                                        fieldEntry._fieldname,
-                                                                        fieldEntry._typeSignature
-                                                                        );
-            push(originalObject);
-            loadInstance(fieldSymRef);
-            }
-         }
-
-      TR::Node *newValueNode = genNodeAndPopChildren(TR::newvalue, fieldCount+1, symRefTab()->findOrCreateNewValueSymbolRef(_methodSymbol));
-      newValueNode->setIdentityless(true);
-      _methodSymbol->setHasNews(true);
-
-      genTreeTop(newValueNode);
-      push(newValueNode);
-      genFlush(0);
-      return;
-      }
-   else
-      {
-      abortForUnresolvedValueTypeOp("withfield", "field");
-      }
-   }
-
-void
-TR_J9ByteCodeIlGenerator::genAconst_init(int32_t cpIndex)
-   {
-   TR_OpaqueClassBlock *valueTypeClass = method()->getClassFromConstantPool(comp(), cpIndex, true /* returnClassForAot */);
-
-   if (comp()->getOption(TR_TraceILGen))
-      {
-      traceMsg(comp(), "%s: cpIndex %d valueTypeClass %p\n", __FUNCTION__, cpIndex, valueTypeClass);
-      }
-   genAconst_init(valueTypeClass, cpIndex);
-   }
-
-void
-TR_J9ByteCodeIlGenerator::genAconst_init(TR_OpaqueClassBlock *valueTypeClass, int32_t cpIndex)
-   {
-   // valueTypeClass will be NULL if it is unresolved.  Abort the compilation and
-   // track the failure with a static debug counter
-   if (valueTypeClass == NULL)
-      {
-      abortForUnresolvedValueTypeOp("aconst_init", "class");
-      }
-
-   TR::SymbolReference *valueClassSymRef = symRefTab()->findOrCreateClassSymbol(_methodSymbol, cpIndex, valueTypeClass);
-
-   if (comp()->getOption(TR_TraceILGen))
-      {
-      traceMsg(comp(), "Handling aconst_init for valueClass %s\n", comp()->getDebug()->getName(valueClassSymRef));
-      }
-
-   TR::Node *newValueNode = NULL;
-   static const char *disableLoadStaticDefaultValueInstance = feGetEnv("TR_DisableLoadStaticDefaultValueInstance");
-
-   if (valueClassSymRef->isUnresolved())
-      {
-      // IL generation for aconst_init is currently only able to handle value type classes that have been resolved.
-      // If the class is still unresolved, abort the compilation and track the failure with a static debug counter.
-      abortForUnresolvedValueTypeOp("aconst_init", "class");
-      }
-   else if (!disableLoadStaticDefaultValueInstance &&
-            comp()->fej9()->isClassInitialized(valueTypeClass))
-      {
-      /*
-       * n4n   treetop
-       * n3n      aload 0x1d3298[#358  Static] [flags 0x307 0x40 ]
-       */
-      j9object_t *defaultValueSlotAddress = TR::Compiler->cls.getDefaultValueSlotAddress(comp(), valueTypeClass);
-
-      newValueNode = TR::Node::createWithSymRef(TR::aload, 0, comp()->getSymRefTab()->findOrCreateDefaultValueSymbolRef((void *)defaultValueSlotAddress, cpIndex));
-
-      if (comp()->getOption(TR_TraceILGen))
-         {
-         traceMsg(comp(), "Handling aconst_init for valueClass %s: use pre-allocated defaultValue instance at %p\n", comp()->getDebug()->getName(valueClassSymRef), defaultValueSlotAddress);
-         }
-      }
-   else
-      {
-      loadSymbol(TR::loadaddr, valueClassSymRef);
-
-      const TR::TypeLayout *typeLayout = comp()->typeLayout(valueTypeClass);
-      size_t fieldCount = typeLayout->count();
-
-      for (size_t idx = 0; idx < fieldCount; idx++)
-         {
-         const TR::TypeLayoutEntry &entry = typeLayout->entry(idx);
-
-         if (comp()->getOption(TR_TraceILGen))
-            {
-            traceMsg(comp(), "Handling aconst_init for valueClass %s valueClassSymRef #%d CPIndex %d\n - field[%d] name %s type %d offset %d\n",
-                  comp()->getDebug()->getName(valueClassSymRef), valueClassSymRef->getReferenceNumber(), valueClassSymRef->getCPIndex(),
-                  idx, entry._fieldname, entry._datatype.getDataType(), entry._offset);
-            }
-
-         // Supply default value that is appropriate for the type of the corresponding field
-         // All these are gathered up as operands of a newvalue instruction.
-         //
-         // For example, if a value type class "Val" has fields of type int, long, double, LIdent;
-         // and Qval2;, where value type class "Val2" has a field of type boolean, the following
-         // IL will be generated:
-         //
-         //     newvalue jitNewValue   // Default value of type Val
-         //        loadaddr  Val
-         //        iconst 0     // int default value
-         //        lconst 0     // long default value
-         //        dconst 0.0   // double default value
-         //        aconst 0     // default value (null reference) for class Ident
-         //        newvalue jitNewValue    // Default value of type Val2
-         //           loadaddr  Val2
-         //           iconst 0  // boolean default value
-         //
-         switch (entry._datatype.getDataType())
-            {
-            case TR::Int8:
-            case TR::Int16:
-            case TR::Int32:
-               {
-               loadConstant(TR::iconst, 0);
-               break;
-               }
-            case TR::Int64:
-               {
-               loadConstant(TR::lconst, (int64_t) 0ll);
-               break;
-               }
-            case TR::Float:
-               {
-               loadConstant(TR::fconst, 0.0f);
-               break;
-               }
-            case TR::Double:
-               {
-               loadConstant(TR::dconst, 0.0);
-               break;
-               }
-            case TR::Address:
-               {
-               const char *fieldSignature = entry._typeSignature;
-
-               // If the field's signature begins with a Q, it is a value type and should be initialized with a default value
-               // for that value type.  That's handled with a recursive call to genAconst_init.
-               // If the signature does not begin with a Q, the field is an identity type whose default value is a Java null
-               /// reference.
-               if (fieldSignature[0] == 'Q')
-                  {
-                  // In non-SVM AOT compilation, cpIndex is required for AOT relocation.
-                  // In this case, cpindex is unknown for the field.
-                  if (comp()->compileRelocatableCode() && !comp()->getOption(TR_UseSymbolValidationManager))
-                     {
-                     abortForUnresolvedValueTypeOp("aconst_init", "field");
-                     }
-
-                  TR_OpaqueClassBlock *fieldClass = fej9()->getClassFromSignature(fieldSignature, (int32_t)strlen(fieldSignature),
-                                                                                  comp()->getCurrentMethod());
-                  if (comp()->getOption(TR_TraceILGen))
-                     {
-                     traceMsg(comp(), "fieldSignature %s fieldClass %p\n", fieldSignature, fieldClass);
-                     }
-
-                  // Set cpIndex as -1 since it's unknown for the field class
-                  genAconst_init(fieldClass, -1 /* cpIndex */);
-                  }
-               else if (comp()->target().is64Bit())
-                  {
-                  loadConstant(TR::aconst, (int64_t)0);
-                  }
-               else
-                  {
-                  loadConstant(TR::aconst, (int32_t)0);
-                  }
-               break;
-               }
-            default:
-               {
-               TR_ASSERT_FATAL(false, "Unexpected type for aconst_init field\n");
-               }
-            }
-         }
-
-         newValueNode = genNodeAndPopChildren(TR::newvalue, fieldCount+1, symRefTab()->findOrCreateNewValueSymbolRef(_methodSymbol));
-         newValueNode->setIdentityless(true);
-         _methodSymbol->setHasNews(true);
-      }
-
-   genTreeTop(newValueNode);
-   push(newValueNode);
-   genFlush(0);
+   return true;
    }
 
 void
@@ -6648,6 +6312,16 @@ TR_J9ByteCodeIlGenerator::genNewArray(int32_t typeIndex)
         }
      }
 
+   // Special case for handling Arrays.copyOfRangeByte when called from StringBuilder.toString method
+   // The call chain is: StringBuilder.toString() -> String<init>(StringBuilder) -> String<init>(AbstractStringBuilder, Void)
+   //                                                             -> Arrays.copyOfRange([BII) -> Arrays.copyOfRangeByte([BII)
+   if (!comp()->isPeekingMethod() && !generateArraylets
+       && _methodSymbol->getRecognizedMethod() == TR::java_util_Arrays_copyOfRangeByte
+       && isCallChainFromStringBuilderToStringToArraysCopyOfRange(comp()))
+      {
+      node->setCanSkipZeroInitialization(true);
+      }
+
    bool separateInitializationFromAllocation;
    switch (_methodSymbol->getRecognizedMethod())
       {
@@ -6683,40 +6357,14 @@ TR_J9ByteCodeIlGenerator::genNewArray(int32_t typeIndex)
       {
       node->setCanSkipZeroInitialization(true);
 
-      TR::Node *arrayRefNode;
-      int32_t hdrSize = (int32_t) TR::Compiler->om.contiguousArrayHeaderSizeInBytes();
-      bool is64BitTarget = comp()->target().is64Bit();
-
-      if (is64BitTarget)
-         {
-         TR::Node *constantNode = TR::Node::create(node, TR::lconst);
-         constantNode->setLongInt((int64_t)hdrSize);
-         arrayRefNode = TR::Node::create(TR::aladd, 2, node, constantNode);
-         }
-      else
-         arrayRefNode = TR::Node::create(TR::aiadd, 2, node, TR::Node::create(node, TR::iconst, 0, hdrSize));
-
+      TR::Node *arrayRefNode = TR::TransformUtil::generateFirstArrayElementAddressTrees(comp(), node);
       arrayRefNode->setIsInternalPointer(true);
 
-      TR::Node *sizeInBytes;
       TR::Node *sizeNode = node->getFirstChild();
+      int32_t elementSize = TR::Compiler->om.getSizeOfArrayElement(node);
+      TR::Node *sizeInBytes = TR::TransformUtil::generateConvertArrayElementIndexToOffsetTrees(comp(), sizeNode, NULL, elementSize);
 
       TR::Node* constValNode = TR::Node::bconst(node, (int8_t)0);
-      int32_t elementSize = TR::Compiler->om.getSizeOfArrayElement(node);
-
-      if (is64BitTarget)
-         {
-         TR::Node *stride = TR::Node::create(node, TR::lconst);
-         stride->setLongInt((int64_t) elementSize);
-         TR::Node *i2lNode = TR::Node::create(TR::i2l, 1, sizeNode);
-         sizeInBytes = TR::Node::create(TR::lmul, 2, i2lNode, stride);
-         }
-      else
-         {
-         TR::Node *stride = TR::Node::create(node, TR::iconst, 0, elementSize);
-         sizeInBytes = TR::Node::create(TR::imul, 2, sizeNode, stride);
-         }
-
       TR::Node *arraysetNode = TR::Node::create(TR::arrayset, 3, arrayRefNode, constValNode, sizeInBytes);
       TR::SymbolReference *arraySetSymRef = comp()->getSymRefTab()->findOrCreateArraySetSymbol();
       arraysetNode->setSymbolReference(arraySetSymRef);
@@ -6941,22 +6589,81 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
       comp()->failCompilation<J9::AOTNoSupportForAOTFailure>("NO support for AOT in field watch");
 
    TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
-   if (TR::Compiler->om.areValueTypesEnabled() && owningMethod->isFieldQType(cpIndex))
+
+   if (owningMethod->isFieldNullRestricted(comp(), cpIndex, false /* isStatic */, true /* isStore */))
       {
       if (!isFieldResolved(comp(), owningMethod, cpIndex, true))
          {
          abortForUnresolvedValueTypeOp("putfield", "field");
          }
-      else if (owningMethod->isFieldFlattened(comp(), cpIndex, _methodSymbol->isStatic()))
+      else if (owningMethod->isFieldFlattened(comp(), cpIndex, false /* isStatic */))
          {
          return comp()->getOption(TR_UseFlattenedFieldRuntimeHelpers) ?
                   storeFlattenableInstanceWithHelper(cpIndex) :
                   storeFlattenableInstance(cpIndex);
          }
+      else
+         {
+         TR::Node *value = pop();
+         if (comp()->getOption(TR_TraceILGen))
+            {
+            traceMsg(comp(), "%s: cpIndex %d isFieldFlattened 0 value n%dn isNonNull %d\n", __FUNCTION__, cpIndex, value->getGlobalIndex(), value->isNonNull());
+            }
+
+         if (!value->isNonNull())
+            {
+            TR::Node *passThruNode = TR::Node::create(TR::PassThrough, 1, value);
+            genTreeTop(genNullCheck(passThruNode));
+            }
+
+         push(value);
+         }
       }
 
    TR::SymbolReference * symRef = symRefTab()->findOrCreateShadowSymbol(_methodSymbol, cpIndex, true);
    storeInstance(symRef);
+   }
+
+TR::Node*
+TR_J9ByteCodeIlGenerator::narrowIntStoreIfRequired(TR::Node *value, TR::SymbolReference *symRef)
+   {
+   TR::DataType type = symRef->getSymbol()->getDataType();
+
+   // Per the JVM spec, putstatic/putfield opcodes must adhere to field type compatibility.
+   // Integer values on the stack must be narrowed when stored into smaller types like bool, byte,
+   // char, and short fields. For byte and short fields, narrowing involves conversion from integer
+   // to byte/short, then back to integer. For bool and char types, which are unsigned, narrowing
+   // entails ANDing the value with a mask matching the type width.
+
+   switch (type)
+      {
+      case TR::Int8:
+         if (symRefTab()->isStaticTypeBool(symRef))
+            {
+            value = TR::Node::create(TR::iand, 2, value, TR::Node::create(TR::iconst, 0, 1));
+            }
+         else
+            {
+            value = TR::Node::create(TR::i2b, 1, value);
+            value = TR::Node::create(TR::b2i, 1, value);
+            }
+         break;
+      case TR::Int16:
+         if (symRefTab()->isStaticTypeChar(symRef))
+            {
+            value = TR::Node::create(TR::iand, 2, value, TR::Node::create(TR::iconst, 0, 0xffff));
+            }
+         else
+            {
+            value = TR::Node::create(TR::i2s, 1, value);
+            value = TR::Node::create(TR::s2i, 1, value);
+            }
+         break;
+      default:
+         break;
+      }
+
+   return value;
    }
 
 void
@@ -6980,8 +6687,8 @@ TR_J9ByteCodeIlGenerator::storeInstance(TR::SymbolReference * symRef)
       }
    else
       {
-      if (type == TR::Int8 && symRefTab()->isFieldTypeBool(symRef))
-         value = TR::Node::create(TR::iand, 2, value, TR::Node::create(TR::iconst, 0, 1));
+      if (type.isIntegral())
+         value = narrowIntStoreIfRequired(value, symRef);
       node = TR::Node::createWithSymRef(comp()->il.opCodeForIndirectStore(type), 2, 2, addressNode, value, symRef);
       }
 
@@ -7158,14 +6865,44 @@ TR_J9ByteCodeIlGenerator::storeFlattenableInstance(int32_t cpIndex)
    char * fieldNamePrefix = getTopLevelPrefixForFlattenedFields(owningMethod, cpIndex, prefixLen, comp()->trMemory()->currentStackRegion());
 
    TR_OpaqueClassBlock * containingClass = owningMethod->definingClassFromCPFieldRef(comp(), cpIndex, _methodSymbol->isStatic());
-   const TR::TypeLayout *containingClassLayout = comp()->typeLayout(containingClass);
+   const TR::TypeLayout * containingClassLayout = comp()->typeLayout(containingClass);
    size_t fieldCount = containingClassLayout->count();
 
    TR::Node * value = pop();
    TR::Node * address = pop();
 
+   if (fieldCount == 0)
+      {
+      if (comp()->getOption(TR_TraceILGen))
+         {
+         traceMsg(comp(), "%s: cpIndex %d fieldCount 0 value n%dn isNonNull %d address n%dn isNonNull %d\n", __FUNCTION__, cpIndex,
+            value->getGlobalIndex(), value->isNonNull(), address->getGlobalIndex(), address->isNonNull());
+         }
+
+      // If the field count is greater than zero, the NULLCHKs will be added in the process of
+      // generating IL for the loadInstance and storeInstance below.
+      // If the field count is zero, the NULLCHKs on the references for the value and the target
+      // of the assignments need to be added here.
+
+      // Null value cannot be stored into a field whose type is null-restricted value class
+      if (!value->isNonNull() && owningMethod->isFieldNullRestricted(comp(), cpIndex, false /* isStatic */, true /* isStore */))
+         {
+         TR::Node * passThruNode = TR::Node::create(TR::PassThrough, 1, value);
+         genTreeTop(genNullCheck(passThruNode));
+         }
+
+      // If objectref is null, the putfield instruction is expected to throw a NullPointerException
+      if (!address->isNonNull())
+         {
+         TR::Node * passThruNode = TR::Node::create(TR::PassThrough, 1, address);
+         genTreeTop(genNullCheck(passThruNode));
+         }
+
+      return;
+      }
+
    int len;
-   const char *fieldClassChars = owningMethod->fieldSignatureChars(cpIndex, len);
+   const char * fieldClassChars = owningMethod->fieldSignatureChars(cpIndex, len);
    TR_OpaqueClassBlock * fieldClass = fej9()->getClassFromSignature(fieldClassChars, len, owningMethod);
 
    for (size_t idx = 0; idx < fieldCount; idx++)
@@ -7208,8 +6945,22 @@ TR_J9ByteCodeIlGenerator::storeStatic(int32_t cpIndex)
    if (_generateWriteBarriersForFieldWatch && comp()->compileRelocatableCode())
       comp()->failCompilation<J9::AOTNoSupportForAOTFailure>("NO support for AOT in field watch");
 
-   _staticFieldReferenceEncountered = true;
    TR::Node * value = pop();
+
+   TR_ResolvedJ9Method * owningMethod = static_cast<TR_ResolvedJ9Method*>(_methodSymbol->getResolvedMethod());
+   if (owningMethod->isFieldNullRestricted(comp(), cpIndex, true /* isStatic */, true /* isStore */))
+      {
+      if (comp()->getOption(TR_TraceILGen))
+         {
+         traceMsg(comp(), "%s: cpIndex %d isFieldNullRestricted 1 value n%dn isNonNull %d\n", __FUNCTION__, cpIndex, value->getGlobalIndex(), value->isNonNull());
+         }
+
+      if (!value->isNonNull())
+         {
+         TR::Node *passThruNode = TR::Node::create(TR::PassThrough, 1, value);
+         genTreeTop(genNullCheck(passThruNode));
+         }
+      }
 
    TR::SymbolReference * symRef = symRefTab()->findOrCreateStaticSymbol(_methodSymbol, cpIndex, true);
    TR::StaticSymbol * symbol = symRef->getSymbol()->castToStaticSymbol();
@@ -7219,8 +6970,9 @@ TR_J9ByteCodeIlGenerator::storeStatic(int32_t cpIndex)
    TR::Node * node;
 
    TR_J9VMBase *fej9 = (TR_J9VMBase *)fe();
-   if (type == TR::Int8 && symRefTab()->isStaticTypeBool(symRef))
-      value = TR::Node::create(TR::iand, 2, value, TR::Node::create(TR::iconst, 0, 1));
+
+   if (type.isIntegral())
+      value = narrowIntStoreIfRequired(value, symRef);
 
    if ((type == TR::Address && _generateWriteBarriersForGC) || _generateWriteBarriersForFieldWatch)
       {
@@ -7417,7 +7169,19 @@ TR_J9ByteCodeIlGenerator::storeArrayElement(TR::DataType dataType, TR::ILOpCodes
    // we won't have flattening, so no call to flattenable array element access
    // helper is needed.
    //
-   if (TR::Compiler->om.areValueTypesEnabled() && !TR::Compiler->om.canGenerateArraylets() && dataType == TR::Address)
+
+   bool generateNonHelper = false;
+
+   if (TR::Compiler->om.areFlattenableValueTypesEnabled() &&
+       !TR::Compiler->om.canGenerateArraylets() &&
+       dataType == TR::Address)
+      {
+      generateNonHelper = (TR::Compiler->om.isValueTypeArrayFlatteningEnabled()
+                             && !_methodSymbol->skipFlattenableArrayElementNonHelperCall())
+                          || !_methodSymbol->skipNonNullableArrayNullStoreCheck();
+      }
+
+   if (generateNonHelper)
       {
       TR::Node* elementIndex = pop();
       TR::Node* arrayBaseAddress = pop();
@@ -7427,7 +7191,7 @@ TR_J9ByteCodeIlGenerator::storeArrayElement(TR::DataType dataType, TR::ILOpCodes
          nullchk = genNullCheck(nullchk);
          genTreeTop(nullchk);
          }
-      auto* helperSymRef = comp()->getSymRefTab()->findOrCreateStoreFlattenableArrayElementSymbolRef();
+      auto* helperSymRef = comp()->getSymRefTab()->findOrCreateStoreFlattenableArrayElementNonHelperSymbolRef();
       TR::TreeTop *storeHelperCallTT = genTreeTop(TR::Node::createWithSymRef(TR::call, 3, 3, value, elementIndex, arrayBaseAddress, helperSymRef));
 
       const char *counterName = TR::DebugCounter::debugCounterName(comp(), "vt-helper/generated/aastore/(%s)/bc=%d",
@@ -7761,4 +7525,155 @@ void TR_J9ByteCodeIlGenerator::performClassLookahead(TR_PersistentClassInfo *cla
    TR_ClassLookahead classLookahead(classInfo, fej9(), comp(), _classLookaheadSymRefTab);
    classLookahead.perform();
    comp()->setCurrentSymRefTab(callerCurrentSymRefTab);
+   }
+
+/**
+ * \brief Push a required constant if possible and, if necessary, create the
+ * corresponding fear point and commit any deferred OSR assumptions it needs.
+ *
+ * If the value is a known object, it isn't yet possible to fabricate the
+ * reference, so the value will not be pushed. Instead, its known object index
+ * will be provided to the caller for use with markRequiredKnownObjectIndex().
+ * However, if OSR assumptions are needed, they will still be committed and the
+ * fear point will still be created. In this case, the only part that's truly
+ * required is taking care of assumptions and the fear point, since without a
+ * way to guarantee we'll see the same reference at runtime, we can't avoid
+ * assuming that repeating the operation will produce the same result (as long
+ * as OSR assumptions hold). But we have the known object index anyway, so we
+ * might as well use it in the IL.
+ *
+ * \param[out] koi the known object index if any, or else UNKNOWN
+ * \return true if the value was pushed, false otherwise
+ */
+bool
+TR_J9ByteCodeIlGenerator::pushRequiredConst(TR::KnownObjectTable::Index *koi)
+   {
+   *koi = TR::KnownObjectTable::UNKNOWN;
+
+   if (_requiredConsts == NULL)
+      return false;
+
+   auto entry = _requiredConsts->find(_bcIndex);
+   if (entry == _requiredConsts->end())
+      return false;
+
+   dumpOptDetails(
+      comp(), "Folding required constant at bc index %d\n", _bcIndex);
+
+   TR::AnyConst value = entry->second._value;
+   auto &assumptions = entry->second._assumptions;
+   if (!assumptions.empty())
+      {
+      TR_ASSERT_FATAL(
+         comp()->isFearPointPlacementUnrestricted(),
+         "placement must be unrestricted for required const fear point @ bc index %d",
+         _bcIndex);
+
+      TR::Node *bciNode = NULL;
+      genTreeTop(TR::Node::createOSRFearPointHelperCall(bciNode));
+      for (auto it = assumptions.begin(); it != assumptions.end(); it++)
+         (*it)->commit(comp());
+      }
+
+   if (value.isKnownObject())
+      {
+      if (comp()->getKnownObjectTable()->isNull(value.getKnownObjectIndex()))
+         {
+         value = TR::AnyConst::makeAddress(0);
+         }
+      else
+         {
+         *koi = value.getKnownObjectIndex();
+         return false; // did not push
+         }
+      }
+
+   if (value.isInt32())
+      loadConstant(TR::iconst, (int32_t)value.getInt32());
+   else if (value.isInt64())
+      loadConstant(TR::lconst, (int64_t)value.getInt64());
+   else if (value.isFloat())
+      loadConstant(TR::fconst, value.getFloat());
+   else if (value.isDouble())
+      loadConstant(TR::dconst, value.getDouble());
+   else if (value.isAddress())
+      loadConstant(TR::aconst, (void*)value.getAddress());
+   else
+      {
+      TR_ASSERT_FATAL(
+         false,
+         "unexpected constant type %s",
+         value.isInt8() ? "Int8"
+         : value.isInt16() ? "Int16"
+         : "???");
+      }
+
+   _foldedRequiredConsts->insert(_bcIndex);
+   return true;
+   }
+
+/**
+ * \brief Mark \p node with the known object index from pushRequiredConst().
+ *
+ * \param node the node to be marked as a known object
+ * \param koi the known object index if any, or else UNKNOWN
+ */
+void
+TR_J9ByteCodeIlGenerator::markRequiredKnownObjectIndex(
+   TR::Node *node,
+   TR::KnownObjectTable::Index koi)
+   {
+   if (koi == TR::KnownObjectTable::UNKNOWN)
+      return;
+
+   TR_ASSERT_FATAL(
+      !comp()->getKnownObjectTable()->isNull(koi), "unexpected null index");
+
+   _foldedRequiredConsts->insert(_bcIndex);
+
+   TR::SymbolReference *symRef = node->getSymbolReference();
+   TR::KnownObjectTable::Index symRefKoi = symRef->getKnownObjectIndex();
+   TR::KnownObjectTable::Index nodeKoi = node->getKnownObjectIndex();
+   TR_ASSERT_FATAL(
+      symRefKoi == TR::KnownObjectTable::UNKNOWN
+      || nodeKoi == TR::KnownObjectTable::UNKNOWN
+      || symRefKoi == nodeKoi,
+      "node n%un [%p] obj%d disagrees with symref #%d obj%d",
+      node->getGlobalIndex(),
+      node,
+      nodeKoi,
+      symRef->getReferenceNumber(),
+      symRefKoi);
+
+   TR::KnownObjectTable::Index existingKoi =
+      symRefKoi != TR::KnownObjectTable::UNKNOWN ? symRefKoi : nodeKoi;
+
+   if (existingKoi != TR::KnownObjectTable::UNKNOWN && existingKoi != koi)
+      {
+      // This can only correctly happen if the constant requires an assumption
+      // that has already been invalidated.
+      //
+      // Otherwise, it could be that a necessary assumption is missing (which
+      // would be a JIT bug), or it could be that the program has used Unsafe
+      // (or similar) to modify something we've justifiably allowed ourselves
+      // to assume is immutable, which is undefined behaviour.
+      //
+      // We could try to assert here that there is an invalidated assumption.
+      // But if one of these potential bugs were to occur, then most likely the
+      // assertion would pass anyway and the unexpected modification would only
+      // happen afterward.
+      //
+      comp()->failCompilation<TR::CompilationInterrupted>(
+         "required constant OSR assumption invalidated");
+      }
+
+   node->setKnownObjectIndex(koi);
+   if (symRefKoi == TR::KnownObjectTable::UNKNOWN && node->getOpCode().isLoadVar())
+      {
+      TR::SymbolReference *improvedSymRef =
+         comp()->getSymRefTab()->findOrCreateSymRefWithKnownObject(symRef, koi);
+
+      if (improvedSymRef->hasKnownObjectIndex())
+         node->setSymbolReference(improvedSymRef);
+      }
    }

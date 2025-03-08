@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #ifndef RELOCATION_RUNTIME_INCL
@@ -66,7 +66,7 @@ typedef enum TR_AOTFeatureFlags
    TR_FeatureFlag_sanityCheckBegin                   = 0x00000001,
    TR_FeatureFlag_IsSMP                              = 0x00000002,
    TR_FeatureFlag_UsesCompressedPointers             = 0x00000004,
-   // Available                                      = 0x00000008,
+   TR_FeatureFlag_ArrayHeaderShape                   = 0x00000008,
    TR_FeatureFlag_DisableTraps                       = 0x00000010,
    TR_FeatureFlag_TLHPrefetch                        = 0x00000020,
    TR_FeatureFlag_MethodTrampolines                  = 0x00000040,
@@ -80,6 +80,7 @@ typedef enum TR_AOTFeatureFlags
    TR_FeatureFlag_IsVariableHeapBaseForBarrierRange0 = 0x00004000,
    TR_FeatureFlag_IsVariableHeapSizeForBarrierRange0 = 0x00008000,
    TR_FeatureFlag_IsVariableActiveCardTableBase      = 0x00010000,
+   TR_FeatureFlag_CHTableEnabled                     = 0x00020000,
    TR_FeatureFlag_SanityCheckEnd                     = 0x80000000
    } TR_AOTFeatureFlags;
 
@@ -137,6 +138,9 @@ struct TR_RelocationError
     * @brief The relocation error codes. Low tagging allows quick inference of
     *        the category of an error, and also does not require keeping all the
     *        error codes belonging to a category together.
+    *
+    * @remark When updating this enum, the associated string array
+    *         TR_RelocationRuntime::_reloErrorCodeNames[] should also be updated.
     */
    enum TR_RelocationErrorCode
       {
@@ -189,23 +193,26 @@ struct TR_RelocationError
       isClassVisibleValidationFailure                  = (44 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::VALIDATION,
       svmValidationFailure                             = (45 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::VALIDATION,
       wkcValidationFailure                             = (46 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::VALIDATION,
+      methodTracingValidationFailure                   = (47 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::VALIDATION,
+      dynamicMethodFromCallsiteIndexValidationFailure  = (48 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::VALIDATION,
+      handleMethodFromCPIndexValidationFailure         = (49 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::VALIDATION,
 
-      classAddressRelocationFailure                    = (47 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      inlinedMethodRelocationFailure                   = (48 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      symbolFromManagerRelocationFailure               = (49 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      thunkRelocationFailure                           = (50 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      trampolineRelocationFailure                      = (51 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      picTrampolineRelocationFailure                   = (52 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      cacheFullRelocationFailure                       = (53 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      blockFrequencyRelocationFailure                  = (54 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      recompQueuedFlagRelocationFailure                = (55 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      debugCounterRelocationFailure                    = (56 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      directJNICallRelocationFailure                   = (57 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-      ramMethodConstRelocationFailure                  = (58 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      classAddressRelocationFailure                    = (50 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      inlinedMethodRelocationFailure                   = (51 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      symbolFromManagerRelocationFailure               = (52 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      thunkRelocationFailure                           = (53 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      trampolineRelocationFailure                      = (54 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      picTrampolineRelocationFailure                   = (55 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      cacheFullRelocationFailure                       = (56 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      blockFrequencyRelocationFailure                  = (57 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      recompQueuedFlagRelocationFailure                = (58 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      debugCounterRelocationFailure                    = (59 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      directJNICallRelocationFailure                   = (60 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      ramMethodConstRelocationFailure                  = (61 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      catchBlockCounterRelocationFailure               = (62 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
+      staticDefaultValueInstanceRelocationFailure      = (63 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
 
-      staticDefaultValueInstanceRelocationFailure      = (59 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::RELOCATION,
-
-      maxRelocationError                               = (60 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::NO_RELO_ERROR
+      maxRelocationError                               = (64 << RELO_ERRORCODE_SHIFT) | TR_RelocationErrorCodeType::NO_RELO_ERROR
       };
 
    static uint32_t decode(TR_RelocationErrorCode errorCode) { return static_cast<uint32_t>(errorCode >> RELO_ERRORCODE_SHIFT); }
@@ -216,6 +223,31 @@ typedef TR_RelocationError::TR_RelocationErrorCodeType TR_RelocationErrorCodeTyp
 
 class TR_RelocationRuntime {
    public:
+      // Used to track whether or not a relocation operation in prepareRelocateAOTCodeAndData is in progress
+      class IsRelocating
+         {
+         public:
+         IsRelocating(TR_RelocationRuntime *reloRuntime, TR_J9SharedCache *cacheOverride) : _reloRuntime(reloRuntime)
+            {
+            TR_ASSERT_FATAL(!_reloRuntime->isRelocating(), "Cannot already be relocating a method");
+            _reloRuntime->setIsRelocating();
+
+            TR_J9VMBase *fej9vm = _reloRuntime->fej9();
+            _restoreCache = fej9vm->sharedCache();
+            if (NULL != cacheOverride)
+               fej9vm->setSharedCache(cacheOverride);
+            }
+         ~IsRelocating()
+            {
+            _reloRuntime->resetIsRelocating();
+            _reloRuntime->fej9()->setSharedCache(_restoreCache);
+            }
+
+         private:
+         TR_RelocationRuntime *_reloRuntime;
+         TR_J9SharedCache *_restoreCache;
+         };
+
       TR_ALLOC(TR_Memory::Relocation)
       void * operator new(size_t, J9JITConfig *);
       TR_RelocationRuntime(J9JITConfig *jitCfg);
@@ -273,7 +305,8 @@ class TR_RelocationRuntime {
                                                          TR::Options *options,
                                                          TR::Compilation *compilation,
                                                          TR_ResolvedMethod *resolvedMethod,
-                                                         uint8_t *existingCode = NULL);
+                                                         uint8_t *existingCode = NULL,
+                                                         TR_J9SharedCache *cacheOverride = NULL);
 
       virtual bool storeAOTHeader(TR_FrontEnd *fe, J9VMThread *curThread);
       virtual const TR_AOTHeader *getStoredAOTHeader(J9VMThread *curThread);
@@ -281,25 +314,31 @@ class TR_RelocationRuntime {
       virtual bool validateAOTHeader(TR_FrontEnd *fe, J9VMThread *curThread);
       virtual OMRProcessorDesc getProcessorDescriptionFromSCC(J9VMThread *curThread);
 
-      static uintptr_t    getGlobalValue(uint32_t g)
+      static void fillAOTHeader(J9JavaVM *vm, TR_FrontEnd *fe, TR_AOTHeader *header);
+
+      static uintptr_t   getGlobalValue(uint32_t g)
          {
          TR_ASSERT(g >= 0 && g < TR_NumGlobalValueItems, "invalid index for global item");
          return _globalValueList[g];
          }
-      static void         setGlobalValue(uint32_t g, uintptr_t v)
+      static void        setGlobalValue(uint32_t g, uintptr_t v)
          {
          TR_ASSERT(g >= 0 && g < TR_NumGlobalValueItems, "invalid index for global item");
          _globalValueList[g] = v;
          }
-      static char *       nameOfGlobal(uint32_t g)
+      static const char *nameOfGlobal(uint32_t g)
          {
          TR_ASSERT(g >= 0 && g < TR_NumGlobalValueItems, "invalid index for global item");
          return _globalValueNames[g];
          }
 
-      bool isLoading() { return _isLoading; }
+      bool isLoading() const { return _isLoading; }
       void setIsLoading() { _isLoading = true; }
       void resetIsLoading() { _isLoading = false; }
+
+      bool isRelocating() const { return _isRelocating; }
+      void setIsRelocating() { _isRelocating = true; }
+      void resetIsRelocating() { _isRelocating = false; }
 
       void initializeHWProfilerRecords(TR::Compilation *comp);
       void addClazzRecord(uint8_t *ia, uint32_t bcIndex, TR_OpaqueMethodBlock *method);
@@ -328,7 +367,7 @@ class TR_RelocationRuntime {
       const bool isValidationError(TR_RelocationErrorCode errorCode) { return (errorCode & TR_RelocationErrorCodeType::VALIDATION); }
       const bool isRelocationError(TR_RelocationErrorCode errorCode) { return (errorCode & TR_RelocationErrorCodeType::RELOCATION); }
 
-      static char *getReloErrorCodeName(TR_RelocationErrorCode errorCode) { return _reloErrorCodeNames[TR_RelocationError::decode(errorCode)]; }
+      static const char *getReloErrorCodeName(TR_RelocationErrorCode errorCode) { return _reloErrorCodeNames[TR_RelocationError::decode(errorCode)]; }
 
    private:
       virtual uint8_t * allocateSpaceInCodeCache(UDATA codeSize)                           { return NULL; }
@@ -361,15 +400,17 @@ class TR_RelocationRuntime {
       TR_AotRelocationCleanUp _relocationStatus;
       void relocationFailureCleanup();
 
-      static bool       _globalValuesInitialized;
-      static uintptr_t  _globalValueList[TR_NumGlobalValueItems];
-      static uint8_t    _globalValueSizeList[TR_NumGlobalValueItems];
-      static char      *_globalValueNames[TR_NumGlobalValueItems];
+      static bool        _globalValuesInitialized;
+      static uintptr_t   _globalValueList[TR_NumGlobalValueItems];
+      static uint8_t     _globalValueSizeList[TR_NumGlobalValueItems];
+      static const char *_globalValueNames[TR_NumGlobalValueItems];
 
       TR_RelocationErrorCode _reloErrorCode;
-      static char *_reloErrorCodeNames[];
+      static const char *_reloErrorCodeNames[];
 
    protected:
+      static uintptr_t generateFeatureFlags(TR_FrontEnd *fe);
+      static uint32_t getCurrentLockwordOptionHashValue(J9JavaVM *vm);
 
       J9JITConfig *_jitConfig;
       J9JavaVM *_javaVM;
@@ -417,6 +458,7 @@ class TR_RelocationRuntime {
       TR_ResolvedMethod *_currentResolvedMethod;
 
       bool _isLoading;
+      bool _isRelocating;
 
 #if 1 // defined(DEBUG) || defined(PROD_WITH_ASSUMES)
       // Detect unexpected scenarios when build has assumes
@@ -445,20 +487,17 @@ public:
       virtual OMRProcessorDesc getProcessorDescriptionFromSCC(J9VMThread *curThread);
 
 private:
-      uint32_t getCurrentLockwordOptionHashValue(J9JavaVM *vm) const;
       virtual uint8_t * allocateSpaceInCodeCache(UDATA codeSize);
       virtual uint8_t * allocateSpaceInDataCache(UDATA metaDataSize, UDATA type);
       virtual void initializeAotRuntimeInfo();
       virtual void initializeCacheDeltas();
 
-      virtual void incompatibleCache(U_32 module, U_32 reason, char *assumeMessage);
+      virtual void incompatibleCache(U_32 module, U_32 reason, const char *assumeMessage);
 
       void checkAOTHeaderFlags(const TR_AOTHeader *hdrInCache, intptr_t featureFlags);
-      bool generateError(U_32 module_name, U_32 reason, char *assumeMessage);
+      bool generateError(U_32 module_name, U_32 reason, const char *assumeMessage);
 
       bool _sharedCacheIsFull;
-
-      static uintptr_t generateFeatureFlags(TR_FrontEnd *fe);
 
       static const char aotHeaderKey[];
       static const UDATA aotHeaderKeyLength;
@@ -485,9 +524,9 @@ public:
       static uint8_t *copyDataToCodeCache(const void *startAddress, size_t totalSize, TR_J9VMBase *fe);
 
 private:
-      virtual uint8_t * allocateSpaceInCodeCache(UDATA codeSize);
-      virtual uint8_t * allocateSpaceInDataCache(UDATA metaDataSize, UDATA type);
-      virtual void initializeCacheDeltas();
+      virtual uint8_t * allocateSpaceInCodeCache(UDATA codeSize) override;
+      virtual uint8_t * allocateSpaceInDataCache(UDATA metaDataSize, UDATA type) override;
+      virtual void initializeCacheDeltas() override;
       virtual void initializeAotRuntimeInfo() override { _classReloAmount = 1; }
 };
 #endif /* defined(J9VM_OPT_JITSERVER) */

@@ -18,7 +18,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #if !defined(COPYFORWARDSCHEMETASK_HPP_)
@@ -64,6 +64,7 @@ public:
 		
 		env->_workPacketStats.clear();
 		env->_copyForwardStats.clear();
+		env->_continuationStats.clear();
 		
 		/* record that this thread is participating in this cycle */
 		env->_copyForwardStats._gcCount = MM_GCExtensions::getExtensions(env)->globalVLHGCStats.gcCount;

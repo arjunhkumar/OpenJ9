@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2006
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.dtfj.corereaders.zos.le;
 
 import javax.imageio.stream.ImageInputStream;
@@ -29,20 +29,20 @@ import java.io.IOException;
 
 public interface CeexdlcbTemplate {
 
-    public int length();
-    public long getDlcbnextptr(ImageInputStream inputStream, long address) throws IOException;
-    public int getDlcbnextptr$offset();
-    public int getDlcbnextptr$length();
-    public long getDlcbwsaptr(ImageInputStream inputStream, long address) throws IOException;
-    public int getDlcbwsaptr$offset();
-    public int getDlcbwsaptr$length();
-    public long getDlcbnamelen(ImageInputStream inputStream, long address) throws IOException;
-    public int getDlcbnamelen$offset();
-    public int getDlcbnamelen$length();
-    public long getDlcbnameptr(ImageInputStream inputStream, long address) throws IOException;
-    public int getDlcbnameptr$offset();
-    public int getDlcbnameptr$length();
-    public long getDlcbiewbcie(ImageInputStream inputStream, long address) throws IOException;
-    public int getDlcbiewbcie$offset();
-    public int getDlcbiewbcie$length();
+	public int length();
+	public long getDlcbnextptr(ImageInputStream inputStream, long address) throws IOException;
+	public int getDlcbnextptr$offset();
+	public int getDlcbnextptr$length();
+	public long getDlcbwsaptr(ImageInputStream inputStream, long address) throws IOException;
+	public int getDlcbwsaptr$offset();
+	public int getDlcbwsaptr$length();
+	public long getDlcbnamelen(ImageInputStream inputStream, long address) throws IOException;
+	public int getDlcbnamelen$offset();
+	public int getDlcbnamelen$length();
+	public long getDlcbnameptr(ImageInputStream inputStream, long address) throws IOException;
+	public int getDlcbnameptr$offset();
+	public int getDlcbnameptr$length();
+	public long getDlcbiewbcie(ImageInputStream inputStream, long address) throws IOException;
+	public int getDlcbiewbcie$offset();
+	public int getDlcbiewbcie$length();
 }

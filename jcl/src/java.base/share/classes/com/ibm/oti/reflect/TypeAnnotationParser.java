@@ -10,7 +10,7 @@ import sun.misc.Unsafe;
 import jdk.internal.misc.Unsafe;
 /*[ENDIF]*/
 
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2014
  *
  * This program and the accompanying materials are made available under
@@ -29,8 +29,8 @@ import jdk.internal.misc.Unsafe;
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 /**
  * Retrieve RuntimeVisibleType Annotation attributes (JVM spec, section 4.7.20) from the ROM class and parse them into Java objects
  *
@@ -38,7 +38,7 @@ import jdk.internal.misc.Unsafe;
 
 public class TypeAnnotationParser {
 	private static final byte[] EMPTY_TYPE_ANNOTATIONS_ATTRIBUTE = new byte[] {0, 0}; /* just num_annotations=0 */
-	
+
 	/**
 	 * @param jlrConstructor constructor for which annotations are to be retrieved
 	 * @return annotation attribute bytes, not including the attribute_name_index and attribute_length fields, or null if jlrConstructor is null.
@@ -61,7 +61,7 @@ public class TypeAnnotationParser {
 		}
 		return result;
 	};
-	
+
 	/**
 	 * @param jlrField field for which annotations are to be retrieved
 	 * @return annotation attribute bytes, not including the attribute_name_index and attribute_length fields, or null if jlrField is null.
@@ -73,7 +73,7 @@ public class TypeAnnotationParser {
 		}
 		return result;
 	};
-	
+
 	/**
 	 * @param clazz class for which annotations are to be retrieved
 	 * @return annotation attribute bytes, not including the attribute_name_index and attribute_length fields, or null if clazz is null.
@@ -97,7 +97,7 @@ public class TypeAnnotationParser {
 		}
 		return attr;
 	}
-	
+
 	/**
 	 * @param clazz class  for which annotated interfaces are to be retrieved
 	 * @return array (possibly empty) of AnnotatedType objects for the interfaces.
@@ -105,17 +105,10 @@ public class TypeAnnotationParser {
 	 */
 	public  static AnnotatedType[] buildAnnotatedInterfaces(Class clazz) {
 		byte[] attr = getAttributeData(clazz);
-		long offset = Unsafe.ARRAY_BYTE_BASE_OFFSET + ((attr.length * Unsafe.ARRAY_BYTE_INDEX_SCALE) - VM.FJ9OBJECT_SIZE);
-		long ramCPAddr = 0;
-		if (VM.FJ9OBJECT_SIZE == 4) {
-			/* Compressed object refs */
-			ramCPAddr = Integer.toUnsignedLong(Unsafe.getUnsafe().getInt(attr, offset));
-		} else {
-			ramCPAddr = Unsafe.getUnsafe().getLong(attr, offset);
-		}
-		Object internalConstantPool = VM.getVMLangAccess().createInternalConstantPool(ramCPAddr);
-
-		AnnotatedType[] annotatedInterfaces = sun.reflect.annotation.TypeAnnotationParser.buildAnnotatedInterfaces(attr, AnnotationParser.getConstantPool(internalConstantPool), clazz);
+		AnnotatedType[] annotatedInterfaces = sun.reflect.annotation.TypeAnnotationParser.buildAnnotatedInterfaces(
+			attr,
+			VM.getConstantPoolFromAnnotationBytes(clazz, attr),
+			clazz);
 		return annotatedInterfaces;
 	}
 	/**
@@ -125,17 +118,10 @@ public class TypeAnnotationParser {
 	 */
 	public  static AnnotatedType buildAnnotatedSupertype(Class clazz) {
 		byte[] attr = getAttributeData(clazz);
-		long offset = Unsafe.ARRAY_BYTE_BASE_OFFSET + ((attr.length * Unsafe.ARRAY_BYTE_INDEX_SCALE) - VM.FJ9OBJECT_SIZE);
-		long ramCPAddr = 0;
-		if (VM.FJ9OBJECT_SIZE == 4) {
-			/* Compressed object refs */
-			ramCPAddr = Integer.toUnsignedLong(Unsafe.getUnsafe().getInt(attr, offset));
-		} else {
-			ramCPAddr = Unsafe.getUnsafe().getLong(attr, offset);
-		}
-		Object internalConstantPool = VM.getVMLangAccess().createInternalConstantPool(ramCPAddr);
-
-		AnnotatedType annotatedSuperclass = sun.reflect.annotation.TypeAnnotationParser.buildAnnotatedSuperclass(attr, AnnotationParser.getConstantPool(internalConstantPool), clazz);
+		AnnotatedType annotatedSuperclass = sun.reflect.annotation.TypeAnnotationParser.buildAnnotatedSuperclass(
+			attr,
+			VM.getConstantPoolFromAnnotationBytes(clazz, attr),
+			clazz);
 		return annotatedSuperclass;
 	}
 }

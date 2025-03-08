@@ -17,9 +17,11 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
+#include <string.h>
+#include <string>
 #include <cstdio> // for rename()
 #include "control/CompilationRuntime.hpp"
 #include "env/J9SegmentProvider.hpp"
@@ -138,13 +140,17 @@ AOTCacheClassLoaderRecord::create(uintptr_t id, const uint8_t *name, size_t name
    return new (ptr) AOTCacheClassLoaderRecord(id, name, nameLength);
    }
 
-ClassSerializationRecord::ClassSerializationRecord(uintptr_t id, uintptr_t classLoaderId,
-                                                   const JITServerROMClassHash &hash, const J9ROMClass *romClass) :
-   AOTSerializationRecord(size(J9UTF8_LENGTH(J9ROMCLASS_CLASSNAME(romClass))), id, AOTSerializationRecordType::Class),
-   _classLoaderId(classLoaderId), _hash(hash), _romClassSize(romClass->romSize),
-   _nameLength(J9UTF8_LENGTH(J9ROMCLASS_CLASSNAME(romClass)))
+
+ClassSerializationRecord::ClassSerializationRecord(
+   uintptr_t id, uintptr_t classLoaderId, const JITServerROMClassHash &hash, uint32_t romClassSize, bool generated,
+   const J9ROMClass *romClass, const J9ROMClass *baseComponent, uint32_t numDimensions, uint32_t nameLength
+) :
+   AOTSerializationRecord(size(nameLength), id, AOTSerializationRecordType::Class),
+   _classLoaderId(classLoaderId), _hash(hash),
+   _romClassSize(romClassSize | (generated ? AOTCACHE_CLASS_RECORD_GENERATED : 0)), _nameLength(nameLength)
    {
-   memcpy(_name, J9UTF8_DATA(J9ROMCLASS_CLASSNAME(romClass)), _nameLength);
+   TR_ASSERT(!(romClassSize & AOTCACHE_CLASS_RECORD_GENERATED), "Unaligned romClassSize %u", romClassSize);
+   JITServerHelpers::getFullClassName(_name, nameLength, romClass, baseComponent, numDimensions, isGenerated());
    }
 
 ClassSerializationRecord::ClassSerializationRecord() :
@@ -161,10 +167,15 @@ ClassSerializationRecord::isValidHeader(const JITServerAOTCacheReadContext &cont
           context._classLoaderRecords[classLoaderId()];
    }
 
-AOTCacheClassRecord::AOTCacheClassRecord(uintptr_t id, const AOTCacheClassLoaderRecord *classLoaderRecord,
-                                         const JITServerROMClassHash &hash, const J9ROMClass *romClass) :
+
+AOTCacheClassRecord::AOTCacheClassRecord(
+   uintptr_t id, const AOTCacheClassLoaderRecord *classLoaderRecord, const JITServerROMClassHash &hash,
+   uint32_t romClassSize, bool generated, const J9ROMClass *romClass,
+   const J9ROMClass *baseComponent, uint32_t numDimensions, uint32_t nameLength
+) :
    _classLoaderRecord(classLoaderRecord),
-   _data(id, classLoaderRecord->data().id(), hash, romClass)
+   _data(id, classLoaderRecord->data().id(), hash, romClassSize, generated,
+         romClass, baseComponent, numDimensions, nameLength)
    {
    }
 
@@ -175,10 +186,13 @@ AOTCacheClassRecord::AOTCacheClassRecord(const JITServerAOTCacheReadContext &con
 
 AOTCacheClassRecord *
 AOTCacheClassRecord::create(uintptr_t id, const AOTCacheClassLoaderRecord *classLoaderRecord,
-                            const JITServerROMClassHash &hash, const J9ROMClass *romClass)
+                            const JITServerROMClassHash &hash, uint32_t romClassSize, bool generated,
+                            const J9ROMClass *romClass, const J9ROMClass *baseComponent, uint32_t numDimensions)
    {
-   void *ptr = AOTCacheRecord::allocate(size(J9UTF8_LENGTH(J9ROMCLASS_CLASSNAME(romClass))));
-   return new (ptr) AOTCacheClassRecord(id, classLoaderRecord, hash, romClass);
+   uint32_t nameLength = JITServerHelpers::getFullClassNameLength(romClass, baseComponent, numDimensions, generated);
+   void *ptr = AOTCacheRecord::allocate(size(nameLength));
+   return new (ptr) AOTCacheClassRecord(id, classLoaderRecord, hash, romClassSize, generated,
+                                        romClass, baseComponent, numDimensions, nameLength);
    }
 
 void
@@ -186,6 +200,7 @@ AOTCacheClassRecord::subRecordsDo(const std::function<void(const AOTCacheRecord 
    {
    f(_classLoaderRecord);
    }
+
 
 MethodSerializationRecord::MethodSerializationRecord(uintptr_t id, uintptr_t definingClassId, uint32_t index) :
    AOTSerializationRecord(sizeof(*this), id, AOTSerializationRecordType::Method),
@@ -232,36 +247,43 @@ AOTCacheMethodRecord::subRecordsDo(const std::function<void(const AOTCacheRecord
    f(_definingClassRecord);
    }
 
-template<class D, class R, typename... Args>
-AOTCacheListRecord<D, R, Args...>::AOTCacheListRecord(uintptr_t id, const R *const *records,
-                                                      size_t length, Args... args) :
-   _data(id, length, args...)
+
+// For a list-like AOT cache record (class chain or well-known class) with subrecord type R, initialize the ids and
+// subrecordBuffer of an already-allocated record of that type by copying the id() of the each record into ids
+// and the records themselves into subrecordBuffer.
+template<class R> static void
+listClassCopyRecords(uintptr_t *ids, void *subrecordBuffer, uintptr_t id, const R *const *subRecords, size_t length)
    {
    for (size_t i = 0; i < length; ++i)
-      _data.list().ids()[i] = records[i]->data().id();
-   memcpy((void *)this->records(), records, length * sizeof(R *));
+      ids[i] = subRecords[i]->data().id();
+   memcpy(subrecordBuffer, subRecords, length * sizeof(R *));
    }
 
-template<class D, class R, typename... Args> void
-AOTCacheListRecord<D, R, Args...>::subRecordsDo(const std::function<void(const AOTCacheRecord *)> &f) const
+// For a list-like AOT cache record with serialization record type D and subrecord type R, given the serialization record data
+// and subRecords of such a record, apply the given function to each of the entries of subRecords.
+template<class D, class R> static void
+listClassSubRecordsDo(const D &data, const R *const *subRecords, const std::function<void(const AOTCacheRecord *)> &f)
    {
-   for (size_t i = 0; i < _data.list().length(); ++i)
-      f(records()[i]);
+   for (size_t i = 0; i < data.list().length(); ++i)
+      f(subRecords[i]);
    }
 
-template<class D, class R, typename... Args> bool
-AOTCacheListRecord<D, R, Args...>::setSubrecordPointers(const Vector<R *> &cacheRecords, const char *recordName, const char *subrecordName)
+// For a list-like AOT cache record with serialization record type D and subrecord type R, initialize the subRecords array
+// of an already-allocated record of that type by copying the matching R pointers from cacheRecords into subRecords using the
+// given serialization record data.
+template<class D, class R> static bool
+listClassSetSubrecordPointers(const D &data, R **subRecords, const Vector<R *> &cacheRecords, const char *recordName, const char *subrecordName)
    {
-   for (size_t i = 0; i < data().list().length(); ++i)
+   for (size_t i = 0; i < data.list().length(); ++i)
       {
-      uintptr_t id = data().list().ids()[i];
+      uintptr_t id = data.list().ids()[i];
       if ((id >= cacheRecords.size()) || !cacheRecords[id])
          {
          if (TR::Options::getVerboseOption(TR_VerboseJITServer))
             TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer, "AOT cache: Invalid %s subrecord: type %s, ID %zu", recordName, subrecordName, id);
          return false;
          }
-      records()[i] = cacheRecords[id];
+      subRecords[i] = cacheRecords[id];
       }
    return true;
    }
@@ -278,6 +300,16 @@ ClassChainSerializationRecord::ClassChainSerializationRecord() :
    {
    }
 
+AOTCacheClassChainRecord::AOTCacheClassChainRecord(uintptr_t id, const AOTCacheClassRecord *const *records, size_t length) :
+   _data(id, length)
+   {
+   listClassCopyRecords(_data.list().ids(), (void *)this->records(), id, records, length);
+   }
+
+void
+AOTCacheClassChainRecord::subRecordsDo(const std::function<void(const AOTCacheRecord *)> &f) const
+   { return listClassSubRecordsDo(data(), records(), f); }
+
 AOTCacheClassChainRecord *
 AOTCacheClassChainRecord::create(uintptr_t id, const AOTCacheClassRecord *const *records, size_t length)
    {
@@ -288,7 +320,7 @@ AOTCacheClassChainRecord::create(uintptr_t id, const AOTCacheClassRecord *const 
 bool
 AOTCacheClassChainRecord::setSubrecordPointers(const JITServerAOTCacheReadContext &context)
    {
-   return AOTCacheListRecord::setSubrecordPointers(context._classRecords, "class chain", "class");
+   return listClassSetSubrecordPointers(data(), records(), context._classRecords, "class chain", "class");
    }
 
 WellKnownClassesSerializationRecord::WellKnownClassesSerializationRecord(uintptr_t id, size_t length,
@@ -304,6 +336,17 @@ WellKnownClassesSerializationRecord::WellKnownClassesSerializationRecord() :
    {
    }
 
+AOTCacheWellKnownClassesRecord::AOTCacheWellKnownClassesRecord(uintptr_t id, const AOTCacheClassChainRecord *const *records,
+                                                               size_t length, uintptr_t includedClasses) :
+   _data(id, length, includedClasses)
+   {
+   listClassCopyRecords(_data.list().ids(), (void *)this->records(), id, records, length);
+   }
+
+void
+AOTCacheWellKnownClassesRecord::subRecordsDo(const std::function<void(const AOTCacheRecord *)> &f) const
+   { return listClassSubRecordsDo(data(), records(), f); }
+
 AOTCacheWellKnownClassesRecord *
 AOTCacheWellKnownClassesRecord::create(uintptr_t id, const AOTCacheClassChainRecord *const *records,
                                        size_t length, uintptr_t includedClasses)
@@ -315,7 +358,7 @@ AOTCacheWellKnownClassesRecord::create(uintptr_t id, const AOTCacheClassChainRec
 bool
 AOTCacheWellKnownClassesRecord::setSubrecordPointers(const JITServerAOTCacheReadContext &context)
    {
-   return AOTCacheListRecord::setSubrecordPointers(context._classChainRecords, "well-known classes", "class chain");
+   return listClassSetSubrecordPointers(data(), records(), context._classChainRecords, "well-known classes", "class chain");
    }
 
 AOTHeaderSerializationRecord::AOTHeaderSerializationRecord(uintptr_t id, const TR_AOTHeader *header) :
@@ -374,22 +417,26 @@ AOTCacheThunkRecord::create(uintptr_t id, const uint8_t *signature, uint32_t sig
 
 
 SerializedAOTMethod::SerializedAOTMethod(uintptr_t definingClassChainId, uint32_t index,
-                                         TR_Hotness optLevel, uintptr_t aotHeaderId, size_t numRecords,
-                                         const void *code, size_t codeSize, const void *data, size_t dataSize) :
-   _size(size(numRecords, codeSize, dataSize)),
+                                         TR_Hotness optLevel, uintptr_t aotHeaderId,
+                                         size_t numRecords,
+                                         const void *code, size_t codeSize,
+                                         const void *data, size_t dataSize,
+                                         const char *signature, size_t signatureSize) :
+   _size(size(numRecords, codeSize, dataSize, signatureSize)),
    _definingClassChainId(definingClassChainId), _index(index),
    _optLevel(optLevel), _aotHeaderId(aotHeaderId),
-   _numRecords(numRecords), _codeSize(codeSize), _dataSize(dataSize)
+   _numRecords(numRecords), _codeSize(codeSize), _dataSize(dataSize), _signatureSize(signatureSize)
    {
    memcpy((void *)this->code(), code, codeSize);
    memcpy((void *)this->data(), data, dataSize);
+   memcpy((void *)this->signature(), signature, signatureSize);
    }
 
 SerializedAOTMethod::SerializedAOTMethod() :
    _size(0),
    _definingClassChainId(0), _index(0),
    _optLevel(TR_Hotness::numHotnessLevels), _aotHeaderId(0),
-   _numRecords(0), _codeSize(0), _dataSize(0)
+   _numRecords(0), _codeSize(0), _dataSize(0), _signatureSize(0)
    {
    }
 
@@ -403,13 +450,18 @@ SerializedAOTMethod::isValidHeader(const JITServerAOTCacheReadContext &context) 
           context._aotHeaderRecords[aotHeaderId()];
    }
 
-CachedAOTMethod::CachedAOTMethod(const AOTCacheClassChainRecord *definingClassChainRecord, uint32_t index,
-                                 TR_Hotness optLevel, const AOTCacheAOTHeaderRecord *aotHeaderRecord,
+CachedAOTMethod::CachedAOTMethod(const AOTCacheClassChainRecord *definingClassChainRecord,
+                                 uint32_t index,
+                                 TR_Hotness optLevel,
+                                 const AOTCacheAOTHeaderRecord *aotHeaderRecord,
                                  const Vector<std::pair<const AOTCacheRecord *, uintptr_t>> &records,
-                                 const void *code, size_t codeSize, const void *data, size_t dataSize) :
+                                 const void *code, size_t codeSize,
+                                 const void *data, size_t dataSize,
+                                 const char *signature, size_t signatureSize) :
    _nextRecord(NULL),
    _data(definingClassChainRecord->data().id(), index, optLevel,
-         aotHeaderRecord->data().id(), records.size(), code, codeSize, data, dataSize),
+         aotHeaderRecord->data().id(), records.size(), code, codeSize, data, dataSize,
+         signature, signatureSize),
    _definingClassChainRecord(definingClassChainRecord)
    {
    for (size_t i = 0; i < records.size(); ++i)
@@ -430,11 +482,15 @@ CachedAOTMethod *
 CachedAOTMethod::create(const AOTCacheClassChainRecord *definingClassChainRecord, uint32_t index,
                         TR_Hotness optLevel, const AOTCacheAOTHeaderRecord *aotHeaderRecord,
                         const Vector<std::pair<const AOTCacheRecord *, uintptr_t>> &records,
-                        const void *code, size_t codeSize, const void *data, size_t dataSize)
+                        const void *code, size_t codeSize,
+                        const void *data, size_t dataSize,
+                        const char * signature)
    {
-   void *ptr = AOTCacheRecord::allocate(size(records.size(), codeSize, dataSize));
+   size_t signatureSize = strlen(signature);
+   void *ptr = AOTCacheRecord::allocate(size(records.size(), codeSize, dataSize, signatureSize));
    return new (ptr) CachedAOTMethod(definingClassChainRecord, index, optLevel, aotHeaderRecord,
-                                    records, code, codeSize, data, dataSize);
+                                    records, code, codeSize, data, dataSize,
+                                    signature, signatureSize);
    }
 
 bool
@@ -517,21 +573,6 @@ error:
                                      invalidSubrecordName,
                                      subrecordId);
    return false;
-   }
-
-bool
-JITServerAOTCache::StringKey::operator==(const StringKey &k) const
-   {
-   return J9UTF8_DATA_EQUALS(_string, _stringLength, k._string, k._stringLength);
-   }
-
-size_t
-JITServerAOTCache::StringKey::Hash::operator()(const StringKey &k) const noexcept
-   {
-   size_t h = 0;
-   for (size_t i = 0; i < k._stringLength; ++i)
-      h = (h << 5) - h + k._string[i];
-   return h;
    }
 
 
@@ -731,7 +772,7 @@ JITServerAOTCache::JITServerAOTCache(const std::string &name) :
    _saveOperationInProgress(false), // protected by the _cachedMethodMonitor
    _excludedFromSavingToFile(false),
    _numCacheBypasses(0), _numCacheHits(0), _numCacheMisses(0),
-   _numDeserializedMethods(0), _numDeserializationFailures(0)
+   _numDeserializedMethods(0), _numDeserializationFailures(0), _numGeneratedClasses(0)
    {
    bool allMonitors = _classLoaderMonitor && _classMonitor && _methodMonitor &&
                       _classChainMonitor && _wellKnownClassesMonitor &&
@@ -808,13 +849,64 @@ JITServerAOTCache::getClassLoaderRecord(const uint8_t *name, size_t nameLength)
    }
 
 const AOTCacheClassRecord *
-JITServerAOTCache::getClassRecord(const AOTCacheClassLoaderRecord *classLoaderRecord, const J9ROMClass *romClass)
+JITServerAOTCache::getClassRecord(const AOTCacheClassLoaderRecord *classLoaderRecord, const J9ROMClass *romClass,
+                                  const J9ROMClass *baseComponent, uint32_t numDimensions,
+                                  J9::J9SegmentProvider *scratchSegmentProvider)
    {
+   auto compInfo = TR::CompilationInfo::get();
+   auto cache = compInfo->getJITServerSharedROMClassCache();
+
    JITServerROMClassHash hash;
-   if (auto cache = TR::CompilationInfo::get()->getJITServerSharedROMClassCache())
+   //NOTE: Assuming array classes are not runtime-generated
+   size_t prefixLength = numDimensions ? 0 : JITServerHelpers::getGeneratedClassNamePrefixLength(romClass);
+
+   if (cache)
+      {
       hash = cache->getHash(romClass);
+      }
    else
-      hash = JITServerROMClassHash(romClass);
+      {
+      const J9ROMClass *packedROMClass;
+      if (prefixLength)
+         {
+         // The class is runtime-generated. Re-pack the romClass to compute its deterministic hash.
+         if (scratchSegmentProvider)
+            {
+            // Called from outside of a compilation. Use supplied scratchSegmentProvider for scratch memory allocations.
+            size_t segmentSize = scratchSegmentProvider->getPreferredSegmentSize();
+            if (!segmentSize)
+               segmentSize = 1 << 24/*16 MB*/;
+            TR::RawAllocator rawAllocator(compInfo->getJITConfig()->javaVM);
+            J9::SystemSegmentProvider segmentProvider(1 << 16/*64 KB*/, segmentSize, TR::Options::getScratchSpaceLimit(),
+                                                      *scratchSegmentProvider, rawAllocator);
+            TR::Region region(segmentProvider, rawAllocator);
+            TR_Memory trMemory(*compInfo->persistentMemory(), region);
+            size_t packedSize = 0;
+            packedROMClass = JITServerHelpers::packROMClass(romClass, &trMemory, NULL, packedSize, 0, prefixLength);
+            }
+         else
+            {
+            TR_ASSERT(TR::comp(), "Must be inside a compilation");
+            TR_Memory *trMemory = TR::comp()->trMemory();
+            TR::StackMemoryRegion region(*trMemory);
+            size_t packedSize = 0;
+            packedROMClass = JITServerHelpers::packROMClass(romClass, trMemory, NULL, packedSize, 0, prefixLength);
+            }
+         }
+      else
+         {
+         packedROMClass = romClass;
+         }
+
+      hash = JITServerROMClassHash(packedROMClass);
+      }
+
+   if (numDimensions)
+      {
+      TR_ASSERT(baseComponent, "Invalid arguments");
+      JITServerROMClassHash baseHash = cache ? cache->getHash(baseComponent) : JITServerROMClassHash(baseComponent);
+      hash = JITServerROMClassHash(hash, baseHash, numDimensions);
+      }
 
    OMR::CriticalSection cs(_classMonitor);
 
@@ -823,11 +915,15 @@ JITServerAOTCache::getClassRecord(const AOTCacheClassLoaderRecord *classLoaderRe
       return it->second;
 
    if (!JITServerAOTCacheMap::cacheHasSpace())
-      {
       return NULL;
-      }
 
-   auto record = AOTCacheClassRecord::create(_nextClassId, classLoaderRecord, hash, romClass);
+   // The romSize of the packed romClass received from the client is used as the size in the
+   // AOTCacheClassRecord. This will be slightly larger than the deterministic packed size if the romClass
+   // is runtime-generated, but this won't matter as long as we are consistent in what size is used.
+   // This also doesn't currently matter at the client, as runtime-generated classes are looked up by hash
+   // during deserialization, and the size in their class record is never examined.
+   auto record = AOTCacheClassRecord::create(_nextClassId, classLoaderRecord, hash, romClass->romSize,
+                                             prefixLength != 0, romClass, baseComponent, numDimensions);
    addToMap(_classMap, _classHead, _classTail, it, getRecordKey(record), record);
    ++_nextClassId;
 
@@ -836,11 +932,12 @@ JITServerAOTCache::getClassRecord(const AOTCacheClassLoaderRecord *classLoaderRe
       const ClassSerializationRecord &c = record->data();
       char buffer[ROMCLASS_HASH_BYTES * 2 + 1];
       TR_VerboseLog::writeLineLocked(TR_Vlog_JITServer,
-         "AOT cache %s: created class ID %zu -> %.*s size %u hash %s",
-         _name.c_str(), c.id(), RECORD_NAME(c), romClass->romSize, hash.toString(buffer, sizeof(buffer))
+         "AOT cache %s: created class ID %zu -> %.*s size %u hash %s class loader ID %zu", _name.c_str(), c.id(),
+         RECORD_NAME(c), romClass->romSize, hash.toString(buffer, sizeof(buffer)), classLoaderRecord->data().id()
       );
       }
 
+   _numGeneratedClasses += prefixLength ? 1 : 0;
    return record;
    }
 
@@ -1008,9 +1105,11 @@ JITServerAOTCache::createAndStoreThunk(const uint8_t *signature, uint32_t signat
 bool
 JITServerAOTCache::storeMethod(const AOTCacheClassChainRecord *definingClassChainRecord, uint32_t index,
                                TR_Hotness optLevel, const AOTCacheAOTHeaderRecord *aotHeaderRecord,
-                               const Vector<std::pair<const AOTCacheRecord *, uintptr_t/*reloDataOffset*/>> &records,
+                               const Vector<std::pair<const AOTCacheRecord *,
+                               uintptr_t/*reloDataOffset*/>> &records,
                                const void *code, size_t codeSize, const void *data, size_t dataSize,
-                               const char *signature, uint64_t clientUID)
+                               const char *signature, uint64_t clientUID,
+                               const CachedAOTMethod *&methodRecord)
    {
    uintptr_t definingClassId = definingClassChainRecord->records()[0]->data().id();
    const char *levelName = TR::Compilation::getHotnessName(optLevel);
@@ -1043,7 +1142,9 @@ JITServerAOTCache::storeMethod(const AOTCacheClassChainRecord *definingClassChai
       }
 
    auto method = CachedAOTMethod::create(definingClassChainRecord, index, optLevel, aotHeaderRecord,
-                                         records, code, codeSize, data, dataSize);
+                                         records, code, codeSize, data, dataSize,
+                                         signature);
+   methodRecord = method;
    addToMap(_cachedMethodMap, _cachedMethodHead, _cachedMethodTail, it, key, method);
 
    if (TR::Options::getVerboseOption(TR_VerboseJITServer))
@@ -1132,7 +1233,7 @@ JITServerAOTCache::printStats(FILE *f) const
       "JITServer AOT cache %s statistics:\n"
       "\tstored methods: %zu\n"
       "\tclass loader records: %zu\n"
-      "\tclass records: %zu\n"
+      "\tclass records: %zu (%zu generated)\n"
       "\tmethod records: %zu\n"
       "\tclass chain records: %zu\n"
       "\twell-known classes records: %zu\n"
@@ -1145,7 +1246,7 @@ JITServerAOTCache::printStats(FILE *f) const
       _name.c_str(),
       _cachedMethodMap.size(),
       _classLoaderMap.size(),
-      _classMap.size(),
+      _classMap.size(), _numGeneratedClasses,
       _methodMap.size(),
       _classChainMap.size(),
       _wellKnownClassesMap.size(),

@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar17]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2005
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.lang.management.internal;
 
 import com.ibm.java.lang.management.internal.RuntimeMXBeanImpl;
@@ -39,7 +39,7 @@ public final class ExtendedRuntimeMXBeanImpl extends RuntimeMXBeanImpl implement
 
 	/**
 	 * Singleton accessor method.
-	 * 
+	 *
 	 * @return the <code>RuntimeMXBeanImpl</code> singleton.
 	 */
 	public static RuntimeMXBean getInstance() {
@@ -117,19 +117,25 @@ public final class ExtendedRuntimeMXBeanImpl extends RuntimeMXBeanImpl implement
 
 	@Override
 	public boolean isAttachApiInitialized() {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		checkMonitorPermission();
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		return AttachHandler.isAttachApiInitialized();
 	}
 
 	@Override
 	public boolean isAttachApiTerminated() {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		checkMonitorPermission();
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		return AttachHandler.isAttachApiTerminated();
 	}
 
 	@Override
 	public String getVmId() {
+		/*[IF JAVA_SPEC_VERSION < 24]*/
 		checkMonitorPermission();
+		/*[ENDIF] JAVA_SPEC_VERSION < 24 */
 		return AttachHandler.getVmId();
 	}
 }

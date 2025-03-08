@@ -1,5 +1,5 @@
 /*[INCLUDE-IF Sidecar18-SE]*/
-/*******************************************************************************
+/*
  * Copyright IBM Corp. and others 2000
  *
  * This program and the accompanying materials are made available under
@@ -18,8 +18,8 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
- *******************************************************************************/
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
+ */
 package com.ibm.jvm.trace.format.api;
 
 import java.io.UnsupportedEncodingException;
@@ -54,7 +54,7 @@ public class TracePointImpl implements TracePoint {
 	byte debugData[];
 	TracePointDebugInfo debugInfo;
 
-	/** 
+	/**
 	 *
 	 */
 	public TracePointImpl(TraceContext context, ByteStream stream, TraceThread thread) {
@@ -157,7 +157,7 @@ public class TracePointImpl implements TracePoint {
 		 * if this trace point has a length of 8 and is the first
 		 * trace point in the buffer then we check to see if it's a lost
 		 * record trace point.
-		 * 
+		 *
 		 * This trace point could well have overwritten the end of
 		 * trace point spanning from the previous buffer because of the
 		 * assumption by the lost record code that it is an empty buffer
@@ -214,7 +214,7 @@ public class TracePointImpl implements TracePoint {
 			isNormalTracepoint = false;
 			return this;
 		}
-		
+
 		/* read in the timestamp */
 		time_lowerWord = stream.getUnsignedInt();
 
@@ -296,7 +296,7 @@ public class TracePointImpl implements TracePoint {
 			}
 			message = file.getMessageFromID(componentName, tracepointID);
 		}
-		
+
 		if (message.getType() == TracePoint.APP_TYPE && !componentName.equals("ApplicationTrace")) {
 			if (parmDataLength > 0) {
 				/* This is going to output any parameter data as raw data so it takes a precision string.
@@ -305,7 +305,7 @@ public class TracePointImpl implements TracePoint {
 				byte newParmData[] = new byte[parmDataLength + 2];
 				System.arraycopy(parameterData, 0, newParmData, 2, parameterData.length);
 				parameterData = newParmData;
-	
+
 				short len = (short)parmDataLength;
 				if (stream.order() == ByteOrder.LITTLE_ENDIAN) {
 					parameterData[0] = (byte)(0xFF & len);
@@ -351,7 +351,7 @@ public class TracePointImpl implements TracePoint {
 	private boolean internListCompare(byte traceData[], int offset, int internedNamesIndex, int length) {
 		int l = internedNamesAsBytes[internedNamesIndex].length;
 		int j;
-		
+
 		/* check the lengths match */
 		if (l != length) {
 			return false;
@@ -535,7 +535,7 @@ public class TracePointImpl implements TracePoint {
 		if (debugInfo != null) {
 			return "Record: "+debugInfo.record+", offset: "+debugInfo.offset;
 		}
-		
+
 		return "";
 	}
 }

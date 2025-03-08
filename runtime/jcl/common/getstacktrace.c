@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include <string.h>
@@ -48,22 +48,51 @@ getStackTraceForThread(J9VMThread *currentThread, J9VMThread *targetThread, UDAT
 	j9object_t throwable = NULL;
 	J9StackWalkState walkState = {0};
 	UDATA rc = J9_STACKWALK_RC_NONE;
+
 #if JAVA_SPEC_VERSION >= 19
-	J9VMContinuation *continuation = targetThread->currentContinuation;
+	BOOLEAN isVirtual = IS_JAVA_LANG_VIRTUALTHREAD(currentThread, threadObject);
+	if (isVirtual) {
+		/* Return NULL if a valid CarrierThread object cannot be found through VirtualThread object,
+		 * the caller of getStackTraceImpl will handle whether to retry or get the stack using the unmounted path.
+		 */
+		j9object_t carrierThread = (j9object_t)J9VMJAVALANGVIRTUALTHREAD_CARRIERTHREAD(currentThread, threadObject);
+		/* Ensure the VirtualThread is mounted and not during transition. */
+		if (NULL == carrierThread) {
+			goto done;
+		}
+		/* Gets targetThread from the carrierThread object. */
+		targetThread = J9VMJAVALANGTHREAD_THREADREF(currentThread, carrierThread);
+		Assert_JCL_notNull(targetThread);
+	}
+	PUSH_OBJECT_IN_SPECIAL_FRAME(currentThread, threadObject);
 #endif /* JAVA_SPEC_VERSION >= 19 */
-	/* Halt the target thread */
+	/* Halt the target thread. */
 	vmfns->haltThreadForInspection(currentThread, targetThread);
 
-	/* walk stack and cache PCs */
+	/* walk stack and cache PCs. */
 	walkState.flags = J9_STACKWALK_CACHE_PCS | J9_STACKWALK_WALK_TRANSLATE_PC | J9_STACKWALK_SKIP_INLINES | J9_STACKWALK_INCLUDE_NATIVES | J9_STACKWALK_VISIBLE_ONLY;
 #if JAVA_SPEC_VERSION >= 19
-	if ((NULL != continuation) && (threadObject != targetThread->threadObject)) {
-		/* If targetThread has a continuation mounted and its current threadObject doesn't match the
-		 * target threadObject, then the carrier thread's stacktrace is retrieved through the cached
-		 * state in the continuation.
+	threadObject = POP_OBJECT_IN_SPECIAL_FRAME(currentThread);
+	/* Re-check thread state. */
+	if ((NULL != targetThread->currentContinuation) && (threadObject == targetThread->carrierThreadObject)) {
+		/* If targetThread has a continuation mounted and its threadObject matches its carrierThreadObject,
+		 * then the carrier thread's stacktrace is retrieved through the cached state in the continuation.
 		 */
 		walkState.skipCount = 0;
-		rc = vmfns->walkContinuationStackFrames(currentThread, continuation, &walkState);
+		rc = vmfns->walkContinuationStackFrames(currentThread, targetThread->currentContinuation, threadObject, &walkState);
+	} else if (isVirtual
+	&& ((threadObject != targetThread->threadObject)
+		|| (-1 == J9OBJECT_I64_LOAD(currentThread, threadObject, vm->virtualThreadInspectorCountOffset)))
+	) {
+		/* If the virtual thread object doesn't match the current thread object, it must have unmounted
+		 * from this carrier thread, return NULL and the JCL code will handle the retry.
+		 *
+		 * If inspectorCount is -1, then the virtual thread is in an unsteady state (mounting or unmounting).
+		 * In such cases, NULL should be returned and the JCL code should retry in order to avoid unexpected
+		 * behavior.
+		 */
+		vmfns->resumeThreadForInspection(currentThread, targetThread);
+		goto done;
 	} else
 #endif /* JAVA_SPEC_VERSION >= 19 */
 	{
@@ -71,10 +100,10 @@ getStackTraceForThread(J9VMThread *currentThread, J9VMThread *targetThread, UDAT
 		walkState.skipCount = skipCount;
 		rc = vm->walkStackFrames(currentThread, &walkState);
 	}
-	/* Now that the stack trace has been copied, resume the thread */
+	/* Now that the stack trace has been copied, resume the thread. */
 	vmfns->resumeThreadForInspection(currentThread, targetThread);
 
-	/* Check for stack walk failure */
+	/* Check for stack walk failure. */
 	if (rc != J9_STACKWALK_RC_NONE) {
 		vmfns->setNativeOutOfMemoryError(currentThread, 0, 0);
 		goto fail;
@@ -84,7 +113,9 @@ getStackTraceForThread(J9VMThread *currentThread, J9VMThread *targetThread, UDAT
 
 fail:
 	vmfns->freeStackWalkCaches(currentThread, &walkState);
-
+#if JAVA_SPEC_VERSION >= 19
+done:
+#endif /* JAVA_SPEC_VERSION >= 19 */
 	/* Return the result - any pending exception will be checked by the caller and the result discarded */
 	return throwable;
 }

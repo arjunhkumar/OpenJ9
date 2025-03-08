@@ -17,7 +17,7 @@
  * [1] https://www.gnu.org/software/classpath/license.html
  * [2] https://openjdk.org/legal/assembly-exception.html
  *
- * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0 WITH Classpath-exception-2.0 OR LicenseRef-GPL-2.0 WITH Assembly-exception
+ * SPDX-License-Identifier: EPL-2.0 OR Apache-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 OR GPL-2.0-only WITH OpenJDK-assembly-exception-1.0
  *******************************************************************************/
 
 #include "VMHelpers.hpp"
@@ -38,14 +38,22 @@ OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_resolveRequired
 	VM_BytecodeAction rc = EXECUTE_BYTECODE;
 	J9JavaVM *vm = currentThread->javaVM;
 	J9ConstantPool *jclConstantPool = (J9ConstantPool *)vm->jclConstantPool;
-	const int cpEntryNum = 2;
-	U_16 cpIndex[cpEntryNum] = {
-				J9VMCONSTANTPOOL_OPENJ9INTERNALFOREIGNABIINTERNALDOWNCALLHANDLER_CIFNATIVETHUNKADDR,
-				J9VMCONSTANTPOOL_OPENJ9INTERNALFOREIGNABIINTERNALDOWNCALLHANDLER_ARGTYPESADDR
-			};
+	static const U_16 cpIndex[] = {
+			J9VMCONSTANTPOOL_OPENJ9INTERNALFOREIGNABIINTERNALDOWNCALLHANDLER_ARGTYPESADDR
+#if JAVA_SPEC_VERSION >= 22
+			, J9VMCONSTANTPOOL_OPENJ9INTERNALFOREIGNABIINTERNALDOWNCALLHANDLER_BOUNDMH
+#endif /* JAVA_SPEC_VERSION >= 22 */
+			, J9VMCONSTANTPOOL_OPENJ9INTERNALFOREIGNABIINTERNALDOWNCALLHANDLER_CIFNATIVETHUNKADDR
+#if JAVA_SPEC_VERSION >= 22
+			, J9VMCONSTANTPOOL_OPENJ9INTERNALFOREIGNABIINTERNALDOWNCALLHANDLER_INVOKECACHE
+			, J9VMCONSTANTPOOL_JAVALANGINVOKENATIVEMETHODHANDLE_INVOKECACHE
+			, J9VMCONSTANTPOOL_JAVALANGINVOKENATIVEMETHODHANDLE_NEP
+#endif /* JAVA_SPEC_VERSION >= 22 */
+	};
+	const size_t cpEntryNum = sizeof(cpIndex) / sizeof(cpIndex[0]);
 
 	VM_OutOfLineINL_Helpers::buildInternalNativeStackFrame(currentThread, method);
-	for (int i = 0; i < cpEntryNum; i++) {
+	for (size_t i = 0; i < cpEntryNum; i++) {
 		J9RAMFieldRef *cpFieldRef = ((J9RAMFieldRef*)jclConstantPool) + cpIndex[i];
 		UDATA const flags = cpFieldRef->flags;
 		UDATA const valueOffset = cpFieldRef->valueOffset;
@@ -96,6 +104,7 @@ OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_initCifNativeTh
 	UDATA returnLayoutSize = 0;
 
 	PORT_ACCESS_FROM_JAVAVM(vm);
+	VM_OutOfLineINL_Helpers::buildInternalNativeStackFrame(currentThread, method);
 
 	/* Set up the ffi_type of the return layout in the case of primitive or struct */
 	returnLayoutSize = ffiTypeHelpers.getLayoutFFIType(&returnType, retLayoutStrObject);
@@ -103,10 +112,15 @@ OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_initCifNativeTh
 		rc = GOTO_THROW_CURRENT_EXCEPTION;
 		setCurrentException(currentThread, J9VMCONSTANTPOOL_JAVALANGINTERNALERROR, NULL);
 		goto done;
-	/* Only intended for strut as the primitive's ffi_type is non-null */
+	/* Only intended for struct as the primitive's ffi_type is non-null. */
 	} else if ((NULL == returnType)
-	|| ((FFI_TYPE_STRUCT == returnType->type) && (NULL == returnType->elements))
-	) {
+				|| (((FFI_TYPE_STRUCT == returnType->type)
+#if defined(J9ZOS390) && defined(J9VM_ENV_DATA64)
+					|| (FFI_TYPE_STRUCT_FF == returnType->type)
+					|| (FFI_TYPE_STRUCT_DD == returnType->type)
+#endif /* defined(J9ZOS390) && defined(J9VM_ENV_DATA64) */
+				) && (NULL == returnType->elements)))
+	{
 		rc = GOTO_THROW_CURRENT_EXCEPTION;
 		setNativeOutOfMemoryError(currentThread, 0, 0);
 		goto done;
@@ -133,7 +147,12 @@ OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_initCifNativeTh
 				goto freeAllMemoryThenExit;
 			/* Only intended for struct as the primitive's ffi_type is non-null */
 			} else if ((NULL == argTypes[argIndex])
-			|| ((FFI_TYPE_STRUCT == argTypes[argIndex]->type) && (NULL == argTypes[argIndex]->elements))
+						|| (((FFI_TYPE_STRUCT == argTypes[argIndex]->type)
+#if defined(J9ZOS390) && defined(J9VM_ENV_DATA64)
+							|| (FFI_TYPE_STRUCT_FF == argTypes[argIndex]->type)
+							|| (FFI_TYPE_STRUCT_DD == argTypes[argIndex]->type)
+#endif /* defined(J9ZOS390) && defined(J9VM_ENV_DATA64) */
+						) && (NULL == argTypes[argIndex]->elements))
 			) {
 				rc = GOTO_THROW_CURRENT_EXCEPTION;
 				setNativeOutOfMemoryError(currentThread, 0, 0);
@@ -202,6 +221,7 @@ OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_initCifNativeTh
 	J9VMOPENJ9INTERNALFOREIGNABIINTERNALDOWNCALLHANDLER_SET_CIFNATIVETHUNKADDR(currentThread, nativeInvoker, (intptr_t)cif);
 
 done:
+	VM_OutOfLineINL_Helpers::restoreInternalNativeStackFrame(currentThread);
 	VM_OutOfLineINL_Helpers::returnVoid(currentThread, 5);
 	return rc;
 
@@ -216,6 +236,56 @@ freeAllMemoryThenExit:
 	ffiTypeHelpers.freeStructFFIType(returnType);
 	goto done;
 }
+
+#if JAVA_SPEC_VERSION >= 22
+/* openj9.internal.foreign.abi.InternalDowncallHandler: private static native boolean isFfiProtoEnabled(); */
+VM_BytecodeAction
+OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_isFfiProtoEnabled(J9VMThread *currentThread, J9Method *method)
+{
+	VM_BytecodeAction rc = EXECUTE_BYTECODE;
+	J9JavaVM *vm = currentThread->javaVM;
+	jboolean isFfiProtoOn = J9_ARE_ANY_BITS_SET(vm->extendedRuntimeFlags2, J9_EXTENDED_RUNTIME2_FFI_PROTO) ? JNI_TRUE : JNI_FALSE;
+
+	VM_OutOfLineINL_Helpers::returnSingle(currentThread, isFfiProtoOn, 0);
+	return rc;
+}
+
+/**
+ * openj9.internal.foreign.abi.InternalDowncallHandler: private static native void setNativeInvokeCache(MethodHandle handle);
+ *
+ * @brief Resolve the bounded handle via MethodHandleResolver.ffiCallLinkCallerMethod() in advance
+ *        when calling into the interpreter via MH.linkToNative()
+ *
+ * @return void
+ */
+VM_BytecodeAction
+OutOfLineINL_openj9_internal_foreign_abi_InternalDowncallHandler_setNativeInvokeCache(J9VMThread *currentThread, J9Method *method)
+{
+	VM_BytecodeAction rc = EXECUTE_BYTECODE;
+	j9object_t invokeCache = NULL;
+	j9object_t nativeMH = J9_JNI_UNWRAP_REFERENCE(currentThread->sp);
+
+	/* The resolution is performed by MethodHandleResolver.ffiCallLinkCallerMethod()
+	 * to obtain a MemberName object plus appendix in a two element object array.
+	 */
+	VM_OutOfLineINL_Helpers::buildInternalNativeStackFrame(currentThread, method);
+	VM_VMHelpers::pushObjectInSpecialFrame(currentThread, nativeMH);
+	invokeCache = resolveFfiCallInvokeHandle(currentThread, nativeMH);
+	nativeMH = VM_VMHelpers::popObjectInSpecialFrame(currentThread);
+	if (VM_VMHelpers::exceptionPending(currentThread)) {
+		rc = GOTO_THROW_CURRENT_EXCEPTION;
+		goto done;
+	}
+
+	VM_AtomicSupport::writeBarrier();
+	J9VMJAVALANGINVOKENATIVEMETHODHANDLE_SET_INVOKECACHE(currentThread, nativeMH, invokeCache);
+	VM_OutOfLineINL_Helpers::restoreInternalNativeStackFrame(currentThread);
+
+done:
+	VM_OutOfLineINL_Helpers::returnVoid(currentThread, 1);
+	return rc;
+}
+#endif /* JAVA_SPEC_VERSION >= 22 */
 #endif /* JAVA_SPEC_VERSION >= 16 */
 
 } /* extern "C" */
