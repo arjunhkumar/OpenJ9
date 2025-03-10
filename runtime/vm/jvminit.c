@@ -88,6 +88,8 @@
 #include "jimagereader.h"
 #include "vendor_version.h"
 #include "omrlinkedlist.h"
+/** AR07 - For using static analysis results. */
+#include "StaticAnalysisReader.hpp"
 
 #ifdef J9VM_OPT_ZIP_SUPPORT
 #include "zip_api.h"
@@ -2780,7 +2782,40 @@ VMInitStages(J9JavaVM *vm, IDATA stage, void* reserved)
 					vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME2_ENABLE_VT_ARRAY_FLATTENING;
 				}
 			}
-#endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
+			/* AR07 - Set flag to use static analysis results inside the VM. */
+			// {
+			// 	IDATA useStaticAnalysisResults = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_USE_STATIC_ANALYSIS_RESULTS, NULL);
+			// 	IDATA disableStaticAnalysisResults = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_DONOT_USE_STATIC_ANALYSIS_RESULTS, NULL);
+			// 	if (useStaticAnalysisResults > disableStaticAnalysisResults) 
+			// 	{
+			// 		vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME_USE_STATIC_ANALYSIS_RESULTS;
+			// 		readStaticResults("static_results/res.out");
+			// 		// readStaticProfileData("static_results/callSites.out");
+			// 	} 
+			// 	else 
+			// 	{
+			// 		vm->extendedRuntimeFlags2 &= ~J9_EXTENDED_RUNTIME_USE_STATIC_ANALYSIS_RESULTS;
+			// 	}
+				
+			// }
+			/* AR07 - End - Set flag to use static analysis results inside the VM. */
+			/* AR07 - Set flag to profile static analysis sites inside the VM. */
+			{
+				IDATA profileStaticAnalysisSites = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_PROFILE_STATIC_SITES, NULL);
+				IDATA doNotProfileStaticAnalysisSites = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_DONOT_PROFILE_STATIC_SITES, NULL);
+				if (profileStaticAnalysisSites > doNotProfileStaticAnalysisSites) 
+				{
+					vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES;
+				} 
+				else 
+				{
+					vm->extendedRuntimeFlags2 &= ~J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES;
+				}
+				
+			}
+			/* AR07 - End - Set flag to profile static analysis sites inside the VM. */
+
+#endif /* defined(J9VM_OPT_VALHALLA_VALUE_TYPES) */
 #if JAVA_SPEC_VERSION >= 16
 			if ((argIndex = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_XXDIAGNOSE_SYNC_ON_VALUEBASED_CLASSES_EQUALS1, NULL)) >= 0) {
 				vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME2_VALUE_BASED_EXCEPTION;

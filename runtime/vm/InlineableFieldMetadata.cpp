@@ -57,7 +57,7 @@ const char * IFM_ClassMetadata::createCopy(const char * targetString)
     if( targetString != NULL)
     {
         classSignature = (char *) malloc (strlen(targetString));
-        strcpy(classSignature, targetString);
+        strncpy(classSignature, targetString,strlen(targetString));
         
     }
     return classSignature;
@@ -65,13 +65,6 @@ const char * IFM_ClassMetadata::createCopy(const char * targetString)
 
 void IFM_ClassMetadata::clearResults()
 {
-    // for (std::vector<IFM_ClassFieldMetadata *>::iterator i = inlineableFieldList.begin(); i != inlineableFieldList.end(); ++i)
-    // {
-    //     IFM_ClassFieldMetadata * element = (IFM_ClassFieldMetadata *)*i;
-    //     char * elementFieldName =  (char *)element->getFieldName();
-    //     free(elementFieldName);
-    //     delete(element);
-    // }
     for(size_t i = 0; i < inlineableFieldList.size(); ++i) 
     {
         IFM_ClassFieldMetadata * element = inlineableFieldList[i];

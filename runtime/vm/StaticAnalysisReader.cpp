@@ -65,7 +65,7 @@ const char * createCopy(char * targetString)
     if( targetString != NULL)
     {
         classSignature = (char *) malloc (strlen(targetString));
-        strcpy(classSignature, targetString);
+        strncpy(classSignature, targetString, (strlen(targetString)));
         
     }
     return classSignature;
@@ -77,7 +77,7 @@ const char * createARCopy(char * targetString)
     if( targetString != NULL)
     {
         classSignature = (char *) malloc (strlen(targetString));
-        strcpy(classSignature, targetString);
+        strncpy(classSignature, targetString, (strlen(targetString)));
         
     }
     return classSignature;

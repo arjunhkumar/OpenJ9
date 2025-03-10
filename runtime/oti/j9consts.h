@@ -371,6 +371,10 @@ extern "C" {
 
 /* constants for J9JavaVM.extendedRuntimeFlags3 */
 #define J9_EXTENDED_RUNTIME3_START_FLIGHT_RECORDING 0x1
+/** OM - AR07 - Flag to use static analysis results inside VM */
+#define J9_EXTENDED_RUNTIME_USE_STATIC_ANALYSIS_RESULTS 0x2
+/** OM - AR07 - Flag to profile static sites inside the VM */
+#define J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES 0x4
 
 #define J9_OBJECT_HEADER_AGE_DEFAULT 0xA /* OBJECT_HEADER_AGE_DEFAULT */
 #define J9_OBJECT_HEADER_SHAPE_MASK 0xE /* OBJECT_HEADER_SHAPE_MASK */
