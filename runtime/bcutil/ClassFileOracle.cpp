@@ -37,6 +37,12 @@
 #include "j9protos.h"
 //inliningjclclasses
 #include<iostream>
+#include<sstream>
+#include<fstream>
+#include<unordered_map>
+#include<string>
+#include<vector>
+#include<utility>
 
 /* The array entries must be in same order as the enums in ClassFileOracle.hpp */
 ClassFileOracle::KnownAnnotation ClassFileOracle::_knownAnnotations[] = {
@@ -102,6 +108,151 @@ ClassFileOracle::KnownAnnotation ClassFileOracle::_knownAnnotations[] = {
 		{0, 0}
 };
 
+//inliningjclclasses
+
+bool ClassFileOracle::isFlattenablePrimitiveClassBH(char *descriptor)
+{
+	std::string inputDescriptor(descriptor);
+	if(!externalFileHasBeenReadBH())
+	{
+		_hasExternalFileBeenReadBH = true;
+		readFieldsFromExternalFileBH();
+	}
+	
+	for(const auto& element : markNullRestricted)
+	{
+		std::string decoratedTypeDesc = element.first;
+		std::regex rgx("[\[]*L(([a-z_/])*[A-Z][a-zA-Z_0-9]*);");
+		std::smatch match;
+
+		if (std::regex_search(decoratedTypeDesc, match, rgx)){
+
+			if(match[1].str() == (inputDescriptor))
+			{
+				return true;
+			}
+		}
+
+	}
+
+	return false;
+
+}
+/*const { static const std::regex prefix_regex(R"(^(?:L)?(?:java/lang/Integer|InlineField|java/lang/Number)(;)?$)");
+							return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
+							}*/
+
+//inliningjclclasses
+
+bool ClassFileOracle::_hasExternalFileBeenReadBH = false;
+std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> ClassFileOracle::markNullRestricted;
+std::unordered_map<std::string, bool> ClassFileOracle::doNotInlineAnywhere;
+
+std::string
+ClassFileOracle::decorateClassTypeDescriptorBH(std::string descriptor)
+{
+	std::string prefix("L");	
+	std::string suffix(";");
+
+	descriptor.insert(0, prefix);
+	descriptor.append(suffix);
+
+	return descriptor;
+}
+
+//inliningjclclasses
+void
+ClassFileOracle::readFieldsFromExternalFileBH()
+{
+	std::cerr<<"READING FROM EXTERNAL FILE\n";
+	std::ifstream inputFile("/home/bhavya/cosmos/cse/projects/valueTypesOpenj9/docs/javaValueTypes/moreValueTypes/toBeInlined.txt");
+	std::string line;
+
+	// Read each line
+	while (std::getline(inputFile, line)) 
+	{  
+		std::stringstream ss(line);
+		std::string tempDescriptor;
+		std::string tempContainer;
+		std::string tempFieldName;
+		int numOfFields;
+
+		// read in value class descriptor and initialize a map entry for it
+		ss >> tempDescriptor;
+		markNullRestricted[tempDescriptor] = {};
+
+		ss >> numOfFields;
+		
+		if(numOfFields == -1)
+		{
+			//means don't put null restricted for this field anywhere.
+			doNotInlineAnywhere[tempDescriptor] = true;
+			continue; // in the input file, the -1 should not be followed by anything in the rest of the line. 
+				  // we should scan the next line now
+
+		}
+
+		if(numOfFields>=0)
+		{
+			// 0 means inlinine everywhere (handled in the markFieldAsNullRestricted function)
+			for(int i=0; i<numOfFields; i++)
+			{
+				ss >> tempContainer;
+				ss >> tempFieldName;
+
+				markNullRestricted[tempDescriptor].push_back({tempContainer, tempFieldName});
+			}
+		}
+
+	}
+}
+
+//inliningjclclasses
+bool
+ClassFileOracle::markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char *fieldTypeDescriptor, char *fieldNameDescriptor)
+{
+	//static bool externalFileHasBeenRead = false;	
+	std::string containerDesc(containerTypeDescriptor);
+	std::string fieldTypeDesc(fieldTypeDescriptor);
+	std::string fieldNameDesc(fieldNameDescriptor);
+	//std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> markNullRestricted;
+
+	if(!externalFileHasBeenReadBH())
+	{
+		_hasExternalFileBeenReadBH = true;
+		readFieldsFromExternalFileBH();
+	}
+
+	if(markNullRestricted.find(fieldTypeDescriptor) == markNullRestricted.end())
+	{
+		return false;
+	}
+
+	if(markNullRestricted[fieldTypeDescriptor].size() == 0)
+	{
+		// no constraints means either we inline everywhere or nowhere.
+		// to check that we check doNotInlineAnywhere
+		if(doNotInlineAnywhere[fieldTypeDescriptor])
+		{
+			return false;
+		}else{
+			return true;
+
+		}
+	}
+	
+	for(int i=0; i<markNullRestricted[fieldTypeDescriptor].size(); i++)
+	{
+		std::pair<std::string, std::string> tempPair(containerDesc, fieldNameDesc);
+		if(markNullRestricted[fieldTypeDescriptor][i] == tempPair){
+			std::cerr<<"RETURNING TRUE FOR MARKING "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
+			return true;
+		}
+	}
+
+	return false;
+
+}
 
 bool
 ClassFileOracle::containsKnownAnnotation(UDATA knownAnnotationSet, UDATA knownAnnotation)
@@ -373,7 +524,21 @@ ClassFileOracle::walkFields()
 		
 		//inliningjclclasses
 
-		if((isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(field->descriptorIndex))) && !isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))){
+		if((markFieldAsNullRestrictedBH((char *)(this->getUTF8Data(this->getClassNameIndex())),(char *)(this->getUTF8Data(field->descriptorIndex)), (char *)(this->getUTF8Data(field->nameIndex))) && !isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))){
+			std::cerr<<"FLATTENABLE IN A NON LIBRARY CLASS, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+			_fieldsInfo[fieldIndex].isNullRestricted = true;
+		
+			std::cerr<<"FIELD DESCRIPTOR: "<<((char *)(this->getUTF8Data(field->descriptorIndex)))<<", AND FIELD VARIABLE NAME: "<<((char *)(this->getUTF8Data(field->nameIndex)))<<"\n";
+
+		}else{
+			if(isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+			{
+				//std::cout<<"LIBRARY CLASS HENCE AVOIDING NULLRESTRICTED SET: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+			}
+
+		}
+
+		/*if((isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(field->descriptorIndex))) && !isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))){
 			std::cerr<<"FLATTENABLE IN A NON LIBRARY CLASS, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
 			_fieldsInfo[fieldIndex].isNullRestricted = true;
 		
@@ -385,8 +550,7 @@ ClassFileOracle::walkFields()
 				//std::cout<<"LIBRARY CLASS HENCE AVOIDING NULLRESTRICTED SET: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
 			}
 
-		}
-
+		}*/
 		/*if((isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(field->descriptorIndex))))){
 			std::cerr<<"FLATTENABLE FIELD BEING SET AS NULL RESTRICTED, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
 			_fieldsInfo[fieldIndex].isNullRestricted = true;

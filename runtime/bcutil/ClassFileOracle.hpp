@@ -36,6 +36,10 @@
 
 //inliningjclclasses
 #include<regex>
+#include<utility>
+#include<string>
+#include<unordered_map>
+#include<vector>
 
 #include "BuildResult.hpp"
 #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
@@ -932,19 +936,25 @@ class RecordComponentIterator
 	 */
 	//inliningjclclasses
 	bool isLibraryClassBH(char *descriptor) const {
-		static const std::regex prefix_regex(R"(^(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/))");
+		static const std::regex prefix_regex(R"(^(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/|jdk/|com/))");
 		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
 	}
 
-	bool isFlattenablePrimitiveClassBH(char *descriptor) const {
+	bool isFlattenablePrimitiveClassBH(char *descriptor); /*const {
 		static const std::regex prefix_regex(R"(^(?:L)?(?:java/lang/Integer|InlineField|java/lang/Number)(;)?$)");
 		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
-	}
+	}*/
 
 	bool isCustomFlattenablePrimitiveClassBH(char *descriptor) const {
 		static const std::regex prefix_regex(R"(^(?:L)?(?:InlineField)(;)?$)");
 		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
 	}
+
+	bool markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char *fieldTypeDescriptor, char *fieldNameDescriptor);
+
+	void readFieldsFromExternalFileBH();
+
+	std::string decorateClassTypeDescriptorBH(std::string descriptor);
 
 	/*bool isFlattenablePrimitiveClassBH(char *descriptor) const {
 		static const std::regex prefix_regex(R"(^(?:L)?(?:java/lang/Integer)(;)?$)");
@@ -989,6 +999,8 @@ class RecordComponentIterator
 	U_8 *getSourceDebugExtensionData() const { return hasSourceDebugExtension() ? _sourceDebugExtension->value : NULL; }
 	U_16 getBootstrapMethodCount() const { return hasBootstrapMethods() ? _bootstrapMethodsAttribute->numberOfBootstrapMethods : 0; }
 
+	//inliningjclclasses: get _hasExternalFileBeenRead flag
+	bool externalFileHasBeenReadBH() const {return _hasExternalFileBeenReadBH;}
 	bool hasClassAnnotations() const { return NULL != _annotationsAttribute; }
 	bool hasTypeAnnotations() const { return NULL != _typeAnnotationsAttribute; }
 	U_16 getFieldNameIndex(U_16 fieldIndex) const { return _classFile->fields[fieldIndex].nameIndex; }
@@ -1135,6 +1147,12 @@ private:
 	UDATA _bctFlags;
 	ROMClassCreationContext *_context;
 
+	//inliningjclclasses : declaring global map and bool to check if that map has been read already
+	static std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> markNullRestricted;
+	//inliningjclclasses : if for a field descriptor as key, this map's value is true, it means don't mark null restricted anywhere for that field. 
+	//value is initialized to true when the input file contains a "-1" number of inlining constraints.
+	static std::unordered_map<std::string, bool> doNotInlineAnywhere;
+	static bool _hasExternalFileBeenReadBH;
 	U_16 _singleScalarStaticCount;
 	U_16 _objectStaticCount;
 	U_16 _doubleScalarStaticCount;
