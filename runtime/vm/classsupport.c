@@ -37,6 +37,9 @@
 
 #include <string.h>
 
+//inliningjclclasses
+#include<stdio.h>
+
 static UDATA classAndLoaderHashFn (void *key, void *userData);
 static UDATA classAndLoaderHashEqualFn (void *leftKey, void *rightKey, void *userData);
 static J9ContendedLoadTableEntry * contendedLoadTableAddThread (J9VMThread* vmThread, J9ClassLoader* classLoader, U_8* className,
@@ -670,7 +673,10 @@ attemptDynamicClassLoad(J9VMThread* vmThread, J9Module *j9module, U_8* className
 		IDATA findResult = -1;
 		J9TranslationLocalBuffer localBuffer = {J9_CP_INDEX_NONE, LOAD_LOCATION_UNKNOWN, NULL};
 
+		//inliningjclclasses
+		//fprintf(stderr, "before callFindLocallyDefinedClass: %s\n", (char *)className);
 		findResult = callFindLocallyDefinedClass(vmThread, j9module, className, classNameLength, classLoader, options, &localBuffer);
+		//fprintf(stderr, "after callFindLocallyDefinedClass: %s\n", (char *)className);
 
 		if (-1 != findResult) {
 			J9TranslationBufferSet *dynamicLoadBuffers = vmThread->javaVM->dynamicLoadBuffers;
@@ -1121,6 +1127,8 @@ loadNonArrayClass(J9VMThread* vmThread, J9Module *j9module, U_8* className, UDAT
 	BOOLEAN loaderMonitorLocked = FALSE;
 
 	vmThread->privateFlags &= ~J9_PRIVATE_FLAGS_CLOAD_NO_MEM;
+	//inliningjclclasses
+	//fprintf(stderr, "In loadNonArrayClass function for class: %s\n", (char *)className);
 
 	if (J9CLASSLOADER_PARALLEL_CAPABLE == (J9CLASSLOADER_PARALLEL_CAPABLE & classLoader->flags)) {
 		Trc_VM_loadNonArrayClass_parallelCapable(vmThread, classNameLength, className, classLoader);
@@ -1162,6 +1170,8 @@ loadNonArrayClass(J9VMThread* vmThread, J9Module *j9module, U_8* className, UDAT
 			omrthread_monitor_exit(vm->classTableMutex);
 		}
 	} else {
+		//inliningjclclasses
+		//fprintf(stderr, "foundClass IS STILL NULL for class name %s\n", (char *)className);
 		if (options & J9_FINDCLASS_FLAG_EXISTING_ONLY) {
 			if (!fastMode) {
 				omrthread_monitor_exit(vm->classTableMutex);
@@ -1251,10 +1261,16 @@ primitiveClass:
 				|| (options & J9_FINDCLASS_FLAG_USE_LOADER_CP_ENTRIES)
 			) {
 #ifdef J9VM_OPT_DYNAMIC_LOAD_SUPPORT
+				//inliningjclclasses
+				//fprintf(stderr, "attempting to dynamically load class %s\n", (char *)className);
 				foundClass = attemptDynamicClassLoad(vmThread, j9module, className, classNameLength, classLoader, options);
+				//omrthread_monitor_enter(vmThread->javaVM->classTableMutex);
 				/* class table mutex is now unlocked */
+				//fprintf(stderr, "done with DynamicClassLoad for class: %s\n", (char *)className);
 #endif
 			} else {
+				//inliningjclclasses
+				//fprintf(stderr, "attempting to do arbitratedLoadClass %s\n", (char *)className);
 				foundClass = arbitratedLoadClass(vmThread, className, classNameLength, classLoader, exception);
 				omrthread_monitor_exit(vm->classTableMutex);
 			}
@@ -1264,10 +1280,14 @@ primitiveClass:
 	/* class table mutex is now unlocked */
 done:
 	if (loaderMonitorLocked) {
+		//inliningjclclasses
+		//fprintf(stderr, "inside if loadMonitorLocked, for class: %s\n", (char *)className);
 		Trc_VM_loadNonArrayClass_exit_object_monitor(vmThread, classLoader, classNameLength, className);
 		objectMonitorExit(vmThread, classLoader->classLoaderObject);
 	}
 
+	//inliningjclclasses
+	//fprintf(stderr, "about to return from loading for class: %s\n", (char *)className);
 	return foundClass;
 }
 
@@ -1312,6 +1332,8 @@ internalFindClassInModule(J9VMThread* vmThread, J9Module *j9module, U_8* classNa
 	}
 
 	if (NULL == foundClass) {
+		//inliningjclclasses
+		//fprintf(stderr, "inside internalFindClassInModule, loadNonArrayClass returned null for class: %s\n", (char *)className);
 		/* Always throw pending error */
 		if (NULL == vmThread->currentException) {
 			if (0 == (vmThread->publicFlags & J9_PUBLIC_FLAGS_POP_FRAMES_INTERRUPT)) { /* no immediate async interrupt pending */
@@ -1360,6 +1382,12 @@ internalFindClassInModule(J9VMThread* vmThread, J9Module *j9module, U_8* classNa
 	}
 
 	Trc_VM_internalFindClass_Exit(vmThread, classLoader, classNameLength, className, foundClass);
+	//inliningjclclasses
+	if(foundClass == NULL)
+	{
+
+		//fprintf(stderr, "foundClass was null in module: %s\n", (char *)className);
+	}
 	return foundClass;
 }
 

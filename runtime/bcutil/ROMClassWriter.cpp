@@ -37,6 +37,11 @@
 #include "j9protos.h"
 #include "ut_j9bcu.h"
 
+//inliningjclclasses
+#include<iostream>
+#include<cstring>
+#include<regex>
+
 const U_8 PARAM_VOID	= 0;
 const U_8 PARAM_BOOLEAN	= 1;
 const U_8 PARAM_BYTE	= 2;
@@ -627,10 +632,75 @@ ROMClassWriter::writeFields(Cursor *cursor, bool markAndCountOnly)
 {
 	cursor->mark(_fieldsSRPKey);
 	ClassFileOracle::FieldIterator iterator = _classFileOracle->getFieldIterator();
+	//inliningjclclasses
+	//int nullRestFlagBH=0;
 	while ( iterator.isNotDone() ) {
+		//inliningjclclasses
+		//nullRestFlagBH=0;
 		if (markAndCountOnly) {
 			cursor->skip(sizeof(J9ROMFieldShape));
 		} else {
+			//inliningjclclasses : trying to get clazz pointer from field signature. Inspired from loadFlattenableFieldValueClasses in createramclass.cpp
+			
+			/*----------------------------------------
+			//std::cerr<<"\n\nBEFORE GETTING CLAZZ POINTER FROM FIELD SIGNATURE\n\n";	
+			U_8 *fieldSignatureBH = _classFileOracle->getUTF8Data(iterator.getGenericSignatureIndex());
+			U_8 *fieldDescriptorBH = _classFileOracle->getUTF8Data(iterator.getDescriptorIndex());
+			J9Class *fieldClass;
+
+			static const std::regex prefix_regex(R"(^\[*L(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/|jdk/|com/))");
+			static const std::regex prefix_regex1(R"(^\[*L)");
+			static const std::regex prefix_regex2(R"(^\[*L)");
+			
+			//std::cerr<<"BEFORE GETTING CLASS FROM FIELD SIGNATURE\n";	
+			if((fieldSignatureBH!=nullptr) && !std::regex_search(reinterpret_cast<const char*>((char *)fieldSignatureBH), prefix_regex) && std::regex_search(reinterpret_cast<const char*>((char *)fieldSignatureBH), prefix_regex1)){
+
+				std::cerr<<"\n\nGOT FIELD SIGNATURE CHARACTERS: "<< (char *)fieldSignatureBH<<"\n";	
+				UDATA fieldSignatureLengthBH = (UDATA)strlen(reinterpret_cast<const char*>(fieldSignatureBH));
+				//std::cerr<<"\n\nGOT FIELD SIGNATURE LENGTH\n\n";	
+				UDATA classPreloadFlagsBH = 0;
+				classPreloadFlagsBH = J9_FINDCLASS_FLAG_THROW_ON_FAIL;
+				//classPreloadFlagsBH = J9_FINDCLASS_FLAG_EXISTING_ONLY;
+				//classPreloadFlagsBH = J9_FINDCLASS_FLAG_USE_LOADER_CP_ENTRIES;
+				//classPreloadFlagsBH |= J9_FINDCLASS_FLAG_CHECK_PKG_ACCESS;
+				//std::cerr<<"\n\nBEFORE CALLING INTERNALFINDCLASSUTF8\n\n";	
+				fieldClass = _context->javaVM()->internalVMFunctions->internalFindClassUTF8(_context->javaVM()->mainThread, fieldSignatureBH + 1, fieldSignatureLengthBH - 2, _context->classLoader(), classPreloadFlagsBH);
+				std::cerr<<"successfully retrieved class from field signature\n";	
+				std::cerr<<"INSTANCE SIZE OF FIELD: "<<fieldClass->totalInstanceSize<<"\n\n";
+			}else if(fieldSignatureBH == nullptr && (fieldDescriptorBH!=nullptr))// && !std::regex_search(reinterpret_cast<const char*>((char *)fieldDescriptorBH), prefix_regex)  && std::regex_search(reinterpret_cast<const char*>(fieldDescriptorBH), prefix_regex2))
+			{
+				//std::cerr<<"SIGNATURE WAS NULL, GOT FIELD DESCRIPTOR CHARACTERS INSTEAD: "<< (char *)fieldDescriptorBH<<"\n";	
+				if(std::regex_search(reinterpret_cast<const char*>(fieldDescriptorBH), prefix_regex2) && !std::regex_search(reinterpret_cast<const char*>((char *)fieldDescriptorBH), prefix_regex))
+				{
+					UDATA fieldDescriptorLengthBH = (UDATA)strlen(reinterpret_cast<const char*>(fieldDescriptorBH));
+					//std::cerr<<"\n\nGOT FIELD SIGNATURE LENGTH\n\n";	
+					UDATA classPreloadFlagsBH = 0;
+					classPreloadFlagsBH = J9_FINDCLASS_FLAG_THROW_ON_FAIL;
+					//classPreloadFlagsBH = J9_FINDCLASS_FLAG_EXISTING_ONLY;
+					//classPreloadFlagsBH |= J9_FINDCLASS_FLAG_CHECK_PKG_ACCESS;
+					//classPreloadFlagsBH = J9_FINDCLASS_FLAG_USE_LOADER_CP_ENTRIES;
+					//std::cerr<<"\n\nBEFORE CALLING INTERNALFINDCLASSUTF8\n\n";	
+
+					//omrthread_monitor_exit(_context->javaVM()->classTableMutex);
+					fieldClass = _context->javaVM()->internalVMFunctions->internalFindClassUTF8(_context->javaVM()->mainThread, fieldDescriptorBH + 1, fieldDescriptorLengthBH - 2, _context->classLoader(), classPreloadFlagsBH);
+					//omrthread_monitor_enter(_context->javaVM()->classTableMutex);
+					if(fieldClass!=nullptr)
+					{
+						std::cerr<<"successfully retrieved class from field signature: "<< (char *)fieldDescriptorBH<< "\n";	
+						std::cerr<<"INSTANCE SIZE OF FIELD: "<<fieldClass->totalInstanceSize<<"\n\n";
+					}else{
+
+						std::cerr<<"class returned is null for this signature/descriptor: "<< (char *)fieldDescriptorBH<< "\n";	
+					}
+				}
+
+			}else if(std::regex_search(reinterpret_cast<const char*>((char *)fieldSignatureBH), prefix_regex1))
+			{
+				//std::cerr<<"L TYPE FIELD NOT BEING FETCHED PROPERLY\n";
+			}
+			
+			---------------------------------*/
+
 			CheckSize _(cursor, sizeof(J9ROMFieldShape));
 
 			cursor->writeSRP(_srpKeyProducer->mapCfrConstantPoolIndexToKey(iterator.getNameIndex()), Cursor::SRP_TO_UTF8);
@@ -701,7 +771,11 @@ ROMClassWriter::writeFields(Cursor *cursor, bool markAndCountOnly)
 			_classFileOracle->fieldTypeAnnotationDo(iterator.getFieldIndex(), &annotationWriter, &annotationWriter, &annotationWriter);
 			cursor->padToAlignment(sizeof(U_32), Cursor::GENERIC);
 		}
-
+		
+		/*if(nullRestFlagBH == 1)
+		{
+			std::cerr<<"end of loop iteration\n"<<std::endl;
+		}*/
 
 		iterator.next();
 	}

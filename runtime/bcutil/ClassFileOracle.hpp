@@ -952,7 +952,10 @@ class RecordComponentIterator
 
 	bool markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char *fieldTypeDescriptor, char *fieldNameDescriptor);
 
+	void filterValueFieldsBasedOnCacheSize();
 	void readFieldsFromExternalFileBH();
+	void readFieldSizesFromExternalFileBH();
+	std::string cleanU8String(const U_8* u8str, UDATA length);
 
 	std::string decorateClassTypeDescriptorBH(std::string descriptor);
 
@@ -1000,7 +1003,9 @@ class RecordComponentIterator
 	U_16 getBootstrapMethodCount() const { return hasBootstrapMethods() ? _bootstrapMethodsAttribute->numberOfBootstrapMethods : 0; }
 
 	//inliningjclclasses: get _hasExternalFileBeenRead flag
+	bool filteredBasedOnCacheSizeBH() const {return _filteredBasedOnCacheSizeBH;};
 	bool externalFileHasBeenReadBH() const {return _hasExternalFileBeenReadBH;}
+	bool fieldSizesHaveBeenReadBH() const {return _fieldSizesHaveBeenReadBH;}
 	bool hasClassAnnotations() const { return NULL != _annotationsAttribute; }
 	bool hasTypeAnnotations() const { return NULL != _typeAnnotationsAttribute; }
 	U_16 getFieldNameIndex(U_16 fieldIndex) const { return _classFile->fields[fieldIndex].nameIndex; }
@@ -1152,7 +1157,10 @@ private:
 	//inliningjclclasses : if for a field descriptor as key, this map's value is true, it means don't mark null restricted anywhere for that field. 
 	//value is initialized to true when the input file contains a "-1" number of inlining constraints.
 	static std::unordered_map<std::string, bool> doNotInlineAnywhere;
+	static std::unordered_map<std::string, int> fieldSignatureToInstanceSizeMapBH;
 	static bool _hasExternalFileBeenReadBH;
+	static bool _fieldSizesHaveBeenReadBH;
+	bool _filteredBasedOnCacheSizeBH;
 	U_16 _singleScalarStaticCount;
 	U_16 _objectStaticCount;
 	U_16 _doubleScalarStaticCount;

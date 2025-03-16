@@ -39,6 +39,13 @@
 #include "vm_internal.h"
 //inliningjclclasses : add include
 #include<iostream>
+#include<regex>
+#include<vector>
+#include<string>
+#include<unordered_map>
+#include<map>
+#include<fstream>
+#include<algorithm>
 
 #include "VMHelpers.hpp"
 
@@ -147,6 +154,11 @@ typedef struct J9OverrideErrorData {
 	J9UTF8 *methodSigUTF;
 } J9OverrideErrorData;
 
+//inliningjclclasses -----------------------
+std::string cleanU8String(const U_8* u8str, UDATA length);
+static void readFieldsFromExternalFileBH(std::map<std::string, int> &fieldNameToSizeMap);
+static std::string trimBH(const std::string &str);
+// -----------------------------------------
 static J9Class* markInterfaces(J9ROMClass *romClass, J9Class *superclass, J9ClassLoader *classLoader, BOOLEAN *foundCloneable, UDATA *markedInterfaceCount, UDATA *inheritedInterfaceCount, IDATA *maxInterfaceDepth);
 static void unmarkInterfaces(J9Class *interfaceHead);
 static void createITable(J9VMThread* vmStruct, J9Class *ramClass, J9Class *interfaceClass, J9ITable ***previousLink, UDATA **currentSlot, UDATA depth);
@@ -198,6 +210,52 @@ static void initializeClassLinks(J9Class *ramClass, J9Class *superclass, J9Memor
 #else /* JAVA_SPEC_VERSION == 8 */
 #define MAGIC_ACCESSOR_IMPL "jdk/internal/reflect/MagicAccessorImpl"
 #endif /* JAVA_SPEC_VERSION == 8 */
+
+
+std::string trimBH(const std::string& str) {
+    size_t first = str.find_first_not_of(" \t\n\r\f\v");
+    if (first == std::string::npos) return ""; // If all spaces, return empty string
+    
+    size_t last = str.find_last_not_of(" \t\n\r\f\v");
+    return str.substr(first, last - first + 1);
+}
+
+std::string cleanU8String(const U_8* u8str, UDATA length) {
+    std::string result;
+    for (size_t i = 0; i < length; i++) {
+        if (std::isprint(u8str[i])) {  // Remove non-printable characters
+            result += static_cast<char>(u8str[i]);
+        }
+    }
+    return result;
+}
+
+static void 
+readFieldsFromExternalFileBH(std::map<std::string, int> &fieldNameToSizeMap)
+{
+	std::ifstream inputFile("toBeInlined.txt");
+	std::string line;
+
+	// Read each line
+	while (std::getline(inputFile, line)) 
+	{  
+		std::stringstream ss(line);
+		std::string tempDescriptor;
+
+		// read in value class descriptor and initialize a map entry for it
+		ss >> tempDescriptor;
+		std::string tempDescriptorRemoveSpaces = trimBH(tempDescriptor);
+		
+		//std::cerr<<"storing -1 for "<<tempDescriptor<<" in map\n";
+		fieldNameToSizeMap[tempDescriptor] = -1; // if after fetching classes, the value is still -1
+							 // it would mean the class wasn't fetched properly
+		//std::cerr<<"value stored is "<<fieldNameToSizeMap[tempDescriptor]<<" ";
+		continue; 
+
+	}
+}
+
+
 
 static VMINLINE J9Class *
 getArrayClass(J9Class *elementClass, UDATA options)
@@ -1956,6 +2014,7 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 	BOOLEAN result = TRUE;
 	UDATA flattenableFieldCount = 0;
 	bool eligibleForFastSubstitutability = true;
+	static const std::regex prefix_regex3(R"(^\[*LInlineField)");
 
 	/* iterate over fields and load classes of fields marked as NullRestricted */
 	while (NULL != field) {
@@ -1972,7 +2031,8 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 				break;
 			case 'L':
 			{
-				if (J9_ARE_ALL_BITS_SET(modifiers, J9FieldFlagIsNullRestricted)) {
+				//inliningjclclasses
+				if (J9_ARE_ALL_BITS_SET(modifiers, J9FieldFlagIsNullRestricted)){// && !std::regex_search(reinterpret_cast<const char*>((char *)signatureChars), prefix_regex3)) {
 					J9Class *valueClass = internalFindClassUTF8(currentThread, signatureChars + 1, signatureLength - 2, classLoader, classPreloadFlags);
 					if (NULL == valueClass) {
 						result = FALSE;
@@ -3617,6 +3677,17 @@ internalCreateRAMClassFromROMClass(J9VMThread *vmThread, J9ClassLoader *classLoa
 		}
 	}
 
+
+	//inliningjclclasses -------------------------
+	J9ROMFieldWalkState fieldWalkStateBH = {0};
+	J9ROMFieldShape *fieldBH = romFieldsStartDo(romClass, &fieldWalkStateBH);
+	const std::regex prefix_regex_container(R"(^Container)");
+	static std::map<std::string, int> valueTypeFieldsSizesBH;
+	static bool hasExternalFileBeenReadBH = false;
+	static const std::regex prefix_regex_library(R"(^(\[*L)?(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/|jdk/|com/))");
+	std::ofstream outFileBH("fieldClassSizes.txt", std::ios::app);
+	//--------------------------------------------
+
 	/* if elementClass is non-null then this is an array */
 
 	/* OTHER THINGS NOT DONE:
@@ -3628,6 +3699,14 @@ internalCreateRAMClassFromROMClass(J9VMThread *vmThread, J9ClassLoader *classLoa
 
 	className = J9ROMCLASS_CLASSNAME(romClass);
 	Trc_VM_CreateRAMClassFromROMClass_className(vmThread, romClass, J9UTF8_LENGTH(className), J9UTF8_DATA(className));
+	
+	U_8 *classNameBH = J9UTF8_DATA(className);
+	//inliningjclclasses -----------------------------
+	if(std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_container))
+	{
+		//std::cerr<<"gotten class name successfully\n";
+	}
+	//------------------------------------------------
 
 retry:
 	if (!hotswapping) {
@@ -3638,8 +3717,10 @@ retry:
 		}
 	}
 
+
 	/* To prevent deadlock, release the classTableMutex before loading the classes required for the new class. */
 	omrthread_monitor_exit(javaVM->classTableMutex);
+
 
 	if (J2SE_VERSION(javaVM) >= J2SE_V11) {
 		if (NULL == classBeingRedefined) {
@@ -3703,6 +3784,11 @@ retry:
 					}
 				}
 				if (findModule) {
+					/*if(std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_container))
+					{
+						std::cerr<<"findModule is true for container...\n";
+					}*/
+					// --------------------------------------------------------------------
 					U_32 pkgNameLength = (U_32)packageNameLength(romClass);
 					omrthread_monitor_t classLoaderModuleAndLocationMutex = javaVM->classLoaderModuleAndLocationMutex;
 					omrthread_monitor_enter(classLoaderModuleAndLocationMutex);
@@ -3721,6 +3807,11 @@ retry:
 	}
 #if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	if (romFieldCount > DEFAULT_NUMBER_OF_ENTRIES_IN_FLATTENED_CLASS_CACHE) {
+		//inliningjclclasses
+		if(std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_container))
+		{
+			std::cerr<<"romfieldcount > default number of entries for container\n";
+		}
 		flattenedClassCache = (J9FlattenedClassCache *) j9mem_allocate_memory(flattenedClassCacheAllocSize, J9MEM_CATEGORY_CLASSES);
 		if (NULL == flattenedClassCache) {
 			setNativeOutOfMemoryError(vmThread, 0, 0);
@@ -3731,6 +3822,136 @@ retry:
 		memset(flattenedClassCache, 0, flattenedClassCacheAllocSize);
 	}
 
+	//inliningjclclasses -----------------------------------------------------------------
+	
+	// reading which fields to check sizes for from external file; if not done already
+	
+	if(!std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_library))
+	{
+		//std::cerr<<"iterating fields to get their sizes in class "<<(char *)classNameBH<<"\n";
+		if(!hasExternalFileBeenReadBH)
+		{
+			hasExternalFileBeenReadBH = true;
+			readFieldsFromExternalFileBH(valueTypeFieldsSizesBH); // passing unordered map by reference for being populated
+		}
+
+
+		while (NULL != fieldBH) {
+
+			//const U_32 modifiers = fieldBH->modifiers;
+			J9UTF8 *signature = J9ROMFIELDSHAPE_SIGNATURE(fieldBH);
+			U_8 *fieldSignatureBH = J9UTF8_DATA(signature);
+			UDATA fieldSignatureLengthBH = J9UTF8_LENGTH(signature);
+			J9Class *fieldClass;
+			//!std::regex_search(reinterpret_cast<const char*>((char *)fieldDescriptorBH)
+			if(fieldSignatureBH!=nullptr)
+			{
+				// find size of the field's class only if it is a value type class listed in the external file
+				// and we have not read it already (i.e. it's corresponding size in the map is still the default value of -1)
+				//std::cerr<<"retrieved field signature: "<<(char *)fieldSignatureBH<<"\n";
+				
+				std::string temp;
+				// directly casting it to char * adds some invisible characters at the end
+				// because apparently U_8 * is not null-terminated
+				temp = cleanU8String(fieldSignatureBH, fieldSignatureLengthBH);
+				for(const auto& ele : valueTypeFieldsSizesBH)
+				{
+					if(ele.first.compare(temp) == 0)
+					{
+						//std::cerr<<"found field signature in map "<<ele.first<<" with size "<< ele.second <<"\n";
+						if(valueTypeFieldsSizesBH[temp] == -1)
+						{
+
+							fieldClass = internalFindClassUTF8(vmThread, fieldSignatureBH + 1, fieldSignatureLengthBH - 2, hostClassLoader, classPreloadFlags);
+
+							if(fieldClass!=nullptr)
+							{
+								std::cerr<<"successfully retrieved class from field signature: "<< (char *)fieldSignatureBH <<"\n";	
+								std::cerr<<"INSTANCE SIZE OF FIELD: "<<fieldClass->totalInstanceSize<<"\n";
+								int fieldClassInstanceSize = fieldClass->totalInstanceSize;
+								valueTypeFieldsSizesBH[ele.first] = fieldClassInstanceSize;
+
+								outFileBH << ele.first << " " << fieldClassInstanceSize << "\n";
+							}else{
+								std::cerr<<"internalFindClassUTF8 returned null for field "<< (char *)fieldSignatureBH <<"\n";
+							}
+						}else{
+							std::cerr<<"size already marked for "<<(char *)fieldSignatureBH<<"\n";
+						}
+						break;
+					}
+				}
+				/*if(valueTypeFieldsSizesBH.find(temp) != valueTypeFieldsSizesBH.end())
+				{
+				}else{
+					std::cerr<<"did not find in map: "<<(char *)fieldSignatureBH<<"\n";
+				}*/
+			}
+
+
+			fieldBH = romFieldsNextDo(&fieldWalkStateBH);
+		}
+		outFileBH.close();
+
+		/*std::cerr<<"map contents: ";
+		for (const auto& field : valueTypeFieldsSizesBH) {
+			std::cerr << field.first << " -> " << field.second << ", ";
+		}
+
+		std::cerr<<"\n\n";*/
+	}
+	// ------------------------------------------
+	// inliningjclclasses -----------------------------------------------------------------------------
+	
+	//BOOLEAN resultBH = TRUE;
+	//UDATA flattenableFieldCount = 0;
+	//bool eligibleForFastSubstitutability = true;
+
+	/* iterate over fields and load classes of fields marked as NullRestricted */
+	/*while (NULL != fieldBH) {
+
+		const U_32 modifiers = fieldBH->modifiers;
+		J9UTF8 *signature = J9ROMFIELDSHAPE_SIGNATURE(fieldBH);
+		U_8 *fieldSignatureBH = J9UTF8_DATA(signature);
+		UDATA fieldSignatureLengthBH = J9UTF8_LENGTH(signature);
+		//std::cerr<<"\n\nBEFORE GETTING CLAZZ POINTER FROM FIELD SIGNATURE\n\n";	
+		//U_8 *fieldSignatureBH = _classFileOracle->getUTF8Data(iterator.getGenericSignatureIndex());
+		//U_8 *fieldDescriptorBH = _classFileOracle->getUTF8Data(iterator.getDescriptorIndex());
+		J9Class *fieldClass;
+
+		static const std::regex prefix_regex(R"(^\[*L(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/|jdk/|com/))");
+		static const std::regex prefix_regex1(R"(^\[*L)");
+		static const std::regex prefix_regex2(R"(^\[*L)");
+		static const std::regex prefix_regex3(R"(^\[*LInlineField)");
+
+		//std::cerr<<"BEFORE GETTING CLASS FROM FIELD SIGNATURE\n";	
+		if((fieldSignatureBH!=nullptr) && !std::regex_search(reinterpret_cast<const char*>((char *)fieldSignatureBH), prefix_regex) && std::regex_search(reinterpret_cast<const char*>((char *)fieldSignatureBH), prefix_regex1)){
+			
+			fieldClass = internalFindClassUTF8(vmThread, fieldSignatureBH + 1, fieldSignatureLengthBH - 2, hostClassLoader, classPreloadFlags);
+
+			if(fieldClass!=nullptr)
+			{
+				std::cerr<<"successfully retrieved class from field signature: "<< (char *)fieldSignatureBH <<"\n";	
+				std::cerr<<"INSTANCE SIZE OF FIELD: "<<fieldClass->totalInstanceSize<<"\n";
+
+				if(std::regex_search(reinterpret_cast<const char*>((char *)fieldSignatureBH), prefix_regex3))
+				{
+					if(J9_ARE_ALL_BITS_SET(modifiers, J9FieldFlagIsNullRestricted))
+					{
+						//std::cerr<<"un-setting null restricted flags\n";
+						//fieldBH->modifiers |= ~J9FieldFlagIsNullRestricted;
+						//fieldClass->romClass->modifiers |= ~J9FieldFlagIsNullRestricted;	
+					}
+				}
+				std::cerr<<"\n";
+			}
+		}
+
+		fieldBH = romFieldsNextDo(&fieldWalkStateBH);
+	}*/
+
+	// ------------------------------------------------------------------------------------------------
+	
 #endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	if (!loadSuperClassAndInterfaces(vmThread, hostClassLoader, romClass, options, elementClass, hotswapping, classPreloadFlags, &superclass, module)
 #if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)

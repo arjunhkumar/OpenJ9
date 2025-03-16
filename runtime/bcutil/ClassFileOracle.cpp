@@ -117,6 +117,8 @@ bool ClassFileOracle::isFlattenablePrimitiveClassBH(char *descriptor)
 	{
 		_hasExternalFileBeenReadBH = true;
 		readFieldsFromExternalFileBH();
+		_fieldSizesHaveBeenReadBH = true;
+		readFieldSizesFromExternalFileBH();
 	}
 	
 	for(const auto& element : markNullRestricted)
@@ -145,8 +147,22 @@ bool ClassFileOracle::isFlattenablePrimitiveClassBH(char *descriptor)
 //inliningjclclasses
 
 bool ClassFileOracle::_hasExternalFileBeenReadBH = false;
+bool ClassFileOracle::_fieldSizesHaveBeenReadBH = false;
+//bool ClassFileOracle::_filteredBasedOnCacheSizeBH;
 std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> ClassFileOracle::markNullRestricted;
 std::unordered_map<std::string, bool> ClassFileOracle::doNotInlineAnywhere;
+std::unordered_map<std::string, int> ClassFileOracle::fieldSignatureToInstanceSizeMapBH;
+
+std::string 
+ClassFileOracle::cleanU8String(const U_8* u8str, UDATA length) {
+    std::string result;
+    for (size_t i = 0; i < length; i++) {
+        if (std::isprint(u8str[i])) {  // Remove non-printable characters
+            result += static_cast<char>(u8str[i]);
+        }
+    }
+    return result;
+}
 
 std::string
 ClassFileOracle::decorateClassTypeDescriptorBH(std::string descriptor)
@@ -160,12 +176,36 @@ ClassFileOracle::decorateClassTypeDescriptorBH(std::string descriptor)
 	return descriptor;
 }
 
+void
+ClassFileOracle::readFieldSizesFromExternalFileBH()
+{
+
+	std::cerr<<"Reading Field Sizes from external file\n";
+	std::ifstream inputFile("fieldClassSizesInput.txt");
+	std::string line;
+
+	// Read each line
+	while (std::getline(inputFile, line)) 
+	{  
+		std::stringstream ss(line);
+		std::string tempDescriptor;
+		int totalInstanceSize;
+
+		// read in value class descriptor and initialize a map entry for it
+		ss >> tempDescriptor;
+		ss >> totalInstanceSize;
+		
+		fieldSignatureToInstanceSizeMapBH[tempDescriptor] = totalInstanceSize;
+
+	}
+}
+
 //inliningjclclasses
 void
 ClassFileOracle::readFieldsFromExternalFileBH()
 {
 	std::cerr<<"READING FROM EXTERNAL FILE\n";
-	std::ifstream inputFile("/home/bhavya/cosmos/cse/projects/valueTypesOpenj9/docs/javaValueTypes/moreValueTypes/toBeInlined.txt");
+	std::ifstream inputFile("toBeInlined.txt");
 	std::string line;
 
 	// Read each line
@@ -207,6 +247,94 @@ ClassFileOracle::readFieldsFromExternalFileBH()
 	}
 }
 
+void 
+ClassFileOracle::filterValueFieldsBasedOnCacheSize()
+{
+	int cacheLineSize = _context->javaVM()->dCacheLineSize;
+	int twiceCacheLineSize = 2*cacheLineSize;
+	int totalSizeOfFieldsSoFar = 0;
+	int sizeWithoutInlining = 0;
+	int sizeOfSRP = sizeof(J9SRP);
+	int sizeOfHeader = 12;
+	bool exceededCacheSizeFlag = false;
+
+	U_8 *classTypeDesc = this->getUTF8Data(this->getClassNameIndex());
+	U_16 classTypeDescLength = this->getUTF8Length(this->getClassNameIndex());
+	std::string classDescStr = cleanU8String(classTypeDesc, (UDATA)classTypeDescLength);
+	
+	// we first calculate the size of the object without any inlining 
+	// --- just adding the SRP size and the header size (8 bytes)
+	sizeWithoutInlining = (static_cast<int>(this->getFieldsCount()))*sizeOfSRP + sizeOfHeader;	
+	totalSizeOfFieldsSoFar = sizeWithoutInlining;
+
+	//std::cerr<<"INSIDE filterValueFieldsBasedOnCacheSize ....\n";
+
+	ClassFileOracle::FieldIterator iterator = this->getFieldIterator();
+	while(iterator.isNotDone()){
+
+		//U_8 *fieldSignatureBH = this->getUTF8Data(iterator.getGenericSignatureIndex());
+		U_8 *fieldDescriptorBH = this->getUTF8Data(iterator.getDescriptorIndex());
+		U_16 fieldDescriptorBHLength = this->getUTF8Length(iterator.getDescriptorIndex());
+		std::string descriptorString = cleanU8String(fieldDescriptorBH, (UDATA)fieldDescriptorBHLength);
+
+		U_8 *fieldName = this->getUTF8Data(iterator.getNameIndex());
+		U_16 fieldNameLength = this->getUTF8Length(iterator.getNameIndex());
+		std::string fieldNameString = cleanU8String(fieldName, (UDATA)fieldNameLength);
+
+		std::pair<std::string, std::string> tempPair(classDescStr, fieldNameString);
+		
+		//std::cerr<<"searching field "<< descriptorString <<" in the map\n";
+		if(fieldSignatureToInstanceSizeMapBH.find(descriptorString) != fieldSignatureToInstanceSizeMapBH.end())
+		{
+			//std::cerr<<"found field descriptor in the signatureToInstanceSizeMapp...\n";
+
+			int size = fieldSignatureToInstanceSizeMapBH[descriptorString];
+			// check and see if we have the budget to inline this
+			if(size < (twiceCacheLineSize - totalSizeOfFieldsSoFar + sizeOfSRP)) // added sizeOfSRP beacause we'll be replacing SRP with the inlined obj
+			{
+				std::cerr<<"preparing the following field for inlining: "<<descriptorString<<"\n";
+				totalSizeOfFieldsSoFar += (size - sizeOfSRP); // replace it's SRP with the corresponding inlined object's size	
+			}else{
+				// if we cannot inline this, we must remove this from the map, 
+				// and if all fields of this type get removed, we must also set doNotInlineAnywhere[fieldTypeDescriptor]
+				std::cerr<<"removing the following field from to-be-nullrestricted list: "<<descriptorString<<"\n";	
+				for(auto& ele : markNullRestricted)
+				{
+					bool found = 0;
+					for(std::vector<std::pair<std::string, std::string>>::iterator it = ele.second.begin(); it != ele.second.end();)
+					{
+						if((descriptorString.compare(ele.first) == 0) && (tempPair.first.compare((*it).first) == 0 ) && (tempPair.second.compare((*it).second) == 0 )){
+							//std::cerr<<"found field in map of type: "<<descriptorString<<"\n";
+							it = ele.second.erase(it);
+							found = 1;
+							if(ele.second.size() == 0)
+							{
+								if(doNotInlineAnywhere.find(descriptorString) == doNotInlineAnywhere.end())
+								{
+									std::cerr<<"setting doNotInlineAnywhere: ("<<descriptorString<<", "<<fieldNameString<<")\n";
+									doNotInlineAnywhere[descriptorString] = true;	
+								}
+							}
+							break;
+						}else{
+							++it;
+						}
+					}
+					if(found == 1)
+					{
+						break;
+					}
+				}
+				
+			}
+
+		}
+
+		iterator.next();
+	}
+
+}
+
 //inliningjclclasses
 bool
 ClassFileOracle::markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char *fieldTypeDescriptor, char *fieldNameDescriptor)
@@ -219,9 +347,25 @@ ClassFileOracle::markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char
 
 	if(!externalFileHasBeenReadBH())
 	{
+		// reading which fields to potentially mark as null restricted
 		_hasExternalFileBeenReadBH = true;
+		_fieldSizesHaveBeenReadBH = true;
+		// reading field sizes for all inlineable fields
 		readFieldsFromExternalFileBH();
+		readFieldSizesFromExternalFileBH();
 	}
+	
+	if(!filteredBasedOnCacheSizeBH())
+	{
+		_filteredBasedOnCacheSizeBH = true;
+		filterValueFieldsBasedOnCacheSize();
+	}
+
+	/*std::cerr<<"map contents before making nullrestricted decision for "<<fieldTypeDesc<<": \n";
+	for(auto&ele : markNullRestricted)
+	{
+		std::cerr<<ele.first<<
+	}*/
 
 	if(markNullRestricted.find(fieldTypeDescriptor) == markNullRestricted.end())
 	{
@@ -234,8 +378,10 @@ ClassFileOracle::markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char
 		// to check that we check doNotInlineAnywhere
 		if(doNotInlineAnywhere[fieldTypeDescriptor])
 		{
+			std::cerr<<"RETURNING FALSE FOR MARKING doNotInlineAnywhere "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
 			return false;
 		}else{
+			std::cerr<<"RETURNING TRUE FOR MARKING ddoNotInlineAnywhere "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
 			return true;
 
 		}
@@ -393,7 +539,8 @@ ClassFileOracle::ClassFileOracle(BufferManager *bufferManager, J9CfrClassFile *c
 	_recordComponentCount(0),
 	_permittedSubclassesAttribute(NULL),
 	_isSealed(false),
-	_isClassValueBased(false)
+	_isClassValueBased(false),
+	_filteredBasedOnCacheSizeBH(false)
 {
 	Trc_BCU_Assert_NotEquals( classFile, NULL );
 
