@@ -110,7 +110,7 @@ ClassFileOracle::KnownAnnotation ClassFileOracle::_knownAnnotations[] = {
 
 //inliningjclclasses
 
-bool ClassFileOracle::isFlattenablePrimitiveClassBH(char *descriptor)
+bool ClassFileOracle::isFlattenablePrimitiveClassBH(std::string descriptor)
 {
 	std::string inputDescriptor(descriptor);
 	if(!externalFileHasBeenReadBH())
@@ -337,7 +337,7 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 
 //inliningjclclasses
 bool
-ClassFileOracle::markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char *fieldTypeDescriptor, char *fieldNameDescriptor)
+ClassFileOracle::markFieldAsNullRestrictedBH(std::string containerTypeDescriptor, std::string fieldTypeDescriptor, std::string fieldNameDescriptor)
 {
 	//static bool externalFileHasBeenRead = false;	
 	std::string containerDesc(containerTypeDescriptor);
@@ -671,17 +671,21 @@ ClassFileOracle::walkFields()
 		
 		//inliningjclclasses
 
-		if((markFieldAsNullRestrictedBH((char *)(this->getUTF8Data(this->getClassNameIndex())),(char *)(this->getUTF8Data(field->descriptorIndex)), (char *)(this->getUTF8Data(field->nameIndex))) && !isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))){
+		if((markFieldAsNullRestrictedBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex()))),
+						cleanU8String(this->getUTF8Data(field->descriptorIndex), (UDATA)(this->getUTF8Length(field->descriptorIndex))),
+						cleanU8String(this->getUTF8Data(field->nameIndex), (UDATA)(this->getUTF8Length(field->nameIndex)))) 
+						&& !isLibraryClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex()))))))
+		{
 			std::cerr<<"FLATTENABLE IN A NON LIBRARY CLASS, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
 			_fieldsInfo[fieldIndex].isNullRestricted = true;
 		
 			std::cerr<<"FIELD DESCRIPTOR: "<<((char *)(this->getUTF8Data(field->descriptorIndex)))<<", AND FIELD VARIABLE NAME: "<<((char *)(this->getUTF8Data(field->nameIndex)))<<"\n";
 
 		}else{
-			if(isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+			/*if(isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
 			{
 				//std::cout<<"LIBRARY CLASS HENCE AVOIDING NULLRESTRICTED SET: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
-			}
+			}*/
 
 		}
 
@@ -822,7 +826,7 @@ ClassFileOracle::walkAttributes()
 	ROMClassVerbosePhase v(_context, ClassFileAttributesAnalysis);
 
 	//inliningjclclasses: if we want this class to be inlined, implicit creation flags must be turned on
-	if(isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
 	{
 		std::cerr<<"SETTING IMPLICITCREATEHASDEFAULTVALUE IN CLASS: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
 		_hasImplicitCreationAttribute = true;
@@ -830,7 +834,7 @@ ClassFileOracle::walkAttributes()
 	}
 	// inliningjclclasses: setting identity to false if we want this class to get inlined. 
 	// "value" is determined by a lack of identity flag in the current openj9 version
-	if(isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
 	{
 		std::cerr<<"TURNING OFF IDENTITY IN CLASS: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
 		//(_classFile->accessFlags) &= ~CFR_ACC_IDENTITY;
@@ -839,7 +843,7 @@ ClassFileOracle::walkAttributes()
 	}
 
 	// inliningjclclasses: setting the right classfile version:
-	if(isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()),(UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
 	{
 		std::cerr<<"SETTING RIGHT VERSION IN CLASSFILE: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
 		std::cerr<<"MAJOR VERSION: "<<_classFile->majorVersion<<", MINOR VERSION: "<< _classFile->minorVersion << "\n";

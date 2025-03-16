@@ -935,12 +935,12 @@ class RecordComponentIterator
 	 * Query methods.
 	 */
 	//inliningjclclasses
-	bool isLibraryClassBH(char *descriptor) const {
+	bool isLibraryClassBH(std::string descriptor) const {
 		static const std::regex prefix_regex(R"(^(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/|jdk/|com/))");
-		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
+		return std::regex_search(descriptor, prefix_regex);
 	}
 
-	bool isFlattenablePrimitiveClassBH(char *descriptor); /*const {
+	bool isFlattenablePrimitiveClassBH(std::string descriptor); /*const {
 		static const std::regex prefix_regex(R"(^(?:L)?(?:java/lang/Integer|InlineField|java/lang/Number)(;)?$)");
 		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
 	}*/
@@ -950,7 +950,7 @@ class RecordComponentIterator
 		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
 	}
 
-	bool markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char *fieldTypeDescriptor, char *fieldNameDescriptor);
+	bool markFieldAsNullRestrictedBH(std::string containerTypeDescriptor, std::string fieldTypeDescriptor, std::string fieldNameDescriptor);
 
 	void filterValueFieldsBasedOnCacheSize();
 	void readFieldsFromExternalFileBH();

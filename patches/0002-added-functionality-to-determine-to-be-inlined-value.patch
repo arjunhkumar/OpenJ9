@@ -1,0 +1,284 @@
+From b9f504eaba51a7d8a293b46a8f4636585980d236 Mon Sep 17 00:00:00 2001
+From: bhavya <bhavya25hirani@gmail.com>
+Date: Tue, 11 Mar 2025 14:23:53 -0400
+Subject: [PATCH 2/3] added functionality to determine to-be-inlined value
+ classes through a file on the system
+
+---
+ runtime/bcutil/ClassFileOracle.cpp | 168 ++++++++++++++++++++++++++++-
+ runtime/bcutil/ClassFileOracle.hpp |  24 ++++-
+ 2 files changed, 187 insertions(+), 5 deletions(-)
+
+diff --git a/runtime/bcutil/ClassFileOracle.cpp b/runtime/bcutil/ClassFileOracle.cpp
+index 93e1ce3853..35bf1f8567 100644
+--- a/runtime/bcutil/ClassFileOracle.cpp
++++ b/runtime/bcutil/ClassFileOracle.cpp
+@@ -37,6 +37,12 @@
+ #include "j9protos.h"
+ //inliningjclclasses
+ #include<iostream>
++#include<sstream>
++#include<fstream>
++#include<unordered_map>
++#include<string>
++#include<vector>
++#include<utility>
+ 
+ /* The array entries must be in same order as the enums in ClassFileOracle.hpp */
+ ClassFileOracle::KnownAnnotation ClassFileOracle::_knownAnnotations[] = {
+@@ -102,6 +108,151 @@ ClassFileOracle::KnownAnnotation ClassFileOracle::_knownAnnotations[] = {
+ 		{0, 0}
+ };
+ 
++//inliningjclclasses
++
++bool ClassFileOracle::isFlattenablePrimitiveClassBH(char *descriptor)
++{
++	std::string inputDescriptor(descriptor);
++	if(!externalFileHasBeenReadBH())
++	{
++		_hasExternalFileBeenReadBH = true;
++		readFieldsFromExternalFileBH();
++	}
++	
++	for(const auto& element : markNullRestricted)
++	{
++		std::string decoratedTypeDesc = element.first;
++		std::regex rgx("[\[]*L(([a-z_/])*[A-Z][a-zA-Z_0-9]*);");
++		std::smatch match;
++
++		if (std::regex_search(decoratedTypeDesc, match, rgx)){
++
++			if(match[1].str() == (inputDescriptor))
++			{
++				return true;
++			}
++		}
++
++	}
++
++	return false;
++
++}
++/*const { static const std::regex prefix_regex(R"(^(?:L)?(?:java/lang/Integer|InlineField|java/lang/Number)(;)?$)");
++							return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
++							}*/
++
++//inliningjclclasses
++
++bool ClassFileOracle::_hasExternalFileBeenReadBH = false;
++std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> ClassFileOracle::markNullRestricted;
++std::unordered_map<std::string, bool> ClassFileOracle::doNotInlineAnywhere;
++
++std::string
++ClassFileOracle::decorateClassTypeDescriptorBH(std::string descriptor)
++{
++	std::string prefix("L");	
++	std::string suffix(";");
++
++	descriptor.insert(0, prefix);
++	descriptor.append(suffix);
++
++	return descriptor;
++}
++
++//inliningjclclasses
++void
++ClassFileOracle::readFieldsFromExternalFileBH()
++{
++	std::cerr<<"READING FROM EXTERNAL FILE\n";
++	std::ifstream inputFile("/home/bhavya/cosmos/cse/projects/valueTypesOpenj9/docs/javaValueTypes/moreValueTypes/toBeInlined.txt");
++	std::string line;
++
++	// Read each line
++	while (std::getline(inputFile, line)) 
++	{  
++		std::stringstream ss(line);
++		std::string tempDescriptor;
++		std::string tempContainer;
++		std::string tempFieldName;
++		int numOfFields;
++
++		// read in value class descriptor and initialize a map entry for it
++		ss >> tempDescriptor;
++		markNullRestricted[tempDescriptor] = {};
++
++		ss >> numOfFields;
++		
++		if(numOfFields == -1)
++		{
++			//means don't put null restricted for this field anywhere.
++			doNotInlineAnywhere[tempDescriptor] = true;
++			continue; // in the input file, the -1 should not be followed by anything in the rest of the line. 
++				  // we should scan the next line now
++
++		}
++
++		if(numOfFields>=0)
++		{
++			// 0 means inlinine everywhere (handled in the markFieldAsNullRestricted function)
++			for(int i=0; i<numOfFields; i++)
++			{
++				ss >> tempContainer;
++				ss >> tempFieldName;
++
++				markNullRestricted[tempDescriptor].push_back({tempContainer, tempFieldName});
++			}
++		}
++
++	}
++}
++
++//inliningjclclasses
++bool
++ClassFileOracle::markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char *fieldTypeDescriptor, char *fieldNameDescriptor)
++{
++	//static bool externalFileHasBeenRead = false;	
++	std::string containerDesc(containerTypeDescriptor);
++	std::string fieldTypeDesc(fieldTypeDescriptor);
++	std::string fieldNameDesc(fieldNameDescriptor);
++	//std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> markNullRestricted;
++
++	if(!externalFileHasBeenReadBH())
++	{
++		_hasExternalFileBeenReadBH = true;
++		readFieldsFromExternalFileBH();
++	}
++
++	if(markNullRestricted.find(fieldTypeDescriptor) == markNullRestricted.end())
++	{
++		return false;
++	}
++
++	if(markNullRestricted[fieldTypeDescriptor].size() == 0)
++	{
++		// no constraints means either we inline everywhere or nowhere.
++		// to check that we check doNotInlineAnywhere
++		if(doNotInlineAnywhere[fieldTypeDescriptor])
++		{
++			return false;
++		}else{
++			return true;
++
++		}
++	}
++	
++	for(int i=0; i<markNullRestricted[fieldTypeDescriptor].size(); i++)
++	{
++		std::pair<std::string, std::string> tempPair(containerDesc, fieldNameDesc);
++		if(markNullRestricted[fieldTypeDescriptor][i] == tempPair){
++			std::cerr<<"RETURNING TRUE FOR MARKING "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
++			return true;
++		}
++	}
++
++	return false;
++
++}
+ 
+ bool
+ ClassFileOracle::containsKnownAnnotation(UDATA knownAnnotationSet, UDATA knownAnnotation)
+@@ -373,11 +524,11 @@ ClassFileOracle::walkFields()
+ 		
+ 		//inliningjclclasses
+ 
+-		if((isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(field->descriptorIndex))) && !isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))){
++		if((markFieldAsNullRestrictedBH((char *)(this->getUTF8Data(this->getClassNameIndex())),(char *)(this->getUTF8Data(field->descriptorIndex)), (char *)(this->getUTF8Data(field->nameIndex))) && !isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))){
+ 			std::cerr<<"FLATTENABLE IN A NON LIBRARY CLASS, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+ 			_fieldsInfo[fieldIndex].isNullRestricted = true;
+ 		
+-			std::cerr<<"FIELD VARIABLE NAME: "<<((char *)(this->getUTF8Data(field->nameIndex)))<<"\n";
++			std::cerr<<"FIELD DESCRIPTOR: "<<((char *)(this->getUTF8Data(field->descriptorIndex)))<<", AND FIELD VARIABLE NAME: "<<((char *)(this->getUTF8Data(field->nameIndex)))<<"\n";
+ 
+ 		}else{
+ 			if(isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
+@@ -387,6 +538,19 @@ ClassFileOracle::walkFields()
+ 
+ 		}
+ 
++		/*if((isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(field->descriptorIndex))) && !isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))){
++			std::cerr<<"FLATTENABLE IN A NON LIBRARY CLASS, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
++			_fieldsInfo[fieldIndex].isNullRestricted = true;
++		
++			std::cerr<<"FIELD VARIABLE NAME: "<<((char *)(this->getUTF8Data(field->nameIndex)))<<"\n";
++
++		}else{
++			if(isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
++			{
++				//std::cout<<"LIBRARY CLASS HENCE AVOIDING NULLRESTRICTED SET: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
++			}
++
++		}*/
+ 		/*if((isFlattenablePrimitiveClassBH((char *)(this->getUTF8Data(field->descriptorIndex))))){
+ 			std::cerr<<"FLATTENABLE FIELD BEING SET AS NULL RESTRICTED, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+ 			_fieldsInfo[fieldIndex].isNullRestricted = true;
+diff --git a/runtime/bcutil/ClassFileOracle.hpp b/runtime/bcutil/ClassFileOracle.hpp
+index 9fecdebb15..56f4e871f0 100644
+--- a/runtime/bcutil/ClassFileOracle.hpp
++++ b/runtime/bcutil/ClassFileOracle.hpp
+@@ -36,6 +36,10 @@
+ 
+ //inliningjclclasses
+ #include<regex>
++#include<utility>
++#include<string>
++#include<unordered_map>
++#include<vector>
+ 
+ #include "BuildResult.hpp"
+ #if defined(J9VM_OPT_OPENJDK_METHODHANDLE)
+@@ -932,20 +936,26 @@ class RecordComponentIterator
+ 	 */
+ 	//inliningjclclasses
+ 	bool isLibraryClassBH(char *descriptor) const {
+-		static const std::regex prefix_regex(R"(^(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/))");
++		static const std::regex prefix_regex(R"(^(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/|jdk/|com/))");
+ 		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
+ 	}
+ 
+-	bool isFlattenablePrimitiveClassBH(char *descriptor) const {
++	bool isFlattenablePrimitiveClassBH(char *descriptor); /*const {
+ 		static const std::regex prefix_regex(R"(^(?:L)?(?:java/lang/Integer|InlineField|java/lang/Number)(;)?$)");
+ 		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
+-	}
++	}*/
+ 
+ 	bool isCustomFlattenablePrimitiveClassBH(char *descriptor) const {
+ 		static const std::regex prefix_regex(R"(^(?:L)?(?:InlineField)(;)?$)");
+ 		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
+ 	}
+ 
++	bool markFieldAsNullRestrictedBH(char *containerTypeDescriptor, char *fieldTypeDescriptor, char *fieldNameDescriptor);
++
++	void readFieldsFromExternalFileBH();
++
++	std::string decorateClassTypeDescriptorBH(std::string descriptor);
++
+ 	/*bool isFlattenablePrimitiveClassBH(char *descriptor) const {
+ 		static const std::regex prefix_regex(R"(^(?:L)?(?:java/lang/Integer)(;)?$)");
+ 		return false;
+@@ -989,6 +999,8 @@ class RecordComponentIterator
+ 	U_8 *getSourceDebugExtensionData() const { return hasSourceDebugExtension() ? _sourceDebugExtension->value : NULL; }
+ 	U_16 getBootstrapMethodCount() const { return hasBootstrapMethods() ? _bootstrapMethodsAttribute->numberOfBootstrapMethods : 0; }
+ 
++	//inliningjclclasses: get _hasExternalFileBeenRead flag
++	bool externalFileHasBeenReadBH() const {return _hasExternalFileBeenReadBH;}
+ 	bool hasClassAnnotations() const { return NULL != _annotationsAttribute; }
+ 	bool hasTypeAnnotations() const { return NULL != _typeAnnotationsAttribute; }
+ 	U_16 getFieldNameIndex(U_16 fieldIndex) const { return _classFile->fields[fieldIndex].nameIndex; }
+@@ -1135,6 +1147,12 @@ private:
+ 	UDATA _bctFlags;
+ 	ROMClassCreationContext *_context;
+ 
++	//inliningjclclasses : declaring global map and bool to check if that map has been read already
++	static std::unordered_map<std::string, std::vector<std::pair<std::string, std::string>>> markNullRestricted;
++	//inliningjclclasses : if for a field descriptor as key, this map's value is true, it means don't mark null restricted anywhere for that field. 
++	//value is initialized to true when the input file contains a "-1" number of inlining constraints.
++	static std::unordered_map<std::string, bool> doNotInlineAnywhere;
++	static bool _hasExternalFileBeenReadBH;
+ 	U_16 _singleScalarStaticCount;
+ 	U_16 _objectStaticCount;
+ 	U_16 _doubleScalarStaticCount;
+-- 
+2.43.0
+
