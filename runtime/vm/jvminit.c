@@ -2805,11 +2805,11 @@ VMInitStages(J9JavaVM *vm, IDATA stage, void* reserved)
 				IDATA doNotProfileStaticAnalysisSites = FIND_AND_CONSUME_VMARG(EXACT_MATCH, VMOPT_DONOT_PROFILE_STATIC_SITES, NULL);
 				if (profileStaticAnalysisSites > doNotProfileStaticAnalysisSites) 
 				{
-					vm->extendedRuntimeFlags2 |= J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES;
+					vm->extendedRuntimeFlags3 |= J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES;
 				} 
 				else 
 				{
-					vm->extendedRuntimeFlags2 &= ~J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES;
+					vm->extendedRuntimeFlags3 &= ~J9_EXTENDED_RUNTIME_PROFILE_STATIC_SITES;
 				}
 				
 			}
