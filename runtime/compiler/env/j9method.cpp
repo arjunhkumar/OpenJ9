@@ -7347,9 +7347,10 @@ TR_ResolvedJ9Method::fieldAttributes(TR::Compilation * comp, I_32 cpIndex, U_32 
 
    bool isColdOrReducedWarm = (comp->getMethodHotness() < warm) || (comp->getMethodHotness() == warm && comp->getOption(TR_NoOptServer));
 
+   bool isNullRestrictedField = isFieldNullRestricted(comp, cpIndex, false /* isStatic */, true /* isStore */);
    //Instance fields in MethodHandle thunks should be resolved at compile time
    bool isMethodHandleThunk = comp->ilGenRequest().details().isMethodHandleThunk() || this->isArchetypeSpecimen();
-   bool doRuntimeResolveForEarlyCompilation = isUnresolvedInCP && isColdOrReducedWarm && !isMethodHandleThunk;
+   bool doRuntimeResolveForEarlyCompilation = isUnresolvedInCP && isColdOrReducedWarm && !isMethodHandleThunk && !isNullRestrictedField;
 
    IDATA offset;
    J9ROMFieldShape *fieldShape;
