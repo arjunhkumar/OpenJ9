@@ -34,6 +34,8 @@
 #include "j9modifiers_api.h"
 #include "VMHelpers.hpp"
 #include "vm_api.h"
+//inliningjclclasses
+#include<iostream>
 
 #define MAX_STACK_SLOTS 255
 
@@ -994,6 +996,18 @@ resolveInstanceFieldRefInto(J9VMThread *vmStruct, J9Method *method, J9ConstantPo
 					flattenableClass = J9_VM_FCC_CLASS_FROM_ENTRY(flattenedClassCacheEntry);
 					fccEntryFieldNotSet = false;
 				}
+			}else if(UDATA_MAX == fieldIndex)
+			{
+				//inliningjclclasses
+				std::cerr<<"field not found in FCC while resolving it: ";
+				std::cerr.write(reinterpret_cast<const char*>(J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig)->data), J9ROMNAMEANDSIGNATURE_SIGNATURE(nameAndSig)->length);
+				std::cerr<<" ";
+				std::cerr.write(reinterpret_cast<const char*>(J9ROMNAMEANDSIGNATURE_NAME(nameAndSig)->data), J9ROMNAMEANDSIGNATURE_NAME(nameAndSig)->length);
+				std::cerr<<" ";
+				std::cerr<<"in class ";
+				std::cerr.write(reinterpret_cast<const char*>(J9ROMCLASS_CLASSNAME(resolvedClass->romClass)->data), J9ROMCLASS_CLASSNAME(resolvedClass->romClass)->length);
+				std::cerr<<"\n";
+
 			}
 		}
 		if (fccEntryFieldNotSet) 

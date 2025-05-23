@@ -2035,6 +2035,10 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 				if (J9_ARE_ALL_BITS_SET(modifiers, J9FieldFlagIsNullRestricted)){// && !std::regex_search(reinterpret_cast<const char*>((char *)signatureChars), prefix_regex3)) {
 					J9Class *valueClass = internalFindClassUTF8(currentThread, signatureChars + 1, signatureLength - 2, classLoader, classPreloadFlags);
 					if (NULL == valueClass) {
+						std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_SIGNATURE(field)->data), J9ROMFIELDSHAPE_SIGNATURE(field)->length);
+						std::cerr<<" ";
+						std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_NAME(field)->data), J9ROMFIELDSHAPE_NAME(field)->length);
+						std::cerr<<"	could not be loaded in loadFlattenableFieldValueClasses\n";
 						result = FALSE;
 						goto done;
 					} else {
@@ -2047,7 +2051,7 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 						if(!J9_IS_CLASSFILE_OR_ROMCLASS_VALUETYPE_VERSION(valueROMClass)){
 							//inliningjclclasses : getting and printing name of this romclass
 							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"THIS CLASS IS NULL RESTRICTED BUT NOT VALUETYPE_VERSION: ";
+							std::cerr<<"	THIS CLASS IS NULL RESTRICTED BUT NOT VALUETYPE_VERSION: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
 							std::cerr << std::endl;
 						}
@@ -2055,7 +2059,7 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 						{
 							//inliningjclclasses : getting and printing name of this romclass
 							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"THIS CLASS IS NULL RESTRICTED, BUT NOT IS VALUE: ";
+							std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT IS VALUE: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
 							std::cerr << std::endl;
 						}
@@ -2064,7 +2068,7 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 						{
 							//inliningjclclasses : getting and printing name of this romclass
 							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"THIS CLASS IS NULL RESTRICTED, BUT NOT J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE: ";
+							std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
 							std::cerr << std::endl;
 						}
@@ -2073,7 +2077,7 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 						{
 							//inliningjclclasses : getting and printing name of this romclass
 							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"THIS CLASS IS NULL RESTRICTED, BUT NOT J9AccImplicitCreateHasDefaultValue: ";
+							std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT J9AccImplicitCreateHasDefaultValue: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
 							std::cerr << std::endl;
 						}
@@ -2090,7 +2094,7 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 						if (!J9_IS_FIELD_FLATTENED(valueClass, field)) {
 							//inliningjclclasses : getting name of this romclass
 							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"THIS CLASS IS NULL RESTRICTED, BUT NOT J9_IS_FIELD_FLATTENED WITHIN THE CONTAINER CLASS: ";
+							std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT J9_IS_FIELD_FLATTENED WITHIN THE CONTAINER CLASS: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
 							std::cerr << std::endl;
 
@@ -2099,6 +2103,14 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 						} else if (J9_ARE_NO_BITS_SET(valueClass->classFlags, J9ClassCanSupportFastSubstitutability)) {
 							eligibleForFastSubstitutability = false;
 						}
+
+						std::cerr<<" 	adding ";
+						std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_SIGNATURE(field)->data), J9ROMFIELDSHAPE_SIGNATURE(field)->length);
+						std::cerr<<" ";
+						std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_NAME(field)->data), J9ROMFIELDSHAPE_NAME(field)->length);
+						std::cerr<<" to the flattened class cache; containing class is ";
+						std::cerr.write(reinterpret_cast<const char*>(J9ROMCLASS_CLASSNAME(romClass)->data), J9ROMCLASS_CLASSNAME(romClass)->length);
+						std::cerr<<"\n";
 
 						J9FlattenedClassCacheEntry *entry = J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, flattenableFieldCount);
 						entry->clazz = valueClass;
@@ -3808,10 +3820,10 @@ retry:
 #if defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES)
 	if (romFieldCount > DEFAULT_NUMBER_OF_ENTRIES_IN_FLATTENED_CLASS_CACHE) {
 		//inliningjclclasses
-		if(std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_container))
+		/*if(std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_container))
 		{
 			std::cerr<<"romfieldcount > default number of entries for container\n";
-		}
+		}*/
 		flattenedClassCache = (J9FlattenedClassCache *) j9mem_allocate_memory(flattenedClassCacheAllocSize, J9MEM_CATEGORY_CLASSES);
 		if (NULL == flattenedClassCache) {
 			setNativeOutOfMemoryError(vmThread, 0, 0);
@@ -3881,11 +3893,6 @@ retry:
 						break;
 					}
 				}
-				/*if(valueTypeFieldsSizesBH.find(temp) != valueTypeFieldsSizesBH.end())
-				{
-				}else{
-					std::cerr<<"did not find in map: "<<(char *)fieldSignatureBH<<"\n";
-				}*/
 			}
 
 
@@ -3901,56 +3908,6 @@ retry:
 		std::cerr<<"\n\n";*/
 	}
 	// ------------------------------------------
-	// inliningjclclasses -----------------------------------------------------------------------------
-	
-	//BOOLEAN resultBH = TRUE;
-	//UDATA flattenableFieldCount = 0;
-	//bool eligibleForFastSubstitutability = true;
-
-	/* iterate over fields and load classes of fields marked as NullRestricted */
-	/*while (NULL != fieldBH) {
-
-		const U_32 modifiers = fieldBH->modifiers;
-		J9UTF8 *signature = J9ROMFIELDSHAPE_SIGNATURE(fieldBH);
-		U_8 *fieldSignatureBH = J9UTF8_DATA(signature);
-		UDATA fieldSignatureLengthBH = J9UTF8_LENGTH(signature);
-		//std::cerr<<"\n\nBEFORE GETTING CLAZZ POINTER FROM FIELD SIGNATURE\n\n";	
-		//U_8 *fieldSignatureBH = _classFileOracle->getUTF8Data(iterator.getGenericSignatureIndex());
-		//U_8 *fieldDescriptorBH = _classFileOracle->getUTF8Data(iterator.getDescriptorIndex());
-		J9Class *fieldClass;
-
-		static const std::regex prefix_regex(R"(^\[*L(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/|jdk/|com/))");
-		static const std::regex prefix_regex1(R"(^\[*L)");
-		static const std::regex prefix_regex2(R"(^\[*L)");
-		static const std::regex prefix_regex3(R"(^\[*LInlineField)");
-
-		//std::cerr<<"BEFORE GETTING CLASS FROM FIELD SIGNATURE\n";	
-		if((fieldSignatureBH!=nullptr) && !std::regex_search(reinterpret_cast<const char*>((char *)fieldSignatureBH), prefix_regex) && std::regex_search(reinterpret_cast<const char*>((char *)fieldSignatureBH), prefix_regex1)){
-			
-			fieldClass = internalFindClassUTF8(vmThread, fieldSignatureBH + 1, fieldSignatureLengthBH - 2, hostClassLoader, classPreloadFlags);
-
-			if(fieldClass!=nullptr)
-			{
-				std::cerr<<"successfully retrieved class from field signature: "<< (char *)fieldSignatureBH <<"\n";	
-				std::cerr<<"INSTANCE SIZE OF FIELD: "<<fieldClass->totalInstanceSize<<"\n";
-
-				if(std::regex_search(reinterpret_cast<const char*>((char *)fieldSignatureBH), prefix_regex3))
-				{
-					if(J9_ARE_ALL_BITS_SET(modifiers, J9FieldFlagIsNullRestricted))
-					{
-						//std::cerr<<"un-setting null restricted flags\n";
-						//fieldBH->modifiers |= ~J9FieldFlagIsNullRestricted;
-						//fieldClass->romClass->modifiers |= ~J9FieldFlagIsNullRestricted;	
-					}
-				}
-				std::cerr<<"\n";
-			}
-		}
-
-		fieldBH = romFieldsNextDo(&fieldWalkStateBH);
-	}*/
-
-	// ------------------------------------------------------------------------------------------------
 	
 #endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
 	if (!loadSuperClassAndInterfaces(vmThread, hostClassLoader, romClass, options, elementClass, hotswapping, classPreloadFlags, &superclass, module)

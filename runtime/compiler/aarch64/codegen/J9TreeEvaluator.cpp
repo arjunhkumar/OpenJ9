@@ -3318,6 +3318,8 @@ J9::ARM64::TreeEvaluator::VMnewEvaluator(TR::Node *node, TR::CodeGenerator *cg)
    TR::Compilation * comp = cg->comp();
    TR_J9VMBase *fej9 = cg->fej9();
 
+   cg->generateDebugCounter("TestDebugCounterBH", 1, TR::DebugCounter::Free);
+
    bool generateArraylets = comp->generateArraylets();
 
    if (comp->suppressAllocationInlining() || TR::TreeEvaluator::requireHelperCallValueTypeAllocation(node, cg))

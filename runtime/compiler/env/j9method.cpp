@@ -65,6 +65,8 @@
 #include "ras/DebugCounter.hpp"
 #include "env/JSR292Methods.h"
 #include "control/MethodToBeCompiled.hpp"
+//inliningjclclasses
+#include<iostream>
 
 
 #if defined(_MSC_VER)
@@ -7350,6 +7352,14 @@ TR_ResolvedJ9Method::fieldAttributes(TR::Compilation * comp, I_32 cpIndex, U_32 
    bool isNullRestrictedField = isFieldNullRestricted(comp, cpIndex, false /* isStatic */, true /* isStore */);
    //Instance fields in MethodHandle thunks should be resolved at compile time
    bool isMethodHandleThunk = comp->ilGenRequest().details().isMethodHandleThunk() || this->isArchetypeSpecimen();
+
+   if(isNullRestrictedField)
+   {
+	   //inliningjclclasses
+	   std::cerr<<"forcing early resolution for ";
+	   std::cerr.write(reinterpret_cast<const char*>(J9ROMCLASS_CLASSNAME(ramMethod()->constantPool->ramClass->romClass)->data), J9ROMCLASS_CLASSNAME(ramMethod()->constantPool->ramClass->romClass)->length);
+	   std::cerr<<"\n";
+   }
    bool doRuntimeResolveForEarlyCompilation = isUnresolvedInCP && isColdOrReducedWarm && !isMethodHandleThunk && !isNullRestrictedField;
 
    IDATA offset;

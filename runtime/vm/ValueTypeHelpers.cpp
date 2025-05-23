@@ -26,6 +26,8 @@
 #include "ut_j9vm.h"
 #include "ObjectAccessBarrierAPI.hpp"
 #include "vm_api.h"
+//inliningjclclasses
+#include<iostream>
 
 extern "C" {
 
@@ -191,6 +193,16 @@ getFlattenableFieldType(J9Class *fieldOwner, J9ROMFieldShape *field)
         J9FlattenedClassCache *flattenedClassCache = fieldOwner->flattenedClassCache;
         J9ROMNameAndSignature *nameAndSig = &field->nameAndSignature;
         UDATA fieldIndex = findIndexInFlattenedClassCache(flattenedClassCache, nameAndSig);
+	//inliningjclclasses
+	if(UDATA_MAX == fieldIndex)
+	{
+		//std::cerr<<J9ROMFIELDSHAPE_SIGNATURE(field)->data<<" was not found in the flattened class cache!\n";
+		std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_SIGNATURE(field)->data), J9ROMFIELDSHAPE_SIGNATURE(field)->length);
+		std::cerr << " ";
+		std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_NAME(field)->data), J9ROMFIELDSHAPE_NAME(field)->length);
+		std::cerr << " is missing in J9FlattenedClassCache, containing class is ";
+		std::cerr.write(reinterpret_cast<const char*>(J9ROMCLASS_CLASSNAME(fieldOwner->romClass)->data), J9ROMCLASS_CLASSNAME(fieldOwner->romClass)->length);
+	}
         Assert_VM_unequal(UDATA_MAX, fieldIndex);
         J9Class * fieldType = J9_VM_FCC_CLASS_FROM_ENTRY(J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, fieldIndex));
 

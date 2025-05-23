@@ -950,6 +950,9 @@ class RecordComponentIterator
 		return std::regex_search(reinterpret_cast<const char*>(descriptor), prefix_regex);
 	}
 
+	
+	bool markClassAsImplicitlyConstructibleBH(std::string classTypeDescriptor);
+
 	bool markFieldAsNullRestrictedBH(std::string containerTypeDescriptor, std::string fieldTypeDescriptor, std::string fieldNameDescriptor);
 
 	void filterValueFieldsBasedOnCacheSize();

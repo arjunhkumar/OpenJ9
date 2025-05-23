@@ -43,6 +43,7 @@
 #include<string>
 #include<vector>
 #include<utility>
+#include<climits>
 
 /* The array entries must be in same order as the enums in ClassFileOracle.hpp */
 ClassFileOracle::KnownAnnotation ClassFileOracle::_knownAnnotations[] = {
@@ -204,7 +205,7 @@ ClassFileOracle::readFieldSizesFromExternalFileBH()
 void
 ClassFileOracle::readFieldsFromExternalFileBH()
 {
-	std::cerr<<"READING FROM EXTERNAL FILE\n";
+	std::cerr<<"READING FROM EXTERNAL FILE \n";
 	std::ifstream inputFile("toBeInlined.txt");
 	std::string line;
 
@@ -232,6 +233,11 @@ ClassFileOracle::readFieldsFromExternalFileBH()
 
 		}
 
+		if(numOfFields >= 0)
+		{
+			doNotInlineAnywhere[tempDescriptor] = false;
+		}
+
 		if(numOfFields>=0)
 		{
 			// 0 means inlinine everywhere (handled in the markFieldAsNullRestricted function)
@@ -255,7 +261,7 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 	int totalSizeOfFieldsSoFar = 0;
 	int sizeWithoutInlining = 0;
 	int sizeOfSRP = sizeof(J9SRP);
-	int sizeOfHeader = 12;
+	int sizeOfHeader = 8;
 	bool exceededCacheSizeFlag = false;
 
 	U_8 *classTypeDesc = this->getUTF8Data(this->getClassNameIndex());
@@ -283,21 +289,69 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 
 		std::pair<std::string, std::string> tempPair(classDescStr, fieldNameString);
 		
-		//std::cerr<<"searching field "<< descriptorString <<" in the map\n";
-		if(fieldSignatureToInstanceSizeMapBH.find(descriptorString) != fieldSignatureToInstanceSizeMapBH.end())
+		//markNullRestricted for this VM run represents the fields SELECTED for inlining by our scheme
+		//We see if a field fits within the cache limit only once we are sure we want to inline it
+		//If we are sure to inline it, we get its size from fieldSignatureToInstanceSizeMapBH
+		//if(fieldSignatureToInstanceSizeMapBH.find(descriptorString) != fieldSignatureToInstanceSizeMapBH.end())
+		if(markNullRestricted.find(descriptorString) != markNullRestricted.end())
 		{
 			//std::cerr<<"found field descriptor in the signatureToInstanceSizeMapp...\n";
+			int size = INT_MIN; // if we don't find the size of this type in the input, we don't try to remove it from the inlining map
+			if(fieldSignatureToInstanceSizeMapBH.find(descriptorString) != fieldSignatureToInstanceSizeMapBH.end())
+			{
+				size = fieldSignatureToInstanceSizeMapBH[descriptorString];
+			}else{
 
-			int size = fieldSignatureToInstanceSizeMapBH[descriptorString];
+				std::cerr<<"field there in markNullRestricted but not in fieldClassSizesMap"<<descriptorString<<"\n";
+			}
+
+			// if this field's type is in "inline everything" mode (there's a zero against its type in toBeInlined.txt), 
+			// we inline it whether it fits or not.
+			// Currently this is handled by the fact that, in the condition that it does not fit, we remove it iff we find that
+			// field inside nullRestrictedMap.second, and this won't be possible since that vector will be empty for a type which 
+			// is in "inlined everything" mode
+			// TODO: Improve the above described code so that it's not so inelegant
+
 			// check and see if we have the budget to inline this
 			if(size < (twiceCacheLineSize - totalSizeOfFieldsSoFar + sizeOfSRP)) // added sizeOfSRP beacause we'll be replacing SRP with the inlined obj
 			{
-				std::cerr<<"preparing the following field for inlining: "<<descriptorString<<"\n";
-				totalSizeOfFieldsSoFar += (size - sizeOfSRP); // replace it's SRP with the corresponding inlined object's size	
+				bool isPresentInToBeInlined = false;
+
+				// check if field is present in toBeInlined.txt (markNullRestricted data structure here)
+				for(auto& ele : markNullRestricted)
+				{
+					// if this is in "inline everything" mode, set isPresentInToBeInlined to true
+					if((descriptorString.compare(ele.first) == 0)&&(ele.second.size() == 0))
+					{
+						if(!doNotInlineAnywhere[descriptorString])
+						{
+							std::cerr<<"field is in inline everything mode and passes cache check\n";
+							isPresentInToBeInlined = true;
+						}
+					}
+
+					for(auto &pairEle : ele.second)
+					{
+						if((descriptorString.compare(ele.first) == 0) // compare field type
+						&&(fieldNameString.compare(pairEle.second) == 0) // compare field name
+						&&(classDescStr.compare(pairEle.first) == 0)) // compare container type
+						{
+							std::cerr<<"field is present in selective inlining list and passes cache check\n";
+							isPresentInToBeInlined = true;
+						}
+					}
+				}
+
+				if(isPresentInToBeInlined)
+				{
+					std::cerr<<"preparing the following field for inlining: "<<descriptorString<<"\n";
+					totalSizeOfFieldsSoFar += (size - sizeOfSRP); // replace it's SRP with the corresponding inlined object's size	
+					std::cerr<<(static_cast<int>(this->getFieldsCount()))<<" fields with twice cache size = "<< twiceCacheLineSize<<" with total size so far: "<<totalSizeOfFieldsSoFar;
+					std::cerr<<", Container is: "<<classDescStr<<"\n";	
+				}
 			}else{
-				// if we cannot inline this, we must remove this from the map, 
+				// if we do not have the budget to inline this, but if this is present in the markNullRestricted map, we must remove it from the map, 
 				// and if all fields of this type get removed, we must also set doNotInlineAnywhere[fieldTypeDescriptor]
-				std::cerr<<"removing the following field from to-be-nullrestricted list: "<<descriptorString<<"\n";	
 				for(auto& ele : markNullRestricted)
 				{
 					bool found = 0;
@@ -305,11 +359,18 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 					{
 						if((descriptorString.compare(ele.first) == 0) && (tempPair.first.compare((*it).first) == 0 ) && (tempPair.second.compare((*it).second) == 0 )){
 							//std::cerr<<"found field in map of type: "<<descriptorString<<"\n";
+							
+							std::cerr<<"removing the following field from to-be-nullrestricted list: "<<descriptorString<<" "<<fieldNameString<<" within "<<classDescStr<<"  exceding tolerable size\n";	
+							std::cerr<<(static_cast<int>(this->getFieldsCount()))<<" fields with twice cache size = "<< twiceCacheLineSize<<"\n";
 							it = ele.second.erase(it);
 							found = 1;
 							if(ele.second.size() == 0)
 							{
-								if(doNotInlineAnywhere.find(descriptorString) == doNotInlineAnywhere.end())
+								if((doNotInlineAnywhere.find(descriptorString) == doNotInlineAnywhere.end()))
+								{
+									std::cerr<<"setting doNotInlineAnywhere: ("<<descriptorString<<", "<<fieldNameString<<")\n";
+									doNotInlineAnywhere[descriptorString] = true;	
+								}else if(doNotInlineAnywhere[descriptorString] == false)
 								{
 									std::cerr<<"setting doNotInlineAnywhere: ("<<descriptorString<<", "<<fieldNameString<<")\n";
 									doNotInlineAnywhere[descriptorString] = true;	
@@ -332,6 +393,70 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 
 		iterator.next();
 	}
+
+}
+
+//inliningjclclasses
+bool
+ClassFileOracle::markClassAsImplicitlyConstructibleBH(std::string classTypeDescriptor)
+{
+
+	bool found = 0;
+	if(!externalFileHasBeenReadBH())
+	{
+		// reading which fields to potentially mark as null restricted
+		_hasExternalFileBeenReadBH = true;
+		_fieldSizesHaveBeenReadBH = true;
+		// reading field sizes for all inlineable fields
+		readFieldsFromExternalFileBH();
+		readFieldSizesFromExternalFileBH();
+	}
+
+
+	if(!filteredBasedOnCacheSizeBH())
+	{
+		_filteredBasedOnCacheSizeBH = true;
+		filterValueFieldsBasedOnCacheSize();
+	}
+
+
+	for(const auto& element : markNullRestricted)
+	{
+		std::string decoratedTypeDesc = element.first;
+		std::regex rgx("[\[]*L(([a-z_/])*[A-Z][a-zA-Z_0-9]*);");
+		std::smatch match;
+
+		if (std::regex_search(decoratedTypeDesc, match, rgx)){
+
+			if(match[1].str() == (classTypeDescriptor))
+			{
+				if(doNotInlineAnywhere[decoratedTypeDesc])
+				{
+					if(J9_ARE_ALL_BITS_SET(_classFile->accessFlags, J9AccAbstract))
+					{
+						// if this is a value type class (present in markNullRestricted's first column),
+						// and is also abstract, mark as implicitlyConstructible 
+						// even if no fields are marked as null restricted (i.e. there's a -1)
+
+						std::cerr<<"RETURNING TRUE FOR MARKING (doNotInlineAnywhere, abstract) "<<classTypeDescriptor<<" AS Implicitly Constructible\n";
+						return true;
+					}else{
+
+						// any value class which isn't marked as null restricted anywhere doesn't need implicit creation
+						std::cerr<<"RETURNING FALSE FOR MARKING (doNotInlineAnywhere) "<<classTypeDescriptor<<" AS Implicitly Constructible\n";
+						return false;
+					}
+				}else{
+
+					std::cerr<<"RETURNING TRUE FOR MARKING (doNotInlineAnywhere) "<<classTypeDescriptor<<" AS Implicitly Constructible\n";
+					return true;
+				}
+			}
+		}
+
+	}
+
+	return false;
 
 }
 
@@ -673,8 +798,8 @@ ClassFileOracle::walkFields()
 
 		if((markFieldAsNullRestrictedBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex()))),
 						cleanU8String(this->getUTF8Data(field->descriptorIndex), (UDATA)(this->getUTF8Length(field->descriptorIndex))),
-						cleanU8String(this->getUTF8Data(field->nameIndex), (UDATA)(this->getUTF8Length(field->nameIndex)))) 
-						&& !isLibraryClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex()))))))
+						cleanU8String(this->getUTF8Data(field->nameIndex), (UDATA)(this->getUTF8Length(field->nameIndex))))))
+						//&& !isLibraryClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex()))))))
 		{
 			std::cerr<<"FLATTENABLE IN A NON LIBRARY CLASS, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
 			_fieldsInfo[fieldIndex].isNullRestricted = true;
@@ -826,9 +951,10 @@ ClassFileOracle::walkAttributes()
 	ROMClassVerbosePhase v(_context, ClassFileAttributesAnalysis);
 
 	//inliningjclclasses: if we want this class to be inlined, implicit creation flags must be turned on
-	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
+	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))) 
+			&& markClassAsImplicitlyConstructibleBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
 	{
-		std::cerr<<"SETTING IMPLICITCREATEHASDEFAULTVALUE IN CLASS: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+		std::cerr<<"SETTING IMPLICITCREATEHASDEFAULTVALUE IN CLASS: "<< cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))<<"\n";
 		_hasImplicitCreationAttribute = true;
 		_implicitCreationFlags |= J9AccImplicitCreateHasDefaultValue;
 	}
@@ -836,7 +962,7 @@ ClassFileOracle::walkAttributes()
 	// "value" is determined by a lack of identity flag in the current openj9 version
 	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
 	{
-		std::cerr<<"TURNING OFF IDENTITY IN CLASS: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+		std::cerr<<"TURNING OFF IDENTITY IN CLASS: "<< cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))<<"\n";
 		//(_classFile->accessFlags) &= ~CFR_ACC_IDENTITY;
 		(_classFile->accessFlags) &= ~J9AccClassHasIdentity;
 		(_classFile->accessFlags) &= ~J9AccInterface;
@@ -845,7 +971,7 @@ ClassFileOracle::walkAttributes()
 	// inliningjclclasses: setting the right classfile version:
 	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()),(UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
 	{
-		std::cerr<<"SETTING RIGHT VERSION IN CLASSFILE: "<< ((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+		std::cerr<<"SETTING RIGHT VERSION IN CLASSFILE: "<< cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))<<"\n";
 		std::cerr<<"MAJOR VERSION: "<<_classFile->majorVersion<<", MINOR VERSION: "<< _classFile->minorVersion << "\n";
 		//_classFile->majorVersion = 68;
 		_classFile->minorVersion = 65535;

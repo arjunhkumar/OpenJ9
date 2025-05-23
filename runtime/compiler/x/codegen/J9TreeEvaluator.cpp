@@ -1428,6 +1428,8 @@ TR::Register *J9::X86::TreeEvaluator::newEvaluator(TR::Node *node, TR::CodeGener
    TR::Compilation *comp = cg->comp();
    TR::Register *targetRegister = NULL;
 
+   //cg->generateDebugCounter("TestDebugCounterBH", 1, TR::DebugCounter::Free);
+
    if (TR::TreeEvaluator::requireHelperCallValueTypeAllocation(node, cg))
       {
       TR_OpaqueClassBlock *classInfo;
