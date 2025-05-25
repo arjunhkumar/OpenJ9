@@ -727,7 +727,7 @@ J9AllocateIndexableObject(J9VMThread *vmThread, J9Class *clazz, uint32_t numberO
 		auto tempBH = elementClass->flattenedClassCache;
 
 		//j9object_t defaultValue = elementClass->flattenedClassCache->defaultValue;
-		std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR NINE"<<"\n";
+		//std::cerr<<"INSIDE J9ALLOCATEINDEXABLEOBJECT : FOUR NINE"<<"\n";
 
 		//inliningjclclasses if condition for error check
 		if(tempBH == NULL)

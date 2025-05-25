@@ -594,7 +594,7 @@ ROMClassBuilder::prepareAndLaydown( BufferManager *bufferManager, ClassFileParse
 		//(_classFile->accessFlags) &= ~CFR_ACC_IDENTITY;
 		if(!J9_ARE_ALL_BITS_SET(modifiers, CFR_ACC_IDENTITY))
 		{
-			std::cout<<"THE FOLLOWING CLASS HAS NO IDENTITY IN ROMCLASSBUILDER: "<< ((char *)(classFileOracle.getUTF8Data(classFileOracle.getClassNameIndex())))<<"\n";
+			//std::cout<<"THE FOLLOWING CLASS HAS NO IDENTITY IN ROMCLASSBUILDER: "<< ((char *)(classFileOracle.getUTF8Data(classFileOracle.getClassNameIndex())))<<"\n";
 		}
 	}
 

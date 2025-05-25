@@ -7353,13 +7353,13 @@ TR_ResolvedJ9Method::fieldAttributes(TR::Compilation * comp, I_32 cpIndex, U_32 
    //Instance fields in MethodHandle thunks should be resolved at compile time
    bool isMethodHandleThunk = comp->ilGenRequest().details().isMethodHandleThunk() || this->isArchetypeSpecimen();
 
-   if(isNullRestrictedField)
+   /*if(isNullRestrictedField)
    {
 	   //inliningjclclasses
 	   std::cerr<<"forcing early resolution for ";
 	   std::cerr.write(reinterpret_cast<const char*>(J9ROMCLASS_CLASSNAME(ramMethod()->constantPool->ramClass->romClass)->data), J9ROMCLASS_CLASSNAME(ramMethod()->constantPool->ramClass->romClass)->length);
 	   std::cerr<<"\n";
-   }
+   }*/
    bool doRuntimeResolveForEarlyCompilation = isUnresolvedInCP && isColdOrReducedWarm && !isMethodHandleThunk && !isNullRestrictedField;
 
    IDATA offset;

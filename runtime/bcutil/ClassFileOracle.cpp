@@ -181,7 +181,7 @@ void
 ClassFileOracle::readFieldSizesFromExternalFileBH()
 {
 
-	std::cerr<<"Reading Field Sizes from external file\n";
+	//std::cerr<<"Reading Field Sizes from external file\n";
 	std::ifstream inputFile("fieldClassSizesInput.txt");
 	std::string line;
 
@@ -205,7 +205,7 @@ ClassFileOracle::readFieldSizesFromExternalFileBH()
 void
 ClassFileOracle::readFieldsFromExternalFileBH()
 {
-	std::cerr<<"READING FROM EXTERNAL FILE \n";
+	//std::cerr<<"READING FROM EXTERNAL FILE \n";
 	std::ifstream inputFile("toBeInlined.txt");
 	std::string line;
 
@@ -302,7 +302,7 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 				size = fieldSignatureToInstanceSizeMapBH[descriptorString];
 			}else{
 
-				std::cerr<<"field there in markNullRestricted but not in fieldClassSizesMap"<<descriptorString<<"\n";
+				//std::cerr<<"field there in markNullRestricted but not in fieldClassSizesMap"<<descriptorString<<"\n";
 			}
 
 			// if this field's type is in "inline everything" mode (there's a zero against its type in toBeInlined.txt), 
@@ -325,7 +325,7 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 					{
 						if(!doNotInlineAnywhere[descriptorString])
 						{
-							std::cerr<<"field is in inline everything mode and passes cache check\n";
+							//std::cerr<<"field is in inline everything mode and passes cache check\n";
 							isPresentInToBeInlined = true;
 						}
 					}
@@ -336,7 +336,7 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 						&&(fieldNameString.compare(pairEle.second) == 0) // compare field name
 						&&(classDescStr.compare(pairEle.first) == 0)) // compare container type
 						{
-							std::cerr<<"field is present in selective inlining list and passes cache check\n";
+							//std::cerr<<"field is present in selective inlining list and passes cache check\n";
 							isPresentInToBeInlined = true;
 						}
 					}
@@ -344,10 +344,10 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 
 				if(isPresentInToBeInlined)
 				{
-					std::cerr<<"preparing the following field for inlining: "<<descriptorString<<"\n";
+					//std::cerr<<"preparing the following field for inlining: "<<descriptorString<<"\n";
 					totalSizeOfFieldsSoFar += (size - sizeOfSRP); // replace it's SRP with the corresponding inlined object's size	
-					std::cerr<<(static_cast<int>(this->getFieldsCount()))<<" fields with twice cache size = "<< twiceCacheLineSize<<" with total size so far: "<<totalSizeOfFieldsSoFar;
-					std::cerr<<", Container is: "<<classDescStr<<"\n";	
+					//std::cerr<<(static_cast<int>(this->getFieldsCount()))<<" fields with twice cache size = "<< twiceCacheLineSize<<" with total size so far: "<<totalSizeOfFieldsSoFar;
+					//std::cerr<<", Container is: "<<classDescStr<<"\n";	
 				}
 			}else{
 				// if we do not have the budget to inline this, but if this is present in the markNullRestricted map, we must remove it from the map, 
@@ -360,19 +360,19 @@ ClassFileOracle::filterValueFieldsBasedOnCacheSize()
 						if((descriptorString.compare(ele.first) == 0) && (tempPair.first.compare((*it).first) == 0 ) && (tempPair.second.compare((*it).second) == 0 )){
 							//std::cerr<<"found field in map of type: "<<descriptorString<<"\n";
 							
-							std::cerr<<"removing the following field from to-be-nullrestricted list: "<<descriptorString<<" "<<fieldNameString<<" within "<<classDescStr<<"  exceding tolerable size\n";	
-							std::cerr<<(static_cast<int>(this->getFieldsCount()))<<" fields with twice cache size = "<< twiceCacheLineSize<<"\n";
+							//std::cerr<<"removing the following field from to-be-nullrestricted list: "<<descriptorString<<" "<<fieldNameString<<" within "<<classDescStr<<"  exceding tolerable size\n";	
+							//std::cerr<<(static_cast<int>(this->getFieldsCount()))<<" fields with twice cache size = "<< twiceCacheLineSize<<"\n";
 							it = ele.second.erase(it);
 							found = 1;
 							if(ele.second.size() == 0)
 							{
 								if((doNotInlineAnywhere.find(descriptorString) == doNotInlineAnywhere.end()))
 								{
-									std::cerr<<"setting doNotInlineAnywhere: ("<<descriptorString<<", "<<fieldNameString<<")\n";
+									//std::cerr<<"setting doNotInlineAnywhere: ("<<descriptorString<<", "<<fieldNameString<<")\n";
 									doNotInlineAnywhere[descriptorString] = true;	
 								}else if(doNotInlineAnywhere[descriptorString] == false)
 								{
-									std::cerr<<"setting doNotInlineAnywhere: ("<<descriptorString<<", "<<fieldNameString<<")\n";
+									//std::cerr<<"setting doNotInlineAnywhere: ("<<descriptorString<<", "<<fieldNameString<<")\n";
 									doNotInlineAnywhere[descriptorString] = true;	
 								}
 							}
@@ -438,17 +438,17 @@ ClassFileOracle::markClassAsImplicitlyConstructibleBH(std::string classTypeDescr
 						// and is also abstract, mark as implicitlyConstructible 
 						// even if no fields are marked as null restricted (i.e. there's a -1)
 
-						std::cerr<<"RETURNING TRUE FOR MARKING (doNotInlineAnywhere, abstract) "<<classTypeDescriptor<<" AS Implicitly Constructible\n";
+						//std::cerr<<"RETURNING TRUE FOR MARKING (doNotInlineAnywhere, abstract) "<<classTypeDescriptor<<" AS Implicitly Constructible\n";
 						return true;
 					}else{
 
 						// any value class which isn't marked as null restricted anywhere doesn't need implicit creation
-						std::cerr<<"RETURNING FALSE FOR MARKING (doNotInlineAnywhere) "<<classTypeDescriptor<<" AS Implicitly Constructible\n";
+						//std::cerr<<"RETURNING FALSE FOR MARKING (doNotInlineAnywhere) "<<classTypeDescriptor<<" AS Implicitly Constructible\n";
 						return false;
 					}
 				}else{
 
-					std::cerr<<"RETURNING TRUE FOR MARKING (doNotInlineAnywhere) "<<classTypeDescriptor<<" AS Implicitly Constructible\n";
+					//std::cerr<<"RETURNING TRUE FOR MARKING (doNotInlineAnywhere) "<<classTypeDescriptor<<" AS Implicitly Constructible\n";
 					return true;
 				}
 			}
@@ -503,10 +503,10 @@ ClassFileOracle::markFieldAsNullRestrictedBH(std::string containerTypeDescriptor
 		// to check that we check doNotInlineAnywhere
 		if(doNotInlineAnywhere[fieldTypeDescriptor])
 		{
-			std::cerr<<"RETURNING FALSE FOR MARKING doNotInlineAnywhere "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
+			//std::cerr<<"RETURNING FALSE FOR MARKING doNotInlineAnywhere "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
 			return false;
 		}else{
-			std::cerr<<"RETURNING TRUE FOR MARKING ddoNotInlineAnywhere "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
+			//std::cerr<<"RETURNING TRUE FOR MARKING ddoNotInlineAnywhere "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
 			return true;
 
 		}
@@ -516,7 +516,7 @@ ClassFileOracle::markFieldAsNullRestrictedBH(std::string containerTypeDescriptor
 	{
 		std::pair<std::string, std::string> tempPair(containerDesc, fieldNameDesc);
 		if(markNullRestricted[fieldTypeDescriptor][i] == tempPair){
-			std::cerr<<"RETURNING TRUE FOR MARKING "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
+			//std::cerr<<"RETURNING TRUE FOR MARKING "<<fieldTypeDescriptor<<" AS NULL RESTRICTED\n";
 			return true;
 		}
 	}
@@ -801,10 +801,10 @@ ClassFileOracle::walkFields()
 						cleanU8String(this->getUTF8Data(field->nameIndex), (UDATA)(this->getUTF8Length(field->nameIndex))))))
 						//&& !isLibraryClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex()))))))
 		{
-			std::cerr<<"FLATTENABLE IN A NON LIBRARY CLASS, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
+			//std::cerr<<"FLATTENABLE IN A NON LIBRARY CLASS, CONTAINING CLASS IS: "<<((char *)(this->getUTF8Data(this->getClassNameIndex())))<<"\n";
 			_fieldsInfo[fieldIndex].isNullRestricted = true;
 		
-			std::cerr<<"FIELD DESCRIPTOR: "<<((char *)(this->getUTF8Data(field->descriptorIndex)))<<", AND FIELD VARIABLE NAME: "<<((char *)(this->getUTF8Data(field->nameIndex)))<<"\n";
+			//std::cerr<<"FIELD DESCRIPTOR: "<<((char *)(this->getUTF8Data(field->descriptorIndex)))<<", AND FIELD VARIABLE NAME: "<<((char *)(this->getUTF8Data(field->nameIndex)))<<"\n";
 
 		}else{
 			/*if(isLibraryClassBH((char *)(this->getUTF8Data(this->getClassNameIndex()))))
@@ -954,7 +954,7 @@ ClassFileOracle::walkAttributes()
 	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))) 
 			&& markClassAsImplicitlyConstructibleBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
 	{
-		std::cerr<<"SETTING IMPLICITCREATEHASDEFAULTVALUE IN CLASS: "<< cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))<<"\n";
+		//std::cerr<<"SETTING IMPLICITCREATEHASDEFAULTVALUE IN CLASS: "<< cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))<<"\n";
 		_hasImplicitCreationAttribute = true;
 		_implicitCreationFlags |= J9AccImplicitCreateHasDefaultValue;
 	}
@@ -962,7 +962,7 @@ ClassFileOracle::walkAttributes()
 	// "value" is determined by a lack of identity flag in the current openj9 version
 	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
 	{
-		std::cerr<<"TURNING OFF IDENTITY IN CLASS: "<< cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))<<"\n";
+		//std::cerr<<"TURNING OFF IDENTITY IN CLASS: "<< cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))<<"\n";
 		//(_classFile->accessFlags) &= ~CFR_ACC_IDENTITY;
 		(_classFile->accessFlags) &= ~J9AccClassHasIdentity;
 		(_classFile->accessFlags) &= ~J9AccInterface;
@@ -971,8 +971,8 @@ ClassFileOracle::walkAttributes()
 	// inliningjclclasses: setting the right classfile version:
 	if(isFlattenablePrimitiveClassBH(cleanU8String(this->getUTF8Data(this->getClassNameIndex()),(UDATA)(this->getUTF8Length(this->getClassNameIndex())))))
 	{
-		std::cerr<<"SETTING RIGHT VERSION IN CLASSFILE: "<< cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))<<"\n";
-		std::cerr<<"MAJOR VERSION: "<<_classFile->majorVersion<<", MINOR VERSION: "<< _classFile->minorVersion << "\n";
+		//std::cerr<<"SETTING RIGHT VERSION IN CLASSFILE: "<< cleanU8String(this->getUTF8Data(this->getClassNameIndex()), (UDATA)(this->getUTF8Length(this->getClassNameIndex())))<<"\n";
+		//std::cerr<<"MAJOR VERSION: "<<_classFile->majorVersion<<", MINOR VERSION: "<< _classFile->minorVersion << "\n";
 		//_classFile->majorVersion = 68;
 		_classFile->minorVersion = 65535;
 	}

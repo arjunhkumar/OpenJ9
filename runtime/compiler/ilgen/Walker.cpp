@@ -6853,7 +6853,7 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
    if (owningMethod->isFieldNullRestricted(comp(), cpIndex, false /* isStatic */, true /* isStore */))
       {
 	      //inliningjclclasses
-	      std::cerr<<"about to call isFieldFlattened in Walker.cpp\n";
+	      //std::cerr<<"about to call isFieldFlattened in Walker.cpp\n";
       if (!isFieldResolved(comp(), owningMethod, cpIndex, true))
          {
          abortForUnresolvedValueTypeOp("putfield", "field");
@@ -6861,7 +6861,7 @@ TR_J9ByteCodeIlGenerator::storeInstance(int32_t cpIndex)
       else if (owningMethod->isFieldFlattened(comp(), cpIndex, false /* isStatic */))
          {
 		 //inliningjclclasses
-	      std::cerr<<"call to isFieldFlattened successful in Walker.cpp\n";
+	      //std::cerr<<"call to isFieldFlattened successful in Walker.cpp\n";
          return comp()->getOption(TR_UseFlattenedFieldRuntimeHelpers) ?
                   storeFlattenableInstanceWithHelper(cpIndex) :
                   storeFlattenableInstance(cpIndex);

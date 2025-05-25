@@ -2035,10 +2035,10 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 				if (J9_ARE_ALL_BITS_SET(modifiers, J9FieldFlagIsNullRestricted)){// && !std::regex_search(reinterpret_cast<const char*>((char *)signatureChars), prefix_regex3)) {
 					J9Class *valueClass = internalFindClassUTF8(currentThread, signatureChars + 1, signatureLength - 2, classLoader, classPreloadFlags);
 					if (NULL == valueClass) {
-						std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_SIGNATURE(field)->data), J9ROMFIELDSHAPE_SIGNATURE(field)->length);
+						/*std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_SIGNATURE(field)->data), J9ROMFIELDSHAPE_SIGNATURE(field)->length);
 						std::cerr<<" ";
 						std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_NAME(field)->data), J9ROMFIELDSHAPE_NAME(field)->length);
-						std::cerr<<"	could not be loaded in loadFlattenableFieldValueClasses\n";
+						std::cerr<<"	could not be loaded in loadFlattenableFieldValueClasses\n";*/
 						result = FALSE;
 						goto done;
 					} else {
@@ -2050,36 +2050,36 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 						*/
 						if(!J9_IS_CLASSFILE_OR_ROMCLASS_VALUETYPE_VERSION(valueROMClass)){
 							//inliningjclclasses : getting and printing name of this romclass
-							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"	THIS CLASS IS NULL RESTRICTED BUT NOT VALUETYPE_VERSION: ";
+							//J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							/*std::cerr<<"	THIS CLASS IS NULL RESTRICTED BUT NOT VALUETYPE_VERSION: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
-							std::cerr << std::endl;
+							std::cerr << std::endl;*/
 						}
 						if(!J9ROMCLASS_IS_VALUE(valueROMClass))
 						{
 							//inliningjclclasses : getting and printing name of this romclass
-							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT IS VALUE: ";
+							//J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							/*std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT IS VALUE: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
-							std::cerr << std::endl;
+							std::cerr << std::endl;*/
 						}
 
 						if(J9_ARE_NO_BITS_SET(valueROMClass->optionalFlags, J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE))
 						{
 							//inliningjclclasses : getting and printing name of this romclass
-							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE: ";
+							//J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							/*std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT J9_ROMCLASS_OPTINFO_IMPLICITCREATION_ATTRIBUTE: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
-							std::cerr << std::endl;
+							std::cerr << std::endl;*/
 						}
 
 						if(J9_ARE_NO_BITS_SET(getImplicitCreationFlags(valueROMClass), J9AccImplicitCreateHasDefaultValue))
 						{
 							//inliningjclclasses : getting and printing name of this romclass
-							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT J9AccImplicitCreateHasDefaultValue: ";
+							//J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							/*std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT J9AccImplicitCreateHasDefaultValue: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
-							std::cerr << std::endl;
+							std::cerr << std::endl;*/
 						}
 
 						if (!J9ROMCLASS_IS_VALUE(valueROMClass)
@@ -2093,10 +2093,10 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 
 						if (!J9_IS_FIELD_FLATTENED(valueClass, field)) {
 							//inliningjclclasses : getting name of this romclass
-							J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
-							std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT J9_IS_FIELD_FLATTENED WITHIN THE CONTAINER CLASS: ";
+							//J9UTF8 *classNameStructBH = J9ROMCLASS_CLASSNAME(valueROMClass);
+							/*std::cerr<<"	THIS CLASS IS NULL RESTRICTED, BUT NOT J9_IS_FIELD_FLATTENED WITHIN THE CONTAINER CLASS: ";
 							std::cerr.write(reinterpret_cast<const char*>(classNameStructBH->data), classNameStructBH->length);
-							std::cerr << std::endl;
+							std::cerr << std::endl;*/
 
 							*valueTypeFlags |= (J9ClassContainsUnflattenedFlattenables | J9ClassHasReferences);
 							eligibleForFastSubstitutability = false;
@@ -2104,13 +2104,13 @@ loadFlattenableFieldValueClasses(J9VMThread *currentThread, J9ClassLoader *class
 							eligibleForFastSubstitutability = false;
 						}
 
-						std::cerr<<" 	adding ";
+						/*std::cerr<<" 	adding ";
 						std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_SIGNATURE(field)->data), J9ROMFIELDSHAPE_SIGNATURE(field)->length);
 						std::cerr<<" ";
 						std::cerr.write(reinterpret_cast<const char*>(J9ROMFIELDSHAPE_NAME(field)->data), J9ROMFIELDSHAPE_NAME(field)->length);
 						std::cerr<<" to the flattened class cache; containing class is ";
 						std::cerr.write(reinterpret_cast<const char*>(J9ROMCLASS_CLASSNAME(romClass)->data), J9ROMCLASS_CLASSNAME(romClass)->length);
-						std::cerr<<"\n";
+						std::cerr<<"\n";*/
 
 						J9FlattenedClassCacheEntry *entry = J9_VM_FCC_ENTRY_FROM_FCC(flattenedClassCache, flattenableFieldCount);
 						entry->clazz = valueClass;
@@ -3878,17 +3878,17 @@ retry:
 
 							if(fieldClass!=nullptr)
 							{
-								std::cerr<<"successfully retrieved class from field signature: "<< (char *)fieldSignatureBH <<"\n";	
-								std::cerr<<"INSTANCE SIZE OF FIELD: "<<fieldClass->totalInstanceSize<<"\n";
+								//std::cerr<<"successfully retrieved class from field signature: "<< (char *)fieldSignatureBH <<"\n";	
+								//std::cerr<<"INSTANCE SIZE OF FIELD: "<<fieldClass->totalInstanceSize<<"\n";
 								int fieldClassInstanceSize = fieldClass->totalInstanceSize;
 								valueTypeFieldsSizesBH[ele.first] = fieldClassInstanceSize;
 
 								outFileBH << ele.first << " " << fieldClassInstanceSize << "\n";
 							}else{
-								std::cerr<<"internalFindClassUTF8 returned null for field "<< (char *)fieldSignatureBH <<"\n";
+								//std::cerr<<"internalFindClassUTF8 returned null for field "<< (char *)fieldSignatureBH <<"\n";
 							}
 						}else{
-							std::cerr<<"size already marked for "<<(char *)fieldSignatureBH<<"\n";
+							//std::cerr<<"size already marked for "<<(char *)fieldSignatureBH<<"\n";
 						}
 						break;
 					}
