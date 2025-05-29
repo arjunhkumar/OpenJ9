@@ -156,8 +156,8 @@ typedef struct J9OverrideErrorData {
 
 //inliningjclclasses -----------------------
 std::string cleanU8String(const U_8* u8str, UDATA length);
-static void readFieldsFromExternalFileBH(std::map<std::string, int> &fieldNameToSizeMap);
-static std::string trimBH(const std::string &str);
+//static void readFieldsFromExternalFileBH(std::map<std::string, int> &fieldNameToSizeMap);
+//static std::string trimBH(const std::string &str);
 // -----------------------------------------
 static J9Class* markInterfaces(J9ROMClass *romClass, J9Class *superclass, J9ClassLoader *classLoader, BOOLEAN *foundCloneable, UDATA *markedInterfaceCount, UDATA *inheritedInterfaceCount, IDATA *maxInterfaceDepth);
 static void unmarkInterfaces(J9Class *interfaceHead);
@@ -212,13 +212,13 @@ static void initializeClassLinks(J9Class *ramClass, J9Class *superclass, J9Memor
 #endif /* JAVA_SPEC_VERSION == 8 */
 
 
-std::string trimBH(const std::string& str) {
+/*std::string trimBH(const std::string& str) {
     size_t first = str.find_first_not_of(" \t\n\r\f\v");
     if (first == std::string::npos) return ""; // If all spaces, return empty string
     
     size_t last = str.find_last_not_of(" \t\n\r\f\v");
     return str.substr(first, last - first + 1);
-}
+}*/
 
 std::string cleanU8String(const U_8* u8str, UDATA length) {
     std::string result;
@@ -230,7 +230,7 @@ std::string cleanU8String(const U_8* u8str, UDATA length) {
     return result;
 }
 
-static void 
+/*static void 
 readFieldsFromExternalFileBH(std::map<std::string, int> &fieldNameToSizeMap)
 {
 	std::ifstream inputFile("toBeInlined.txt");
@@ -253,7 +253,7 @@ readFieldsFromExternalFileBH(std::map<std::string, int> &fieldNameToSizeMap)
 		continue; 
 
 	}
-}
+}*/
 
 
 
@@ -3691,13 +3691,13 @@ internalCreateRAMClassFromROMClass(J9VMThread *vmThread, J9ClassLoader *classLoa
 
 
 	//inliningjclclasses -------------------------
-	J9ROMFieldWalkState fieldWalkStateBH = {0};
+	/*J9ROMFieldWalkState fieldWalkStateBH = {0};
 	J9ROMFieldShape *fieldBH = romFieldsStartDo(romClass, &fieldWalkStateBH);
 	const std::regex prefix_regex_container(R"(^Container)");
 	static std::map<std::string, int> valueTypeFieldsSizesBH;
 	static bool hasExternalFileBeenReadBH = false;
 	static const std::regex prefix_regex_library(R"(^(\[*L)?(?:java/|sun/|javax/|com/sun/|org/omg/|org/xml/|org/w3c/dom/|openj9/internal/|build/|jdk/|com/))");
-	std::ofstream outFileBH("fieldClassSizes.txt", std::ios::app);
+	std::ofstream outFileBH("fieldClassSizes.txt", std::ios::app);*/
 	//--------------------------------------------
 
 	/* if elementClass is non-null then this is an array */
@@ -3712,12 +3712,12 @@ internalCreateRAMClassFromROMClass(J9VMThread *vmThread, J9ClassLoader *classLoa
 	className = J9ROMCLASS_CLASSNAME(romClass);
 	Trc_VM_CreateRAMClassFromROMClass_className(vmThread, romClass, J9UTF8_LENGTH(className), J9UTF8_DATA(className));
 	
-	U_8 *classNameBH = J9UTF8_DATA(className);
+	//U_8 *classNameBH = J9UTF8_DATA(className);
 	//inliningjclclasses -----------------------------
-	if(std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_container))
-	{
-		//std::cerr<<"gotten class name successfully\n";
-	}
+	//if(std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_container))
+	//{
+		////std::cerr<<"gotten class name successfully\n";
+	//}
 	//------------------------------------------------
 
 retry:
@@ -3838,7 +3838,7 @@ retry:
 	
 	// reading which fields to check sizes for from external file; if not done already
 	
-	if(!std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_library))
+	/*if(!std::regex_search(reinterpret_cast<const char*>((char *)classNameBH), prefix_regex_library))
 	{
 		//std::cerr<<"iterating fields to get their sizes in class "<<(char *)classNameBH<<"\n";
 		if(!hasExternalFileBeenReadBH)
@@ -3900,13 +3900,7 @@ retry:
 		}
 		outFileBH.close();
 
-		/*std::cerr<<"map contents: ";
-		for (const auto& field : valueTypeFieldsSizesBH) {
-			std::cerr << field.first << " -> " << field.second << ", ";
-		}
-
-		std::cerr<<"\n\n";*/
-	}
+	}*/
 	// ------------------------------------------
 	
 #endif /* defined(J9VM_OPT_VALHALLA_FLATTENABLE_VALUE_TYPES) */
